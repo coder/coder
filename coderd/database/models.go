@@ -2163,6 +2163,11 @@ type UserLink struct {
 	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
 }
 
+type UserPinnedWorkspace struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`

@@ -915,6 +915,11 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
 
+CREATE TABLE user_pinned_workspaces (
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL
+);
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
