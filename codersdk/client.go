@@ -336,6 +336,10 @@ func ExpectJSONMime(res *http.Response) error {
 
 // ReadBodyAsError reads the response as a codersdk.Response, and
 // wraps it in a codersdk.Error type for easy marshaling.
+//
+// This will always return an error, so only call it if the response failed
+// your expectations. Usually via status code checking.
+// nolint:staticcheck
 func ReadBodyAsError(res *http.Response) error {
 	if res == nil {
 		return xerrors.Errorf("no body returned")
