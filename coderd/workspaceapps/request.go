@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -63,7 +63,7 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
 		}
 
-		appHost := httpapi.ApplicationURL{
+		appHost := appurl.ApplicationURL{
 			Prefix:        r.AppRequest.Prefix,
 			AppSlugOrPort: r.AppRequest.AppSlugOrPort,
 			AgentName:     r.AppRequest.AgentNameOrID,

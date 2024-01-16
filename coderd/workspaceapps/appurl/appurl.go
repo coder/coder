@@ -1,4 +1,4 @@
-package httpapi
+package appurl
 
 import (
 	"fmt"
@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	// Remove the "starts with" and "ends with" regex components.
-	nameRegex = strings.Trim(UsernameValidRegex.String(), "^$")
+	// nameRegex is the same as our UsernameRegex without the ^ and $.
+	nameRegex = "[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*"
 	appURL    = regexp.MustCompile(fmt.Sprintf(
 		// {PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 		`^(?P<AppSlug>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
@@ -42,6 +42,14 @@ func (a ApplicationURL) String() string {
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.Username)
 	return appURL.String()
+}
+
+// Path is a helper function to get the url path of the app if it is not served
+// on a subdomain. In practice this is not really used because we use the chi
+// `{variable}` syntax to extract these parts. For testing purposes and for
+// completeness of this package, we include it.
+func (a ApplicationURL) Path() string {
+	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

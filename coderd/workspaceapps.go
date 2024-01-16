@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -169,7 +170,7 @@ func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts
 	}
 
 	if opts.AllowPrimaryWildcard && api.AppHostnameRegex != nil {
-		_, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
+		_, ok := appurl.ExecuteHostnamePattern(api.AppHostnameRegex, host)
 		if ok {
 			// Force the redirect URI to have the same scheme as the access URL
 			// for security purposes.

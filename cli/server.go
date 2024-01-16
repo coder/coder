@@ -53,6 +53,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/pretty"
 
 	"cdr.dev/slog"
@@ -75,7 +76,6 @@ import (
 	"github.com/coder/coder/v2/coderd/devtunnel"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -434,11 +434,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				if vals.WildcardAccessURL.String() == "" {
 					// Suffixed wildcard access URL.
-					u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
-					if err != nil {
-						return xerrors.Errorf("parse wildcard url: %w", err)
-					}
-					vals.WildcardAccessURL = clibase.URL(*u)
+					//u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
+					//if err != nil {
+					//	return xerrors.Errorf("parse wildcard url: %w", err)
+					//}
+					vals.WildcardAccessURL.Set(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
 				}
 			}
 
@@ -513,7 +513,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			appHostname := vals.WildcardAccessURL.String()
 			var appHostnameRegex *regexp.Regexp
 			if appHostname != "" {
-				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
+				appHostnameRegex, err = appurl.CompileHostnamePattern(appHostname)
 				if err != nil {
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
