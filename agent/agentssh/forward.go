@@ -82,8 +82,12 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		_, ok := h.forwards[key]
 		h.Unlock()
 		if ok {
-			log.Warn(ctx, "SSH unix forward request for socket path that is already being forwarded on this session")
-			return false, nil
+			// In cases where `ExitOnForwardFailure=yes` is set, returning false
+			// here will cause the connection to be closed. To avoid this, and
+			// to match OpenSSH behavior, we silently ignore the second forward
+			// request.
+			log.Warn(ctx, "SSH unix forward request for socket path that is already being forwarded on this session, ignoring")
+			return true, nil
 		}
 
 		// Create socket parent dir if not exists.
@@ -191,7 +195,6 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			log.Warn(ctx, "SSH unix forward not found in cache")
 			return true, nil
 		}
-		log.Debug(ctx, "SSH unix forward listener removed from cache")
 		_ = ln.Close()
 		return true, nil
 
