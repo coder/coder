@@ -1,5 +1,7 @@
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
+import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { type Interpolation, type Theme } from "@emotion/react";
@@ -55,8 +57,8 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
     const workspacesToUpdate = [];
 
     for (const it of outdatedWorkspaces) {
-      dormantWorkspaces.push(it);
       if (it.dormant_at) {
+        dormantWorkspaces.push(it);
       } else {
         workspacesToUpdate.push(it);
       }
@@ -173,9 +175,7 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
       description={
         <>
           {stage === "consequences" && (
-            <Consequences
-              runningWorkspaceCount={runningWorkspacesToUpdate.length}
-            />
+            <Consequences runningWorkspaces={runningWorkspacesToUpdate} />
           )}
           {stage === "dormantWorkspaces" && (
             <DormantWorkspaces workspaces={dormantWorkspaces} />
@@ -194,19 +194,20 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
 };
 
 interface ConsequencesProps {
-  runningWorkspaceCount: number;
+  runningWorkspaces: Workspace[];
 }
 
-const Consequences: FC<ConsequencesProps> = ({ runningWorkspaceCount }) => {
+const Consequences: FC<ConsequencesProps> = ({ runningWorkspaces }) => {
+  const workspaceCount = `${runningWorkspaces.length} ${
+    runningWorkspaces.length === 1 ? "running workspace" : "running workspaces"
+  }`;
+
+  const owners = new Set(runningWorkspaces.map((it) => it.owner_id)).size;
+  const ownerCount = `${owners} ${owners === 1 ? "owner" : "owners"}`;
+
   return (
     <>
-      <p>
-        You are about to update{" "}
-        {runningWorkspaceCount === 1
-          ? "a running workspace"
-          : "multiple running workspaces"}
-        .
-      </p>
+      <p>You are about to update {workspaceCount}.</p>
       <ul css={styles.consequences}>
         <li>
           Updating will stop all running processes and delete non-persistent
@@ -218,6 +219,17 @@ const Consequences: FC<ConsequencesProps> = ({ runningWorkspaceCount }) => {
         </li>
         <li>Any unsaved data will be lost.</li>
       </ul>
+      <Stack
+        justifyContent="center"
+        direction="row"
+        wrap="wrap"
+        css={styles.summary}
+      >
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <PersonIcon />
+          <span>{ownerCount}</span>
+        </Stack>
+      </Stack>
     </>
   );
 };
@@ -309,27 +321,15 @@ interface UpdatesProps {
 }
 
 const Updates: FC<UpdatesProps> = ({ workspaces, updates, error }) => {
-  const mostRecent = workspaces.reduce(
-    (latestSoFar, against) => {
-      if (!latestSoFar) {
-        return against;
-      }
-
-      return new Date(against.last_used_at).getTime() >
-        new Date(latestSoFar.last_used_at).getTime()
-        ? against
-        : latestSoFar;
-    },
-    undefined as Workspace | undefined,
-  );
-
   const workspaceCount = `${workspaces.length} ${
     workspaces.length === 1 ? "outdated workspace" : "outdated workspaces"
   }`;
 
   const updateCount =
     updates &&
-    `${updates.length} ${updates.length === 1 ? "template" : "templates"}`;
+    `${updates.length} ${
+      updates.length === 1 ? "new version" : "new versions"
+    }`;
 
   return (
     <>
@@ -341,19 +341,13 @@ const Updates: FC<UpdatesProps> = ({ workspaces, updates, error }) => {
         css={styles.summary}
       >
         <Stack direction="row" alignItems="center" spacing={1}>
-          <PersonIcon />
+          <InstallDesktopIcon css={styles.summaryIcon} />
           <span>{workspaceCount}</span>
         </Stack>
         {updateCount && (
           <Stack direction="row" alignItems="center" spacing={1}>
-            <PersonIcon />
+            <SettingsSuggestIcon css={styles.summaryIcon} />
             <span>{updateCount}</span>
-          </Stack>
-        )}
-        {mostRecent && (
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <ScheduleIcon css={styles.summaryIcon} />
-            <span>Last used {lastUsed(mostRecent.last_used_at)}</span>
           </Stack>
         )}
       </Stack>
@@ -441,7 +435,6 @@ const styles = {
     flexDirection: "column",
     gap: 8,
     paddingLeft: 16,
-    marginBottom: 0,
   },
 
   workspacesList: (theme) => ({
