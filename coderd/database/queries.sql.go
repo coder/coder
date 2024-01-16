@@ -7895,7 +7895,8 @@ SET
 	email = $2,
 	username = $3,
 	avatar_url = $4,
-	updated_at = $5
+	updated_at = $5,
+	name = $6
 WHERE
 	id = $1
 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
@@ -7907,6 +7908,7 @@ type UpdateUserProfileParams struct {
 	Username  string    `db:"username" json:"username"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
@@ -7916,6 +7918,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		arg.Username,
 		arg.AvatarURL,
 		arg.UpdatedAt,
+		arg.Name,
 	)
 	var i User
 	err := row.Scan(
