@@ -31,7 +31,6 @@ import { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { Stack } from "../Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
-import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
@@ -163,114 +162,102 @@ export const AgentRow: FC<AgentRowProps> = ({
         styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ]}
     >
-      <header css={styles.agentInfo}>
-        <div css={styles.agentNameAndStatus}>
-          <div css={styles.agentNameAndInfo}>
-            <AgentStatus agent={agent} />
-            <div css={styles.agentName}>{agent.name}</div>
-            <Stack
-              direction="row"
-              spacing={2}
-              alignItems="baseline"
-              css={styles.agentDescription}
-            >
-              {agent.status === "connected" && (
-                <>
-                  <span css={styles.agentOS}>{agent.operating_system}</span>
-                  <AgentVersion
-                    agent={agent}
-                    serverVersion={serverVersion}
-                    serverAPIVersion={serverAPIVersion}
-                    onUpdate={onUpdateAgent}
-                  />
-                  <AgentLatency agent={agent} />
-                </>
-              )}
-              {agent.status === "connecting" && (
-                <>
-                  <Skeleton width={160} variant="text" />
-                  <Skeleton width={36} variant="text" />
-                </>
-              )}
-            </Stack>
-          </div>
+      <header css={styles.header}>
+        <div css={styles.agentInfo}>
+          <div css={styles.agentName}>{agent.name}</div>
+          {agent.status === "connected" && (
+            <>
+              <AgentVersion
+                agent={agent}
+                serverVersion={serverVersion}
+                serverAPIVersion={serverAPIVersion}
+                onUpdate={onUpdateAgent}
+              />
+              <AgentLatency agent={agent} />
+            </>
+          )}
+          {agent.status === "connecting" && (
+            <>
+              <Skeleton width={160} variant="text" />
+              <Skeleton width={36} variant="text" />
+            </>
+          )}
         </div>
+      </header>
 
-        {agent.status === "connected" && (
-          <div css={styles.agentButtons}>
-            {shouldDisplayApps && (
-              <>
-                {(agent.display_apps.includes("vscode") ||
-                  agent.display_apps.includes("vscode_insiders")) &&
-                  !hideVSCodeDesktopButton && (
-                    <VSCodeDesktopButton
-                      userName={workspace.owner_name}
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      folderPath={agent.expanded_directory}
-                      displayApps={agent.display_apps}
-                    />
-                  )}
-                {agent.apps.map((app) => (
-                  <AppLink
-                    key={app.slug}
-                    app={app}
-                    agent={agent}
-                    workspace={workspace}
-                  />
-                ))}
-              </>
-            )}
-
-            {showBuiltinApps && (
-              <>
-                {agent.display_apps.includes("web_terminal") && (
-                  <TerminalLink
+      {agent.status === "connected" && (
+        <section css={styles.apps}>
+          {shouldDisplayApps && (
+            <>
+              {(agent.display_apps.includes("vscode") ||
+                agent.display_apps.includes("vscode_insiders")) &&
+                !hideVSCodeDesktopButton && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
                     workspaceName={workspace.name}
                     agentName={agent.name}
-                    userName={workspace.owner_name}
+                    folderPath={agent.expanded_directory}
+                    displayApps={agent.display_apps}
                   />
                 )}
-                {!hideSSHButton &&
-                  agent.display_apps.includes("ssh_helper") && (
-                    <SSHButton
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      sshPrefix={sshPrefix}
-                    />
-                  )}
-                {proxy.preferredWildcardHostname &&
-                  proxy.preferredWildcardHostname !== "" &&
-                  agent.display_apps.includes("port_forwarding_helper") && (
-                    <PortForwardButton
-                      host={proxy.preferredWildcardHostname}
-                      workspaceName={workspace.name}
-                      agent={agent}
-                      username={workspace.owner_name}
-                    />
-                  )}
-              </>
-            )}
-          </div>
-        )}
+              {agent.apps.map((app) => (
+                <AppLink
+                  key={app.slug}
+                  app={app}
+                  agent={agent}
+                  workspace={workspace}
+                />
+              ))}
+            </>
+          )}
 
-        {agent.status === "connecting" && (
-          <div css={styles.agentButtons}>
-            <Skeleton
-              width={80}
-              height={32}
-              variant="rectangular"
-              css={styles.buttonSkeleton}
-            />
-            <Skeleton
-              width={110}
-              height={32}
-              variant="rectangular"
-              css={styles.buttonSkeleton}
-            />
-          </div>
-        )}
-      </header>
+          {showBuiltinApps && (
+            <>
+              {agent.display_apps.includes("web_terminal") && (
+                <TerminalLink
+                  workspaceName={workspace.name}
+                  agentName={agent.name}
+                  userName={workspace.owner_name}
+                />
+              )}
+              {!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
+                <SSHButton
+                  workspaceName={workspace.name}
+                  agentName={agent.name}
+                  sshPrefix={sshPrefix}
+                />
+              )}
+              {proxy.preferredWildcardHostname &&
+                proxy.preferredWildcardHostname !== "" &&
+                agent.display_apps.includes("port_forwarding_helper") && (
+                  <PortForwardButton
+                    host={proxy.preferredWildcardHostname}
+                    workspaceName={workspace.name}
+                    agent={agent}
+                    username={workspace.owner_name}
+                  />
+                )}
+            </>
+          )}
+        </section>
+      )}
+
+      {agent.status === "connecting" && (
+        <div css={styles.apps}>
+          <Skeleton
+            width={80}
+            height={32}
+            variant="rectangular"
+            css={styles.buttonSkeleton}
+          />
+          <Skeleton
+            width={110}
+            height={32}
+            variant="rectangular"
+            css={styles.buttonSkeleton}
+          />
+        </div>
+      )}
 
       <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
 
@@ -505,7 +492,7 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    fontSize: 16,
+    fontSize: 14,
     border: `1px solid ${theme.palette.text.secondary}`,
     backgroundColor: theme.palette.background.default,
     borderRadius: 8,
@@ -561,17 +548,27 @@ const styles = {
     borderColor: theme.palette.text.secondary,
   }),
 
-  agentInfo: (theme) => ({
-    padding: "24px 32px",
+  header: (theme) => ({
+    padding: "16px 24px",
     display: "flex",
-    gap: 16,
+    gap: 24,
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
+    lineHeight: "1.5",
+    borderBottom: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
     },
+  }),
+
+  agentInfo: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 24,
+    color: theme.palette.text.secondary,
+    fontSize: 13,
   }),
 
   agentNameAndInfo: (theme) => ({
@@ -585,9 +582,10 @@ const styles = {
     },
   }),
 
-  agentButtons: (theme) => ({
+  apps: (theme) => ({
+    padding: 24,
     display: "flex",
-    gap: 8,
+    gap: 16,
     flexWrap: "wrap",
 
     [theme.breakpoints.down("md")]: {
@@ -629,9 +627,10 @@ const styles = {
     textOverflow: "ellipsis",
     maxWidth: 260,
     fontWeight: 600,
-    fontSize: 16,
     flexShrink: 0,
     width: "fit-content",
+    fontSize: 14,
+    color: theme.palette.text.primary,
 
     [theme.breakpoints.down("md")]: {
       overflow: "unset",
