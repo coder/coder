@@ -535,7 +535,6 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer conn.Close()
-	require.True(t, conn.BlockEndpoints())
 
 	require.True(t, conn.AwaitReachable(ctx))
 	_, p2p, _, err := conn.Ping(ctx)

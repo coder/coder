@@ -490,6 +490,18 @@ func (c *configMaps) protoNodeToTailcfg(p *proto.Node) (*tailcfg.Node, error) {
 	}, nil
 }
 
+// nodeAddresses returns the addresses for the peer with the given publicKey, if known.
+func (c *configMaps) nodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bool) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	for _, lc := range c.peers {
+		if lc.node.Key == publicKey {
+			return lc.node.Addresses, true
+		}
+	}
+	return nil, false
+}
+
 type peerLifecycle struct {
 	peerID        uuid.UUID
 	node          *tailcfg.Node

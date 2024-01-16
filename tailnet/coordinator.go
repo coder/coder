@@ -3,6 +3,7 @@ package tailnet
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"net"
@@ -90,6 +91,237 @@ type Node struct {
 	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
 	Endpoints []string `json:"endpoints"`
+}
+
+// Coordinatee is something that can be coordinated over the Coordinate protocol.  Usually this is a
+// Conn.
+type Coordinatee interface {
+	UpdatePeers([]*proto.CoordinateResponse_PeerUpdate) error
+	SetNodeCallback(func(*Node))
+}
+
+type Coordination interface {
+	io.Closer
+	Error() <-chan error
+}
+
+type remoteCoordination struct {
+	sync.Mutex
+	closed      bool
+	errChan     chan error
+	coordinatee Coordinatee
+	logger      slog.Logger
+	protocol    proto.DRPCTailnet_CoordinateClient
+}
+
+func (c *remoteCoordination) Close() error {
+	c.Lock()
+	defer c.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	err := c.protocol.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	if err != nil {
+		return xerrors.Errorf("send disconnect: %w", err)
+	}
+	return nil
+}
+
+func (c *remoteCoordination) Error() <-chan error {
+	return c.errChan
+}
+
+func (c *remoteCoordination) sendErr(err error) {
+	select {
+	case c.errChan <- err:
+	default:
+	}
+}
+
+func (c *remoteCoordination) respLoop() {
+	for {
+		resp, err := c.protocol.Recv()
+		if err != nil {
+			c.sendErr(xerrors.Errorf("read: %w", err))
+			return
+		}
+		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
+		if err != nil {
+			c.sendErr(xerrors.Errorf("update peers: %w", err))
+			return
+		}
+	}
+}
+
+// NewRemoteCoordination uses the provided protocol to coordinate the provided coordinee (usually a
+// Conn).  If the tunnelTarget is not uuid.Nil, then we add a tunnel to the peer (i.e. we are acting as
+// a client---agents should NOT set this!).
+func NewRemoteCoordination(logger slog.Logger,
+	protocol proto.DRPCTailnet_CoordinateClient, coordinatee Coordinatee,
+	tunnelTarget uuid.UUID,
+) Coordination {
+	c := &remoteCoordination{
+		errChan:     make(chan error, 1),
+		coordinatee: coordinatee,
+		logger:      logger,
+		protocol:    protocol,
+	}
+	if tunnelTarget != uuid.Nil {
+		c.Lock()
+		err := c.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tunnelTarget[:]}})
+		c.Unlock()
+		if err != nil {
+			c.sendErr(err)
+		}
+	}
+
+	coordinatee.SetNodeCallback(func(node *Node) {
+		pn, err := NodeToProto(node)
+		if err != nil {
+			c.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+			c.sendErr(err)
+			return
+		}
+		c.Lock()
+		defer c.Unlock()
+		if c.closed {
+			c.logger.Debug(context.Background(), "ignored node update because coordination is closed")
+			return
+		}
+		err = c.protocol.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
+		if err != nil {
+			c.sendErr(xerrors.Errorf("write: %w", err))
+		}
+	})
+	go c.respLoop()
+	return c
+}
+
+type inMemoryCoordination struct {
+	sync.Mutex
+	ctx         context.Context
+	errChan     chan error
+	closed      bool
+	closedCh    chan struct{}
+	coordinatee Coordinatee
+	logger      slog.Logger
+	resps       <-chan *proto.CoordinateResponse
+	reqs        chan<- *proto.CoordinateRequest
+}
+
+func (c *inMemoryCoordination) sendErr(err error) {
+	select {
+	case c.errChan <- err:
+	default:
+	}
+}
+
+func (c *inMemoryCoordination) Error() <-chan error {
+	return c.errChan
+}
+
+// NewInMemoryCoordination connects a Coordinatee (usually Conn) to an in memory Coordinator, for testing
+// or local clients.  Set ClientID to uuid.Nil for an agent.
+func NewInMemoryCoordination(
+	ctx context.Context, logger slog.Logger,
+	clientID, agentID uuid.UUID,
+	coordinator Coordinator, coordinatee Coordinatee,
+) Coordination {
+	thisID := agentID
+	logger = logger.With(slog.F("agent_id", agentID))
+	var auth TunnelAuth = AgentTunnelAuth{}
+	if clientID != uuid.Nil {
+		// this is a client connection
+		auth = ClientTunnelAuth{AgentID: agentID}
+		logger = logger.With(slog.F("client_id", clientID))
+		thisID = clientID
+	}
+	c := &inMemoryCoordination{
+		ctx:         ctx,
+		errChan:     make(chan error, 1),
+		coordinatee: coordinatee,
+		logger:      logger,
+		closedCh:    make(chan struct{}),
+	}
+
+	// use the background context since we will depend exclusively on closing the req channel to
+	// tell the coordinator we are done.
+	c.reqs, c.resps = coordinator.Coordinate(context.Background(),
+		thisID, fmt.Sprintf("inmemory%s", thisID),
+		auth,
+	)
+	go c.respLoop()
+	if agentID != uuid.Nil {
+		select {
+		case <-ctx.Done():
+			c.logger.Warn(ctx, "context expired before we could add tunnel", slog.Error(ctx.Err()))
+			return c
+		case c.reqs <- &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]}}:
+			// OK!
+		}
+	}
+	coordinatee.SetNodeCallback(func(n *Node) {
+		pn, err := NodeToProto(n)
+		if err != nil {
+			c.logger.Critical(ctx, "failed to convert node", slog.Error(err))
+			c.sendErr(err)
+			return
+		}
+		c.Lock()
+		defer c.Unlock()
+		if c.closed {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			c.logger.Info(ctx, "context expired before sending node update")
+			return
+		case c.reqs <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}}:
+			c.logger.Debug(ctx, "sent node in-memory to coordinator")
+		}
+	})
+	return c
+}
+
+func (c *inMemoryCoordination) respLoop() {
+	for {
+		select {
+		case <-c.closedCh:
+			c.logger.Debug(context.Background(), "in-memory coordination closed")
+			return
+		case resp, ok := <-c.resps:
+			if !ok {
+				c.logger.Debug(context.Background(), "in-memory response channel closed")
+				return
+			}
+			c.logger.Debug(context.Background(), "got in-memory response from coordinator", slog.F("resp", resp))
+			err := c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
+			if err != nil {
+				c.sendErr(xerrors.Errorf("failed to update peers: %w", err))
+				return
+			}
+		}
+	}
+}
+
+func (c *inMemoryCoordination) Close() error {
+	c.Lock()
+	defer c.Unlock()
+	c.logger.Debug(context.Background(), "closing in-memory coordination")
+	if c.closed {
+		return nil
+	}
+	defer close(c.reqs)
+	c.closed = true
+	close(c.closedCh)
+	select {
+	case <-c.ctx.Done():
+		return xerrors.Errorf("failed to gracefully disconnect: %w", c.ctx.Err())
+	case c.reqs <- &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}:
+		c.logger.Debug(context.Background(), "sent graceful disconnect in-memory")
+		return nil
+	}
 }
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
@@ -237,21 +469,17 @@ func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAge
 			}
 			return false
 		},
-		OnSubscribe: func(enq Queue, agent uuid.UUID) (*Node, error) {
+		OnSubscribe: func(enq Queue, agent uuid.UUID) error {
 			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
-			return c.Node(agent), err
+			return err
 		},
 		OnUnsubscribe: func(enq Queue, agent uuid.UUID) error {
 			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
 			return err
 		},
-		OnNodeUpdate: func(id uuid.UUID, node *Node) error {
-			pn, err := NodeToProto(node)
-			if err != nil {
-				return err
-			}
+		OnNodeUpdate: func(id uuid.UUID, node *proto.Node) error {
 			return SendCtx(ctx, reqs, &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-				Node: pn,
+				Node: node,
 			}})
 		},
 		OnRemove: func(_ Queue) {
@@ -285,7 +513,7 @@ const (
 type Queue interface {
 	UniqueID() uuid.UUID
 	Kind() QueueKind
-	Enqueue(n []*Node) error
+	Enqueue(resp *proto.CoordinateResponse) error
 	Name() string
 	Stats() (start, lastWrite int64)
 	Overwrites() int64
@@ -793,18 +1021,7 @@ func v1RespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logg
 			return
 		}
 		logger.Debug(ctx, "v1RespLoop got response", slog.F("resp", resp))
-		nodes, err := OnlyNodeUpdates(resp)
-		if err != nil {
-			logger.Critical(ctx, "v1RespLoop failed to decode resp", slog.F("resp", resp), slog.Error(err))
-			_ = q.CoordinatorClose()
-			return
-		}
-		// don't send empty updates
-		if len(nodes) == 0 {
-			logger.Debug(ctx, "v1RespLoop skipping enqueueing 0-length v1 update")
-			continue
-		}
-		err = q.Enqueue(nodes)
+		err = q.Enqueue(resp)
 		if err != nil && !xerrors.Is(err, context.Canceled) {
 			logger.Error(ctx, "v1RespLoop failed to enqueue v1 update", slog.Error(err))
 		}
