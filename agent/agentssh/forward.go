@@ -237,9 +237,10 @@ func directStreamLocalHandler(_ *ssh.Server, _ *gossh.ServerConn, newChan gossh.
 	Bicopy(ctx, ch, dconn)
 }
 
-// unlink removes files only.
+// unlink removes files and unlike os.Remove, directories are kept.
 func unlink(path string) error {
-	// From os/file_posix.go:
+	// Ignore EINTR like os.Remove, see ignoringEINTR in os/file_posix.go
+	// for more details.
 	for {
 		err := syscall.Unlink(path)
 		if !errors.Is(err, syscall.EINTR) {
