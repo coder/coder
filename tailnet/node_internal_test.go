@@ -74,12 +74,10 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
 	nodeCh := make(chan *Node)
-	goCh := make(chan struct{})
 	uut := newNodeUpdater(
 		logger,
 		func(n *Node) {
 			nodeCh <- n
-			<-goCh
 		},
 		id, nodeKey, discoKey,
 	)
@@ -100,6 +98,83 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 		PreferredDERP: 1,
 		DERPLatency:   dl,
 	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.L.Unlock()
+
+	// When: we set a new forced websocket reason
+	uut.setDERPForcedWebsocket(1, "test")
+
+	// Then: we receive an update with the reason set
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.True(t, maps.Equal(map[int]string{1: "test"}, node.DERPForcedWebsocket))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        reason for region 1 is set to "test"
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.derpForcedWebsockets[1] = "test"
+	uut.L.Unlock()
+
+	// When: we set region 1 to "test
+	uut.setDERPForcedWebsocket(1, "test")
 
 	done := make(chan struct{})
 	go func() {
