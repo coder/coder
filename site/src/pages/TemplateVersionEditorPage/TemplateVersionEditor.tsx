@@ -54,7 +54,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import ButtonGroup from "@mui/material/ButtonGroup";
-import { ProviderTagsPopover } from "./ProvisionerTagsPopover";
+import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -266,7 +266,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               >
                 Build
               </TopbarButton>
-              <ProviderTagsPopover
+              <ProvisionerTagsPopover
                 tags={provisionerTags}
                 onSubmit={({ key, value }) => {
                   onUpdateProvisionerTags({
