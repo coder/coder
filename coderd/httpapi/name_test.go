@@ -222,11 +222,12 @@ func TestUserRealNameValid(t *testing.T) {
 		{"A1", true},
 		{".", true},
 		{"Mr Bean", true},
-		{"John Doe", true},
+		{"Severus Snape", true},
+		{"Prof. Albus Percival Wulfric Brian Dumbledore", true},
 		{". .", true},
 
-		{"John Doe ", false},
-		{" John Doe", false},
+		{"Lord Voldemort ", false},
+		{" Bellatrix Lestrange", false},
 		{" ", false},
 	}
 	for _, testCase := range testCases {
