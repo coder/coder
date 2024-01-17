@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var errWorkspaceStopped = xerrors.New("stopped workspace")
+
 type AccessMethod string
 
 const (
@@ -260,10 +262,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace agents: %w", err)
 	}
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+	if build.Transition == database.WorkspaceTransitionStop {
+		return nil, errWorkspaceStopped
+	}
 	if len(agents) == 0 {
 		// TODO(@deansheather): return a 404 if there are no agents in the
 		// workspace, requires a different error type.
-		return nil, xerrors.New("no agents in workspace")
+		return nil, xerrors.Errorf("no agents in workspace: %w", sql.ErrNoRows)
 	}
 
 	// Get workspace apps.

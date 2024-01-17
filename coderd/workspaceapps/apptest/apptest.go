@@ -26,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -1483,6 +1484,24 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
 		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
 		assert.Equal(t, 1, stats[0].Requests)
+	})
+
+	t.Run("WorkspaceOffline", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_ = coderdtest.MustTransitionWorkspace(t, appDetails.SDKClient, appDetails.Workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		u := appDetails.PathAppURL(appDetails.Apps.Owner)
+		resp, err := appDetails.AppClient(t).Request(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
 	})
 }
 
