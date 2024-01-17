@@ -32,7 +32,7 @@ export default {
     danger: {
       background: colors.orange[50],
       outline: colors.orange[400],
-      fill: colors.orange[500],
+      fill: colors.orange[600],
       text: colors.orange[950],
       disabled: {
         background: colors.orange[50],
@@ -43,7 +43,7 @@ export default {
       hover: {
         background: colors.orange[100],
         outline: colors.orange[500],
-        fill: colors.orange[400],
+        fill: colors.orange[500],
         text: colors.black,
       },
     },
@@ -55,7 +55,7 @@ export default {
     },
     warning: {
       background: colors.amber[50],
-      outline: colors.amber[400],
+      outline: colors.amber[300],
       fill: colors.amber[500],
       text: colors.amber[950],
     },
@@ -92,7 +92,7 @@ export default {
     active: {
       background: colors.sky[100],
       outline: colors.sky[500],
-      fill: colors.sky[500],
+      fill: colors.sky[600],
       text: colors.sky[950],
       disabled: {
         background: colors.sky[50],
