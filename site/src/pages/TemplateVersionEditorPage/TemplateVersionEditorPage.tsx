@@ -103,7 +103,9 @@ export const TemplateVersionEditorPage: FC = () => {
   };
 
   // Provisioner Tags
-  const [provisionerTags, setProvisionerTags] = useState<Record<string, string>>({});
+  const [provisionerTags, setProvisionerTags] = useState<
+    Record<string, string>
+  >({});
   useEffect(() => {
     if (templateVersionQuery.data?.job.tags) {
       setProvisionerTags(templateVersionQuery.data.job.tags);

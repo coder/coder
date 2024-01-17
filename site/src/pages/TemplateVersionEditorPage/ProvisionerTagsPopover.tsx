@@ -1,22 +1,21 @@
-
-import { Stack } from 'components/Stack/Stack';
-import { TopbarButton } from 'components/FullPageLayout/Topbar';
+import { Stack } from "components/Stack/Stack";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { ProvisionerTag } from 'pages/HealthPage/ProvisionerDaemonsPage';
-import { type FC} from 'react';
-import useTheme from '@mui/system/useTheme';
-import { useFormik } from 'formik';
+import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
+import { type FC } from "react";
+import useTheme from "@mui/system/useTheme";
+import { useFormik } from "formik";
 import * as Yup from "yup";
-import { getFormHelpers, onChangeTrimmed } from 'utils/formUtils';
-import { FormFields, FormSection, VerticalForm } from 'components/Form/Form';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined';
-import AddIcon from '@mui/icons-material/Add';
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { FormFields, FormSection, VerticalForm } from "components/Form/Form";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
+import AddIcon from "@mui/icons-material/Add";
 
 const initialValues = {
   key: "",
@@ -24,23 +23,34 @@ const initialValues = {
 };
 
 const validationSchema = Yup.object({
-  key: Yup.string().required("Required").notOneOf(["owner"], "Cannot override owner tag"),
-  value: Yup.string().required("Required").when("key", ([key], schema) => {
-    if (key === "scope") {
-      return schema.oneOf(["organization", "scope"], "Scope value must be 'organization' or 'user'");
-    }
+  key: Yup.string()
+    .required("Required")
+    .notOneOf(["owner"], "Cannot override owner tag"),
+  value: Yup.string()
+    .required("Required")
+    .when("key", ([key], schema) => {
+      if (key === "scope") {
+        return schema.oneOf(
+          ["organization", "scope"],
+          "Scope value must be 'organization' or 'user'",
+        );
+      }
 
-    return schema;
-  })
+      return schema;
+    }),
 });
 
 interface ProviderTagsPopoverProps {
-  tags: Record <string, string>;
+  tags: Record<string, string>;
   onSubmit: (values: typeof initialValues) => void;
   onDelete: (key: string) => void;
 }
 
-export const ProviderTagsPopover: FC<ProviderTagsPopoverProps> = ({ tags, onSubmit, onDelete }) => {
+export const ProviderTagsPopover: FC<ProviderTagsPopoverProps> = ({
+  tags,
+  onSubmit,
+  onDelete,
+}) => {
   const theme = useTheme();
 
   const form = useFormik({
@@ -55,74 +65,83 @@ export const ProviderTagsPopover: FC<ProviderTagsPopoverProps> = ({ tags, onSubm
 
   return (
     <Popover>
-    <PopoverTrigger>
-      <TopbarButton
-        color="neutral"
-        css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
+      <PopoverTrigger>
+        <TopbarButton
+          color="neutral"
+          css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
+        >
+          <ExpandMoreOutlined css={{ fontSize: 14 }} />
+        </TopbarButton>
+      </PopoverTrigger>
+      <PopoverContent
+        horizontal="right"
+        css={{ ".MuiPaper-root": { width: 300 } }}
       >
-        <ExpandMoreOutlined css={{ fontSize: 14 }} />
-      </TopbarButton>
-    </PopoverTrigger>
-    <PopoverContent
-      horizontal="right"
-      css={{ ".MuiPaper-root": { width: 300 } }}
-    >
-      <div
-        css={{
-          color: theme.palette.text.secondary,
-          padding: 20,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <VerticalForm onSubmit={form.handleSubmit}>
-          <Stack>
-          <FormSection title="Provisioner Tags" description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "/>
-            {Object.keys(tags).length > 0 && (
-              <Stack direction="row" spacing={1} wrap="wrap">
-                {Object.keys(tags).filter((key) => {
-                  // filter out owner since you cannot override it
-                  return key !== "owner"
-                }).map((k) =>
-                  <>
-                    {k === "scope" ? (
-                      <ProvisionerTag key={k} k={k} v={tags[k]}/>
-                    ) : (
-                      <ProvisionerTag key={k} k={k} v={tags[k]} onDelete={onDelete}/>
-                    )}
-                  </>
-                )}
-              </Stack>
-            )}
+        <div
+          css={{
+            color: theme.palette.text.secondary,
+            padding: 20,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <VerticalForm onSubmit={form.handleSubmit}>
+            <Stack>
+              <FormSection
+                title="Provisioner Tags"
+                description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "
+              />
+              {Object.keys(tags).length > 0 && (
+                <Stack direction="row" spacing={1} wrap="wrap">
+                  {Object.keys(tags)
+                    .filter((key) => {
+                      // filter out owner since you cannot override it
+                      return key !== "owner";
+                    })
+                    .map((k) => (
+                      <>
+                        {k === "scope" ? (
+                          <ProvisionerTag key={k} k={k} v={tags[k]} />
+                        ) : (
+                          <ProvisionerTag
+                            key={k}
+                            k={k}
+                            v={tags[k]}
+                            onDelete={onDelete}
+                          />
+                        )}
+                      </>
+                    ))}
+                </Stack>
+              )}
 
-
-            <FormFields>
-              <Stack direction="row">
-                <TextField
-                {...getFieldHelpers("key")}
-                size="small"
-                onChange={onChangeTrimmed(form)}
-                label="Key"
-                />
-                <TextField
-                  {...getFieldHelpers("value")}
-                  size="small"
-                  onChange={onChangeTrimmed(form)}
-                  label="Value"
-                />
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  type="submit"
-                  disabled={!form.dirty || !form.isValid}
-                >
-                  <AddIcon/>
-                </Button>
-              </Stack>
-            </FormFields>
-          </Stack>
-        </VerticalForm>
-      </div>
-    </PopoverContent>
-  </Popover>
+              <FormFields>
+                <Stack direction="row">
+                  <TextField
+                    {...getFieldHelpers("key")}
+                    size="small"
+                    onChange={onChangeTrimmed(form)}
+                    label="Key"
+                  />
+                  <TextField
+                    {...getFieldHelpers("value")}
+                    size="small"
+                    onChange={onChangeTrimmed(form)}
+                    label="Value"
+                  />
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    type="submit"
+                    disabled={!form.dirty || !form.isValid}
+                  >
+                    <AddIcon />
+                  </Button>
+                </Stack>
+              </FormFields>
+            </Stack>
+          </VerticalForm>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

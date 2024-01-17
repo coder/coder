@@ -22,7 +22,7 @@ import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import Tooltip from "@mui/material/Tooltip";
 import Sell from "@mui/icons-material/Sell";
 import { FC } from "react";
-import CloseIcon from '@mui/icons-material/Close';
+import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 
 export const ProvisionerDaemonsPage = () => {
@@ -62,14 +62,14 @@ export const ProvisionerDaemonsPage = () => {
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
           const extraTags = Object.keys(daemon.tags)
-          .filter((key) => key !== "scope" && key !== "owner")
-          .reduce(
-            (acc, key) => {
-              acc[key] = daemon.tags[key];
-              return acc;
-            },
-            {} as Record<string, string>,
-          );
+            .filter((key) => key !== "scope" && key !== "owner")
+            .reduce(
+              (acc, key) => {
+                acc[key] = daemon.tags[key];
+                return acc;
+              },
+              {} as Record<string, string>,
+            );
           const isWarning = warnings.length > 0;
           return (
             <div
@@ -132,9 +132,9 @@ export const ProvisionerDaemonsPage = () => {
                       </span>
                     </Pill>
                   </Tooltip>
-                  {Object.keys(extraTags).map((k) =>
+                  {Object.keys(extraTags).map((k) => (
                     <ProvisionerTag key={k} k={k} v={extraTags[k]} />
-                  )}
+                  ))}
                 </div>
               </header>
 
@@ -197,7 +197,7 @@ interface ProvisionerTagProps {
   onDelete?: (key: string) => void;
 }
 
-export const ProvisionerTag : FC<ProvisionerTagProps> = ({ k, v, onDelete}) => {
+export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
   const { valid, value: boolValue } = parseBool(v);
   const kv = `${k}: ${v}`;
   const content = onDelete ? (
