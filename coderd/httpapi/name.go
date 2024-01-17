@@ -79,3 +79,15 @@ func TemplateDisplayNameValid(str string) error {
 	}
 	return nil
 }
+
+// UserRealNameValid returns whether the input string is a valid real user name.
+func UserRealNameValid(str string) error {
+	if len(str) > 128 {
+		return xerrors.New("must be <= 128 characters")
+	}
+
+	if strings.TrimSpace(str) != str {
+		return xerrors.New("must not have leading or trailing white spaces")
+	}
+	return nil
+}

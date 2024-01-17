@@ -10,6 +10,7 @@ const meta: Meta<typeof AccountForm> = {
     isLoading: false,
     initialValues: {
       username: "test-user",
+      name: "",
     },
     updateProfileError: undefined,
   },

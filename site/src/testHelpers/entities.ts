@@ -285,6 +285,7 @@ export const MockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUserAdmin: TypesGen.User = {
@@ -299,6 +300,7 @@ export const MockUserAdmin: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -313,6 +315,7 @@ export const MockUser2: TypesGen.User = {
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
   theme_preference: "",
+  name: "",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -327,6 +330,7 @@ export const SuspendedMockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {

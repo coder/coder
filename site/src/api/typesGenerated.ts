@@ -1294,6 +1294,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string;
+  readonly name: string;
 }
 
 // From codersdk/users.go
@@ -1341,6 +1342,7 @@ export interface UploadResponse {
 export interface User {
   readonly id: string;
   readonly username: string;
+  readonly name: string;
   readonly email: string;
   readonly created_at: string;
   readonly last_seen_at: string;
