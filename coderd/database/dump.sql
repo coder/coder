@@ -1378,6 +1378,9 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
+ALTER TABLE ONLY user_pinned_workspaces
+    ADD CONSTRAINT user_pinned_workspaces_user_id_workspace_id_key UNIQUE (user_id, workspace_id);
+
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
