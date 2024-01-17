@@ -710,8 +710,12 @@ jobs:
           # replace + with - in tag
           tag="${tag/+/-}"
 
-          # create an empty build directory
-          mkdir -p tmp
+          # create an empty build context directory
+          mkdir -p build-context
+          mkdir -p base-build-context
+
+          # copy the build artifacts to the build context
+          cp build/coder_*_linux_* build-context
 
           # export version, base_tag, and tag as outputs
           echo "version=$version" >> $GITHUB_OUTPUT
@@ -725,7 +729,7 @@ jobs:
         uses: depot/build-push-action@v1
         with:
           project: 9rcqzb56rm
-          context: ./tmp
+          context: ./base-build-context
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: ${{ steps.build.outputs.base_tag }}
           file: ./scripts/Dockerfile.base
@@ -736,7 +740,7 @@ jobs:
         uses: depot/build-push-action@v1
         with:
           project: 9rcqzb56rm
-          context: ./tmp
+          context: ./build-context
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           file: ./scripts/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
