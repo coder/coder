@@ -15,17 +15,21 @@ func getListeningPortProcessCmdline(port uint32) (string, error) {
 	acceptFn := func(s *netstat.SockTabEntry) bool {
 		return s.LocalAddr != nil && uint32(s.LocalAddr.Port) == port
 	}
-	tabs, err := netstat.TCPSocks(acceptFn)
+	tabs4, err4 := netstat.TCPSocks(acceptFn)
 	tabs6, err6 := netstat.TCP6Socks(acceptFn)
 
-	// Only return the error if the other method found nothing.
-	if (err != nil && len(tabs6) == 0) || (err6 != nil && len(tabs) == 0) {
-		return "", xerrors.Errorf("inspect port %d: %w", port, errors.Join(err, err6))
+	// In the common case, we want to check ipv4 listening addresses.  If this
+	// fails, we should return an error.  We also need to check ipv6.  The
+	// assumption is, if we have an err4, and 0 ipv6 addresses listed, then we are
+	// interested in the err4 (and vice versa).  So return both errors (at least 1
+	// is non-nil) if the other list is empty.
+	if (err4 != nil && len(tabs6) == 0) || (err6 != nil && len(tabs4) == 0) {
+		return "", xerrors.Errorf("inspect port %d: %w", port, errors.Join(err4, err6))
 	}
 
 	var proc *netstat.Process
-	if len(tabs) > 0 {
-		proc = tabs[0].Process
+	if len(tabs4) > 0 {
+		proc = tabs4[0].Process
 	} else if len(tabs6) > 0 {
 		proc = tabs6[0].Process
 	}
