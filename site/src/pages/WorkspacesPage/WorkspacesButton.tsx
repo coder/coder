@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { SearchEmpty, searchContentStyles } from "components/Menu/Search";
+import { SearchEmpty, searchStyles } from "components/Menu/Search";
 
 const ICON_SIZE = 18;
 
@@ -64,7 +64,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
       <PopoverContent
         horizontal="right"
         css={{
-          ".MuiPaper-root": searchContentStyles,
+          ".MuiPaper-root": searchStyles.content,
         }}
       >
         <SearchBox

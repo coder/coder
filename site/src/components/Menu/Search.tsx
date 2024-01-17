@@ -91,8 +91,10 @@ export const SearchEmpty: FC<HTMLAttributes<HTMLDivElement>> = ({
   );
 };
 
-export const searchContentStyles = {
-  width: 320,
-  padding: 0,
-  borderRadius: 4,
+export const searchStyles = {
+  content: {
+    width: 320,
+    padding: 0,
+    borderRadius: 4,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

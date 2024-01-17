@@ -36,7 +36,7 @@ import {
   Search,
   SearchEmpty,
   SearchInput,
-  searchContentStyles,
+  searchStyles,
 } from "components/Menu/Search";
 
 export type PresetFilter = {
@@ -591,7 +591,7 @@ function SearchMenu<TOption extends BaseOption>({
         onQueryChange("");
       }}
       css={{
-        "& .MuiPaper-root": searchContentStyles,
+        "& .MuiPaper-root": searchStyles.content,
       }}
       // Disabled this so when we clear the filter and do some sorting in the
       // search items it does not look strange. Github removes exit transitions
