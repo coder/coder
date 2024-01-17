@@ -715,6 +715,9 @@ jobs:
 
           # copy the build artifacts to the build context
           cp build/coder_linux_* build-context/
+          # We use TARGETARCH to determine the architecture of the binary
+          # in the Dockerfile. This is arm for armv7.
+          mv build-context/coder_linux_armv7 build-context/coder_linux_arm
 
           # export version, base_tag, and tag as outputs
           echo "version=$version" >> $GITHUB_OUTPUT
