@@ -51,10 +51,10 @@ export interface Role {
   /** A border, or a color for an outlined icon */
   outline: string;
 
-  /** A good color for icons, text on a neutral background, the background of a button which should stand out */
+  /** A color for icons, text on a neutral background, the background of a button which should stand out */
   fill: string;
 
-  /** A color great for text on the corresponding `background` */
+  /** A color for text on the corresponding `background` */
   text: string;
 
   // contrastOutline?: string;
