@@ -968,7 +968,9 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Manually specifying a port should override the access url port on
 			// the app host.
 			appDetails := setupProxyTest(t, &DeploymentOptions{
-				AppHost: "*.test.coder.com:4444",
+				// Just throw both the wsproxy and primary to same url.
+				AppHost:        "*.test.coder.com:4444",
+				PrimaryAppHost: "*.test.coder.com:4444",
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

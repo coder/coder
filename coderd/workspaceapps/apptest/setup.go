@@ -47,6 +47,7 @@ const (
 // DeploymentOptions are the options for creating a *Deployment with a
 // DeploymentFactory.
 type DeploymentOptions struct {
+	PrimaryAppHost                       string
 	AppHost                              string
 	DisablePathApps                      bool
 	DisableSubdomainApps                 bool
