@@ -16,6 +16,6 @@ LABEL \
 
 
 # The coder binary is available in the build context.
-COPY --chown=1000:1000 --chmod=755 coder_*_linux_${TARGETARCH} /opt/coder
+COPY --chown=1000:1000 --chmod=755 coder_linux_${TARGETARCH} /opt/coder
 
 ENTRYPOINT [ "/opt/coder", "server" ]

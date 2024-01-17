@@ -715,7 +715,7 @@ jobs:
           mkdir -p base-build-context
 
           # copy the build artifacts to the build context
-          cp build/coder_*_linux_* build-context
+          cp build/coder_linux_* build-context/
 
           # export version, base_tag, and tag as outputs
           echo "version=$version" >> $GITHUB_OUTPUT
