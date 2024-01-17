@@ -87,7 +87,7 @@ func UserRealNameValid(str string) error {
 	}
 
 	if strings.TrimSpace(str) != str {
-		return xerrors.New("must not have leading or trailing white spaces")
+		return xerrors.New("must not have leading or trailing whitespace")
 	}
 	return nil
 }
