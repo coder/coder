@@ -1586,6 +1586,13 @@ func (m metricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg d
 	return metadata, err
 }
 
+func (m metricsStore) PinWorkspace(ctx context.Context, arg database.PinWorkspaceParams) error {
+	start := time.Now()
+	r0 := m.s.PinWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("PinWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)
@@ -1611,6 +1618,13 @@ func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database
 	start := time.Now()
 	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
 	m.queryLatencies.WithLabelValues("UnarchiveTemplateVersion").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UnpinWorkspace(ctx context.Context, arg database.UnpinWorkspaceParams) error {
+	start := time.Now()
+	r0 := m.s.UnpinWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnpinWorkspace").Observe(time.Since(start).Seconds())
 	return r0
 }
 

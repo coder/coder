@@ -11631,6 +11631,34 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const pinWorkspace = `-- name: PinWorkspace :exec
+INSERT INTO user_pinned_workspaces (user_id, workspace_id) VALUES ($1, $2)
+`
+
+type PinWorkspaceParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) PinWorkspace(ctx context.Context, arg PinWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, pinWorkspace, arg.UserID, arg.WorkspaceID)
+	return err
+}
+
+const unpinWorkspace = `-- name: UnpinWorkspace :exec
+DELETE FROM user_pinned_workspaces WHERE user_id = $1 AND workspace_id = $2
+`
+
+type UnpinWorkspaceParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UnpinWorkspace(ctx context.Context, arg UnpinWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, unpinWorkspace, arg.UserID, arg.WorkspaceID)
+	return err
+}
+
 const updateTemplateWorkspacesLastUsedAt = `-- name: UpdateTemplateWorkspacesLastUsedAt :exec
 UPDATE workspaces
 SET

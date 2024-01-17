@@ -71,6 +71,7 @@ func New() database.Store {
 			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
+			userPinnedWorkspaces:      make([]database.UserPinnedWorkspace, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			locks:                     map[int64]struct{}{},
@@ -154,6 +155,7 @@ type data struct {
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
 	workspaces                    []database.Workspace
+	userPinnedWorkspaces          []database.UserPinnedWorkspace
 	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -5901,6 +5903,23 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
+func (q *FakeQuerier) PinWorkspace(_ context.Context, arg database.PinWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, upw := range q.userPinnedWorkspaces {
+		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
+			return errDuplicateKey
+		}
+	}
+	return nil
+}
+
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5982,6 +6001,30 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UnpinWorkspace(_ context.Context, arg database.UnpinWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, upw := range q.userPinnedWorkspaces {
+		if upw.UserID != arg.UserID {
+			continue
+		}
+		if upw.WorkspaceID != arg.WorkspaceID {
+			continue
+		}
+		q.userPinnedWorkspaces[index] = q.userPinnedWorkspaces[len(q.apiKeys)-1]
+		q.userPinnedWorkspaces = q.userPinnedWorkspaces[:len(q.userPinnedWorkspaces)-1]
+		return nil
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

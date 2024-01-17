@@ -1578,6 +1578,22 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("PinWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(database.PinWorkspaceParams{
+			UserID:      u.ID,
+			WorkspaceID: ws.ID,
+		}).Asserts(ws, rbac.ActionRead).Returns()
+	}))
+	s.Run("UnpinWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(database.UnpinWorkspaceParams{
+			UserID:      u.ID,
+			WorkspaceID: ws.ID,
+		}).Asserts(ws, rbac.ActionRead).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {

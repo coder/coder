@@ -3337,6 +3337,20 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), arg0, arg1)
 }
 
+// PinWorkspace mocks base method.
+func (m *MockStore) PinWorkspace(arg0 context.Context, arg1 database.PinWorkspaceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PinWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PinWorkspace indicates an expected call of PinWorkspace.
+func (mr *MockStoreMockRecorder) PinWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PinWorkspace", reflect.TypeOf((*MockStore)(nil).PinWorkspace), arg0, arg1)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(arg0 context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()
@@ -3408,6 +3422,20 @@ func (m *MockStore) UnarchiveTemplateVersion(arg0 context.Context, arg1 database
 func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveTemplateVersion", reflect.TypeOf((*MockStore)(nil).UnarchiveTemplateVersion), arg0, arg1)
+}
+
+// UnpinWorkspace mocks base method.
+func (m *MockStore) UnpinWorkspace(arg0 context.Context, arg1 database.UnpinWorkspaceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnpinWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnpinWorkspace indicates an expected call of UnpinWorkspace.
+func (mr *MockStoreMockRecorder) UnpinWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnpinWorkspace", reflect.TypeOf((*MockStore)(nil).UnpinWorkspace), arg0, arg1)
 }
 
 // UpdateAPIKeyByID mocks base method.

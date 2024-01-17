@@ -547,3 +547,9 @@ SET
 	automatic_updates = $2
 WHERE
 		id = $1;
+
+-- name: PinWorkspace :exec
+INSERT INTO user_pinned_workspaces (user_id, workspace_id) VALUES (sqlc.arg(user_id), sqlc.arg(workspace_id));
+
+-- name: UnpinWorkspace :exec
+DELETE FROM user_pinned_workspaces WHERE user_id = sqlc.arg(user_id) AND workspace_id = sqlc.arg(workspace_id);
