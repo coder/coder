@@ -717,7 +717,7 @@ _None_
 {
   "value": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -1024,7 +1024,7 @@ _None_
   },
   "support_links": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -1511,18 +1511,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "string",
   "password": "string",
   "trial": true,
+  "trial_info": {
+    "company_name": "string",
+    "country": "string",
+    "developers": "string",
+    "first_name": "string",
+    "job_title": "string",
+    "last_name": "string",
+    "phone_number": "string"
+  },
   "username": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type    | Required | Restrictions | Description |
-| ---------- | ------- | -------- | ------------ | ----------- |
-| `email`    | string  | true     |              |             |
-| `password` | string  | true     |              |             |
-| `trial`    | boolean | false    |              |             |
-| `username` | string  | true     |              |             |
+| Name         | Type                                                                   | Required | Restrictions | Description |
+| ------------ | ---------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `email`      | string                                                                 | true     |              |             |
+| `password`   | string                                                                 | true     |              |             |
+| `trial`      | boolean                                                                | false    |              |             |
+| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
+| `username`   | string                                                                 | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -1539,6 +1549,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `organization_id` | string | false    |              |             |
 | `user_id`         | string | false    |              |             |
+
+## codersdk.CreateFirstUserTrialInfo
+
+```json
+{
+  "company_name": "string",
+  "country": "string",
+  "developers": "string",
+  "first_name": "string",
+  "job_title": "string",
+  "last_name": "string",
+  "phone_number": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `company_name` | string | false    |              |             |
+| `country`      | string | false    |              |             |
+| `developers`   | string | false    |              |             |
+| `first_name`   | string | false    |              |             |
+| `job_title`    | string | false    |              |             |
+| `last_name`    | string | false    |              |             |
+| `phone_number` | string | false    |              |             |
 
 ## codersdk.CreateGroupRequest
 
@@ -2277,7 +2313,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }
@@ -2655,7 +2691,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "links": {
       "value": [
         {
-          "icon": "string",
+          "icon": "bug",
           "name": "string",
           "target": "string"
         }
@@ -2869,16 +2905,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.Experiment
 
 ```json
-"deployment_health_page"
+"example"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                    |
-| ------------------------ |
-| `deployment_health_page` |
+| Value     |
+| --------- |
+| `example` |
 
 ## codersdk.ExternalAuth
 
@@ -3359,7 +3395,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "icon": "string",
+  "icon": "bug",
   "name": "string",
   "target": "string"
 }
@@ -3372,6 +3408,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`   | string | false    |              |             |
 | `name`   | string | false    |              |             |
 | `target` | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value  |
+| -------- | ------ |
+| `icon`   | `bug`  |
+| `icon`   | `chat` |
+| `icon`   | `docs` |
 
 ## codersdk.LogLevel
 
@@ -4455,7 +4499,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "links": {
     "value": [
       {
-        "icon": "string",
+        "icon": "bug",
         "name": "string",
         "target": "string"
       }

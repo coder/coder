@@ -63,11 +63,38 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// @typescript-ignore LicensorTrialRequest
+type LicensorTrialRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
 type CreateFirstUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
-	Trial    bool   `json:"trial"`
+	Email     string                   `json:"email" validate:"required,email"`
+	Username  string                   `json:"username" validate:"required,username"`
+	Password  string                   `json:"password" validate:"required"`
+	Trial     bool                     `json:"trial"`
+	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+}
+
+type CreateFirstUserTrialInfo struct {
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.

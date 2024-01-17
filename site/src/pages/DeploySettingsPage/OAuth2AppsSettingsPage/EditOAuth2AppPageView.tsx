@@ -17,7 +17,6 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { Header } from "components/DeploySettingsLayout/Header";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "components/Loader/Loader";
@@ -25,6 +24,7 @@ import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
+import { Header } from "../Header";
 
 export type MutatingResource = {
   updateApp: boolean;

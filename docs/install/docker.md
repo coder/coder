@@ -35,7 +35,7 @@ Coder's [configuration options](../admin/configure.md).
 
 <div class="tabs">
 
-## Run Coder with access URL and external PostgreSQL (recommended)
+## docker run
 
 For production deployments, we recommend using an external PostgreSQL database
 (version 13 or higher). Set `ACCESS_URL` to the external URL that users and
@@ -52,7 +52,7 @@ docker run --rm -it \
 Coder configuration is defined via environment variables. Learn more about
 Coder's [configuration options](../admin/configure.md).
 
-## Run Coder with docker-compose
+## docker compose
 
 Coder's publishes a
 [docker-compose example](https://github.com/coder/coder/blob/main/docker-compose.yaml)
@@ -66,7 +66,7 @@ which includes an PostgreSQL container and volume.
    git clone https://github.com/coder/coder.git
    ```
 
-3. Start Coder with `docker-compose up`:
+3. Start Coder with `docker compose up`:
 
    In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have
    an external URL that users and workspaces will use to connect to Coder.

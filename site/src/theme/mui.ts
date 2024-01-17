@@ -94,10 +94,6 @@ export const components = {
         "& .MuiLoadingButton-loadingIndicator": {
           width: 14,
           height: 14,
-          // Idk why but I found the loading indicator in the loading buttons
-          // does not align with the start icon from the regular button so this
-          // is a visual adjustment.
-          left: -6,
         },
 
         "& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
@@ -414,7 +410,7 @@ export const components = {
       root: {
         // Not sure why but since the input has padding we don't need it here
         "& .MuiInputBase-root": {
-          padding: 0,
+          padding: "0px 0px 0px 8px",
         },
       },
     },

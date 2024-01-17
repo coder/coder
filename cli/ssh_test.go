@@ -26,12 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -738,8 +740,8 @@ func TestSSH(t *testing.T) {
 		defer cancel()
 
 		tmpdir := tempDirUnixSocket(t)
-		agentSock := filepath.Join(tmpdir, "agent.sock")
-		l, err := net.Listen("unix", agentSock)
+		localSock := filepath.Join(tmpdir, "local.sock")
+		l, err := net.Listen("unix", localSock)
 		require.NoError(t, err)
 		defer l.Close()
 		remoteSock := filepath.Join(tmpdir, "remote.sock")
@@ -748,7 +750,7 @@ func TestSSH(t *testing.T) {
 			"ssh",
 			workspace.Name,
 			"--remote-forward",
-			fmt.Sprintf("%s:%s", remoteSock, agentSock),
+			fmt.Sprintf("%s:%s", remoteSock, localSock),
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -769,6 +771,116 @@ func TestSSH(t *testing.T) {
 		// And we're done.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+
+	// Test that we can forward a local unix socket to a remote unix socket and
+	// that new SSH sessions take over the socket without closing active socket
+	// connections.
+	t.Run("RemoteForwardUnixSocketMultipleSessionsOverwrite", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Wait super super long so this doesn't flake on -race test.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong*2)
+		defer cancel()
+
+		tmpdir := tempDirUnixSocket(t)
+
+		localSock := filepath.Join(tmpdir, "local.sock")
+		l, err := net.Listen("unix", localSock)
+		require.NoError(t, err)
+		defer l.Close()
+		testutil.Go(t, func() {
+			for {
+				fd, err := l.Accept()
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						assert.NoError(t, err, "listener accept failed")
+					}
+					return
+				}
+
+				testutil.Go(t, func() {
+					defer fd.Close()
+					agentssh.Bicopy(ctx, fd, fd)
+				})
+			}
+		})
+
+		remoteSock := filepath.Join(tmpdir, "remote.sock")
+
+		var done []func() error
+		for i := 0; i < 2; i++ {
+			id := fmt.Sprintf("ssh-%d", i)
+			inv, root := clitest.New(t,
+				"ssh",
+				workspace.Name,
+				"--remote-forward",
+				fmt.Sprintf("%s:%s", remoteSock, localSock),
+			)
+			inv.Logger = inv.Logger.Named(id)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+			inv.Stderr = pty.Output()
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err, "ssh command failed: %s", id)
+			})
+
+			// Since something was output, it should be safe to write input.
+			// This could show a prompt or "running startup scripts", so it's
+			// not indicative of the SSH connection being ready.
+			_ = pty.Peek(ctx, 1)
+
+			// Ensure the SSH connection is ready by testing the shell
+			// input/output.
+			pty.WriteLine("echo ping' 'pong")
+			pty.ExpectMatchContext(ctx, "ping pong")
+
+			d := &net.Dialer{}
+			fd, err := d.DialContext(ctx, "unix", remoteSock)
+			require.NoError(t, err, id)
+
+			// Ping / pong to ensure the socket is working.
+			_, err = fd.Write([]byte("hello world"))
+			require.NoError(t, err, id)
+
+			buf := make([]byte, 11)
+			_, err = fd.Read(buf)
+			require.NoError(t, err, id)
+			require.Equal(t, "hello world", string(buf), id)
+
+			done = append(done, func() error {
+				// Redo ping / pong to ensure that the socket
+				// connections still work.
+				_, err := fd.Write([]byte("hello world"))
+				assert.NoError(t, err, id)
+
+				buf := make([]byte, 11)
+				_, err = fd.Read(buf)
+				assert.NoError(t, err, id)
+				assert.Equal(t, "hello world", string(buf), id)
+
+				pty.WriteLine("exit")
+				<-cmdDone
+				return nil
+			})
+		}
+
+		var eg errgroup.Group
+		for _, d := range done {
+			eg.Go(d)
+		}
+		err = eg.Wait()
+		require.NoError(t, err)
 	})
 
 	t.Run("FileLogging", func(t *testing.T) {

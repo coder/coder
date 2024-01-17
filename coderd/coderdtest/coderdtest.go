@@ -107,7 +107,7 @@ type Options struct {
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	ExternalAuthConfigs   []*externalauth.Config
-	TrialGenerator        func(context.Context, string) error
+	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
@@ -145,6 +145,7 @@ type Options struct {
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
+	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -451,6 +452,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			StatsBatcher:                       options.StatsBatcher,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
+			NewTicker:                          options.NewTicker,
 		}
 }
 

@@ -87,30 +87,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
 
-			// Copy the default value if the list is empty, or if the user
-			// specified the "none" value clear the list.
-			if len(autostopRequirementDaysOfWeek) == 0 {
-				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
-			}
-			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
-				// Set it to every day of the week
-				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-			} else if len(autostartRequirementDaysOfWeek) == 0 {
-				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
-			}
-			if unsetAutostopRequirementDaysOfWeek {
-				autostopRequirementDaysOfWeek = []string{}
-			}
-			if failureTTL == 0 {
-				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
-			}
-			if dormancyThreshold == 0 {
-				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
-			}
-			if dormancyAutoDeletion == 0 {
-				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
-			}
-
 			// Default values
 			if !userSetOption(inv, "description") {
 				description = template.Description
@@ -124,9 +100,71 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				displayName = template.DisplayName
 			}
 
+			if !userSetOption(inv, "max-ttl") {
+				maxTTL = time.Duration(template.MaxTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "default-ttl") {
+				defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "allow-user-autostop") {
+				allowUserAutostop = template.AllowUserAutostop
+			}
+
+			if !userSetOption(inv, "allow-user-autostart") {
+				allowUserAutostart = template.AllowUserAutostart
+			}
+
+			if !userSetOption(inv, "allow-user-cancel-workspace-jobs") {
+				allowUserCancelWorkspaceJobs = template.AllowUserCancelWorkspaceJobs
+			}
+
+			if !userSetOption(inv, "failure-ttl") {
+				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "dormancy-threshold") {
+				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "dormancy-auto-deletion") {
+				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "require-active-version") {
+				requireActiveVersion = template.RequireActiveVersion
+			}
+
+			if !userSetOption(inv, "autostop-requirement-weekdays") {
+				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
+			}
+
+			if unsetAutostopRequirementDaysOfWeek {
+				autostopRequirementDaysOfWeek = []string{}
+			}
+
+			if !userSetOption(inv, "autostop-requirement-weeks") {
+				autostopRequirementWeeks = template.AutostopRequirement.Weeks
+			}
+
+			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+				// Set it to every day of the week
+				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+			} else if !userSetOption(inv, "autostart-requirement-weekdays") {
+				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+			} else if len(autostartRequirementDaysOfWeek) == 0 {
+				autostartRequirementDaysOfWeek = []string{}
+			}
+
 			var deprecated *string
-			if !userSetOption(inv, "deprecated") {
+			if userSetOption(inv, "deprecated") {
 				deprecated = &deprecationMessage
+			}
+
+			var disableEveryoneGroup bool
+			if userSetOption(inv, "private") {
+				disableEveryoneGroup = disableEveryone
 			}
 
 			req := codersdk.UpdateTemplateMeta{
@@ -151,7 +189,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostop:              allowUserAutostop,
 				RequireActiveVersion:           requireActiveVersion,
 				DeprecationMessage:             deprecated,
-				DisableEveryoneGroupAccess:     disableEveryone,
+				DisableEveryoneGroupAccess:     disableEveryoneGroup,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)

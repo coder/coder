@@ -48,8 +48,8 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentVersion:         "v1.2.3",
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
-			expectedError:          "No active provisioner daemons found!",
 			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
+			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
 		},
 		{
 			name:                   "error fetching daemons",
@@ -303,7 +303,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentVersion:         "v2.3.4",
 			currentAPIMajorVersion: provisionersdk.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
-			expectedError:          "No active provisioner daemons found!",
+			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", now.Add(-5*time.Minute), now)},
 			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
 		},

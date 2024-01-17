@@ -183,12 +183,24 @@ export interface CreateFirstUserRequest {
   readonly username: string;
   readonly password: string;
   readonly trial: boolean;
+  readonly trial_info: CreateFirstUserTrialInfo;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserResponse {
   readonly user_id: string;
   readonly organization_id: string;
+}
+
+// From codersdk/users.go
+export interface CreateFirstUserTrialInfo {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly phone_number: string;
+  readonly job_title: string;
+  readonly company_name: string;
+  readonly country: string;
+  readonly developers: string;
 }
 
 // From codersdk/groups.go
@@ -1813,8 +1825,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "deployment_health_page";
-export const Experiments: Experiment[] = ["deployment_health_page"];
+export type Experiment = "example";
+export const Experiments: Experiment[] = ["example"];
 
 // From codersdk/deployment.go
 export type FeatureName =

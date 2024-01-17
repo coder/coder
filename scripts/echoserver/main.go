@@ -9,10 +9,21 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	network := os.Args[1]
+	var address string
+	switch network {
+	case "tcp4":
+		address = "127.0.0.1"
+	case "tcp6":
+		address = "[::]"
+	default:
+		log.Fatalf("invalid network: %s", network)
+	}
+	l, err := net.Listen(network, address+":0")
 	if err != nil {
 		log.Fatalf("listen error: err=%s", err)
 	}

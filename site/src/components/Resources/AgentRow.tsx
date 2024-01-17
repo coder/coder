@@ -318,10 +318,11 @@ export const AgentRow: FC<AgentRowProps> = ({
                         <img
                           src={logSource.icon}
                           alt=""
-                          width={16}
-                          height={16}
+                          width={14}
+                          height={14}
                           css={{
                             marginRight: 8,
+                            flexShrink: 0,
                           }}
                         />
                       );
@@ -329,9 +330,10 @@ export const AgentRow: FC<AgentRowProps> = ({
                       icon = (
                         <div
                           css={{
-                            width: 16,
-                            height: 16,
+                            width: 14,
+                            height: 14,
                             marginRight: 8,
+                            flexShrink: 0,
                             background: determineScriptDisplayColor(
                               logSource.display_name,
                             ),
@@ -361,34 +363,36 @@ export const AgentRow: FC<AgentRowProps> = ({
                       icon = (
                         <div
                           css={{
-                            minWidth: 16,
-                            width: 16,
-                            height: 16,
+                            width: 14,
+                            height: 14,
                             marginRight: 8,
                             display: "flex",
                             justifyContent: "center",
                             position: "relative",
+                            flexShrink: 0,
                           }}
                         >
                           <div
-                            css={{
+                            className="dashed-line"
+                            css={(theme) => ({
                               height: nextChangesSource ? "50%" : "100%",
-                              width: 4,
-                              background: "hsl(222, 31%, 25%)",
+                              width: 2,
+                              background: theme.experimental.l1.outline,
                               borderRadius: 2,
-                            }}
+                            })}
                           />
                           {nextChangesSource && (
                             <div
-                              css={{
-                                height: 4,
+                              className="dashed-line"
+                              css={(theme) => ({
+                                height: 2,
                                 width: "50%",
                                 top: "calc(50% - 2px)",
                                 left: "calc(50% - 1px)",
-                                background: "hsl(222, 31%, 25%)",
+                                background: theme.experimental.l1.outline,
                                 borderRadius: 2,
                                 position: "absolute",
-                              }}
+                              })}
                             />
                           )}
                         </div>

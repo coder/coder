@@ -107,3 +107,29 @@ export const AlwaysUpdateStopped: Story = {
     canChangeVersions: true,
   },
 };
+
+export const CancelShownForOwner: Story = {
+  args: {
+    workspace: {
+      ...Mocks.MockStartingWorkspace,
+      template_allow_user_cancel_workspace_jobs: false,
+    },
+    isOwner: true,
+  },
+};
+export const CancelShownForUser: Story = {
+  args: {
+    workspace: Mocks.MockStartingWorkspace,
+    isOwner: false,
+  },
+};
+
+export const CancelHiddenForUser: Story = {
+  args: {
+    workspace: {
+      ...Mocks.MockStartingWorkspace,
+      template_allow_user_cancel_workspace_jobs: false,
+    },
+    isOwner: false,
+  },
+};

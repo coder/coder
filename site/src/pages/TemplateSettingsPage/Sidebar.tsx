@@ -4,13 +4,12 @@ import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import { type FC } from "react";
 import type { Template } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 import {
   Sidebar as BaseSidebar,
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 interface SidebarProps {
   template: Template;
@@ -21,9 +20,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
     <BaseSidebar>
       <SidebarHeader
         avatar={
-          <Avatar variant="square" fitImage>
-            <ExternalImage src={template.icon} css={{ width: "100%" }} />
-          </Avatar>
+          <ExternalAvatar src={template.icon} variant="square" fitImage />
         }
         title={template.display_name || template.name}
         linkTo={`/templates/${template.name}`}

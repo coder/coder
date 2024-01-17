@@ -13,6 +13,7 @@ const meta: Meta<typeof UserDropdown> = {
       { icon: "docs", name: "Documentation", target: "" },
       { icon: "bug", name: "Report a bug", target: "" },
       { icon: "chat", name: "Join the Coder Discord", target: "" },
+      { icon: "/icon/aws.svg", name: "Amazon Web Services", target: "" },
     ],
   },
 };

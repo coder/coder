@@ -78,6 +78,18 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			message := uploadFlags.templateMessage(inv)
 
+			var varsFiles []string
+			if !uploadFlags.stdin() {
+				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				if err != nil {
+					return err
+				}
+
+				if len(varsFiles) > 0 {
+					_, _ = fmt.Fprintln(inv.Stdout, "Auto-discovered Terraform tfvars files. Make sure to review and clean up any unused files.")
+				}
+			}
+
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
@@ -89,6 +101,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			}
 
 			userVariableValues, err := ParseUserVariableValues(
+				varsFiles,
 				variablesFile,
 				commandLineVariables)
 			if err != nil {

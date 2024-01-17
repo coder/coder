@@ -204,6 +204,11 @@
               "title": "Permissions",
               "description": "Configure who can access a template",
               "path": "./templates/permissions.md"
+            },
+            {
+              "title": "Workspace Scheduling",
+              "description": "Configure when workspaces start, stop, and delete",
+              "path": "./templates/schedule.md"
             }
           ]
         },
@@ -235,6 +240,11 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
+        },
+        {
+          "title": "Workspace Scheduling",
+          "description": "Set workspace scheduling policies",
+          "path": "./templates/schedule.md"
         },
         {
           "title": "Icons",
@@ -1020,6 +1030,11 @@
           "title": "Google to AWS Federation",
           "description": "Federating a Google Cloud service account to AWS",
           "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./guides/image-pull-secret.md"
         }
       ]
     }
