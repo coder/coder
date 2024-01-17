@@ -705,6 +705,7 @@ jobs:
         id: build-docker
         env:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
+          CODER_IMAGE_TAG_PREFIX: main
           DOCKER_CLI_EXPERIMENTAL: "enabled"
         run: |
           set -euxo pipefail
@@ -727,6 +728,13 @@ jobs:
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "ghcr.io/coder/coder-preview:$tag" \
+              --version $version \
+              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+
+            # Create and push a multi-arch manifest for the main tag
+            ./scripts/build_docker_multiarch.sh \
+              --push \
+              --target "ghcr.io/coder/coder-preview:main" \
               --version $version \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
 
