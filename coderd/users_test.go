@@ -677,7 +677,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdateUsername", func(t *testing.T) {
+	t.Run("UpdateUser", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -692,9 +692,11 @@ func TestUpdateUserProfile(t *testing.T) {
 		_, _ = client.User(ctx, codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
+			Name:     "Mr User",
 		})
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Name, "Mr User")
 		numLogs++ // add an audit log for user update
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
