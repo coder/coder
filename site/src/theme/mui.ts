@@ -410,7 +410,7 @@ export const components = {
       root: {
         // Not sure why but since the input has padding we don't need it here
         "& .MuiInputBase-root": {
-          padding: 0,
+          padding: "0px 0px 0px 8px",
         },
       },
     },

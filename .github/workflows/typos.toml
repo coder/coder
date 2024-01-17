@@ -14,7 +14,7 @@ darcula = "darcula"
 Hashi = "Hashi"
 trialer = "trialer"
 encrypter = "encrypter"
-hel = "hel" # as in helsinki
+hel = "hel"             # as in helsinki
 
 [files]
 extend-exclude = [
@@ -31,4 +31,5 @@ extend-exclude = [
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
 	"tailnet/testdata/**",
+	"site/src/pages/SetupPage/countries.tsx",
 ]
