@@ -702,6 +702,29 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
+
+	t.Run("InvalidRealUserName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "john@coder.com",
+			Username:       "john",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name: " Mr Bean", // must not have leading space
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
 }
 
 func TestUpdateUserPassword(t *testing.T) {

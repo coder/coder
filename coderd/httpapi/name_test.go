@@ -209,3 +209,32 @@ func TestFrom(t *testing.T) {
 		})
 	}
 }
+
+func TestUserRealNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"1", true},
+		{"A", true},
+		{"A1", true},
+		{".", true},
+		{"Mr Bean", true},
+		{"John Doe", true},
+		{". .", true},
+
+		{"John Doe ", false},
+		{" John Doe", false},
+		{" ", false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			valid := httpapi.UserRealNameValid(testCase.Name)
+			require.Equal(t, testCase.Valid, valid == nil)
+		})
+	}
+}

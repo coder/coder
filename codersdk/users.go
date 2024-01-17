@@ -119,7 +119,7 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name"`
+	Name     string `json:"name" validate:"user_real_name"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
