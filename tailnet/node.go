@@ -52,6 +52,7 @@ func (u *nodeUpdater) updateLoop() {
 			u.Wait()
 		}
 		if u.closing {
+			u.logger.Debug(context.Background(), "closing nodeUpdater updateLoop")
 			return
 		}
 		node := u.nodeLocked()
@@ -68,6 +69,7 @@ func (u *nodeUpdater) updateLoop() {
 		}
 
 		u.L.Unlock()
+		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
 		u.callback(node)
 		u.L.Lock()
 	}
@@ -126,6 +128,8 @@ func (u *nodeUpdater) setNetInfo(ni *tailcfg.NetInfo) {
 	if u.preferredDERP != ni.PreferredDERP {
 		dirty = true
 		u.preferredDERP = ni.PreferredDERP
+		u.logger.Debug(context.Background(), "new preferred DERP",
+			slog.F("preferred_derp", u.preferredDERP))
 	}
 	if !maps.Equal(u.derpLatency, ni.DERPLatency) {
 		dirty = true
