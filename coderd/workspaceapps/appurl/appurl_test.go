@@ -1,4 +1,4 @@
-package httpapi_test
+package appurl_test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 func TestApplicationURLString(t *testing.T) {
@@ -14,17 +14,17 @@ func TestApplicationURLString(t *testing.T) {
 
 	testCases := []struct {
 		Name     string
-		URL      httpapi.ApplicationURL
+		URL      appurl.ApplicationURL
 		Expected string
 	}{
 		{
 			Name:     "Empty",
-			URL:      httpapi.ApplicationURL{},
+			URL:      appurl.ApplicationURL{},
 			Expected: "------",
 		},
 		{
 			Name: "AppName",
-			URL: httpapi.ApplicationURL{
+			URL: appurl.ApplicationURL{
 				AppSlugOrPort: "app",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -34,7 +34,7 @@ func TestApplicationURLString(t *testing.T) {
 		},
 		{
 			Name: "Port",
-			URL: httpapi.ApplicationURL{
+			URL: appurl.ApplicationURL{
 				AppSlugOrPort: "8080",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -44,7 +44,7 @@ func TestApplicationURLString(t *testing.T) {
 		},
 		{
 			Name: "Prefix",
-			URL: httpapi.ApplicationURL{
+			URL: appurl.ApplicationURL{
 				Prefix:        "yolo---",
 				AppSlugOrPort: "app",
 				AgentName:     "agent",
@@ -70,44 +70,44 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	testCases := []struct {
 		Name          string
 		Subdomain     string
-		Expected      httpapi.ApplicationURL
+		Expected      appurl.ApplicationURL
 		ExpectedError string
 	}{
 		{
 			Name:          "Invalid_Empty",
 			Subdomain:     "test",
-			Expected:      httpapi.ApplicationURL{},
+			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_Workspace.Agent--App",
 			Subdomain:     "workspace.agent--app",
-			Expected:      httpapi.ApplicationURL{},
+			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_Workspace--App",
 			Subdomain:     "workspace--app",
-			Expected:      httpapi.ApplicationURL{},
+			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_App--Workspace--User",
 			Subdomain:     "app--workspace--user",
-			Expected:      httpapi.ApplicationURL{},
+			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_TooManyComponents",
 			Subdomain:     "1--2--3--4--5",
-			Expected:      httpapi.ApplicationURL{},
+			Expected:      appurl.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		// Correct
 		{
 			Name:      "AppName--Agent--Workspace--User",
 			Subdomain: "app--agent--workspace--user",
-			Expected: httpapi.ApplicationURL{
+			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -117,7 +117,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name:      "Port--Agent--Workspace--User",
 			Subdomain: "8080--agent--workspace--user",
-			Expected: httpapi.ApplicationURL{
+			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "8080",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -127,7 +127,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name:      "HyphenatedNames",
 			Subdomain: "app-slug--agent-name--workspace-name--user-name",
-			Expected: httpapi.ApplicationURL{
+			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "app-slug",
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
@@ -137,7 +137,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		{
 			Name:      "Prefix",
 			Subdomain: "dean---was---here---app--agent--workspace--user",
-			Expected: httpapi.ApplicationURL{
+			Expected: appurl.ApplicationURL{
 				Prefix:        "dean---was---here---",
 				AppSlugOrPort: "app",
 				AgentName:     "agent",
@@ -152,7 +152,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			app, err := httpapi.ParseSubdomainAppURL(c.Subdomain)
+			app, err := appurl.ParseSubdomainAppURL(c.Subdomain)
 			if c.ExpectedError == "" {
 				require.NoError(t, err)
 				require.Equal(t, c.Expected, app, "expected app")
@@ -370,7 +370,7 @@ func TestCompileHostnamePattern(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			regex, err := httpapi.CompileHostnamePattern(c.pattern)
+			regex, err := appurl.CompileHostnamePattern(c.pattern)
 			if c.errorContains == "" {
 				require.NoError(t, err)
 
@@ -382,7 +382,7 @@ func TestCompileHostnamePattern(t *testing.T) {
 					t.Run(fmt.Sprintf("MatchCase%d", i), func(t *testing.T) {
 						t.Parallel()
 
-						match, ok := httpapi.ExecuteHostnamePattern(regex, m.input)
+						match, ok := appurl.ExecuteHostnamePattern(regex, m.input)
 						if m.match == "" {
 							require.False(t, ok)
 						} else {

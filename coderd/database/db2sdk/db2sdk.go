@@ -14,9 +14,9 @@ import (
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -381,7 +381,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	if appSlug == "" {
 		appSlug = dbApp.DisplayName
 	}
-	return httpapi.ApplicationURL{
+	return appurl.ApplicationURL{
 		// We never generate URLs with a prefix. We only allow prefixes when
 		// parsing URLs from the hostname. Users that want this feature can
 		// write out their own URLs.

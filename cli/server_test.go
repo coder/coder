@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -1552,6 +1553,18 @@ func TestServer(t *testing.T) {
 				// ValueSource is not going to be correct on the `want`, so just
 				// match that field.
 				wantConfig.Options[i].ValueSource = gotConfig.Options[i].ValueSource
+
+				// If there is a wrapped value with a validator, unwrap it.
+				// The underlying doesn't compare well since it compares go pointers,
+				// and not the actual value.
+				if validator, isValidator := wantConfig.Options[i].Value.(interface{ Underlying() pflag.Value }); isValidator {
+					wantConfig.Options[i].Value = validator.Underlying()
+				}
+
+				if validator, isValidator := gotConfig.Options[i].Value.(interface{ Underlying() pflag.Value }); isValidator {
+					gotConfig.Options[i].Value = validator.Underlying()
+				}
+
 				assert.Equal(
 					t, wantConfig.Options[i],
 					gotConfig.Options[i],

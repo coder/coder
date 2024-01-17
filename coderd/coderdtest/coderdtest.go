@@ -62,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -71,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -372,7 +372,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
 		var err error
-		appHostnameRegex, err = httpapi.CompileHostnamePattern(options.AppHostname)
+		appHostnameRegex, err = appurl.CompileHostnamePattern(options.AppHostname)
 		require.NoError(t, err)
 	}
 

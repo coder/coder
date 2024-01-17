@@ -2375,19 +2375,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "verbose": true,
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
+    "wildcard_access_url": "string",
     "write_config": true
   },
   "options": [
@@ -2753,19 +2741,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "verbose": true,
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
-  "wildcard_access_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
+  "wildcard_access_url": "string",
   "write_config": true
 }
 ```
@@ -2829,7 +2805,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `verbose`                            | boolean                                                                                              | false    |              |                                                                    |
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
-| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp

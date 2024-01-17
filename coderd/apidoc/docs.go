@@ -9061,7 +9061,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_access_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "type": "string"
                 },
                 "write_config": {
                     "type": "boolean"
