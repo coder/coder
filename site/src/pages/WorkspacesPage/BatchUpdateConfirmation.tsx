@@ -92,7 +92,7 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
     } else {
       setStage("updates");
     }
-  }, [checkedWorkspaces, open]);
+  }, [runningWorkspacesToUpdate, dormantWorkspaces, checkedWorkspaces, open]);
 
   // Figure out which new versions everything will be updated to so that we can
   // show update messages and such.
