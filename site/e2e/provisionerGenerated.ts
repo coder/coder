@@ -221,6 +221,7 @@ export interface Metadata {
   workspaceOwnerOidcAccessToken: string;
   workspaceOwnerSessionToken: string;
   templateId: string;
+  workspaceOwnerName: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -795,6 +796,9 @@ export const Metadata = {
     }
     if (message.templateId !== "") {
       writer.uint32(98).string(message.templateId);
+    }
+    if (message.workspaceOwnerName !== "") {
+      writer.uint32(106).string(message.workspaceOwnerName);
     }
     return writer;
   },

@@ -80,6 +80,20 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	userRealNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := UserRealNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("user_real_name", userRealNameValidator)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Is404Error returns true if the given error should return a 404 status code.

@@ -861,6 +861,7 @@ _None_
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
+          "name": "string",
           "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
           "roles": [
             {
@@ -887,6 +888,7 @@ _None_
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -1173,6 +1175,7 @@ _None_
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
+    "name": "string",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1251,6 +1254,7 @@ _None_
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1511,18 +1515,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "string",
   "password": "string",
   "trial": true,
+  "trial_info": {
+    "company_name": "string",
+    "country": "string",
+    "developers": "string",
+    "first_name": "string",
+    "job_title": "string",
+    "last_name": "string",
+    "phone_number": "string"
+  },
   "username": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type    | Required | Restrictions | Description |
-| ---------- | ------- | -------- | ------------ | ----------- |
-| `email`    | string  | true     |              |             |
-| `password` | string  | true     |              |             |
-| `trial`    | boolean | false    |              |             |
-| `username` | string  | true     |              |             |
+| Name         | Type                                                                   | Required | Restrictions | Description |
+| ------------ | ---------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `email`      | string                                                                 | true     |              |             |
+| `password`   | string                                                                 | true     |              |             |
+| `trial`      | boolean                                                                | false    |              |             |
+| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
+| `username`   | string                                                                 | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -1539,6 +1553,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `organization_id` | string | false    |              |             |
 | `user_id`         | string | false    |              |             |
+
+## codersdk.CreateFirstUserTrialInfo
+
+```json
+{
+  "company_name": "string",
+  "country": "string",
+  "developers": "string",
+  "first_name": "string",
+  "job_title": "string",
+  "last_name": "string",
+  "phone_number": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `company_name` | string | false    |              |             |
+| `country`      | string | false    |              |             |
+| `developers`   | string | false    |              |             |
+| `first_name`   | string | false    |              |             |
+| `job_title`    | string | false    |              |             |
+| `last_name`    | string | false    |              |             |
+| `phone_number` | string | false    |              |             |
 
 ## codersdk.CreateGroupRequest
 
@@ -3105,6 +3145,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3162,6 +3203,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -4985,6 +5027,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -5009,6 +5052,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`               | string                                         | true     |              |             |
 | `last_seen_at`     | string                                         | false    |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
+| `name`             | string                                         | false    |              |             |
 | `organization_ids` | array of string                                | false    |              |             |
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
@@ -5426,6 +5470,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "name": "string",
   "username": "string"
 }
 ```
@@ -5434,6 +5479,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
+| `name`     | string | false    |              |             |
 | `username` | string | true     |              |             |
 
 ## codersdk.UpdateUserQuietHoursScheduleRequest
@@ -5547,6 +5593,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -5570,6 +5617,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`               | string                                     | true     |              |             |
 | `last_seen_at`     | string                                     | false    |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
+| `name`             | string                                     | false    |              |             |
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |

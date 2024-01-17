@@ -114,6 +114,13 @@ func (m metricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m metricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)

@@ -183,12 +183,24 @@ export interface CreateFirstUserRequest {
   readonly username: string;
   readonly password: string;
   readonly trial: boolean;
+  readonly trial_info: CreateFirstUserTrialInfo;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserResponse {
   readonly user_id: string;
   readonly organization_id: string;
+}
+
+// From codersdk/users.go
+export interface CreateFirstUserTrialInfo {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly phone_number: string;
+  readonly job_title: string;
+  readonly company_name: string;
+  readonly country: string;
+  readonly developers: string;
 }
 
 // From codersdk/groups.go
@@ -1282,6 +1294,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string;
+  readonly name: string;
 }
 
 // From codersdk/users.go
@@ -1329,6 +1342,7 @@ export interface UploadResponse {
 export interface User {
   readonly id: string;
   readonly username: string;
+  readonly name: string;
   readonly email: string;
   readonly created_at: string;
   readonly last_seen_at: string;

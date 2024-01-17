@@ -120,6 +120,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
+		Name:            user.Name,
 		CreatedAt:       user.CreatedAt,
 		LastSeenAt:      user.LastSeenAt,
 		Username:        user.Username,

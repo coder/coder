@@ -99,7 +99,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	unixForwardHandler := &forwardedUnixHandler{log: logger}
+	unixForwardHandler := newForwardedUnixHandler(logger)
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{

@@ -341,6 +341,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceName:                 workspace.Name,
 						WorkspaceOwner:                user.Username,
 						WorkspaceOwnerEmail:           user.Email,
+						WorkspaceOwnerName:            user.Name,
 						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
 						WorkspaceId:                   workspace.ID.String(),
 						WorkspaceOwnerId:              user.ID.String(),
