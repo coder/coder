@@ -740,7 +740,6 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           file: ./scripts/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          pull: true
           tags: |
             ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
             ghcr.io/coder/coder-preview:main
