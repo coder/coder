@@ -191,7 +191,7 @@ const TerminalPage: FC = () => {
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
-        Language.workspaceAgentErrorMessagePrefix + "no agent found with ID",
+        Language.workspaceAgentErrorMessagePrefix + "no agent found with ID, is the workspace started?",
       );
       return;
     }
