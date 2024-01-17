@@ -125,6 +125,15 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 }
 
 func startWorkspace(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+	if workspace.DormantAt != nil {
+		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
+		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: false,
+		})
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("activate workspace: %w", err)
+		}
+	}
 	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, action)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err

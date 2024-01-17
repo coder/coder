@@ -18,6 +18,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -197,6 +199,66 @@ func TestExternalAuthManagement(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list.Providers, 2)
 		require.Len(t, list.Links, 0)
+	})
+	t.Run("RefreshAllProviders", func(t *testing.T) {
+		t.Parallel()
+		const githubID = "fake-github"
+		const gitlabID = "fake-gitlab"
+
+		githubCalled := false
+		githubApp := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithRefresh(func(email string) error {
+			githubCalled = true
+			return nil
+		}))
+		gitlabCalled := false
+		gitlab := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithRefresh(func(email string) error {
+			gitlabCalled = true
+			return nil
+		}))
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				githubApp.ExternalAuthConfig(t, githubID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				}),
+				gitlab.ExternalAuthConfig(t, gitlabID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitLab.String()
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		// Just a regular user
+		client, user := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Log into github & gitlab
+		githubApp.ExternalLogin(t, client)
+		gitlab.ExternalLogin(t, client)
+
+		links, err := db.GetExternalAuthLinksByUserID(
+			dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, ownerUser.OrganizationID)), user.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 2)
+
+		// Expire the links
+		for _, l := range links {
+			_, err := db.UpdateExternalAuthLink(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, ownerUser.OrganizationID)), database.UpdateExternalAuthLinkParams{
+				ProviderID:        l.ProviderID,
+				UserID:            l.UserID,
+				UpdatedAt:         dbtime.Now(),
+				OAuthAccessToken:  l.OAuthAccessToken,
+				OAuthRefreshToken: l.OAuthRefreshToken,
+				OAuthExpiry:       time.Now().Add(time.Hour * -1),
+				OAuthExtra:        l.OAuthExtra,
+			})
+			require.NoErrorf(t, err, "expire key for %s", l.ProviderID)
+		}
+
+		list, err := client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Links, 2)
+		require.True(t, githubCalled, "github should be refreshed")
+		require.True(t, gitlabCalled, "gitlab should be refreshed")
 	})
 }
 

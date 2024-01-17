@@ -357,6 +357,14 @@ SET
 WHERE
 	id = $1;
 
+-- name: BatchUpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = @last_used_at
+WHERE
+	id = ANY(@ids :: uuid[]);
+
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT

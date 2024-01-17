@@ -214,46 +214,59 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		_, b, _, ok := runtime.Caller(0)
 		require.True(t, ok)
 		dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
-		echoServerCmd := exec.Command("go", "run", dir,
-			"-D", agentssh.MagicProcessCmdlineJetBrains)
-		stdout, err := echoServerCmd.StdoutPipe()
-		require.NoError(t, err)
-		err = echoServerCmd.Start()
-		require.NoError(t, err)
-		defer echoServerCmd.Process.Kill()
 
-		// The echo server prints its port as the first line.
-		sc := bufio.NewScanner(stdout)
-		sc.Scan()
-		remotePort := sc.Text()
+		spawnServer := func(network string) (string, *exec.Cmd) {
+			echoServerCmd := exec.Command("go", "run", dir,
+				network, "-D", agentssh.MagicProcessCmdlineJetBrains)
+			stdout, err := echoServerCmd.StdoutPipe()
+			require.NoError(t, err)
+			err = echoServerCmd.Start()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				echoServerCmd.Process.Kill()
+			})
+
+			// The echo server prints its port as the first line.
+			sc := bufio.NewScanner(stdout)
+			sc.Scan()
+			return sc.Text(), echoServerCmd
+		}
+
+		port4, cmd4 := spawnServer("tcp4")
+		port6, cmd6 := spawnServer("tcp6")
 
 		//nolint:dogsled
 		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+		defer conn.Close()
+
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 
-		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
+		tunnel4, err := sshClient.Dial("tcp4", fmt.Sprintf("127.0.0.1:%s", port4))
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			// always close on failure of test
-			_ = conn.Close()
-			_ = tunneledConn.Close()
-		})
+		defer tunnel4.Close()
+
+		tunnel6, err := sshClient.Dial("tcp6", fmt.Sprintf("[::]:%s", port6))
+		require.NoError(t, err)
+		defer tunnel6.Close()
 
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
 				ok, s.ConnectionCount, s.SessionCountJetBrains)
 			return ok && s.ConnectionCount > 0 &&
-				s.SessionCountJetBrains == 1
+				s.SessionCountJetBrains == 2
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats with conn open",
 		)
 
 		// Kill the server and connection after checking for the echo.
-		requireEcho(t, tunneledConn)
-		_ = echoServerCmd.Process.Kill()
-		_ = tunneledConn.Close()
+		requireEcho(t, tunnel4)
+		requireEcho(t, tunnel6)
+		_ = cmd4.Process.Kill()
+		_ = cmd6.Process.Kill()
+		_ = tunnel4.Close()
+		_ = tunnel6.Close()
 
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
