@@ -677,7 +677,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdateUsername", func(t *testing.T) {
+	t.Run("UpdateUser", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -692,13 +692,38 @@ func TestUpdateUserProfile(t *testing.T) {
 		_, _ = client.User(ctx, codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
+			Name:     "Mr User",
 		})
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Name, "Mr User")
 		numLogs++ // add an audit log for user update
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	t.Run("InvalidRealUserName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "john@coder.com",
+			Username:       "john",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name: " Mr Bean", // must not have leading space
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 }
 

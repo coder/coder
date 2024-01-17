@@ -11105,6 +11105,9 @@ const docTemplate = `{
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -11511,6 +11514,9 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "name": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11608,6 +11614,9 @@ const docTemplate = `{
                 },
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_ids": {
                     "type": "array",

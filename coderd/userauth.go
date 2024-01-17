@@ -1501,6 +1501,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			user, err = tx.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
+				Name:      user.Name,
 				Username:  user.Username,
 				UpdatedAt: dbtime.Now(),
 				AvatarURL: user.AvatarURL,

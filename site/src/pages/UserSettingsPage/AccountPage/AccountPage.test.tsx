@@ -7,6 +7,7 @@ import { mockApiError } from "testHelpers/entities";
 
 const newData = {
   username: "user",
+  name: "",
 };
 
 const fillAndSubmitForm = async () => {

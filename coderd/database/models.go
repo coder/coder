@@ -2144,6 +2144,8 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// "" can be interpreted as "the user does not care", falling back to the default theme
 	ThemePreference string `db:"theme_preference" json:"theme_preference"`
+	// Name of the Coder user
+	Name string `db:"name" json:"name"`
 }
 
 type UserLink struct {

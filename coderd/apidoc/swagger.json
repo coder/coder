@@ -10044,6 +10044,9 @@
         "login_type": {
           "$ref": "#/definitions/codersdk.LoginType"
         },
+        "name": {
+          "type": "string"
+        },
         "organization_ids": {
           "type": "array",
           "items": {
@@ -10418,6 +10421,9 @@
       "type": "object",
       "required": ["username"],
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "username": {
           "type": "string"
         }
@@ -10508,6 +10514,9 @@
         },
         "login_type": {
           "$ref": "#/definitions/codersdk.LoginType"
+        },
+        "name": {
+          "type": "string"
         },
         "organization_ids": {
           "type": "array",

@@ -6693,6 +6693,7 @@ func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		user.Email = arg.Email
 		user.Username = arg.Username
 		user.AvatarURL = arg.AvatarURL
+		user.Name = arg.Name
 		q.users[index] = user
 		return user, nil
 	}

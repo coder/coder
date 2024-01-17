@@ -46,6 +46,7 @@ type MinimalUser struct {
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
+	Name       string    `json:"name"`
 	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
@@ -118,6 +119,7 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
