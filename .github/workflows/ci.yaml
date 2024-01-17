@@ -712,7 +712,6 @@ jobs:
 
           # create an empty build context directory
           mkdir -p build-context
-          mkdir -p base-build-context
 
           # copy the build artifacts to the build context
           cp build/coder_linux_* build-context/
@@ -724,17 +723,6 @@ jobs:
 
       - name: Set up Depot
         uses: depot/setup-action@v1
-
-      - name: Build multi arch base image
-        uses: depot/build-push-action@v1
-        with:
-          project: 9rcqzb56rm
-          context: ./base-build-context
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          tags: ${{ steps.build.outputs.base_tag }}
-          file: ./scripts/Dockerfile.base
-          push: false
-          save: true
 
       - name: Build and push multi arch image
         uses: depot/build-push-action@v1
@@ -749,7 +737,7 @@ jobs:
             ghcr.io/coder/coder-preview:main
             ghcr.io/coder/coder-preview:latest
           build-args: |
-            BASE_IMAGE=${{ steps.build.outputs.base_tag }}
+            BASE_IMAGE=ghcr.io/coder/coder-base
             CODER_VERSION=${{ steps.build.outputs.version }}
 
       - name: Prune old images
