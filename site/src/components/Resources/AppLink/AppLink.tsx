@@ -93,75 +93,65 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 
   const isPrivateApp = app.sharing_level === "owner";
 
-  const button = (
-    <AgentButton
-      startIcon={icon}
-      endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
-      disabled={!canClick}
-    >
-      <span
-        css={
-          !isPrivateApp && {
-            marginRight: 8,
-          }
-        }
-      >
-        {appDisplayName}
-      </span>
-    </AgentButton>
-  );
-
   return (
     <Tooltip title={primaryTooltip}>
-      <span>
-        <Link
-          href={href}
-          target="_blank"
-          css={{
-            pointerEvents: canClick ? undefined : "none",
-            textDecoration: "none !important",
-          }}
-          onClick={
-            canClick
-              ? async (event) => {
-                  event.preventDefault();
-                  // This is an external URI like "vscode://", so
-                  // it needs to be opened with the browser protocol handler.
-                  if (app.external && !app.url.startsWith("http")) {
-                    // If the protocol is external the browser does not
-                    // redirect the user from the page.
+      <Link
+        color="inherit"
+        component={AgentButton}
+        startIcon={icon}
+        endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
+        disabled={!canClick}
+        href={href}
+        target="_blank"
+        css={{
+          pointerEvents: canClick ? undefined : "none",
+          textDecoration: "none !important",
+        }}
+        onClick={
+          canClick
+            ? async (event) => {
+                event.preventDefault();
+                // This is an external URI like "vscode://", so
+                // it needs to be opened with the browser protocol handler.
+                if (app.external && !app.url.startsWith("http")) {
+                  // If the protocol is external the browser does not
+                  // redirect the user from the page.
 
-                    // This is a magic undocumented string that is replaced
-                    // with a brand-new session token from the backend.
-                    // This only exists for external URLs, and should only
-                    // be used internally, and is highly subject to break.
-                    const magicTokenString = "$SESSION_TOKEN";
-                    const hasMagicToken = href.indexOf(magicTokenString);
-                    let url = href;
-                    if (hasMagicToken !== -1) {
-                      setFetchingSessionToken(true);
-                      const key = await getApiKey();
-                      url = href.replaceAll(magicTokenString, key.key);
-                      setFetchingSessionToken(false);
-                    }
-                    window.location.href = url;
-                  } else {
-                    window.open(
-                      href,
-                      Language.appTitle(
-                        appDisplayName,
-                        generateRandomString(12),
-                      ),
-                      "width=900,height=600",
-                    );
+                  // This is a magic undocumented string that is replaced
+                  // with a brand-new session token from the backend.
+                  // This only exists for external URLs, and should only
+                  // be used internally, and is highly subject to break.
+                  const magicTokenString = "$SESSION_TOKEN";
+                  const hasMagicToken = href.indexOf(magicTokenString);
+                  let url = href;
+                  if (hasMagicToken !== -1) {
+                    setFetchingSessionToken(true);
+                    const key = await getApiKey();
+                    url = href.replaceAll(magicTokenString, key.key);
+                    setFetchingSessionToken(false);
                   }
+                  window.location.href = url;
+                } else {
+                  window.open(
+                    href,
+                    Language.appTitle(appDisplayName, generateRandomString(12)),
+                    "width=900,height=600",
+                  );
                 }
-              : undefined
+              }
+            : undefined
+        }
+      >
+        <span
+          css={
+            !isPrivateApp && {
+              marginRight: 8,
+            }
           }
         >
-          {button}
-        </Link>
-      </span>
+          {appDisplayName}
+        </span>
+      </Link>
     </Tooltip>
   );
 };

@@ -8,8 +8,8 @@ export const AgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Button
-        color="neutral"
         {...buttonProps}
+        color="neutral"
         size="large"
         variant="contained"
         ref={ref}

@@ -35,6 +35,10 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
 
   return (
     <Link
+      underline="none"
+      color="inherit"
+      component={AgentButton}
+      startIcon={<TerminalIcon />}
       href={href}
       target="_blank"
       onClick={(event) => {
@@ -47,9 +51,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       }}
       data-testid="terminal"
     >
-      <AgentButton startIcon={<TerminalIcon />}>
-        {DisplayAppNameMap["web_terminal"]}
-      </AgentButton>
+      {DisplayAppNameMap["web_terminal"]}
     </Link>
   );
 };
