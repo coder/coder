@@ -224,6 +224,10 @@ func TestUserRealNameValid(t *testing.T) {
 		{"Mr Bean", true},
 		{"Severus Snape", true},
 		{"Prof. Albus Percival Wulfric Brian Dumbledore", true},
+		{"Pablo Diego José Francisco de Paula Juan Nepomuceno María de los Remedios Cipriano de la Santísima Trinidad Ruiz y Picasso", true},
+		{"Hector Ó hEochagáin", true},
+		{"Małgorzata Kalinowska-Iszkowska", true},
+		{"成龍", true},
 		{". .", true},
 
 		{"Lord Voldemort ", false},
