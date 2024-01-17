@@ -125,9 +125,7 @@ export const FormSection: FC<
           {alpha && <AlphaBadge />}
           {deprecated && <DeprecatedBadge />}
         </h2>
-        {description && (
-          <div css={styles.formSectionInfoDescription}>{description}</div>
-        )}
+        <div css={styles.formSectionInfoDescription}>{description}</div>
       </div>
 
       {children}
