@@ -607,6 +607,10 @@ const styles = {
     gap: 16,
     flexWrap: "wrap",
 
+    "&:empty": {
+      display: "none",
+    },
+
     [theme.breakpoints.down("md")]: {
       marginLeft: 0,
       justifyContent: "flex-start",
