@@ -656,7 +656,7 @@ jobs:
     # to main branch. We are only building this for amd64 platform. (>95% pulls
     # are for amd64)
     needs: changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ubuntu-latest
     outputs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
