@@ -114,6 +114,8 @@ export const Workspace: FC<WorkspaceProps> = ({
           "topbar topbar topbar" auto
           "leftbar sidebar content" 1fr / auto auto 1fr
         `,
+        // We need this to make the sidebar scrollable
+        overflow: "hidden",
       }}
     >
       <WorkspaceTopbar
