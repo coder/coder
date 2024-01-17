@@ -719,9 +719,8 @@ jobs:
           # in the Dockerfile. This is arm for armv7.
           mv build-context/coder_linux_armv7 build-context/coder_linux_arm
 
-          # export version, base_tag, and tag as outputs
+          # export version, and tag as outputs
           echo "version=$version" >> $GITHUB_OUTPUT
-          echo "base_tag=$base_tag" >> $GITHUB_OUTPUT
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Set up Depot
