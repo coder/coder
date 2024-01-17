@@ -76,7 +76,7 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		called := make(chan struct{})
 		client := coderdtest.New(t, &coderdtest.Options{
-			TrialGenerator: func(context.Context, codersdk.LicensorTrialRequest) error {
+			TrialGenerator: func(ctx context.Context, s string) error {
 				close(called)
 				return nil
 			},

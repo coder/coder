@@ -152,16 +152,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, codersdk.LicensorTrialRequest{
-			Email:       createUser.Email,
-			FirstName:   createUser.TrialInfo.FirstName,
-			LastName:    createUser.TrialInfo.LastName,
-			PhoneNumber: createUser.TrialInfo.PhoneNumber,
-			JobTitle:    createUser.TrialInfo.JobTitle,
-			CompanyName: createUser.TrialInfo.CompanyName,
-			Country:     createUser.TrialInfo.Country,
-			Developers:  createUser.TrialInfo.Developers,
-		})
+		err = api.TrialGenerator(ctx, createUser.Email)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to generate trial",
