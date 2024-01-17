@@ -194,11 +194,6 @@ func TestCompileHostnamePattern(t *testing.T) {
 			errorContains: "must not contain a scheme",
 		},
 		{
-			name:          "Invalid_ContainsPort",
-			pattern:       "*.hi.com:8080",
-			errorContains: "must not contain a port",
-		},
-		{
 			name:          "Invalid_StartPeriod",
 			pattern:       ".hi.com",
 			errorContains: "must not start or end with a period",
@@ -249,6 +244,13 @@ func TestCompileHostnamePattern(t *testing.T) {
 			errorContains: "contains invalid label",
 		},
 
+		{
+			name:    "Valid_ContainsPort",
+			pattern: "*.hi.com:8080",
+			// Although a port is provided, the regex already matches any port.
+			// So it is ignored for validation purposes.
+			expectedRegex: `([^.]+)\.hi\.com`,
+		},
 		{
 			name:          "Valid_Simple",
 			pattern:       "*.hi",

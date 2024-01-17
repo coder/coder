@@ -140,9 +140,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	if strings.Contains(pattern, "http:") || strings.Contains(pattern, "https:") {
 		return nil, xerrors.Errorf("hostname pattern must not contain a scheme: %q", pattern)
 	}
-	if strings.Contains(pattern, ":") {
-		return nil, xerrors.Errorf("hostname pattern must not contain a port: %q", pattern)
-	}
+
 	if strings.HasPrefix(pattern, ".") || strings.HasSuffix(pattern, ".") {
 		return nil, xerrors.Errorf("hostname pattern must not start or end with a period: %q", pattern)
 	}
@@ -155,7 +153,17 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(pattern, "*") {
 		return nil, xerrors.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
 	}
-	for i, label := range strings.Split(pattern, ".") {
+
+	// If there is a hostname:port, we only care about the hostname. For hostname
+	// pattern reasons, we do not actually care what port the client is requesting.
+	// Any port provided here is used for generating urls for the ui, not for
+	// validation.
+	hostname, _, err := net.SplitHostPort(pattern)
+	if err == nil {
+		pattern = hostname
+	}
+
+	for i, label := range strings.Split(hostname, ".") {
 		if i == 0 {
 			// We have to allow the asterisk to be a valid hostname label, so
 			// we strip the asterisk (which is only on the first one).
