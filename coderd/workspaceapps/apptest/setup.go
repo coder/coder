@@ -407,7 +407,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Username:      me.Username,
 		}
 		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
-		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
+		require.Equal(t, manifest.VSCodePortProxyURI, proxyURL)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

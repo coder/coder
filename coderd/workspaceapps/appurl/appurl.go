@@ -3,6 +3,7 @@ package appurl
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -19,6 +20,36 @@ var (
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
+
+// SubdomainAppHost returns the URL of the apphost for subdomain based apps.
+// It will omit the scheme.
+//
+// Arguments:
+// apphost: Expected to contain a wildcard, example: "*.coder.com"
+// accessURL: The access url for the deployment.
+//
+// Returns:
+// 'apphost:port'
+//
+// For backwards compatibility and for "accessurl=localhost:0" purposes, we need
+// to use the port from the accessurl if the apphost doesn't have a port.
+// If the user specifies a port in the apphost, we will use that port instead.
+func SubdomainAppHost(apphost string, accessURL *url.URL) string {
+	if apphost == "" {
+		return ""
+	}
+
+	if apphost != "" && accessURL.Port() != "" {
+		// This should always parse if we prepend a scheme. We should add
+		// the access url port if the apphost doesn't have a port specified.
+		appHostU, err := url.Parse(fmt.Sprintf("https://%s", apphost))
+		if err != nil || (err == nil && appHostU.Port() == "") {
+			apphost += fmt.Sprintf(":%s", accessURL.Port())
+		}
+	}
+
+	return apphost
+}
 
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
