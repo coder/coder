@@ -430,6 +430,29 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 	}
 }
 
+// setAllPeersLost marks all peers as lost.  Typically, this is called when we lose connection to
+// the Coordinator.  (When we reconnect, we will get NODE updates for all peers that are still connected
+// and mark them as not lost.)
+func (c *configMaps) setAllPeersLost() {
+	c.L.Lock()
+	defer c.L.Unlock()
+	for _, lc := range c.peers {
+		if lc.lost {
+			// skip processing already lost nodes, as this just results in timer churn
+			continue
+		}
+		lc.lost = true
+		lc.setLostTimer(c)
+		// it's important to drop a log here so that we see it get marked lost if grepping thru
+		// the logs for a specific peer
+		c.logger.Debug(context.Background(),
+			"setAllPeersLost marked peer lost",
+			slog.F("peer_id", lc.peerID),
+			slog.F("key_id", lc.node.Key.ShortString()),
+		)
+	}
+}
+
 // peerLostTimeout is the callback that peerLifecycle uses when a peer is lost the timeout to
 // receive a handshake fires.
 func (c *configMaps) peerLostTimeout(id uuid.UUID) {

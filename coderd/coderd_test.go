@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -59,6 +58,7 @@ func TestBuildInfo(t *testing.T) {
 
 func TestDERP(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	client := coderdtest.New(t, nil)
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -97,8 +97,6 @@ func TestDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	w2Ready := make(chan struct{})
-	w2ReadyOnce := sync.Once{}
 	w1ID := uuid.New()
 	w1.SetNodeCallback(func(node *tailnet.Node) {
 		pn, err := tailnet.NodeToProto(node)
@@ -110,9 +108,6 @@ func TestDERP(t *testing.T) {
 			Node: pn,
 			Kind: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
 		}})
-		w2ReadyOnce.Do(func() {
-			close(w2Ready)
-		})
 	})
 	w2ID := uuid.New()
 	w2.SetNodeCallback(func(node *tailnet.Node) {
@@ -140,8 +135,8 @@ func TestDERP(t *testing.T) {
 	}()
 
 	<-conn
-	<-w2Ready
-	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
+	w2.AwaitReachable(ctx, w1IP)
+	nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()
 	<-conn
