@@ -656,11 +656,9 @@ jobs:
     # are for amd64)
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    env:
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    runs-on: ubuntu-latest
     outputs:
-      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
+      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -687,6 +685,7 @@ jobs:
         run: sudo apt-get install -y zstd
 
       - name: Build
+        id: build
         run: |
           set -euxo pipefail
           go mod download
@@ -694,31 +693,60 @@ jobs:
           version="$(./scripts/version.sh)"
           make gen/mark-fresh
           make -j \
-            build/coder_linux_amd64 \
+            build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
+            
+          # create base image tag
+          base_tag="coder-base:$version"
+          
+          # replace + with - in tag
+          base_tag="${base_tag/+/-}" 
+          
+          # create image tag
+          tag="main-$version"
+          
+          # replace + with - in tag
+          tag="${tag/+/-}"
+          
+          # create an empty build directory
+          mkdir -p tmp
 
-      - name: Build and Push Linux amd64 Docker Image
-        id: build-docker
-        run: |
-          set -euxo pipefail
-          version="$(./scripts/version.sh)"
-          tag="main-$(echo "$version" | sed 's/+/-/g')"
-
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          ./scripts/build_docker.sh \
-            --arch amd64 \
-            --target "ghcr.io/coder/coder-preview:$tag" \
-            --version $version \
-            --push \
-            build/coder_linux_amd64
-
-          # Tag as main
-          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
-          docker push ghcr.io/coder/coder-preview:main
-
-          # Store the tag in an output variable so we can use it in other jobs
+          # export version, base_tag, and tag as outputs
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "base_tag=$base_tag" >> $GITHUB_OUTPUT
           echo "tag=$tag" >> $GITHUB_OUTPUT
+      
+      - name: Set up Depot
+        uses: depot/setup-action@v1
+    
+      - name: Build multi arch base image
+        uses: depot/build-push-action@v1
+        with:
+          project: 9rcqzb56rm
+          context: ./tmp
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          tags: ${{ steps.build.outputs.base_tag }}
+          file: ./scripts/Dockerfile.base
+          push: false
+          save: true
+        
+      - name: Build and push multi arch image
+        uses: depot/build-push-action@v1
+        with:
+          project: 9rcqzb56rm
+          context: ./tmp
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          file: ./scripts/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          pull: true
+          tags: |
+            ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
+            ghcr.io/coder/coder-preview:main
+            ghcr.io/coder/coder-preview:latest
+          build-args: |
+            BASE_IMAGE=${{ steps.build.outputs.base_tag }}
+            CODER_VERSION=${{ steps.build.outputs.version }}   
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
