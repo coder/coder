@@ -163,7 +163,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 		pattern = hostname
 	}
 
-	for i, label := range strings.Split(hostname, ".") {
+	for i, label := range strings.Split(pattern, ".") {
 		if i == 0 {
 			// We have to allow the asterisk to be a valid hostname label, so
 			// we strip the asterisk (which is only on the first one).
