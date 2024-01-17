@@ -22,7 +22,6 @@ import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import Tooltip from "@mui/material/Tooltip";
 import Sell from "@mui/icons-material/Sell";
 import { FC } from "react";
-import { additionalTags } from "utils/provisionertags";
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from "@mui/material/IconButton";
 
@@ -62,7 +61,15 @@ export const ProvisionerDaemonsPage = () => {
           const daemonScope = daemon.tags["scope"] || "organization";
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
-          const extraTags = additionalTags(daemon.tags)
+          const extraTags = Object.keys(daemon.tags)
+          .filter((key) => key !== "scope" && key !== "owner")
+          .reduce(
+            (acc, key) => {
+              acc[key] = daemon.tags[key];
+              return acc;
+            },
+            {} as Record<string, string>,
+          );
           const isWarning = warnings.length > 0;
           return (
             <div
@@ -193,25 +200,29 @@ interface ProvisionerTagProps {
 export const ProvisionerTag : FC<ProvisionerTagProps> = ({ k, v, onDelete}) => {
   const { valid, value: boolValue } = parseBool(v);
   const kv = `${k}: ${v}`;
-  const content = (
+  const content = onDelete ? (
     <>
-      {onDelete ? (
-        <>
-          {kv}
-          <IconButton aria-label="delete" size="small" color="secondary" onClick={() => {
-            onDelete(k)
-          }}>
-            <CloseIcon fontSize="inherit" css={{
-              width: 14,
-              height: 14,
-            }}/>
-          </IconButton>
-          </>
-      ) : (
-        <>{kv}</>
-      )}
+      {kv}
+      <IconButton
+        aria-label="delete"
+        size="small"
+        color="secondary"
+        onClick={() => {
+          onDelete(k);
+        }}
+      >
+        <CloseIcon
+          fontSize="inherit"
+          css={{
+            width: 14,
+            height: 14,
+          }}
+        />
+      </IconButton>
     </>
-  )
+  ) : (
+    kv
+  );
   if (valid) {
     return <BooleanPill value={boolValue}>{content}</BooleanPill>;
   }

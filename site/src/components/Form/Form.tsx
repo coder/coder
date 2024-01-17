@@ -70,7 +70,7 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
 export const FormSection: FC<
   PropsWithChildren & {
     title: string | JSX.Element;
-    description: string | JSX.Element | undefined;
+    description: string | JSX.Element;
     classes?: {
       root?: string;
       sectionInfo?: string;

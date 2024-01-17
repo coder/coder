@@ -54,10 +54,9 @@ export const ProviderTagsPopover: FC<ProviderTagsPopoverProps> = ({ tags, onSubm
   const getFieldHelpers = getFormHelpers(form);
 
   return (
-    <Popover isDefaultOpen={false}>
+    <Popover>
     <PopoverTrigger>
       <TopbarButton
-        data-testid="build-parameters-button"
         color="neutral"
         css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
       >
@@ -76,7 +75,6 @@ export const ProviderTagsPopover: FC<ProviderTagsPopoverProps> = ({ tags, onSubm
         }}
       >
         <VerticalForm onSubmit={form.handleSubmit}>
-
           <Stack>
           <FormSection title="Provisioner Tags" description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "/>
             {Object.keys(tags).length > 0 && (
