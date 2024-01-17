@@ -226,7 +226,6 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 // site/src/components/Resources/ResourceCard.tsx
 const styles = {
   root: {
-    padding: "0 24px 32px",
     display: "flex",
     alignItems: "baseline",
     flexWrap: "wrap",

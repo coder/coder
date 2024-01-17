@@ -79,6 +79,11 @@ export const AgentRow: FC<AgentRowProps> = ({
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
+  const showVSCode =
+    (agent.display_apps.includes("vscode") ||
+      agent.display_apps.includes("vscode_insiders")) &&
+    !hideVSCodeDesktopButton;
+
   const logSourceByID = useMemo(() => {
     const sources: { [id: string]: WorkspaceAgentLogSource } = {};
     for (const source of agent.log_sources) {
@@ -211,13 +216,12 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
       </header>
 
-      {agent.status === "connected" && (
-        <section css={styles.apps}>
-          {shouldDisplayApps && (
-            <>
-              {(agent.display_apps.includes("vscode") ||
-                agent.display_apps.includes("vscode_insiders")) &&
-                !hideVSCodeDesktopButton && (
+      <div css={styles.content}>
+        {agent.status === "connected" && (
+          <section css={styles.apps}>
+            {shouldDisplayApps && (
+              <>
+                {showVSCode && (
                   <VSCodeDesktopButton
                     userName={workspace.owner_name}
                     workspaceName={workspace.name}
@@ -226,45 +230,49 @@ export const AgentRow: FC<AgentRowProps> = ({
                     displayApps={agent.display_apps}
                   />
                 )}
-              {agent.apps.map((app) => (
-                <AppLink
-                  key={app.slug}
-                  app={app}
-                  agent={agent}
-                  workspace={workspace}
-                />
-              ))}
-            </>
-          )}
+                {agent.apps.map((app) => (
+                  <AppLink
+                    key={app.slug}
+                    app={app}
+                    agent={agent}
+                    workspace={workspace}
+                  />
+                ))}
+              </>
+            )}
 
-          {showBuiltinApps && agent.display_apps.includes("web_terminal") && (
-            <TerminalLink
-              workspaceName={workspace.name}
-              agentName={agent.name}
-              userName={workspace.owner_name}
+            {showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+              <TerminalLink
+                workspaceName={workspace.name}
+                agentName={agent.name}
+                userName={workspace.owner_name}
+              />
+            )}
+          </section>
+        )}
+
+        {agent.status === "connecting" && (
+          <section css={styles.apps}>
+            <Skeleton
+              width={80}
+              height={32}
+              variant="rectangular"
+              css={styles.buttonSkeleton}
             />
-          )}
-        </section>
-      )}
+            <Skeleton
+              width={110}
+              height={32}
+              variant="rectangular"
+              css={styles.buttonSkeleton}
+            />
+          </section>
+        )}
 
-      {agent.status === "connecting" && (
-        <section css={styles.apps}>
-          <Skeleton
-            width={80}
-            height={32}
-            variant="rectangular"
-            css={styles.buttonSkeleton}
-          />
-          <Skeleton
-            width={110}
-            height={32}
-            variant="rectangular"
-            css={styles.buttonSkeleton}
-          />
-        </section>
-      )}
-
-      <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
+        <AgentMetadata
+          storybookMetadata={storybookAgentMetadata}
+          agent={agent}
+        />
+      </div>
 
       {hasStartupFeatures && (
         <section
@@ -508,7 +516,7 @@ const styles = {
   }),
 
   "agentRow-disconnected": (theme) => ({
-    borderColor: theme.palette.text.secondary,
+    borderColor: theme.palette.divider,
   }),
 
   "agentRow-connecting": (theme) => ({
@@ -550,7 +558,7 @@ const styles = {
   }),
 
   "agentRow-lifecycle-off": (theme) => ({
-    borderColor: theme.palette.text.secondary,
+    borderColor: theme.palette.divider,
   }),
 
   header: (theme) => ({
@@ -587,8 +595,14 @@ const styles = {
     },
   }),
 
-  apps: (theme) => ({
+  content: {
     padding: "32px 24px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 32,
+  },
+
+  apps: (theme) => ({
     display: "flex",
     gap: 16,
     flexWrap: "wrap",
