@@ -70,7 +70,7 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
 export const FormSection: FC<
   PropsWithChildren & {
     title: string | JSX.Element;
-    description: string | JSX.Element;
+    description: string | JSX.Element | undefined;
     classes?: {
       root?: string;
       sectionInfo?: string;
@@ -125,7 +125,9 @@ export const FormSection: FC<
           {alpha && <AlphaBadge />}
           {deprecated && <DeprecatedBadge />}
         </h2>
-        <div css={styles.formSectionInfoDescription}>{description}</div>
+        {description && (
+          <div css={styles.formSectionInfoDescription}>{description}</div>
+        )}
       </div>
 
       {children}

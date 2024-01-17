@@ -187,7 +187,7 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 interface ProvisionerTagProps {
   k: string;
   v: string;
-  onDelete?: () => void;
+  onDelete?: (key: string) => void;
 }
 
 export const ProvisionerTag : FC<ProvisionerTagProps> = ({ k, v, onDelete}) => {
@@ -198,7 +198,9 @@ export const ProvisionerTag : FC<ProvisionerTagProps> = ({ k, v, onDelete}) => {
       {onDelete ? (
         <>
           {kv}
-          <IconButton aria-label="delete" size="small" color="secondary">
+          <IconButton aria-label="delete" size="small" color="secondary" onClick={() => {
+            onDelete(k)
+          }}>
             <CloseIcon fontSize="inherit" css={{
               width: 14,
               height: 14,

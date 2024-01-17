@@ -54,18 +54,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import ButtonGroup from "@mui/material/ButtonGroup";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "components/Popover/Popover";
-import { HelpTooltipTitle, HelpTooltipText,  } from "components/HelpTooltip/HelpTooltip";
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
-import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
-import { Stack } from "components/Stack/Stack";
-import { additionalTags } from "utils/provisionertags";
-import TextField from "@mui/material/TextField";
-import AddIcon from '@mui/icons-material/Add';
+import { ProviderTagsPopover } from "./ProvisionerTagsPopover";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -91,6 +80,8 @@ export interface TemplateVersionEditorProps {
   onSubmitMissingVariableValues: (values: VariableValue[]) => void;
   onCancelSubmitMissingVariableValues: () => void;
   defaultTab?: Tab;
+  provisionerTags: Record<string, string>;
+  onUpdateProvisionerTags: (tags: Record<string, string>) => void;
 }
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
@@ -127,6 +118,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
   defaultTab,
+  provisionerTags,
+  onUpdateProvisionerTags,
 }) => {
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
@@ -194,18 +187,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   }, [buildLogs]);
 
-  const disabled = false;
-  const [extraTags, setExtraTags] = useState(additionalTags(templateVersion.job.tags));
-  const [keyInput, setKeyInput] = useState("");
-  const [valueInput, setValueInput] = useState("");
-  // extraTags = {
-  //   "key1": "value1",
-  //   "1": "2",
-  //   "3": "true",
-  //   "5": "6",
-  //   "seven": "0",
-  // } as Record<string,string>;
-
   return (
     <>
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -269,7 +250,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   borderLeft: "1px solid #FFF",
                 },
               }}
-              disabled={disabled}
+              disabled={disablePreview}
             >
               <TopbarButton
                 startIcon={
@@ -285,85 +266,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               >
                 Build
               </TopbarButton>
-              <Popover isDefaultOpen={false}>
-                <PopoverTrigger>
-                  <TopbarButton
-                    data-testid="build-parameters-button"
-                    disabled={disabled}
-                    color="neutral"
-                    css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
-                  >
-                    <ExpandMoreOutlined css={{ fontSize: 14 }} />
-                  </TopbarButton>
-                </PopoverTrigger>
-                <PopoverContent
-                  horizontal="right"
-                  css={{ ".MuiPaper-root": { width: 300 } }}
-                >
-                  <div
-                    css={{
-                      color: theme.palette.text.secondary,
-                      padding: 20,
-                      borderBottom: `1px solid ${theme.palette.divider}`,
-                    }}
-                  >
-                    <HelpTooltipTitle>Provisioner Tags</HelpTooltipTitle>
-                    <HelpTooltipText>
-                      <Stack>
-                        {Object.keys(extraTags).length > 0 ? (
-                          <Stack direction="row" spacing={1} wrap="wrap">
-                            {Object.keys(extraTags).map((k) =>
-                              <ProvisionerTag key={k} k={k} v={extraTags[k]} onDelete={() => {
-                                return
-                              }}/>
-                            )}
-                          </Stack>
-                        ) : ("No tags")}
-
-                          <Stack direction="row">
-                            <TextField
-                            size="small"
-                            name="key-input"
-                            autoComplete="off"
-                            id="key-input"
-                            value={keyInput}
-                            onChange={(event) => {
-                              setKeyInput(event.target.value);
-                            }}
-                            label="Key"
-                          />
-                          <TextField
-                            size="small"
-                            name="value-input"
-                            autoComplete="off"
-                            id="value-input"
-                            value={valueInput}
-                            onChange={(event) => {
-                              setValueInput(event.target.value);
-                            }}
-                            label="Value"
-                          />
-                          <Button
-                            onClick={() => {
-                              if (keyInput && valueInput) {
-                                const newTags = {...extraTags};
-                                newTags[keyInput] = valueInput;
-                                setExtraTags(newTags);
-                                setKeyInput("");
-                                setValueInput("");
-                              }
-                            }}
-                            variant="contained"
-                            color="secondary"
-                          >
-                            <AddIcon/>
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    </HelpTooltipText>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <ProviderTagsPopover
+                tags={provisionerTags}
+                onSubmit={({ key, value }) => {
+                  onUpdateProvisionerTags({
+                    ...provisionerTags,
+                    [key]: value,
+                  });
+                }}
+                onDelete={(key) => {
+                  const newTags = { ...provisionerTags };
+                  delete newTags[key];
+                  onUpdateProvisionerTags(newTags);
+                }}
+              />
             </ButtonGroup>
 
             <TopbarButton
