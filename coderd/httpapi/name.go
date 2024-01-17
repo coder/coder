@@ -86,8 +86,7 @@ func UserRealNameValid(str string) error {
 		return xerrors.New("must be <= 128 characters")
 	}
 
-	trimmed := strings.TrimSpace(str)
-	if trimmed != str {
+	if strings.TrimSpace(str) != str {
 		return xerrors.New("must not have leading or trailing white spaces")
 	}
 	return nil
