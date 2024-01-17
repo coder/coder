@@ -11170,6 +11170,7 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
+	(upw.user_id IS NOT NULL)::boolean AS pinned,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -11214,34 +11215,47 @@ LEFT JOIN LATERAL (
 	WHERE
 		templates.id = workspaces.template_id
 ) template_name ON true
+LEFT JOIN LATERAL (
+	SELECT
+		user_id
+	FROM
+		user_pinned_workspaces
+	WHERE
+		workspaces.id = user_pinned_workspaces.workspace_id
+	AND
+		-- Omitting the owner_id parameter will result in
+		-- 00000000-0000-0000-0000-000000000000 which will not match
+		-- any rows in user_pinned_workspaces.
+		user_pinned_workspaces.user_id = $1
+) upw ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
-	workspaces.deleted = $1
+	workspaces.deleted = $2
 	AND CASE
-		WHEN $2 :: text != '' THEN
+		WHEN $3 :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
 			    -- 'running' states
-				WHEN $2 = 'starting' THEN
+				WHEN $3 = 'starting' THEN
 				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-				WHEN $2 = 'stopping' THEN
+				WHEN $3 = 'stopping' THEN
 					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'deleting' THEN
+				WHEN $3 = 'deleting' THEN
 					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
 			    -- 'succeeded' states
-			    WHEN $2 = 'deleted' THEN
+			    WHEN $3 = 'deleted' THEN
 			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
 			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $2 = 'stopped' THEN
+				WHEN $3 = 'stopped' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'started' THEN
+				WHEN $3 = 'started' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
@@ -11249,13 +11263,13 @@ WHERE
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN $2 = 'running' THEN
+			    WHEN $3 = 'running' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $2 != '' THEN
+				WHEN $3 != '' THEN
 				    -- By default just match the job status exactly
-			    	latest_build.job_status = $2::provisioner_job_status
+			    	latest_build.job_status = $3::provisioner_job_status
 				ELSE
 					true
 			END
@@ -11263,8 +11277,8 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.owner_id = $3
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $1
 		ELSE true
 	END
 	-- Filter by owner_name
@@ -11350,6 +11364,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	pinned DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -11366,9 +11381,9 @@ OFFSET
 `
 
 type GetWorkspacesParams struct {
+	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
 	Deleted                               bool        `db:"deleted" json:"deleted"`
 	Status                                string      `db:"status" json:"status"`
-	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
 	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
 	TemplateName                          string      `db:"template_name" json:"template_name"`
 	TemplateIDs                           []uuid.UUID `db:"template_ids" json:"template_ids"`
@@ -11400,14 +11415,15 @@ type GetWorkspacesRow struct {
 	TemplateName        string           `db:"template_name" json:"template_name"`
 	TemplateVersionID   uuid.UUID        `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName sql.NullString   `db:"template_version_name" json:"template_version_name"`
+	Pinned              bool             `db:"pinned" json:"pinned"`
 	Count               int64            `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
+		arg.OwnerID,
 		arg.Deleted,
 		arg.Status,
-		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
@@ -11445,6 +11461,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
+			&i.Pinned,
 			&i.Count,
 		); err != nil {
 			return nil, err

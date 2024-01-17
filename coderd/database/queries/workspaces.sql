@@ -82,6 +82,7 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
+	(upw.user_id IS NOT NULL)::boolean AS pinned,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -126,6 +127,19 @@ LEFT JOIN LATERAL (
 	WHERE
 		templates.id = workspaces.template_id
 ) template_name ON true
+LEFT JOIN LATERAL (
+	SELECT
+		user_id
+	FROM
+		user_pinned_workspaces
+	WHERE
+		workspaces.id = user_pinned_workspaces.workspace_id
+	AND
+		-- Omitting the owner_id parameter will result in
+		-- 00000000-0000-0000-0000-000000000000 which will not match
+		-- any rows in user_pinned_workspaces.
+		user_pinned_workspaces.user_id = @owner_id
+) upw ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -262,6 +276,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	pinned DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
