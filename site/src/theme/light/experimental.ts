@@ -55,7 +55,7 @@ export default {
     },
     warning: {
       background: colors.amber[50],
-      outline: colors.amber[300],
+      outline: colors.amber[400],
       fill: colors.amber[500],
       text: colors.amber[950],
     },

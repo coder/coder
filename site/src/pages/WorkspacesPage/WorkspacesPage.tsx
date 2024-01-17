@@ -55,8 +55,9 @@ const WorkspacesPage: FC = () => {
 
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
-  const [isConfirmingDeleteAll, setIsConfirmingDeleteAll] = useState(false);
-  const [isConfirmingUpdateAll, setIsConfirmingUpdateAll] = useState(false);
+  const [confirmingBatchAction, setConfirmingBatchAction] = useState<
+    "delete" | "update" | null
+  >(null);
   const [urlSearchParams] = searchParamsResult;
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
@@ -99,8 +100,8 @@ const WorkspacesPage: FC = () => {
           updateWorkspace.mutate(workspace);
         }}
         isRunningBatchAction={batchActions.isLoading}
-        onDeleteAll={() => setIsConfirmingDeleteAll(true)}
-        onUpdateAll={() => setIsConfirmingUpdateAll(true)}
+        onDeleteAll={() => setConfirmingBatchAction("delete")}
+        onUpdateAll={() => setConfirmingBatchAction("update")}
         onStartAll={() => batchActions.startAll(checkedWorkspaces)}
         onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
       />
@@ -108,26 +109,26 @@ const WorkspacesPage: FC = () => {
       <BatchDeleteConfirmation
         isLoading={batchActions.isLoading}
         checkedWorkspaces={checkedWorkspaces}
-        open={isConfirmingDeleteAll}
+        open={confirmingBatchAction === "delete"}
         onConfirm={async () => {
           await batchActions.deleteAll(checkedWorkspaces);
-          setIsConfirmingDeleteAll(false);
+          setConfirmingBatchAction(null);
         }}
         onClose={() => {
-          setIsConfirmingDeleteAll(false);
+          setConfirmingBatchAction(null);
         }}
       />
 
       <BatchUpdateConfirmation
         isLoading={batchActions.isLoading}
         checkedWorkspaces={checkedWorkspaces}
-        open={isConfirmingUpdateAll}
+        open={confirmingBatchAction === "update"}
         onConfirm={async () => {
           await batchActions.updateAll(checkedWorkspaces);
-          setIsConfirmingUpdateAll(false);
+          setConfirmingBatchAction(null);
         }}
         onClose={() => {
-          setIsConfirmingUpdateAll(false);
+          setConfirmingBatchAction(null);
         }}
       />
     </>
