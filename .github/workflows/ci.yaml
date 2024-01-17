@@ -742,7 +742,7 @@ jobs:
           project: 9rcqzb56rm
           context: ./build-context
           platforms: linux/amd64,linux/arm64,linux/arm/v7
-          file: ./scripts/Dockerfile
+          file: ./scripts/Dockerfile.multiarch
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
