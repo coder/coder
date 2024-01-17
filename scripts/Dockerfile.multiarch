@@ -1,6 +1,5 @@
-# This is the multi-arch Dockerfile used for Coder. Since it's multi-arch and
-# cross-compiled, it cannot have ANY "RUN" commands. All binaries are built
-# using the go toolchain on the host and then copied into the build context manullay.
+# This is the multi-arch Dockerfile used for Coder. All binaries are built
+# using the go toolchain on the host and then copied into the build context.
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
@@ -16,6 +15,7 @@ LABEL \
 
 
 # The coder binary is available in the build context.
+ARG TARGETARCH
 COPY --chown=1000:1000 --chmod=755 coder_linux_${TARGETARCH} /opt/coder
 
 ENTRYPOINT [ "/opt/coder", "server" ]
