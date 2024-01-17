@@ -332,6 +332,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
+	t.Logf("Coderd listening on %s", tcpAddr.String())
 
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
