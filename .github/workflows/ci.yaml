@@ -657,7 +657,7 @@ jobs:
     # are for amd64)
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     outputs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build.outputs.tag }}
     steps:
@@ -700,16 +700,16 @@ jobs:
             
           # create base image tag
           base_tag="coder-base:$version"
-          
+
           # replace + with - in tag
           base_tag="${base_tag/+/-}" 
-          
+
           # create image tag
           tag="main-$version"
-          
+
           # replace + with - in tag
           tag="${tag/+/-}"
-          
+
           # create an empty build directory
           mkdir -p tmp
 
@@ -717,10 +717,10 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "base_tag=$base_tag" >> $GITHUB_OUTPUT
           echo "tag=$tag" >> $GITHUB_OUTPUT
-      
+
       - name: Set up Depot
         uses: depot/setup-action@v1
-    
+
       - name: Build multi arch base image
         uses: depot/build-push-action@v1
         with:
@@ -731,7 +731,7 @@ jobs:
           file: ./scripts/Dockerfile.base
           push: false
           save: true
-        
+
       - name: Build and push multi arch image
         uses: depot/build-push-action@v1
         with:
@@ -747,7 +747,7 @@ jobs:
             ghcr.io/coder/coder-preview:latest
           build-args: |
             BASE_IMAGE=${{ steps.build.outputs.base_tag }}
-            CODER_VERSION=${{ steps.build.outputs.version }}   
+            CODER_VERSION=${{ steps.build.outputs.version }}
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
