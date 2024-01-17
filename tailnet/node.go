@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/netip"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/wgengine"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -32,6 +34,7 @@ type nodeUpdater struct {
 	derpForcedWebsockets map[int]string
 	endpoints            []string
 	addresses            []netip.Prefix
+	lastStatus           time.Time
 }
 
 // updateLoop waits until the config is dirty and then calls the callback with the newest node.
@@ -145,4 +148,31 @@ func (u *nodeUpdater) setDERPForcedWebsocket(region int, reason string) {
 		u.dirty = true
 		u.Broadcast()
 	}
+}
+
+// setStatus handles the status callback from the wireguard engine to learn about new endpoints
+// (e.g. discovered by STUN)
+func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
+	u.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
+	if err != nil {
+		return
+	}
+	u.L.Lock()
+	defer u.L.Unlock()
+	if s.AsOf.Before(u.lastStatus) {
+		// Don't process outdated status!
+		return
+	}
+	u.lastStatus = s.AsOf
+	endpoints := make([]string, len(s.LocalAddrs))
+	for i, ep := range s.LocalAddrs {
+		endpoints[i] = ep.Addr.String()
+	}
+	if slices.Equal(endpoints, u.endpoints) {
+		// No need to update the node if nothing changed!
+		return
+	}
+	u.endpoints = endpoints
+	u.dirty = true
+	u.Broadcast()
 }
