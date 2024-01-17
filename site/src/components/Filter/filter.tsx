@@ -32,6 +32,12 @@ import { Loader } from "components/Loader/Loader";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useFilterMenu } from "./menu";
 import type { BaseOption } from "./options";
+import {
+  Search,
+  SearchEmpty,
+  SearchInput,
+  searchStyles,
+} from "components/Menu/Search";
 
 export type PresetFilter = {
   name: string;
@@ -489,7 +495,7 @@ export const FilterSearchMenu = <TOption extends BaseOption>({
         onQueryChange={menu.setQuery}
         renderOption={(option) => (
           <MenuItem
-            key={option.label}
+            key={option.value}
             selected={option.value === menu.selectedOption?.value}
             onClick={() => {
               menu.selectOption(option);
@@ -576,7 +582,6 @@ function SearchMenu<TOption extends BaseOption>({
 }: SearchMenuProps<TOption>) {
   const menuListRef = useRef<HTMLUListElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const theme = useTheme();
 
   return (
     <Menu
@@ -586,10 +591,7 @@ function SearchMenu<TOption extends BaseOption>({
         onQueryChange("");
       }}
       css={{
-        "& .MuiPaper-root": {
-          width: 320,
-          padding: 0,
-        },
+        "& .MuiPaper-root": searchStyles.content,
       }}
       // Disabled this so when we clear the filter and do some sorting in the
       // search items it does not look strange. Github removes exit transitions
@@ -606,44 +608,16 @@ function SearchMenu<TOption extends BaseOption>({
         }
       }}
     >
-      <li
-        css={{
-          display: "flex",
-          alignItems: "center",
-          paddingLeft: 16,
-          height: 40,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <SearchOutlined
-          css={{
-            fontSize: 14,
-            color: theme.palette.text.secondary,
-          }}
-        />
-        <input
-          tabIndex={-1}
-          type="text"
-          placeholder="Search..."
+      <Search component="li">
+        <SearchInput
           autoFocus
           value={query}
           ref={searchInputRef}
           onChange={(e) => {
             onQueryChange(e.target.value);
           }}
-          css={{
-            height: "100%",
-            border: 0,
-            background: "none",
-            width: "100%",
-            marginLeft: 16,
-            outline: 0,
-            "&::placeholder": {
-              color: theme.palette.text.secondary,
-            },
-          }}
         />
-      </li>
+      </Search>
 
       <li css={{ maxHeight: 480, overflowY: "auto" }}>
         <MenuList
@@ -660,17 +634,7 @@ function SearchMenu<TOption extends BaseOption>({
             options.length > 0 ? (
               options.map(renderOption)
             ) : (
-              <div
-                css={{
-                  fontSize: 13,
-                  color: theme.palette.text.secondary,
-                  textAlign: "center",
-                  paddingTop: 8,
-                  paddingBottom: 8,
-                }}
-              >
-                No results
-              </div>
+              <SearchEmpty />
             )
           ) : (
             <Loader size={14} />
