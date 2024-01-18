@@ -285,7 +285,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
   resource,
 }) => {
-  const metadata = resource.metadata ?? [];
+  const metadata = resource.metadata ? [...resource.metadata] : [];
 
   if (resource.daily_cost > 0) {
     metadata.push({
