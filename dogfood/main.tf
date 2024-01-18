@@ -45,6 +45,23 @@ data "coder_parameter" "repo_dir" {
   mutable     = true
 }
 
+data "coder_parameter" "image_tag" {
+  type = "string"
+  name = "Coder Image"
+  default = "latest"
+  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Non-Nix"
+    value = "latest"
+  }
+  option {
+    icon  = "/icons/nix.svg"
+    name  = "Nix"
+    value = "nix"
+  }
+}
+
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
@@ -279,7 +296,7 @@ resource "docker_volume" "home_volume" {
 }
 
 data "docker_registry_image" "dogfood" {
-  name = "${local.registry_name}:latest"
+  name = "${local.registry_name}:${data.coder_parameter.image_tag.value}"
 }
 
 resource "docker_image" "dogfood" {
@@ -288,6 +305,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
+    filesha1("Dockerfile.nix"),
   ]
   keep_locally = true
 }
