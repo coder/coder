@@ -34,7 +34,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
@@ -93,11 +93,18 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), addrs)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
+	// Given: addresses already set
+	uut.L.Lock()
+	uut.addresses = addrs
+	uut.L.Unlock()
+
+	// Then: it doesn't configure
 	requireNeverConfigures(ctx, t, &uut.phased)
 
+	// When: we set addresses
 	uut.setAddresses(addrs)
 
 	done := make(chan struct{})
@@ -116,7 +123,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -186,7 +193,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	// Then: we don't configure
@@ -245,7 +252,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -313,7 +320,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
 	mClock := clock.NewMock()
@@ -406,7 +413,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
 	mClock := clock.NewMock()
@@ -492,7 +499,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -536,7 +543,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -579,7 +586,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	derpMap := &proto.DERPMap{
@@ -620,7 +627,7 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	// Given: DERP Map already set
@@ -697,7 +704,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 			nodePrivateKey := key.NewNode()
 			nodeID := tailcfg.NodeID(5)
 			discoKey := key.NewDisco()
-			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 			defer uut.close()
 
 			// Then: we don't configure
