@@ -724,26 +724,19 @@ jobs:
             # being pushed so will automatically push them
             make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-            # Create and push a multi-arch manifest
-            ./scripts/build_docker_multiarch.sh \
-              --push \
-              --target "ghcr.io/coder/coder-preview:$tag" \
-              --version $version \
-              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-
-            # Create and push a multi-arch manifest for the main tag
-            ./scripts/build_docker_multiarch.sh \
-              --push \
-              --target "ghcr.io/coder/coder-preview:main" \
-              --version $version \
-              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
-
-            # Create and push a multi-arch manifest for the latest tag
-            ./scripts/build_docker_multiarch.sh \
-              --push \
-              --target "ghcr.io/coder/coder-preview:latest" \
-              --version $version \
-              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            # Define specific tags
+            tags=("$tag" "main" "latest")
+            
+            # Create and push a multi-arch manifest for each tag
+            # we are adding `latest` tag and keeping `main` for backward
+            # compatibality
+            for t in "${tags[@]}"; do
+                ./scripts/build_docker_multiarch.sh \
+                    --push \
+                    --target "ghcr.io/coder/coder-preview:$t" \
+                    --version $version \
+                    $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            done
           fi
 
       - name: Prune old images
