@@ -755,7 +755,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	if updated.UpdatedAt.IsZero() {
 		aReq.New = template
-		httpapi.Write(ctx, rw, http.StatusNotModified, nil)
+		// Still write back the template so apis can use the updated regardless
+		// if there was a change. Such as the UI.
+		httpapi.Write(ctx, rw, http.StatusNotModified, api.convertTemplate(updated))
 		return
 	}
 	aReq.New = updated
