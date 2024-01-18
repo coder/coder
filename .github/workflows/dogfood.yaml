@@ -62,7 +62,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood"
+          context: "."
           pull: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-nix:latest"
