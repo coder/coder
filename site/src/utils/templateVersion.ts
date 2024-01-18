@@ -1,4 +1,3 @@
-import * as API from "api/api";
 import { FileTree, createFile } from "./filetree";
 import { TarReader } from "./tar";
 
@@ -6,10 +5,9 @@ import { TarReader } from "./tar";
 export type TemplateVersionFiles = Record<string, string>;
 
 export const getTemplateVersionFiles = async (
-  fileId: string,
+  tarFile: ArrayBuffer,
 ): Promise<TemplateVersionFiles> => {
   const files: TemplateVersionFiles = {};
-  const tarFile = await API.getFile(fileId);
   const tarReader = new TarReader();
   await tarReader.readFile(tarFile);
   for (const file of tarReader.fileInfo) {
