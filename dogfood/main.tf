@@ -171,7 +171,7 @@ module "jfrog" {
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
-  dir  = data.coder_parameter.repo_dir.value
+  dir  = local.repo_dir
   env = {
     GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
@@ -264,6 +264,9 @@ resource "coder_agent" "dev" {
     set -eux -o pipefail
     # Start Docker service
     sudo service docker start
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    cd ${local.repo_dir} && pnpm install && pnpm playwright:install
 EOT
 }
 
