@@ -322,9 +322,11 @@ const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
 };
 
 const MetaValue = ({ children }: PropsWithChildren) => {
-  const childrens = Children.toArray(children);
-  if (childrens.every((child) => typeof child === "string")) {
-    return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
+  const childrenArray = Children.toArray(children);
+  if (childrenArray.every((child) => typeof child === "string")) {
+    return (
+      <CopyableValue value={childrenArray.join("")}>{children}</CopyableValue>
+    );
   }
   return <>{children}</>;
 };
