@@ -1104,6 +1104,7 @@ export const MockDormantWorkspace: TypesGen.Workspace = {
 export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
   ...MockStoppedWorkspace,
   id: "test-dormant-outdated-workspace",
+  name: "Dormant-Workspace",
   outdated: true,
   dormant_at: new Date().toISOString(),
 };

@@ -5,15 +5,8 @@ import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { type Interpolation, type Theme } from "@emotion/react";
-import {
-  type FC,
-  type ReactNode,
-  useId,
-  useMemo,
-  useState,
-  useEffect,
-} from "react";
-import { useQuery } from "react-query";
+import { type FC, type ReactNode, useMemo, useState, useEffect } from "react";
+import { useQueries } from "react-query";
 import { getTemplateVersion } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -32,7 +25,7 @@ type BatchUpdateConfirmationProps = {
   onConfirm: () => void;
 };
 
-interface Update extends TemplateVersion {
+export interface Update extends TemplateVersion {
   template_display_name: string;
   affected_workspaces: Workspace[];
 }
@@ -111,8 +104,8 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
         continue;
       }
 
-      newVersions.set(it.template_active_version_id, {
-        id: it.template_active_version_id,
+      newVersions.set(versionId, {
+        id: versionId,
         template_display_name: it.template_display_name,
         affected_workspaces: [it],
       });
@@ -123,20 +116,23 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
 
   // Not all of the information we want is included in the `Workspace` type, so we
   // need to query all of the versions.
-  const queryId = useId();
-  const { data, error } = useQuery({
-    queryKey: ["batchUpdate", queryId],
-    queryFn: () =>
-      Promise.all(
-        [...newVersions.values()].map(async (version) => ({
-          // ...but the query _also_ doesn't have everything we need, like the
-          // template display name!
-          ...version,
-          ...(await getTemplateVersion(version.id)),
-        })),
-      ),
-    enabled: open,
+  const results = useQueries({
+    queries: [...newVersions.values()].map((version) => ({
+      queryKey: ["batchUpdate", version.id],
+      queryFn: async () => ({
+        // ...but the query _also_ doesn't have everything we need, like the
+        // template display name!
+        ...version,
+        ...(await getTemplateVersion(version.id)),
+      }),
+    })),
   });
+  const { data, error } = {
+    data: results.every((result) => result.isSuccess && result.data)
+      ? results.map((result) => result.data!)
+      : undefined,
+    error: results.some((result) => result.error),
+  };
 
   const onProceed = () => {
     switch (stage) {
@@ -259,8 +255,17 @@ const DormantWorkspaces: FC<DormantWorkspacesProps> = ({ workspaces }) => {
   return (
     <>
       <p>
-        These selected workspaces are dormant, and must be activated before they
-        can be updated.
+        {workspaces.length === 1 ? (
+          <>
+            This selected workspace is dormant, and must be activated before it
+            can be updated.
+          </>
+        ) : (
+          <>
+            These selected workspaces are dormant, and must be activated before
+            they can be updated.
+          </>
+        )}
       </p>
       <ul css={styles.workspacesList}>
         {workspaces.map((workspace) => (
@@ -403,7 +408,7 @@ const UsedBy: FC<UsedByProps> = ({ workspaces }) => {
   const workspaceNames = workspaces.map((it) => it.name);
 
   return (
-    <p css={{ fontSize: 13, paddingTop: 6 }}>
+    <p css={{ fontSize: 13, paddingTop: 6, lineHeight: 1.2 }}>
       Used by {workspaceNames.slice(0, 2).join(", ")}{" "}
       {workspaceNames.length > 2 && (
         <span title={workspaceNames.slice(2).join(", ")}>
