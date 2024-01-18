@@ -356,6 +356,11 @@ func (c *Conn) UpdatePeers(updates []*proto.CoordinateResponse_PeerUpdate) error
 	return nil
 }
 
+// SetAllPeersLost marks all peers lost; typically used when we disconnect from a coordinator.
+func (c *Conn) SetAllPeersLost() {
+	c.configMaps.setAllPeersLost()
+}
+
 // NodeAddresses returns the addresses of a node from the NetworkMap.
 func (c *Conn) NodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bool) {
 	return c.configMaps.nodeAddresses(publicKey)
