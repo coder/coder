@@ -308,7 +308,7 @@ const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
               {meta.sensitive ? (
                 <SensitiveValue value={meta.value} />
               ) : (
-                <MemoizedInlineMarkdown components={{ p }}>
+                <MemoizedInlineMarkdown components={{ p: MetaValue }}>
                   {meta.value}
                 </MemoizedInlineMarkdown>
               )}
@@ -321,7 +321,7 @@ const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
   );
 };
 
-const p = ({ children }: PropsWithChildren) => {
+const MetaValue = ({ children }: PropsWithChildren) => {
   const childrens = Children.toArray(children);
   if (childrens.every((child) => typeof child === "string")) {
     return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
