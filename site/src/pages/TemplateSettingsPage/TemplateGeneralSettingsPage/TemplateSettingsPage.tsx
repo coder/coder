@@ -29,6 +29,13 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async (data) => {
+        // This update has a chance to return a 304 which means nothing was updated.
+        // In this case, the return payload will be empty and we should use the
+        // original template data.
+        if (!data) {
+          data = template;
+        }
+
         // we use data.name because an admin may have updated templateName to something new
         await queryClient.invalidateQueries(
           templateByNameKey(orgId, data.name),
