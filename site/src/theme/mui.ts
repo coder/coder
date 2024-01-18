@@ -109,6 +109,8 @@ export const components = {
       },
       ["sizeXlarge" as any]: {
         height: BUTTON_XL_HEIGHT,
+
+        // With higher size we need to increase icon spacing.
         "& .MuiButton-startIcon": {
           marginRight: 12,
         },
