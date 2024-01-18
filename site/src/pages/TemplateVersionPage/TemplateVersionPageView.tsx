@@ -28,7 +28,7 @@ export interface TemplateVersionPageViewProps {
   error: unknown;
   currentVersion: TemplateVersion | undefined;
   currentFiles: TemplateVersionFiles | undefined;
-  previousFiles: TemplateVersionFiles | undefined;
+  baseFiles: TemplateVersionFiles | undefined;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
@@ -38,7 +38,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   createWorkspaceUrl,
   currentVersion,
   currentFiles,
-  previousFiles,
+  baseFiles,
   error,
 }) => {
   return (
@@ -103,7 +103,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <TemplateFiles
               tab={tab}
               currentFiles={currentFiles}
-              previousFiles={previousFiles}
+              baseFiles={baseFiles}
             />
           </>
         )}

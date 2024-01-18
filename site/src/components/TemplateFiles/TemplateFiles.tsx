@@ -1,10 +1,10 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import { useEffect, type FC } from "react";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import { MarkdownIcon } from "components/Icons/MarkdownIcon";
 import { TerraformIcon } from "components/Icons/TerraformIcon";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import { UseTabResult } from "hooks/useTab";
+import { UseTabResult, useTab } from "hooks/useTab";
 import { AllowedExtension, TemplateVersionFiles } from "utils/templateVersion";
 import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 
@@ -39,19 +39,22 @@ const languageByExtension: Record<AllowedExtension, string> = {
 
 interface TemplateFilesProps {
   currentFiles: TemplateVersionFiles;
-  previousFiles?: TemplateVersionFiles;
+  /**
+   * Files used to compare with current files
+   */
+  baseFiles?: TemplateVersionFiles;
   tab: UseTabResult;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
   currentFiles,
-  previousFiles,
+  baseFiles,
   tab,
 }) => {
   const filenames = Object.keys(currentFiles);
   const selectedFilename = filenames[Number(tab.value)];
   const currentFile = currentFiles[selectedFilename];
-  const previousFile = previousFiles && previousFiles[selectedFilename];
+  const previousFile = baseFiles && baseFiles[selectedFilename];
 
   return (
     <div css={styles.files}>
@@ -61,9 +64,9 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
           const extension = getExtension(filename) as AllowedExtension;
           const icon = iconByExtension[extension];
           const hasDiff =
-            previousFiles &&
-            previousFiles[filename] &&
-            currentFiles[filename] !== previousFiles[filename];
+            baseFiles &&
+            baseFiles[filename] &&
+            currentFiles[filename] !== baseFiles[filename];
 
           return (
             <button
@@ -93,6 +96,27 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
     </div>
   );
 };
+
+export const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
+  // Tabs The default tab is the tab that has main.tf but until we loads the
+  // files and check if main.tf exists we don't know which tab is the default
+  // one so we just use empty string
+  const tab = useTab("file", "");
+  const isLoaded = tab.value !== "";
+  useEffect(() => {
+    if (templateFiles && !isLoaded) {
+      const terraformFileIndex = Object.keys(templateFiles).indexOf("main.tf");
+      // If main.tf exists use the index if not just use the first tab
+      tab.set(terraformFileIndex !== -1 ? terraformFileIndex.toString() : "0");
+    }
+  }, [isLoaded, tab, templateFiles]);
+
+  return {
+    ...tab,
+    isLoaded,
+  };
+};
+
 const styles = {
   tabs: (theme) => ({
     display: "flex",
