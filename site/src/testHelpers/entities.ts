@@ -315,7 +315,7 @@ export const MockUser2: TypesGen.User = {
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
   theme_preference: "",
-  name: "",
+  name: "Mock User The Second",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
