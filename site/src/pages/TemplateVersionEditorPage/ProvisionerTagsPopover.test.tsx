@@ -9,20 +9,20 @@ let tags = MockTemplateVersion.job.tags;
 describe("ProvisionerTagsPopover", () => {
   describe("click the button", () => {
     it("can add a tag", async () => {
-      const onSubmit = jest.fn().mockImplementation(({key, value}) => {
-        tags = {...tags, [key]: value}
+      const onSubmit = jest.fn().mockImplementation(({ key, value }) => {
+        tags = { ...tags, [key]: value };
       });
       const onDelete = jest.fn().mockImplementation((key) => {
-        const newTags = {...tags}
-        delete newTags[key]
-        tags = newTags
+        const newTags = { ...tags };
+        delete newTags[key];
+        tags = newTags;
       });
-      const {rerender} = renderComponent(
+      const { rerender } = renderComponent(
         <ProvisionerTagsPopover
           tags={tags}
           onSubmit={onSubmit}
           onDelete={onDelete}
-        />
+        />,
       );
 
       // Open Popover
@@ -45,7 +45,10 @@ describe("ProvisionerTagsPopover", () => {
       expect(el3).toHaveValue("bar");
 
       // Submit
-      const btn2 = await screen.findByRole("button", { name: /add/i, hidden: true});
+      const btn2 = await screen.findByRole("button", {
+        name: /add/i,
+        hidden: true,
+      });
       expect(btn2).toBeEnabled();
       await userEvent.click(btn2);
       expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -55,7 +58,7 @@ describe("ProvisionerTagsPopover", () => {
           tags={tags}
           onSubmit={onSubmit}
           onDelete={onDelete}
-        />
+        />,
       );
 
       // Check for new tag
@@ -63,19 +66,19 @@ describe("ProvisionerTagsPopover", () => {
       expect(el4).toBeInTheDocument();
     });
     it("can remove a tag", async () => {
-      const onSubmit = jest.fn().mockImplementation(({key, value}) => {
-        tags = {...tags, [key]: value}
+      const onSubmit = jest.fn().mockImplementation(({ key, value }) => {
+        tags = { ...tags, [key]: value };
       });
       const onDelete = jest.fn().mockImplementation((key) => {
-        delete tags[key]
-        tags = {...tags}
+        delete tags[key];
+        tags = { ...tags };
       });
-      const {rerender} = renderComponent(
+      const { rerender } = renderComponent(
         <ProvisionerTagsPopover
           tags={tags}
           onSubmit={onSubmit}
           onDelete={onDelete}
-        />
+        />,
       );
 
       // Open Popover
@@ -88,7 +91,10 @@ describe("ProvisionerTagsPopover", () => {
       expect(el).toBeInTheDocument();
 
       // Find Delete button
-      const btn2 = await screen.findByRole("button", { name: /delete-wowzers/i, hidden: true});
+      const btn2 = await screen.findByRole("button", {
+        name: /delete-wowzers/i,
+        hidden: true,
+      });
       expect(btn2).toBeEnabled();
 
       // Delete tag
@@ -100,7 +106,7 @@ describe("ProvisionerTagsPopover", () => {
           tags={tags}
           onSubmit={onSubmit}
           onDelete={onDelete}
-        />
+        />,
       );
 
       // Expect deleted tag to be gone

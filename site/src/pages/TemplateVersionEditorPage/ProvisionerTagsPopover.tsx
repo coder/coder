@@ -90,27 +90,27 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                 title="Provisioner Tags"
                 description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "
               />
-                <Stack direction="row" spacing={1} wrap="wrap">
-                  {Object.keys(tags)
-                    .filter((key) => {
-                      // filter out owner since you cannot override it
-                      return key !== "owner";
-                    })
-                    .map((k) => (
-                      <>
-                        {k === "scope" ? (
-                          <ProvisionerTag key={k} k={k} v={tags[k]} />
-                        ) : (
-                          <ProvisionerTag
-                            key={k}
-                            k={k}
-                            v={tags[k]}
-                            onDelete={onDelete}
-                          />
-                        )}
-                      </>
-                    ))}
-                </Stack>
+              <Stack direction="row" spacing={1} wrap="wrap">
+                {Object.keys(tags)
+                  .filter((key) => {
+                    // filter out owner since you cannot override it
+                    return key !== "owner";
+                  })
+                  .map((k) => (
+                    <>
+                      {k === "scope" ? (
+                        <ProvisionerTag key={k} k={k} v={tags[k]} />
+                      ) : (
+                        <ProvisionerTag
+                          key={k}
+                          k={k}
+                          v={tags[k]}
+                          onDelete={onDelete}
+                        />
+                      )}
+                    </>
+                  ))}
+              </Stack>
 
               <FormFields>
                 <Stack direction="row">
@@ -130,7 +130,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                     variant="contained"
                     color="secondary"
                     type="submit"
-                    aria-label='add'
+                    aria-label="add"
                     disabled={!form.dirty || !form.isValid}
                   >
                     <AddIcon />
