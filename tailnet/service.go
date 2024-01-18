@@ -46,8 +46,8 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 // ClientService is a tailnet coordination service that accepts a connection and version from a
 // tailnet client, and support versions 1.0 and 2.x of the Tailnet API protocol.
 type ClientService struct {
-	logger   slog.Logger
-	coordPtr *atomic.Pointer[Coordinator]
+	Logger   slog.Logger
+	CoordPtr *atomic.Pointer[Coordinator]
 	drpc     *drpcserver.Server
 }
 
@@ -61,7 +61,7 @@ func NewClientService(
 ) (
 	*ClientService, error,
 ) {
-	s := &ClientService{logger: logger, coordPtr: coordPtr}
+	s := &ClientService{Logger: logger, CoordPtr: coordPtr}
 	mux := drpcmux.New()
 	drpcService := &DRPCService{
 		CoordPtr:               coordPtr,
@@ -88,32 +88,36 @@ func NewClientService(
 func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
-		s.logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
+		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
 		return err
 	}
 	switch major {
 	case 1:
-		coord := *(s.coordPtr.Load())
+		coord := *(s.CoordPtr.Load())
 		return coord.ServeClient(conn, id, agent)
 	case 2:
-		config := yamux.DefaultConfig()
-		config.LogOutput = io.Discard
-		session, err := yamux.Server(conn, config)
-		if err != nil {
-			return xerrors.Errorf("yamux init failed: %w", err)
-		}
 		auth := ClientTunnelAuth{AgentID: agent}
 		streamID := StreamID{
 			Name: "client",
 			ID:   id,
 			Auth: auth,
 		}
-		ctx = WithStreamID(ctx, streamID)
-		return s.drpc.Serve(ctx, session)
+		return s.ServeConnV2(ctx, conn, streamID)
 	default:
-		s.logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
+		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
 		return xerrors.New("unsupported version")
 	}
+}
+
+func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID StreamID) error {
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(conn, config)
+	if err != nil {
+		return xerrors.Errorf("yamux init failed: %w", err)
+	}
+	ctx = WithStreamID(ctx, streamID)
+	return s.drpc.Serve(ctx, session)
 }
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
