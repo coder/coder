@@ -10,14 +10,8 @@
   outputs = { self, nixpkgs, flake-utils, drpc }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
         formatter = pkgs.nixpkgs-fmt;
-        # Check in https://search.nixos.org/packages to find new packages.
-        # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
-        # to update the lock file if packages are out-of-date.
-
-        # From https://nixos.wiki/wiki/Google_Cloud_SDK
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
 
         devShellPackages = with pkgs; [
@@ -42,7 +36,6 @@
           kubectx
           kubernetes-helm
           less
-          # Needed for many LD system libs!
           libuuid
           mockgen
           nfpm
@@ -64,7 +57,6 @@
           shellcheck
           shfmt
           sqlc
-          # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           terraform
           typos
@@ -76,10 +68,16 @@
           zsh
           zstd
         ];
+
+        allPackages = pkgs.buildEnv {
+          name = "all-packages";
+          paths = devShellPackages;
+        };
       in
       {
-        defaultPackage = formatter; # or replace it with your desired default package.
+        defaultPackage = formatter;
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
+        packages.all = allPackages;
       }
     );
 }
