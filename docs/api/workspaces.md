@@ -211,6 +211,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -422,6 +423,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -632,6 +634,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "pinned": true,
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -844,6 +847,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1171,6 +1175,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1245,17 +1250,17 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Pin workspace by ID.
+## Favor workspace by ID.
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/pin \
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/pin`
+`PUT /workspaces/{workspace}/favorite`
 
 ### Parameters
 
@@ -1271,17 +1276,17 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/pin \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Unpin workspace by ID.
+## Unfavor workspace by ID.
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/pin \
+curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaces/{workspace}/pin`
+`DELETE /workspaces/{workspace}/favorite`
 
 ### Parameters
 

@@ -271,6 +271,11 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		return str
 	}
 
+	// "Pinning" (favoriting) a workspace is a separate thing.
+	if alog.ResourceType == database.ResourceTypeFavoriteWorkspace {
+		return fmt.Sprintf("{user} pinned workspace %s", alog.ResourceTarget)
+	}
+
 	str += fmt.Sprintf(" %s",
 		codersdk.ResourceType(alog.ResourceType).FriendlyString())
 

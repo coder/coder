@@ -14,19 +14,20 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypeTemplate        ResourceType = "template"
-	ResourceTypeTemplateVersion ResourceType = "template_version"
-	ResourceTypeUser            ResourceType = "user"
-	ResourceTypeWorkspace       ResourceType = "workspace"
-	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
-	ResourceTypeGitSSHKey       ResourceType = "git_ssh_key"
-	ResourceTypeAPIKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
-	ResourceTypeLicense         ResourceType = "license"
-	ResourceTypeConvertLogin    ResourceType = "convert_login"
-	ResourceTypeHealthSettings  ResourceType = "health_settings"
-	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
-	ResourceTypeOrganization    ResourceType = "organization"
+	ResourceTypeTemplate          ResourceType = "template"
+	ResourceTypeTemplateVersion   ResourceType = "template_version"
+	ResourceTypeUser              ResourceType = "user"
+	ResourceTypeWorkspace         ResourceType = "workspace"
+	ResourceTypeWorkspaceBuild    ResourceType = "workspace_build"
+	ResourceTypeFavoriteWorkspace ResourceType = "favorite_workspace"
+	ResourceTypeGitSSHKey         ResourceType = "git_ssh_key"
+	ResourceTypeAPIKey            ResourceType = "api_key"
+	ResourceTypeGroup             ResourceType = "group"
+	ResourceTypeLicense           ResourceType = "license"
+	ResourceTypeConvertLogin      ResourceType = "convert_login"
+	ResourceTypeHealthSettings    ResourceType = "health_settings"
+	ResourceTypeWorkspaceProxy    ResourceType = "workspace_proxy"
+	ResourceTypeOrganization      ResourceType = "organization"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -43,6 +44,8 @@ func (r ResourceType) FriendlyString() string {
 		// workspace builds have a unique friendly string
 		// see coderd/audit.go:298 for explanation
 		return "workspace"
+	case ResourceTypeFavoriteWorkspace:
+		return "favorite_workspace"
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:

@@ -95,6 +95,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return string(typed.ToLoginType)
 	case database.HealthSettings:
 		return "" // no target?
+	case database.FavoriteWorkspace:
+		return typed.WorkspaceID.String()
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -128,6 +130,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.HealthSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
+	case database.FavoriteWorkspace:
+		return typed.WorkspaceID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -159,6 +163,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeConvertLogin
 	case database.HealthSettings:
 		return database.ResourceTypeHealthSettings
+	case database.FavoriteWorkspace:
+		return database.ResourceTypeFavoriteWorkspace
 	default:
 		panic(fmt.Sprintf("unknown resource %T", typed))
 	}

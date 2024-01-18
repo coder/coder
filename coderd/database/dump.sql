@@ -134,7 +134,8 @@ CREATE TYPE resource_type AS ENUM (
     'license',
     'workspace_proxy',
     'convert_login',
-    'health_settings'
+    'health_settings',
+    'favorite_workspace'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -401,6 +402,11 @@ CREATE TABLE external_auth_links (
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+CREATE TABLE favorite_workspaces (
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL
+);
 
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
@@ -915,11 +921,6 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
 
-CREATE TABLE user_pinned_workspaces (
-    user_id uuid NOT NULL,
-    workspace_id uuid NOT NULL
-);
-
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -1273,6 +1274,9 @@ ALTER TABLE ONLY dbcrypt_keys
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 
+ALTER TABLE ONLY favorite_workspaces
+    ADD CONSTRAINT favorite_workspaces_user_id_workspace_id_key UNIQUE (user_id, workspace_id);
+
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 
@@ -1377,9 +1381,6 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
-
-ALTER TABLE ONLY user_pinned_workspaces
-    ADD CONSTRAINT user_pinned_workspaces_user_id_workspace_id_key UNIQUE (user_id, workspace_id);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);

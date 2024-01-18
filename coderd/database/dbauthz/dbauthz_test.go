@@ -1578,18 +1578,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("PinWorkspace", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		check.Args(database.PinWorkspaceParams{
+		check.Args(database.FavoriteWorkspaceParams{
 			UserID:      u.ID,
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionRead).Returns()
 	}))
-	s.Run("UnpinWorkspace", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		check.Args(database.UnpinWorkspaceParams{
+		check.Args(database.UnfavoriteWorkspaceParams{
 			UserID:      u.ID,
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionRead).Returns()

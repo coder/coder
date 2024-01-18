@@ -58,7 +58,7 @@ type Workspace struct {
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
-	Pinned           bool             `json:"pinned"`
+	Favored          bool             `json:"favored"`
 }
 
 func (w Workspace) FullName() string {
@@ -472,8 +472,8 @@ func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (Reso
 	return response, json.NewDecoder(res.Body).Decode(&response)
 }
 
-func (c *Client) PinWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/workspaces/%s/pin", workspaceID), nil)
+func (c *Client) FavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/workspaces/%s/favorite", workspaceID), nil)
 	if err != nil {
 		return err
 	}
@@ -484,8 +484,8 @@ func (c *Client) PinWorkspace(ctx context.Context, workspaceID uuid.UUID) error 
 	return nil
 }
 
-func (c *Client) UnpinWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/pin", workspaceID), nil)
+func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/favorite", workspaceID), nil)
 	if err != nil {
 		return err
 	}

@@ -71,7 +71,7 @@ func New() database.Store {
 			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
-			userPinnedWorkspaces:      make([]database.UserPinnedWorkspace, 0),
+			favoriteWorkspaces:        make([]database.FavoriteWorkspace, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			locks:                     map[int64]struct{}{},
@@ -155,7 +155,7 @@ type data struct {
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
 	workspaces                    []database.Workspace
-	userPinnedWorkspaces          []database.UserPinnedWorkspace
+	favoriteWorkspaces            []database.FavoriteWorkspace
 	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -730,6 +730,47 @@ func isNull(v interface{}) bool {
 
 func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
+}
+
+func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg database.FavoriteWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, upw := range q.favoriteWorkspaces {
+		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
+			return errDuplicateKey
+		}
+	}
+	return nil
+}
+
+func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg database.UnfavoriteWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, upw := range q.favoriteWorkspaces {
+		if upw.UserID != arg.UserID {
+			continue
+		}
+		if upw.WorkspaceID != arg.WorkspaceID {
+			continue
+		}
+		q.favoriteWorkspaces[index] = q.favoriteWorkspaces[len(q.apiKeys)-1]
+		q.favoriteWorkspaces = q.favoriteWorkspaces[:len(q.favoriteWorkspaces)-1]
+		return nil
+	}
+
+	return nil
 }
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
@@ -5903,23 +5944,6 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *FakeQuerier) PinWorkspace(_ context.Context, arg database.PinWorkspaceParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for _, upw := range q.userPinnedWorkspaces {
-		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
-			return errDuplicateKey
-		}
-	}
-	return nil
-}
-
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -6001,30 +6025,6 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UnpinWorkspace(_ context.Context, arg database.UnpinWorkspaceParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, upw := range q.userPinnedWorkspaces {
-		if upw.UserID != arg.UserID {
-			continue
-		}
-		if upw.WorkspaceID != arg.WorkspaceID {
-			continue
-		}
-		q.userPinnedWorkspaces[index] = q.userPinnedWorkspaces[len(q.apiKeys)-1]
-		q.userPinnedWorkspaces = q.userPinnedWorkspaces[:len(q.userPinnedWorkspaces)-1]
-		return nil
-	}
-
-	return nil
 }
 
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

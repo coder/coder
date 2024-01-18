@@ -656,6 +656,20 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	}
 }
 
+func (q *querier) FavoriteWorkspace(ctx context.Context, arg database.FavoriteWorkspaceParams) error {
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return err
+	}
+	return q.db.FavoriteWorkspace(ctx, arg)
+}
+
+func (q *querier) UnfavoriteWorkspace(ctx context.Context, arg database.UnfavoriteWorkspaceParams) error {
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return err
+	}
+	return q.db.UnfavoriteWorkspace(ctx, arg)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -2475,13 +2489,6 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
-func (q *querier) PinWorkspace(ctx context.Context, arg database.PinWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
-	}
-	return q.db.PinWorkspace(ctx, arg)
-}
-
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	fetch := func(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
@@ -2514,13 +2521,6 @@ func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.Una
 		return err
 	}
 	return q.db.UnarchiveTemplateVersion(ctx, arg)
-}
-
-func (q *querier) UnpinWorkspace(ctx context.Context, arg database.UnpinWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
-	}
-	return q.db.UnpinWorkspace(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

@@ -1021,21 +1021,21 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, code, resp)
 }
 
-// @Summary Pin workspace by ID.
-// @ID pin-workspace-by-id
+// @Summary Favor workspace by ID.
+// @ID favorite-workspace-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
-// @Router /workspaces/{workspace}/pin [put]
-func (api *API) putWorkspacePin(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaces/{workspace}/favorite [put]
+func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		apiKey            = httpmw.APIKey(r)
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserPinnedWorkspace](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.FavoriteWorkspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -1043,9 +1043,9 @@ func (api *API) putWorkspacePin(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	aReq.Old = database.UserPinnedWorkspace{}
+	aReq.Old = database.FavoriteWorkspace{}
 
-	err := api.Database.PinWorkspace(ctx, database.PinWorkspaceParams{
+	err := api.Database.FavoriteWorkspace(ctx, database.FavoriteWorkspaceParams{
 		UserID:      apiKey.UserID,
 		WorkspaceID: workspace.ID,
 	})
@@ -1057,7 +1057,7 @@ func (api *API) putWorkspacePin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aReq.New = database.UserPinnedWorkspace{
+	aReq.New = database.FavoriteWorkspace{
 		UserID:      apiKey.UserID,
 		WorkspaceID: workspace.ID,
 	}
@@ -1065,21 +1065,21 @@ func (api *API) putWorkspacePin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Unpin workspace by ID.
-// @ID unpin-workspace-by-id
+// @Summary Unfavor workspace by ID.
+// @ID unfavorite-workspace-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
-// @Router /workspaces/{workspace}/pin [delete]
-func (api *API) deleteWorkspacePin(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaces/{workspace}/favorite [delete]
+func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		apiKey            = httpmw.APIKey(r)
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserPinnedWorkspace](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.FavoriteWorkspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -1087,12 +1087,12 @@ func (api *API) deleteWorkspacePin(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	aReq.Old = database.UserPinnedWorkspace{
+	aReq.Old = database.FavoriteWorkspace{
 		UserID:      apiKey.UserID,
 		WorkspaceID: workspace.ID,
 	}
 
-	err := api.Database.UnpinWorkspace(ctx, database.UnpinWorkspaceParams{
+	err := api.Database.UnfavoriteWorkspace(ctx, database.UnfavoriteWorkspaceParams{
 		UserID:      apiKey.UserID,
 		WorkspaceID: workspace.ID,
 	})
@@ -1103,7 +1103,7 @@ func (api *API) deleteWorkspacePin(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.New = database.UserPinnedWorkspace{}
+	aReq.New = database.FavoriteWorkspace{}
 
 	rw.WriteHeader(http.StatusNoContent)
 }

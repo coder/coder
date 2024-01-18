@@ -82,7 +82,7 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	(upw.user_id IS NOT NULL)::boolean AS pinned,
+	(fws.user_id IS NOT NULL)::boolean AS favored,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -131,15 +131,15 @@ LEFT JOIN LATERAL (
 	SELECT
 		user_id
 	FROM
-		user_pinned_workspaces
+		favorite_workspaces
 	WHERE
-		workspaces.id = user_pinned_workspaces.workspace_id
+		workspaces.id = favorite_workspaces.workspace_id
 	AND
 		-- Omitting the owner_id parameter will result in
 		-- 00000000-0000-0000-0000-000000000000 which will not match
-		-- any rows in user_pinned_workspaces.
-		user_pinned_workspaces.user_id = @owner_id
-) upw ON TRUE
+		-- any rows in favorite_workspaces.
+		favorite_workspaces.user_id = @owner_id
+) fws ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -276,7 +276,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	pinned DESC,
+	favored DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -563,8 +563,8 @@ SET
 WHERE
 		id = $1;
 
--- name: PinWorkspace :exec
-INSERT INTO user_pinned_workspaces (user_id, workspace_id) VALUES (sqlc.arg(user_id), sqlc.arg(workspace_id));
+-- name: FavoriteWorkspace :exec
+INSERT INTO favorite_workspaces (user_id, workspace_id) VALUES (sqlc.arg(user_id), sqlc.arg(workspace_id));
 
--- name: UnpinWorkspace :exec
-DELETE FROM user_pinned_workspaces WHERE user_id = sqlc.arg(user_id) AND workspace_id = sqlc.arg(workspace_id);
+-- name: UnfavoriteWorkspace :exec
+DELETE FROM favorite_workspaces WHERE user_id = sqlc.arg(user_id) AND workspace_id = sqlc.arg(workspace_id);

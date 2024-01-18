@@ -1146,19 +1146,20 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization    ResourceType = "organization"
-	ResourceTypeTemplate        ResourceType = "template"
-	ResourceTypeTemplateVersion ResourceType = "template_version"
-	ResourceTypeUser            ResourceType = "user"
-	ResourceTypeWorkspace       ResourceType = "workspace"
-	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
-	ResourceTypeApiKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
-	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
-	ResourceTypeLicense         ResourceType = "license"
-	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin    ResourceType = "convert_login"
-	ResourceTypeHealthSettings  ResourceType = "health_settings"
+	ResourceTypeOrganization      ResourceType = "organization"
+	ResourceTypeTemplate          ResourceType = "template"
+	ResourceTypeTemplateVersion   ResourceType = "template_version"
+	ResourceTypeUser              ResourceType = "user"
+	ResourceTypeWorkspace         ResourceType = "workspace"
+	ResourceTypeGitSshKey         ResourceType = "git_ssh_key"
+	ResourceTypeApiKey            ResourceType = "api_key"
+	ResourceTypeGroup             ResourceType = "group"
+	ResourceTypeWorkspaceBuild    ResourceType = "workspace_build"
+	ResourceTypeLicense           ResourceType = "license"
+	ResourceTypeWorkspaceProxy    ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin      ResourceType = "convert_login"
+	ResourceTypeHealthSettings    ResourceType = "health_settings"
+	ResourceTypeFavoriteWorkspace ResourceType = "favorite_workspace"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1210,7 +1211,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
-		ResourceTypeHealthSettings:
+		ResourceTypeHealthSettings,
+		ResourceTypeFavoriteWorkspace:
 		return true
 	}
 	return false
@@ -1231,6 +1233,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
+		ResourceTypeFavoriteWorkspace,
 	}
 }
 
@@ -1745,6 +1748,11 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 }
 
+type FavoriteWorkspace struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
@@ -2161,11 +2169,6 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Debug information includes information like id_token and userinfo claims.
 	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
-}
-
-type UserPinnedWorkspace struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.

@@ -4369,21 +4369,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value              |
-| ------------------ |
-| `template`         |
-| `template_version` |
-| `user`             |
-| `workspace`        |
-| `workspace_build`  |
-| `git_ssh_key`      |
-| `api_key`          |
-| `group`            |
-| `license`          |
-| `convert_login`    |
-| `health_settings`  |
-| `workspace_proxy`  |
-| `organization`     |
+| Value                |
+| -------------------- |
+| `template`           |
+| `template_version`   |
+| `user`               |
+| `workspace`          |
+| `workspace_build`    |
+| `favorite_workspace` |
+| `git_ssh_key`        |
+| `api_key`            |
+| `group`              |
+| `license`            |
+| `convert_login`      |
+| `health_settings`    |
+| `workspace_proxy`    |
+| `organization`       |
 
 ## codersdk.Response
 
@@ -6079,6 +6080,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -6110,6 +6112,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `outdated`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_id`                                  | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_name`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
+| `pinned`                                    | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `template_active_version_id`                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `template_display_name`                     | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -7338,6 +7341,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "pinned": true,
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",

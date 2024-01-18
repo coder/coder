@@ -10849,6 +10849,20 @@ func (q *sqlQuerier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg Bat
 	return err
 }
 
+const favoriteWorkspace = `-- name: FavoriteWorkspace :exec
+INSERT INTO favorite_workspaces (user_id, workspace_id) VALUES ($1, $2)
+`
+
+type FavoriteWorkspaceParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) FavoriteWorkspace(ctx context.Context, arg FavoriteWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, favoriteWorkspace, arg.UserID, arg.WorkspaceID)
+	return err
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
@@ -11170,7 +11184,7 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	(upw.user_id IS NOT NULL)::boolean AS pinned,
+	(fws.user_id IS NOT NULL)::boolean AS favored,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -11219,15 +11233,15 @@ LEFT JOIN LATERAL (
 	SELECT
 		user_id
 	FROM
-		user_pinned_workspaces
+		favorite_workspaces
 	WHERE
-		workspaces.id = user_pinned_workspaces.workspace_id
+		workspaces.id = favorite_workspaces.workspace_id
 	AND
 		-- Omitting the owner_id parameter will result in
 		-- 00000000-0000-0000-0000-000000000000 which will not match
-		-- any rows in user_pinned_workspaces.
-		user_pinned_workspaces.user_id = $1
-) upw ON TRUE
+		-- any rows in favorite_workspaces.
+		favorite_workspaces.user_id = $1
+) fws ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $2
@@ -11364,7 +11378,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	pinned DESC,
+	favored DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -11415,7 +11429,7 @@ type GetWorkspacesRow struct {
 	TemplateName        string           `db:"template_name" json:"template_name"`
 	TemplateVersionID   uuid.UUID        `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName sql.NullString   `db:"template_version_name" json:"template_version_name"`
-	Pinned              bool             `db:"pinned" json:"pinned"`
+	Favored             bool             `db:"favored" json:"favored"`
 	Count               int64            `db:"count" json:"count"`
 }
 
@@ -11461,7 +11475,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
-			&i.Pinned,
+			&i.Favored,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -11648,31 +11662,17 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
-const pinWorkspace = `-- name: PinWorkspace :exec
-INSERT INTO user_pinned_workspaces (user_id, workspace_id) VALUES ($1, $2)
+const unfavoriteWorkspace = `-- name: UnfavoriteWorkspace :exec
+DELETE FROM favorite_workspaces WHERE user_id = $1 AND workspace_id = $2
 `
 
-type PinWorkspaceParams struct {
+type UnfavoriteWorkspaceParams struct {
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
 
-func (q *sqlQuerier) PinWorkspace(ctx context.Context, arg PinWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, pinWorkspace, arg.UserID, arg.WorkspaceID)
-	return err
-}
-
-const unpinWorkspace = `-- name: UnpinWorkspace :exec
-DELETE FROM user_pinned_workspaces WHERE user_id = $1 AND workspace_id = $2
-`
-
-type UnpinWorkspaceParams struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-}
-
-func (q *sqlQuerier) UnpinWorkspace(ctx context.Context, arg UnpinWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, unpinWorkspace, arg.UserID, arg.WorkspaceID)
+func (q *sqlQuerier) UnfavoriteWorkspace(ctx context.Context, arg UnfavoriteWorkspaceParams) error {
+	_, err := q.db.ExecContext(ctx, unfavoriteWorkspace, arg.UserID, arg.WorkspaceID)
 	return err
 }
 

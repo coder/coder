@@ -13,7 +13,7 @@ type Auditable interface {
 		database.TemplateVersion |
 		database.User |
 		database.Workspace |
-		database.UserPinnedWorkspace |
+		database.FavoriteWorkspace |
 		database.GitSSHKey |
 		database.WorkspaceBuild |
 		database.AuditableGroup |
