@@ -34,12 +34,14 @@ export const TemplateSettingsPage: FC = () => {
         // original template data.
         if (!data) {
           data = template;
+        } else {
+          // Only invalid the query if data is returned, indicating at least one field was updated.
+          //
+          // we use data.name because an admin may have updated templateName to something new
+          await queryClient.invalidateQueries(
+            templateByNameKey(orgId, data.name),
+          );
         }
-
-        // we use data.name because an admin may have updated templateName to something new
-        await queryClient.invalidateQueries(
-          templateByNameKey(orgId, data.name),
-        );
         displaySuccess("Template updated successfully");
         navigate(`/templates/${data.name}`);
       },
