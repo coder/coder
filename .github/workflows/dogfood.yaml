@@ -7,10 +7,14 @@ on:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
+      - "flake.lock"
+      - "flake.nix"
   pull_request:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
+      - "flake.lock"
+      - "flake.nix"
   workflow_dispatch:
 
 jobs:
