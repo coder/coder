@@ -359,7 +359,14 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
-  tags: {},
+  tags: {
+    scope: "organization",
+    owner: "",
+    wowzers: "whatatag",
+    isCapable: "false",
+    department: "engineering",
+    dreaming: "true",
+  },
   queue_position: 0,
   queue_size: 0,
 };

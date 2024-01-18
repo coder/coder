@@ -102,6 +102,16 @@ export const TemplateVersionEditorPage: FC = () => {
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
   };
 
+  // Provisioner Tags
+  const [provisionerTags, setProvisionerTags] = useState<
+    Record<string, string>
+  >({});
+  useEffect(() => {
+    if (templateVersionQuery.data?.job.tags) {
+      setProvisionerTags(templateVersionQuery.data.job.tags);
+    }
+  }, [templateVersionQuery.data?.job.tags]);
+
   return (
     <>
       <Helmet>
@@ -127,7 +137,7 @@ export const TemplateVersionEditorPage: FC = () => {
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
-              tags: templateVersionQuery.data.job.tags,
+              tags: provisionerTags,
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
@@ -209,6 +219,10 @@ export const TemplateVersionEditorPage: FC = () => {
           }}
           onCancelSubmitMissingVariableValues={() => {
             setIsMissingVariablesDialogOpen(false);
+          }}
+          provisionerTags={provisionerTags}
+          onUpdateProvisionerTags={(tags) => {
+            setProvisionerTags(tags);
           }}
         />
       ) : (
