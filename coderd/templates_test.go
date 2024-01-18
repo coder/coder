@@ -42,6 +42,33 @@ func TestTemplate(t *testing.T) {
 		_, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 	})
+
+	// Create a template, remove the everyone group, see if an owner can
+	// still fetch the template.
+	t.Run("GetOnEveryoneRemove", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: nil,
+			GroupPerms: map[string]codersdk.TemplateRole{
+				"everyone": codersdk.TemplateRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err = owner.Template(ctx, template.ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestPostTemplateByOrganization(t *testing.T) {
