@@ -10,18 +10,16 @@ export const AgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
       <Button
         {...buttonProps}
         color="neutral"
-        size="large"
+        size="xlarge"
         variant="contained"
         ref={ref}
         css={(theme) => ({
-          height: 44,
           padding: "12px 20px",
           color: theme.palette.text.primary,
           // Making them smaller since those icons don't have a padding around them
-          "& .MuiButton-startIcon": {
+          "& .MuiButton-startIcon, & .MuiButton-endIcon": {
             width: 16,
             height: 16,
-            marginRight: 12,
             "& svg": { width: "100%", height: "100%" },
           },
         })}

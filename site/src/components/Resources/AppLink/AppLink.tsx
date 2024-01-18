@@ -67,7 +67,21 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   let primaryTooltip = "";
   if (app.health === "initializing") {
     canClick = false;
-    icon = <CircularProgress size={12} />;
+    icon = (
+      // This is a hack to make the spinner appear in the center of the start
+      // icon space
+      <span
+        css={{
+          display: "flex",
+          width: "100%",
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <CircularProgress size={14} />
+      </span>
+    );
     primaryTooltip = "Initializing...";
   }
   if (app.health === "unhealthy") {
@@ -142,15 +156,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
             : undefined
         }
       >
-        <span
-          css={
-            !isPrivateApp && {
-              marginRight: 8,
-            }
-          }
-        >
-          {appDisplayName}
-        </span>
+        {appDisplayName}
       </Link>
     </Tooltip>
   );

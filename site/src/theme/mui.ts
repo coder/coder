@@ -109,6 +109,12 @@ export const components = {
       },
       ["sizeXlarge" as any]: {
         height: BUTTON_XL_HEIGHT,
+        "& .MuiButton-startIcon": {
+          marginRight: 12,
+        },
+        "& .MuiButton-endIcon": {
+          marginLeft: 12,
+        },
       },
       outlined: ({ theme }) => ({
         ":hover": {
@@ -143,9 +149,6 @@ export const components = {
         "& > .MuiSvgIcon-root": {
           fontSize: 13,
         },
-      },
-      startIcon: {
-        marginLeft: "-2px",
       },
     },
   },
