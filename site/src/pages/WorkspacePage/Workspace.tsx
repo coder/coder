@@ -301,7 +301,7 @@ const WorkspaceResourceData: FC<{ resource: TypesGen.WorkspaceResource }> = ({
 
   return (
     <header css={styles.resourceData}>
-      {resource.metadata?.map((meta) => {
+      {metadata.map((meta) => {
         return (
           <div css={styles.resourceDataItem} key={meta.key}>
             <div css={styles.resourceDataItemValue}>
