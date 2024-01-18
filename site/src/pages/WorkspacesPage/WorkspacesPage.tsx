@@ -14,7 +14,9 @@ import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useQuery } from "react-query";
 import { templates } from "api/queries/templates";
-import { BatchDeleteConfirmation, useBatchActions } from "./BatchActions";
+import { useBatchActions } from "./batchActions";
+import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
+import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -53,7 +55,9 @@ const WorkspacesPage: FC = () => {
 
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
-  const [isConfirmingDeleteAll, setIsConfirmingDeleteAll] = useState(false);
+  const [confirmingBatchAction, setConfirmingBatchAction] = useState<
+    "delete" | "update" | null
+  >(null);
   const [urlSearchParams] = searchParamsResult;
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
@@ -96,9 +100,8 @@ const WorkspacesPage: FC = () => {
           updateWorkspace.mutate(workspace);
         }}
         isRunningBatchAction={batchActions.isLoading}
-        onDeleteAll={() => {
-          setIsConfirmingDeleteAll(true);
-        }}
+        onDeleteAll={() => setConfirmingBatchAction("delete")}
+        onUpdateAll={() => setConfirmingBatchAction("update")}
         onStartAll={() => batchActions.startAll(checkedWorkspaces)}
         onStopAll={() => batchActions.stopAll(checkedWorkspaces)}
       />
@@ -106,13 +109,26 @@ const WorkspacesPage: FC = () => {
       <BatchDeleteConfirmation
         isLoading={batchActions.isLoading}
         checkedWorkspaces={checkedWorkspaces}
-        open={isConfirmingDeleteAll}
+        open={confirmingBatchAction === "delete"}
         onConfirm={async () => {
           await batchActions.deleteAll(checkedWorkspaces);
-          setIsConfirmingDeleteAll(false);
+          setConfirmingBatchAction(null);
         }}
         onClose={() => {
-          setIsConfirmingDeleteAll(false);
+          setConfirmingBatchAction(null);
+        }}
+      />
+
+      <BatchUpdateConfirmation
+        isLoading={batchActions.isLoading}
+        checkedWorkspaces={checkedWorkspaces}
+        open={confirmingBatchAction === "update"}
+        onConfirm={async () => {
+          await batchActions.updateAll(checkedWorkspaces);
+          setConfirmingBatchAction(null);
+        }}
+        onClose={() => {
+          setConfirmingBatchAction(null);
         }}
       />
     </>

@@ -80,8 +80,8 @@ const styles = {
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: theme.experimental.roles.danger.disabled.fill,
-        borderColor: theme.experimental.roles.danger.disabled.outline,
+        backgroundColor: theme.experimental.roles.danger.hover.fill,
+        borderColor: theme.experimental.roles.danger.hover.outline,
       },
 
       "&.Mui-disabled": {

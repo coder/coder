@@ -2,68 +2,15 @@ import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import { visuallyHidden } from "@mui/utils";
 import dayjs from "dayjs";
-import "dayjs/plugin/relativeTime";
-import { type Interpolation, type Theme } from "@emotion/react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
-import { useMutation } from "react-query";
-import { deleteWorkspace, startWorkspace, stopWorkspace } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { getResourceIconPath } from "utils/workspace";
 import { Stack } from "components/Stack/Stack";
+import { getResourceIconPath } from "utils/workspace";
 
-interface UseBatchActionsProps {
-  onSuccess: () => Promise<void>;
-}
-
-export function useBatchActions(options: UseBatchActionsProps) {
-  const { onSuccess } = options;
-
-  const startAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
-      return Promise.all(
-        workspaces.map((w) =>
-          startWorkspace(w.id, w.latest_build.template_version_id),
-        ),
-      );
-    },
-    onSuccess,
-    onError: () => {
-      displayError("Failed to start workspaces");
-    },
-  });
-
-  const stopAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
-      return Promise.all(workspaces.map((w) => stopWorkspace(w.id)));
-    },
-    onSuccess,
-    onError: () => {
-      displayError("Failed to stop workspaces");
-    },
-  });
-
-  const deleteAllMutation = useMutation({
-    mutationFn: async (workspaces: Workspace[]) => {
-      return Promise.all(workspaces.map((w) => deleteWorkspace(w.id)));
-    },
-    onSuccess,
-    onError: () => {
-      displayError("Failed to delete workspaces");
-    },
-  });
-
-  return {
-    startAll: startAllMutation.mutateAsync,
-    stopAll: stopAllMutation.mutateAsync,
-    deleteAll: deleteAllMutation.mutateAsync,
-    isLoading:
-      startAllMutation.isLoading ||
-      stopAllMutation.isLoading ||
-      deleteAllMutation.isLoading,
-  };
-}
+dayjs.extend(relativeTime);
 
 type BatchDeleteConfirmationProps = {
   checkedWorkspaces: Workspace[];
@@ -182,6 +129,8 @@ const Consequences: FC = () => {
 };
 
 const Workspaces: FC<StageProps> = ({ workspaces }) => {
+  const theme = useTheme();
+
   const mostRecent = workspaces.reduce(
     (latestSoFar, against) => {
       if (!latestSoFar) {
@@ -209,7 +158,9 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
               alignItems="center"
               justifyContent="space-between"
             >
-              <span css={{ fontWeight: 500, color: "#fff" }}>
+              <span
+                css={{ fontWeight: 500, color: theme.experimental.l1.text }}
+              >
                 {workspace.name}
               </span>
               <Stack css={{ gap: 0, fontSize: 14, width: 128 }}>
@@ -234,7 +185,12 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
           </li>
         ))}
       </ul>
-      <Stack justifyContent="center" direction="row" css={{ fontSize: 14 }}>
+      <Stack
+        justifyContent="center"
+        direction="row"
+        wrap="wrap"
+        css={{ gap: "6px 20px", fontSize: 14 }}
+      >
         <Stack direction="row" alignItems="center" spacing={1}>
           <PersonIcon />
           <span>{ownersCount}</span>

@@ -1,6 +1,6 @@
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { Workspace } from "./Workspace";
@@ -42,11 +42,11 @@ interface WorkspaceReadyPageProps {
   permissions: WorkspacePermissions;
 }
 
-export const WorkspaceReadyPage = ({
+export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   workspace,
   template,
   permissions,
-}: WorkspaceReadyPageProps): JSX.Element => {
+}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { buildInfo } = useDashboard();

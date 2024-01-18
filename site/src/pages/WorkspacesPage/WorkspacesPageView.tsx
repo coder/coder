@@ -15,6 +15,7 @@ import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
 import StopOutlined from "@mui/icons-material/StopOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import CloudQueue from "@mui/icons-material/CloudQueue";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -51,6 +52,7 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   isRunningBatchAction: boolean;
   onDeleteAll: () => void;
+  onUpdateAll: () => void;
   onStartAll: () => void;
   onStopAll: () => void;
   canCheckWorkspaces: boolean;
@@ -71,6 +73,7 @@ export const WorkspacesPageView = ({
   checkedWorkspaces,
   onCheckChange,
   onDeleteAll,
+  onUpdateAll,
   onStopAll,
   onStartAll,
   isRunningBatchAction,
@@ -150,6 +153,9 @@ export const WorkspacesPageView = ({
                   <StopOutlined /> Stop
                 </MoreMenuItem>
                 <Divider />
+                <MoreMenuItem onClick={onUpdateAll}>
+                  <CloudQueue /> Update&hellip;
+                </MoreMenuItem>
                 <MoreMenuItem danger onClick={onDeleteAll}>
                   <DeleteOutlined /> Delete&hellip;
                 </MoreMenuItem>

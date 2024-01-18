@@ -1093,6 +1093,26 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   outdated: true,
 };
 
+export const MockRunningOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-running-outdated-workspace",
+  outdated: true,
+};
+
+export const MockDormantWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-workspace",
+  dormant_at: new Date().toISOString(),
+};
+
+export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-outdated-workspace",
+  name: "Dormant-Workspace",
+  outdated: true,
+  dormant_at: new Date().toISOString(),
+};
+
 export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
   {
     ...MockWorkspace,
