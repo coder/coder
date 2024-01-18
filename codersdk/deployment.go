@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -132,11 +133,11 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
-	Verbose             clibase.Bool `json:"verbose,omitempty"`
-	AccessURL           clibase.URL  `json:"access_url,omitempty"`
-	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
-	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
-	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
+	Verbose             clibase.Bool   `json:"verbose,omitempty"`
+	AccessURL           clibase.URL    `json:"access_url,omitempty"`
+	WildcardAccessURL   clibase.String `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL    `json:"docs_url,omitempty"`
+	RedirectToAccessURL clibase.Bool   `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           clibase.Duration                     `json:"autobuild_poll_interval,omitempty"`
@@ -611,7 +612,19 @@ when required by your organization's security policy.`,
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
-			Value:       &c.WildcardAccessURL,
+			// Do not use a clibase.URL here. We are intentionally omitting the
+			// scheme part of the url (https://), so the standard url parsing
+			// will yield unexpected results.
+			//
+			// We have a validation function to ensure the wildcard url is correct,
+			// so use that instead.
+			Value: clibase.Validate(&c.WildcardAccessURL, func(value *clibase.String) error {
+				if value.Value() == "" {
+					return nil
+				}
+				_, err := appurl.CompileHostnamePattern(value.Value())
+				return err
+			}),
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),

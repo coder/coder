@@ -128,6 +128,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return api.fetchRegions(ctx)
 	}
+	api.tailnetService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"),
+		&api.AGPL.TailnetCoordinator,
+		api.Options.DERPMapUpdateFrequency,
+		api.AGPL.DERPMap,
+	)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
+	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -483,6 +492,7 @@ type API struct {
 	provisionerDaemonAuth *provisionerDaemonAuth
 
 	licenseMetricsCollector license.MetricsCollector
+	tailnetService          *tailnet.ClientService
 }
 
 func (api *API) Close() error {

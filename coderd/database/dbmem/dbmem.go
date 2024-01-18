@@ -21,10 +21,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 )
@@ -4566,11 +4566,11 @@ func (q *FakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, params data
 
 		// Compile the app hostname regex. This is slow sadly.
 		if params.AllowWildcardHostname {
-			wildcardRegexp, err := httpapi.CompileHostnamePattern(proxy.WildcardHostname)
+			wildcardRegexp, err := appurl.CompileHostnamePattern(proxy.WildcardHostname)
 			if err != nil {
 				return database.WorkspaceProxy{}, xerrors.Errorf("compile hostname pattern %q for proxy %q (%s): %w", proxy.WildcardHostname, proxy.Name, proxy.ID.String(), err)
 			}
-			if _, ok := httpapi.ExecuteHostnamePattern(wildcardRegexp, params.Hostname); ok {
+			if _, ok := appurl.ExecuteHostnamePattern(wildcardRegexp, params.Hostname); ok {
 				return proxy, nil
 			}
 		}

@@ -7,13 +7,17 @@ import { mockApiError } from "testHelpers/entities";
 
 const newData = {
   username: "user",
-  name: "",
+  name: "Mr User",
 };
 
 const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Username"));
   fireEvent.change(screen.getByLabelText("Username"), {
     target: { value: newData.username },
+  });
+  await waitFor(() => screen.findByLabelText("Name"));
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: newData.name },
   });
   fireEvent.click(screen.getByText(AccountForm.Language.updateSettings));
 };

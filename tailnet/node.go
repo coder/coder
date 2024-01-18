@@ -35,6 +35,7 @@ type nodeUpdater struct {
 	endpoints            []string
 	addresses            []netip.Prefix
 	lastStatus           time.Time
+	blockEndpoints       bool
 }
 
 // updateLoop waits until the config is dirty and then calls the callback with the newest node.
@@ -55,14 +56,20 @@ func (u *nodeUpdater) updateLoop() {
 			u.logger.Debug(context.Background(), "closing nodeUpdater updateLoop")
 			return
 		}
-		node := u.nodeLocked()
 		u.dirty = false
 		u.phase = configuring
 		u.Broadcast()
 
+		callback := u.callback
+		if callback == nil {
+			u.logger.Debug(context.Background(), "skipped sending node; no node callback")
+			continue
+		}
+
 		// We cannot reach nodes without DERP for discovery. Therefore, there is no point in sending
 		// the node without this, and we can save ourselves from churn in the tailscale/wireguard
 		// layer.
+		node := u.nodeLocked()
 		if node.PreferredDERP == 0 {
 			u.logger.Debug(context.Background(), "skipped sending node; no PreferredDERP", slog.F("node", node))
 			continue
@@ -70,7 +77,7 @@ func (u *nodeUpdater) updateLoop() {
 
 		u.L.Unlock()
 		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
-		u.callback(node)
+		callback(node)
 		u.L.Lock()
 	}
 }
@@ -105,6 +112,10 @@ func newNodeUpdater(
 
 // nodeLocked returns the current best node information.  u.L must be held.
 func (u *nodeUpdater) nodeLocked() *Node {
+	var endpoints []string
+	if !u.blockEndpoints {
+		endpoints = slices.Clone(u.endpoints)
+	}
 	return &Node{
 		ID:                  u.id,
 		AsOf:                dbtime.Now(),
@@ -112,7 +123,7 @@ func (u *nodeUpdater) nodeLocked() *Node {
 		Addresses:           slices.Clone(u.addresses),
 		AllowedIPs:          slices.Clone(u.addresses),
 		DiscoKey:            u.discoKey,
-		Endpoints:           slices.Clone(u.endpoints),
+		Endpoints:           endpoints,
 		PreferredDERP:       u.preferredDERP,
 		DERPLatency:         maps.Clone(u.derpLatency),
 		DERPForcedWebsocket: maps.Clone(u.derpForcedWebsockets),
@@ -155,7 +166,7 @@ func (u *nodeUpdater) setDERPForcedWebsocket(region int, reason string) {
 }
 
 // setStatus handles the status callback from the wireguard engine to learn about new endpoints
-// (e.g. discovered by STUN)
+// (e.g. discovered by STUN).  u.L MUST NOT be held
 func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
 	u.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
 	if err != nil {
@@ -178,5 +189,42 @@ func (u *nodeUpdater) setStatus(s *wgengine.Status, err error) {
 	}
 	u.endpoints = endpoints
 	u.dirty = true
+	u.Broadcast()
+}
+
+// setAddresses sets the local addresses for the node. u.L MUST NOT be held.
+func (u *nodeUpdater) setAddresses(ips []netip.Prefix) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	if d := prefixesDifferent(u.addresses, ips); !d {
+		return
+	}
+	u.addresses = make([]netip.Prefix, len(ips))
+	copy(u.addresses, ips)
+	u.dirty = true
+	u.Broadcast()
+}
+
+// setCallback sets the callback for node changes. It also triggers a call
+// for the current node immediately. u.L MUST NOT be held.
+func (u *nodeUpdater) setCallback(callback func(node *Node)) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	u.callback = callback
+	u.dirty = true
+	u.Broadcast()
+}
+
+// setBlockEndpoints sets whether we block reporting Node endpoints. u.L MUST NOT
+// be held.
+// nolint: revive
+func (u *nodeUpdater) setBlockEndpoints(blockEndpoints bool) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	if u.blockEndpoints == blockEndpoints {
+		return
+	}
+	u.dirty = true
+	u.blockEndpoints = blockEndpoints
 	u.Broadcast()
 }

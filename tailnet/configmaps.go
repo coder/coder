@@ -72,7 +72,7 @@ type configMaps struct {
 	clock clock.Clock
 }
 
-func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic, addresses []netip.Prefix) *configMaps {
+func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -114,9 +114,8 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 				Caps: []filter.CapMatch{},
 			}},
 		},
-		peers:     make(map[uuid.UUID]*peerLifecycle),
-		addresses: addresses,
-		clock:     clock.New(),
+		peers: make(map[uuid.UUID]*peerLifecycle),
+		clock: clock.New(),
 	}
 	go c.configLoop()
 	return c
@@ -250,6 +249,24 @@ func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
 		c.netmapDirty = true
 	}
 	c.blockEndpoints = blockEndpoints
+	c.Broadcast()
+}
+
+// setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
+// c.L MUST NOT be held.
+func (c *configMaps) setDERPMap(derpMap *proto.DERPMap) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	eq, err := c.derpMap.Equal(derpMap)
+	if err != nil {
+		c.logger.Critical(context.Background(), "failed to compare DERP maps", slog.Error(err))
+		return
+	}
+	if eq {
+		return
+	}
+	c.derpMap = derpMap
+	c.derpMapDirty = true
 	c.Broadcast()
 }
 

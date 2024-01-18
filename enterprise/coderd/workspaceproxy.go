@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
@@ -591,7 +592,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.WildcardHostname != "" {
-		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
+		if _, err := appurl.CompileHostnamePattern(req.WildcardHostname); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Wildcard URL is invalid.",
 				Detail:  err.Error(),

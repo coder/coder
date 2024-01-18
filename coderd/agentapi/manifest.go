@@ -3,7 +3,6 @@ package agentapi
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -20,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -108,19 +107,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("fetching workspace agent data: %w", err)
 	}
 
-	appHost := httpapi.ApplicationURL{
+	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
 		WorkspaceName: workspace.Name,
 		Username:      owner.Username,
 	}
-	vscodeProxyURI := a.AccessURL.Scheme + "://" + strings.ReplaceAll(a.AppHostname, "*", appHost.String())
-	if a.AppHostname == "" {
-		vscodeProxyURI += a.AccessURL.Hostname()
-	}
-	if a.AccessURL.Port() != "" {
-		vscodeProxyURI += fmt.Sprintf(":%s", a.AccessURL.Port())
-	}
+
+	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
 
 	var gitAuthConfigs uint32
 	for _, cfg := range a.ExternalAuthConfigs {
@@ -153,6 +147,17 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:     apps,
 		Metadata: dbAgentMetadataToProtoDescription(metadata),
 	}, nil
+}
+
+func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {
+	// This will handle the ports from the accessURL or appHost.
+	appHost = appurl.SubdomainAppHost(appHost, accessURL)
+	// If there is no appHost, then we want to use the access url as the proxy uri.
+	if appHost == "" {
+		appHost = accessURL.Host
+	}
+	// Return the url with a scheme and any wildcards replaced with the app slug.
+	return accessURL.Scheme + "://" + strings.ReplaceAll(appHost, "*", app.String())
 }
 
 func dbAgentMetadataToProtoDescription(metadata []database.WorkspaceAgentMetadatum) []*agentproto.WorkspaceAgentMetadata_Description {

@@ -655,7 +655,7 @@ jobs:
     # to main branch. We are only building this for amd64 platform. (>95% pulls
     # are for amd64)
     needs: changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -692,46 +692,70 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          tag="main-$(echo "$version" | sed 's/+/-/g')"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
           make gen/mark-fresh
           make -j \
-            build/coder_linux_amd64 \
+            build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
-      - name: Build and Push Linux amd64 Docker Image
+      - name: Build Linux Docker images
         id: build-docker
+        env:
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
+          CODER_IMAGE_TAG_PREFIX: main
+          DOCKER_CLI_EXPERIMENTAL: "enabled"
         run: |
           set -euxo pipefail
+
+          # build Docker images for each architecture
           version="$(./scripts/version.sh)"
           tag="main-$(echo "$version" | sed 's/+/-/g')"
-
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          ./scripts/build_docker.sh \
-            --arch amd64 \
-            --target "ghcr.io/coder/coder-preview:$tag" \
-            --version $version \
-            --push \
-            build/coder_linux_amd64
-
-          # Tag as main
-          docker tag "ghcr.io/coder/coder-preview:$tag" ghcr.io/coder/coder-preview:main
-          docker push ghcr.io/coder/coder-preview:main
-
-          # Store the tag in an output variable so we can use it in other jobs
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
+          # build images for each architecture
+          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+          # only push if we are on main branch
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # build and push multi-arch manifest, this depends on the other images
+            # being pushed so will automatically push them
+            make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+            # Define specific tags
+            tags=("$tag" "main" "latest")
+            
+            # Create and push a multi-arch manifest for each tag
+            # we are adding `latest` tag and keeping `main` for backward
+            # compatibality
+            for t in "${tags[@]}"; do
+                ./scripts/build_docker_multiarch.sh \
+                    --push \
+                    --target "ghcr.io/coder/coder-preview:$t" \
+                    --version $version \
+                    $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            done
+          fi
+
       - name: Prune old images
+        if: github.ref == 'refs/heads/main'
         uses: vlaurin/action-ghcr-prune@v0.5.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
           keep-younger-than: 7 # days
+          keep-tags: latest
           keep-tags-regexes: ^pr
-          prune-tags-regexes: ^main-
+          prune-tags-regexes: |
+            ^main-
+            ^v
           prune-untagged: true
 
       - name: Upload build artifacts
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: coder

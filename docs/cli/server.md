@@ -1088,7 +1088,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
-| Type        | <code>url</code>                          |
+| Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
 | YAML        | <code>networking.wildcardAccessURL</code> |
 
