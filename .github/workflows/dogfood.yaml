@@ -52,6 +52,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           context: "{{defaultContext}}:dogfood"
+          file: "dogfood/Dockerfile.nix"
           pull: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
