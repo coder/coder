@@ -45,7 +45,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push
+      - name: Build and push Non-Nix image
         uses: depot/build-push-action@v1
         with:
           project: b4q6ltmpzh
@@ -55,6 +55,17 @@ jobs:
           pull: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
+
+      - name: Build and push Nix image
+        uses: depot/build-push-action@v1
+        with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
+          context: "{{defaultContext}}:dogfood"
+          pull: true
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-nix:latest"
 
   deploy_template:
     needs: build_image

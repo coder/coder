@@ -33,7 +33,6 @@ locals {
 
   repo_dir       = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  registry_name  = "codercom/oss-dogfood"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
@@ -45,20 +44,20 @@ data "coder_parameter" "repo_dir" {
   mutable     = true
 }
 
-data "coder_parameter" "image_tag" {
-  type = "string"
-  name = "Coder Image"
-  default = "latest"
+data "coder_parameter" "image_type" {
+  type        = "string"
+  name        = "Coder Image"
+  default     = "codercom/oss-dogfood:latest"
   description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
   option {
     icon  = "/icon/coder.svg"
     name  = "Non-Nix"
-    value = "latest"
+    value = "codercom/oss-dogfood:latest"
   }
   option {
     icon  = "/icons/nix.svg"
     name  = "Nix"
-    value = "nix"
+    value = "codercom/oss-dogfood-nix:latest"
   }
 }
 
@@ -296,7 +295,7 @@ resource "docker_volume" "home_volume" {
 }
 
 data "docker_registry_image" "dogfood" {
-  name = "${local.registry_name}:${data.coder_parameter.image_tag.value}"
+  name = data.coder_parameter.image_type.value
 }
 
 resource "docker_image" "dogfood" {
