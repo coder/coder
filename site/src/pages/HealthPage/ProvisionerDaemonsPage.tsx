@@ -204,7 +204,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
     <>
       {kv}
       <IconButton
-        aria-label="delete"
+        aria-label={"delete-" + k}
         size="small"
         color="secondary"
         onClick={() => {

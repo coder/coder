@@ -90,7 +90,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                 title="Provisioner Tags"
                 description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "
               />
-              {Object.keys(tags).length > 0 && (
                 <Stack direction="row" spacing={1} wrap="wrap">
                   {Object.keys(tags)
                     .filter((key) => {
@@ -112,7 +111,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                       </>
                     ))}
                 </Stack>
-              )}
 
               <FormFields>
                 <Stack direction="row">
@@ -132,6 +130,7 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                     variant="contained"
                     color="secondary"
                     type="submit"
+                    aria-label='add'
                     disabled={!form.dirty || !form.isValid}
                   >
                     <AddIcon />
