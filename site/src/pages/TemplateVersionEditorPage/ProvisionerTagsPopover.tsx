@@ -16,6 +16,8 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import AddIcon from "@mui/icons-material/Add";
+import Link from "@mui/material/Link";
+import { docs } from "utils/docs";
 
 const initialValues = {
   key: "",
@@ -88,7 +90,19 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
             <Stack>
               <FormSection
                 title="Provisioner Tags"
-                description="Tags are a way to control which provisoner daemons process which build jobs. To learn more read the docs. "
+                description={
+                  <>
+                    Tags are a way to control which provisioner daemons complete
+                    which build jobs.&nbsp;
+                    <Link
+                      href={docs("/admin/provisioners")}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Learn more...
+                    </Link>
+                  </>
+                }
               />
               <Stack direction="row" spacing={1} wrap="wrap">
                 {Object.keys(tags)
