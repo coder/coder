@@ -5,7 +5,7 @@ import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { useArgs } from "@storybook/preview-api";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {
-  title: "pages/ProvisionerTagsPopover",
+  title: "component/ProvisionerTagsPopover",
   parameters: {
     chromatic,
     layout: "centered",
