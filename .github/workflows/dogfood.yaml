@@ -53,6 +53,7 @@ jobs:
           buildx-fallback: true
           context: "{{defaultContext}}:dogfood"
           pull: true
+          save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
 
@@ -65,6 +66,7 @@ jobs:
           context: "."
           file: "dogfood/Dockerfile.nix"
           pull: true
+          save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-nix:latest"
 
