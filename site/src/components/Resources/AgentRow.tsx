@@ -79,10 +79,10 @@ export const AgentRow: FC<AgentRowProps> = ({
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
-  const showVSCode =
-    (agent.display_apps.includes("vscode") ||
-      agent.display_apps.includes("vscode_insiders")) &&
-    !hideVSCodeDesktopButton;
+  const hasVSCodeApp =
+    agent.display_apps.includes("vscode") ||
+    agent.display_apps.includes("vscode_insiders");
+  const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
 
   const logSourceByID = useMemo(() => {
     const sources: { [id: string]: WorkspaceAgentLogSource } = {};
