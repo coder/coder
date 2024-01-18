@@ -3,6 +3,7 @@ package appurl
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -19,6 +20,36 @@ var (
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
+
+// SubdomainAppHost returns the URL of the apphost for subdomain based apps.
+// It will omit the scheme.
+//
+// Arguments:
+// apphost: Expected to contain a wildcard, example: "*.coder.com"
+// accessURL: The access url for the deployment.
+//
+// Returns:
+// 'apphost:port'
+//
+// For backwards compatibility and for "accessurl=localhost:0" purposes, we need
+// to use the port from the accessurl if the apphost doesn't have a port.
+// If the user specifies a port in the apphost, we will use that port instead.
+func SubdomainAppHost(apphost string, accessURL *url.URL) string {
+	if apphost == "" {
+		return ""
+	}
+
+	if apphost != "" && accessURL.Port() != "" {
+		// This should always parse if we prepend a scheme. We should add
+		// the access url port if the apphost doesn't have a port specified.
+		appHostU, err := url.Parse(fmt.Sprintf("https://%s", apphost))
+		if err != nil || (err == nil && appHostU.Port() == "") {
+			apphost += fmt.Sprintf(":%s", accessURL.Port())
+		}
+	}
+
+	return apphost
+}
 
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
@@ -140,9 +171,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	if strings.Contains(pattern, "http:") || strings.Contains(pattern, "https:") {
 		return nil, xerrors.Errorf("hostname pattern must not contain a scheme: %q", pattern)
 	}
-	if strings.Contains(pattern, ":") {
-		return nil, xerrors.Errorf("hostname pattern must not contain a port: %q", pattern)
-	}
+
 	if strings.HasPrefix(pattern, ".") || strings.HasSuffix(pattern, ".") {
 		return nil, xerrors.Errorf("hostname pattern must not start or end with a period: %q", pattern)
 	}
@@ -155,6 +184,16 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(pattern, "*") {
 		return nil, xerrors.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
 	}
+
+	// If there is a hostname:port, we only care about the hostname. For hostname
+	// pattern reasons, we do not actually care what port the client is requesting.
+	// Any port provided here is used for generating urls for the ui, not for
+	// validation.
+	hostname, _, err := net.SplitHostPort(pattern)
+	if err == nil {
+		pattern = hostname
+	}
+
 	for i, label := range strings.Split(pattern, ".") {
 		if i == 0 {
 			// We have to allow the asterisk to be a valid hostname label, so
