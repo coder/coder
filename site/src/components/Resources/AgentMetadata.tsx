@@ -24,71 +24,6 @@ type ItemStatus = "stale" | "valid" | "loading";
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
-interface MetadataItemProps {
-  item: WorkspaceAgentMetadata;
-}
-
-const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
-  if (item.result === undefined) {
-    throw new Error("Metadata item result is undefined");
-  }
-  if (item.description === undefined) {
-    throw new Error("Metadata item description is undefined");
-  }
-
-  const staleThreshold = Math.max(
-    item.description.interval + item.description.timeout * 2,
-    // In case there is intense backpressure, we give a little bit of slack.
-    5,
-  );
-
-  const status: ItemStatus = (() => {
-    const year = dayjs(item.result.collected_at).year();
-    if (year <= 1970 || isNaN(year)) {
-      return "loading";
-    }
-    // There is a special circumstance for metadata with `interval: 0`. It is
-    // expected that they run once and never again, so never display them as
-    // stale.
-    if (item.result.age > staleThreshold && item.description.interval > 0) {
-      return "stale";
-    }
-    return "valid";
-  })();
-
-  // Stale data is as good as no data. Plus, we want to build confidence in our
-  // users that what's shown is real. If times aren't correctly synced this
-  // could be buggy. But, how common is that anyways?
-  const value =
-    status === "loading" ? (
-      <Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
-    ) : status === "stale" ? (
-      <Tooltip title="This data is stale and no longer up to date">
-        <StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
-          {item.result.value}
-        </StaticWidth>
-      </Tooltip>
-    ) : (
-      <StaticWidth
-        css={[
-          styles.metadataValue,
-          item.result.error.length === 0
-            ? styles.metadataValueSuccess
-            : styles.metadataValueError,
-        ]}
-      >
-        {item.result.value}
-      </StaticWidth>
-    );
-
-  return (
-    <div css={styles.metadata}>
-      <div css={styles.metadataLabel}>{item.description.display_name}</div>
-      <div>{value}</div>
-    </div>
-  );
-};
-
 export interface AgentMetadataViewProps {
   metadata: WorkspaceAgentMetadata[];
 }
@@ -99,12 +34,9 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   }
   return (
     <section css={styles.root}>
-      {metadata.map((m) => {
-        if (m.description === undefined) {
-          throw new Error("Metadata item description is undefined");
-        }
-        return <MetadataItem key={m.description.key} item={m} />;
-      })}
+      {metadata.map((m) => (
+        <MetadataItem key={m.description.key} item={m} />
+      ))}
     </section>
   );
 };
@@ -193,6 +125,64 @@ export const AgentMetadataSkeleton: FC = () => {
         <Skeleton width={65} height={14} variant="text" />
       </div>
     </Stack>
+  );
+};
+
+interface MetadataItemProps {
+  item: WorkspaceAgentMetadata;
+}
+
+const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
+  const staleThreshold = Math.max(
+    item.description.interval + item.description.timeout * 2,
+    // In case there is intense backpressure, we give a little bit of slack.
+    5,
+  );
+
+  const status: ItemStatus = (() => {
+    const year = dayjs(item.result.collected_at).year();
+    if (year <= 1970 || isNaN(year)) {
+      return "loading";
+    }
+    // There is a special circumstance for metadata with `interval: 0`. It is
+    // expected that they run once and never again, so never display them as
+    // stale.
+    if (item.result.age > staleThreshold && item.description.interval > 0) {
+      return "stale";
+    }
+    return "valid";
+  })();
+
+  // Stale data is as good as no data. Plus, we want to build confidence in our
+  // users that what's shown is real. If times aren't correctly synced this
+  // could be buggy. But, how common is that anyways?
+  const value =
+    status === "loading" ? (
+      <Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
+    ) : status === "stale" ? (
+      <Tooltip title="This data is stale and no longer up to date">
+        <StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
+          {item.result.value}
+        </StaticWidth>
+      </Tooltip>
+    ) : (
+      <StaticWidth
+        css={[
+          styles.metadataValue,
+          item.result.error.length === 0
+            ? styles.metadataValueSuccess
+            : styles.metadataValueError,
+        ]}
+      >
+        {item.result.value}
+      </StaticWidth>
+    );
+
+  return (
+    <div css={styles.metadata}>
+      <div css={styles.metadataLabel}>{item.description.display_name}</div>
+      <div>{value}</div>
+    </div>
   );
 };
 
