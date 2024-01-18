@@ -950,6 +950,8 @@ func New(options *Options) *API {
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
 				r.Put("/dormant", api.putWorkspaceDormant)
+				r.Put("/pin", api.putWorkspacePin)
+				r.Delete("/pin", api.deleteWorkspacePin)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
 			})

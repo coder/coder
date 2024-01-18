@@ -1021,6 +1021,93 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, code, resp)
 }
 
+// @Summary Pin workspace by ID.
+// @ID pin-workspace-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/pin [put]
+func (api *API) putWorkspacePin(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserPinnedWorkspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = database.UserPinnedWorkspace{}
+
+	err := api.Database.PinWorkspace(ctx, database.PinWorkspaceParams{
+		UserID:      apiKey.UserID,
+		WorkspaceID: workspace.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error pinning workspace",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq.New = database.UserPinnedWorkspace{
+		UserID:      apiKey.UserID,
+		WorkspaceID: workspace.ID,
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Unpin workspace by ID.
+// @ID unpin-workspace-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/pin [delete]
+func (api *API) deleteWorkspacePin(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserPinnedWorkspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = database.UserPinnedWorkspace{
+		UserID:      apiKey.UserID,
+		WorkspaceID: workspace.ID,
+	}
+
+	err := api.Database.UnpinWorkspace(ctx, database.UnpinWorkspaceParams{
+		UserID:      apiKey.UserID,
+		WorkspaceID: workspace.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error unpinning workspace",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = database.UserPinnedWorkspace{}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Update workspace automatic updates by ID
 // @ID update-workspace-automatic-updates-by-id
 // @Security CoderSessionToken
@@ -1472,6 +1559,7 @@ func convertWorkspace(
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
+		// Pinned: pinned, // TODO
 	}
 }
 

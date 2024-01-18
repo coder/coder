@@ -2927,4 +2927,79 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
+
+	t.Run("PinUnpin", func(t *testing.T) {
+		t.Parallel()
+		// Given:
+		var (
+			auditRecorder = audit.NewMock()
+			client        = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditRecorder,
+			})
+			owner           = coderdtest.CreateFirstUser(t, client)
+			version         = coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template        = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			memberClient, _ = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+			workspace       = coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, template.ID)
+			_               = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Initially, workspace should not be pinned.
+		workspaces, err := memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.False(t, workspaces.Workspaces[0].Pinned)
+		ws, err := memberClient.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, ws.Pinned)
+
+		// When member pins workspace
+		err = memberClient.PinWorkspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		// Then it should be pinned for them
+		workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.True(t, workspaces.Workspaces[0].Pinned)
+		ws, err = memberClient.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.True(t, ws.Pinned)
+
+		// But not for someone else
+		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.False(t, workspaces.Workspaces[0].Pinned)
+		ws, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, ws.Pinned)
+
+		// When member unpins workspace
+		err = memberClient.UnpinWorkspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		// Then it should no longer be pinned for them
+		workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.False(t, workspaces.Workspaces[0].Pinned)
+		ws, err = memberClient.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, ws.Pinned)
+
+		// Assert invariant: workspace should remain unpinned for a different user
+		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
+		require.False(t, workspaces.Workspaces[0].Pinned)
+		ws, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.False(t, ws.Pinned)
+	})
 }
