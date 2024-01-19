@@ -21,6 +21,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/retry"
@@ -281,18 +282,22 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 	}, nil
 }
 
-// Listen connects to the workspace agent coordinate WebSocket
+// Listen connects to the workspace agent API WebSocket
 // that handles connection negotiation.
 func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
-	coordinateURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
+	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := rpcURL.Query()
+	q.Add("version", proto.CurrentVersion.String())
+	rpcURL.RawQuery = q.Encode()
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
+	jar.SetCookies(rpcURL, []*http.Cookie{{
 		Name:  codersdk.SessionTokenCookie,
 		Value: c.SDK.SessionToken(),
 	}})
@@ -301,7 +306,7 @@ func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 	})
 	if err != nil {

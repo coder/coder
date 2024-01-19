@@ -20,13 +20,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const (
-	CurrentMajor = 2
-	CurrentMinor = 0
-)
-
-var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)
-
 type streamIDContextKey struct{}
 
 // StreamID identifies the caller of the CoordinateTailnet RPC.  We store this
