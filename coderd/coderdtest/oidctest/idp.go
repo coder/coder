@@ -486,7 +486,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 }
 
 // DeviceLogin does the oauth2 device flow for external auth providers.
-func (f *FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthID string) {
+func (*FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthID string) {
 	// First we need to initiate the device flow. This will have Coder hit the
 	// fake IDP and get a device code.
 	device, err := client.ExternalAuthDeviceByID(context.Background(), externalAuthID)
