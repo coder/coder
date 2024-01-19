@@ -192,96 +192,6 @@ func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
 	return nil
 }
 
-type DERPMapUpdate struct {
-	Err     error
-	DERPMap *tailcfg.DERPMap
-}
-
-// DERPMapUpdates connects to the DERP map updates WebSocket.
-func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.Closer, error) {
-	derpMapURL, err := c.SDK.URL.Parse("/api/v2/derp-map")
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(derpMapURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.SDK.HTTPClient.Transport,
-	}
-	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, nil, err
-		}
-		return nil, nil, codersdk.ReadBodyAsError(res)
-	}
-
-	ctx, cancelFunc := context.WithCancel(ctx)
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "derp map")
-
-	var (
-		updates       = make(chan DERPMapUpdate)
-		updatesClosed = make(chan struct{})
-		dec           = json.NewDecoder(wsNetConn)
-	)
-	go func() {
-		defer close(updates)
-		defer close(updatesClosed)
-		defer cancelFunc()
-		defer conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
-		for {
-			var update DERPMapUpdate
-			err := dec.Decode(&update.DERPMap)
-			if err != nil {
-				update.Err = err
-				update.DERPMap = nil
-			}
-			if update.DERPMap != nil {
-				err = c.rewriteDerpMap(update.DERPMap)
-				if err != nil {
-					update.Err = err
-					update.DERPMap = nil
-				}
-			}
-
-			select {
-			case updates <- update:
-			case <-ctx.Done():
-				// Unblock the caller if they're waiting for an update.
-				select {
-				case updates <- DERPMapUpdate{Err: ctx.Err()}:
-				default:
-				}
-				return
-			}
-			if update.Err != nil {
-				return
-			}
-		}
-	}()
-
-	return updates, &closer{
-		closeFunc: func() error {
-			cancelFunc()
-			<-pingClosed
-			_ = conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
-			<-updatesClosed
-			return nil
-		},
-	}, nil
-}
-
 // Listen connects to the workspace agent API WebSocket
 // that handles connection negotiation.
 func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
@@ -901,12 +811,4 @@ func pingWebSocket(ctx context.Context, logger slog.Logger, conn *websocket.Conn
 	}()
 
 	return closed
-}
-
-type closer struct {
-	closeFunc func() error
-}
-
-func (c *closer) Close() error {
-	return c.closeFunc()
 }

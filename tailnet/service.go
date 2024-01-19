@@ -132,6 +132,10 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 	var lastDERPMap *tailcfg.DERPMap
 	for {
 		derpMap := s.DerpMapFn()
+		if derpMap == nil {
+			// in testing, we send nil to close the stream.
+			return io.EOF
+		}
 		if lastDERPMap == nil || !CompareDERPMaps(lastDERPMap, derpMap) {
 			protoDERPMap := DERPMapToProto(derpMap)
 			err := stream.Send(protoDERPMap)
