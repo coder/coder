@@ -864,19 +864,30 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		// Store the claims for the next refresh
 		f.refreshIDTokenClaims.Store(refreshToken, claims)
 
-		if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Accept")); mediaType == "application/json" {
+		mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Accept"))
+		if mediaType == "application/x-www-form-urlencoded" {
+			// This val encode might not work for some data structures.
+			// It's good enough for now...
+			rw.Header().Set("Content-Type", "application/x-www-form-urlencoded")
+			vals := url.Values{}
+			for k, v := range token {
+				vals.Set(k, fmt.Sprintf("%v", v))
+			}
+			_, _ = rw.Write([]byte(vals.Encode()))
+			return
+		}
+		// Default to json since the oauth2 package doesn't use Accept headers.
+		if mediaType == "application/json" || mediaType == "" {
 			rw.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(rw).Encode(token)
 			return
 		}
 
-		// Default to form encode. Just to make sure our code sets the right headers.
-		rw.Header().Set("Content-Type", "application/x-www-form-urlencoded")
-		vals := url.Values{}
-		for k, v := range token {
-			vals.Set(k, fmt.Sprintf("%v", v))
-		}
-		_, _ = rw.Write([]byte(vals.Encode()))
+		// If we get something we don't support, throw an error.
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "'Accept' header contains unsupported media type",
+			Detail:  fmt.Sprintf("Found %q", mediaType),
+		})
 	}))
 
 	validateMW := func(rw http.ResponseWriter, r *http.Request) (email string, ok bool) {
