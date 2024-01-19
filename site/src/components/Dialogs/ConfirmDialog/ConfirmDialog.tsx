@@ -66,7 +66,7 @@ const styles = {
   }),
   dialogContent: (theme) => ({
     color: theme.palette.text.secondary,
-    padding: 40,
+    padding: "40px 40px 20px",
   }),
   dialogTitle: (theme) => ({
     margin: 0,

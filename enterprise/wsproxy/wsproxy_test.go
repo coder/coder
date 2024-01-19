@@ -449,10 +449,13 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			<-proxyStatsCollectorFlushDone
 		}
 
+		if opts.PrimaryAppHost == "" {
+			opts.PrimaryAppHost = "*.primary.test.coder.com"
+		}
 		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
-				AppHostname:              "*.primary.test.coder.com",
+				AppHostname:              opts.PrimaryAppHost,
 				IncludeProvisionerDaemon: true,
 				RealIPConfig: &httpmw.RealIPConfig{
 					TrustedOrigins: []*net.IPNet{{

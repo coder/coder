@@ -47,9 +47,13 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
   );
 };
 
-export const WorkspaceOutdatedTooltipContent = (props: TooltipProps) => {
+export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
+  onUpdateVersion,
+  ariaLabel,
+  latestVersionId,
+  templateName,
+}) => {
   const popover = usePopover();
-  const { onUpdateVersion, ariaLabel, latestVersionId, templateName } = props;
   const { data: activeVersion } = useQuery({
     ...templateVersion(latestVersionId),
     enabled: popover.isOpen,

@@ -53,6 +53,8 @@ import {
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -78,6 +80,8 @@ export interface TemplateVersionEditorProps {
   onSubmitMissingVariableValues: (values: VariableValue[]) => void;
   onCancelSubmitMissingVariableValues: () => void;
   defaultTab?: Tab;
+  provisionerTags: Record<string, string>;
+  onUpdateProvisionerTags: (tags: Record<string, string>) => void;
 }
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
@@ -114,6 +118,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
   defaultTab,
+  provisionerTags,
+  onUpdateProvisionerTags,
 }) => {
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
@@ -236,20 +242,45 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <TemplateVersionStatusBadge version={templateVersion} />
             )}
 
-            <TopbarButton
-              startIcon={
-                <PlayArrowOutlined
-                  css={{ color: theme.palette.success.light }}
-                />
-              }
-              title="Build template (Ctrl + Enter)"
-              disabled={disablePreview}
-              onClick={() => {
-                triggerPreview();
+            <ButtonGroup
+              variant="outlined"
+              css={{
+                // Workaround to make the border transitions smoothly on button groups
+                "& > button:hover + button": {
+                  borderLeft: "1px solid #FFF",
+                },
               }}
+              disabled={disablePreview}
             >
-              Build
-            </TopbarButton>
+              <TopbarButton
+                startIcon={
+                  <PlayArrowOutlined
+                    css={{ color: theme.palette.success.light }}
+                  />
+                }
+                title="Build template (Ctrl + Enter)"
+                disabled={disablePreview}
+                onClick={() => {
+                  triggerPreview();
+                }}
+              >
+                Build
+              </TopbarButton>
+              <ProvisionerTagsPopover
+                tags={provisionerTags}
+                onSubmit={({ key, value }) => {
+                  onUpdateProvisionerTags({
+                    ...provisionerTags,
+                    [key]: value,
+                  });
+                }}
+                onDelete={(key) => {
+                  const newTags = { ...provisionerTags };
+                  delete newTags[key];
+                  onUpdateProvisionerTags(newTags);
+                }}
+              />
+            </ButtonGroup>
 
             <TopbarButton
               variant="contained"

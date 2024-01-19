@@ -963,6 +963,38 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 
+		t.Run("WildcardPortOK", func(t *testing.T) {
+			t.Parallel()
+
+			// Manually specifying a port should override the access url port on
+			// the app host.
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				// Just throw both the wsproxy and primary to same url.
+				AppHost:        "*.test.coder.com:4444",
+				PrimaryAppHost: "*.test.coder.com:4444",
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+			t.Logf("url: %s", u)
+			require.Equal(t, "4444", u.Port(), "port should be 4444")
+
+			// Assert the api response the UI uses has the port.
+			apphost, err := appDetails.SDKClient.AppHost(ctx)
+			require.NoError(t, err)
+			require.Equal(t, "*.test.coder.com:4444", apphost.Host, "apphost has port")
+
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, proxyTestAppBody, string(body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
 		t.Run("SuffixWildcardNotMatch", func(t *testing.T) {
 			t.Parallel()
 

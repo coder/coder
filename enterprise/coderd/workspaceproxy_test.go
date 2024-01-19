@@ -62,7 +62,7 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
 
 		// Ensure the primary region ID is constant.
 		regions2, err := client.Regions(ctx)
@@ -149,7 +149,7 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
 
 		// Ensure non-zero fields of the default proxy
 		require.NotZero(t, primary.Name)

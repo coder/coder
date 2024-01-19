@@ -24,71 +24,6 @@ type ItemStatus = "stale" | "valid" | "loading";
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
-interface MetadataItemProps {
-  item: WorkspaceAgentMetadata;
-}
-
-const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
-  if (item.result === undefined) {
-    throw new Error("Metadata item result is undefined");
-  }
-  if (item.description === undefined) {
-    throw new Error("Metadata item description is undefined");
-  }
-
-  const staleThreshold = Math.max(
-    item.description.interval + item.description.timeout * 2,
-    // In case there is intense backpressure, we give a little bit of slack.
-    5,
-  );
-
-  const status: ItemStatus = (() => {
-    const year = dayjs(item.result.collected_at).year();
-    if (year <= 1970 || isNaN(year)) {
-      return "loading";
-    }
-    // There is a special circumstance for metadata with `interval: 0`. It is
-    // expected that they run once and never again, so never display them as
-    // stale.
-    if (item.result.age > staleThreshold && item.description.interval > 0) {
-      return "stale";
-    }
-    return "valid";
-  })();
-
-  // Stale data is as good as no data. Plus, we want to build confidence in our
-  // users that what's shown is real. If times aren't correctly synced this
-  // could be buggy. But, how common is that anyways?
-  const value =
-    status === "loading" ? (
-      <Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
-    ) : status === "stale" ? (
-      <Tooltip title="This data is stale and no longer up to date">
-        <StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
-          {item.result.value}
-        </StaticWidth>
-      </Tooltip>
-    ) : (
-      <StaticWidth
-        css={[
-          styles.metadataValue,
-          item.result.error.length === 0
-            ? styles.metadataValueSuccess
-            : styles.metadataValueError,
-        ]}
-      >
-        {item.result.value}
-      </StaticWidth>
-    );
-
-  return (
-    <div css={styles.metadata}>
-      <div css={styles.metadataLabel}>{item.description.display_name}</div>
-      <div>{value}</div>
-    </div>
-  );
-};
-
 export interface AgentMetadataViewProps {
   metadata: WorkspaceAgentMetadata[];
 }
@@ -98,16 +33,11 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
     return null;
   }
   return (
-    <div css={styles.root}>
-      <Stack alignItems="baseline" direction="row" spacing={6}>
-        {metadata.map((m) => {
-          if (m.description === undefined) {
-            throw new Error("Metadata item description is undefined");
-          }
-          return <MetadataItem key={m.description.key} item={m} />;
-        })}
-      </Stack>
-    </div>
+    <section css={styles.root}>
+      {metadata.map((m) => (
+        <MetadataItem key={m.description.key} item={m} />
+      ))}
+    </section>
   );
 };
 
@@ -162,13 +92,19 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
   if (metadata === undefined) {
     return (
-      <div css={styles.root}>
+      <section css={styles.root}>
         <AgentMetadataSkeleton />
-      </div>
+      </section>
     );
   }
 
-  return <AgentMetadataView metadata={metadata} />;
+  return (
+    <AgentMetadataView
+      metadata={[...metadata].sort((a, b) =>
+        a.description.display_name.localeCompare(b.description.display_name),
+      )}
+    />
+  );
 };
 
 export const AgentMetadataSkeleton: FC = () => {
@@ -189,6 +125,64 @@ export const AgentMetadataSkeleton: FC = () => {
         <Skeleton width={65} height={14} variant="text" />
       </div>
     </Stack>
+  );
+};
+
+interface MetadataItemProps {
+  item: WorkspaceAgentMetadata;
+}
+
+const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
+  const staleThreshold = Math.max(
+    item.description.interval + item.description.timeout * 2,
+    // In case there is intense backpressure, we give a little bit of slack.
+    5,
+  );
+
+  const status: ItemStatus = (() => {
+    const year = dayjs(item.result.collected_at).year();
+    if (year <= 1970 || isNaN(year)) {
+      return "loading";
+    }
+    // There is a special circumstance for metadata with `interval: 0`. It is
+    // expected that they run once and never again, so never display them as
+    // stale.
+    if (item.result.age > staleThreshold && item.description.interval > 0) {
+      return "stale";
+    }
+    return "valid";
+  })();
+
+  // Stale data is as good as no data. Plus, we want to build confidence in our
+  // users that what's shown is real. If times aren't correctly synced this
+  // could be buggy. But, how common is that anyways?
+  const value =
+    status === "loading" ? (
+      <Skeleton width={65} height={12} variant="text" css={styles.skeleton} />
+    ) : status === "stale" ? (
+      <Tooltip title="This data is stale and no longer up to date">
+        <StaticWidth css={[styles.metadataValue, styles.metadataStale]}>
+          {item.result.value}
+        </StaticWidth>
+      </Tooltip>
+    ) : (
+      <StaticWidth
+        css={[
+          styles.metadataValue,
+          item.result.error.length === 0
+            ? styles.metadataValueSuccess
+            : styles.metadataValueError,
+        ]}
+      >
+        {item.result.value}
+      </StaticWidth>
+    );
+
+  return (
+    <div css={styles.metadata}>
+      <div css={styles.metadataLabel}>{item.description.display_name}</div>
+      <div>{value}</div>
+    </div>
   );
 };
 
@@ -221,25 +215,20 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const styles = {
-  root: (theme) => ({
-    padding: "20px 32px",
-    borderTop: `1px solid ${theme.palette.divider}`,
-    overflowX: "auto",
-    scrollPadding: "0 32px",
-  }),
+  root: {
+    display: "flex",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 32,
+    rowGap: 16,
+  },
 
   metadata: {
-    fontSize: 12,
-    lineHeight: "normal",
+    lineHeight: "1.6",
     display: "flex",
     flexDirection: "column",
-    gap: 4,
     overflow: "visible",
-
-    // Because of scrolling
-    "&:last-child": {
-      paddingRight: 32,
-    },
+    flexShrink: 0,
   },
 
   metadataLabel: (theme) => ({
@@ -247,7 +236,7 @@ const styles = {
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    fontWeight: 500,
+    fontSize: 13,
   }),
 
   metadataValue: {
@@ -259,9 +248,7 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    // color: theme.palette.success.light,
-    color: theme.experimental.roles.success.fill,
-    // color: theme.experimental.roles.success.text,
+    color: theme.experimental.roles.success.outline,
   }),
 
   metadataValueError: (theme) => ({

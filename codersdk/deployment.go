@@ -1793,11 +1793,11 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name:        "Support Links",
 			Description: "Support links to display in the top right drop down menu.",
+			Env:         "CODER_SUPPORT_LINKS",
+			Flag:        "support-links",
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
-			// The support links are hidden until they are defined in the
-			// YAML.
-			Hidden: true,
+			Hidden:      false,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment

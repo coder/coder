@@ -227,7 +227,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
 	require.Equal(t, nodeKey, node.Key)
 	require.Equal(t, discoKey, node.DiscoKey)
-	require.True(t, slices.Equal([]string{"[fe80::1]:5678"}, node.Endpoints))
+	require.Equal(t, []string{"[fe80::1]:5678"}, node.Endpoints)
 
 	// Then: we store the AsOf time as lastStatus
 	uut.L.Lock()
@@ -353,6 +353,214 @@ func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 		LocalAddrs: []tailcfg.Endpoint{{Addr: netip.MustParseAddrPort("[fe80::1]:5678")}},
 		AsOf:       behind,
 	}, xerrors.New("test"))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setAddresses_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.L.Unlock()
+
+	// When: we set addresses
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.setAddresses(addrs)
+
+	// Then: we receive an update with the addresses
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Equal(t, addrs, node.Addresses)
+	require.Equal(t, addrs, node.AllowedIPs)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setAddresses_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        addrs already set
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.addresses = slices.Clone(addrs)
+	uut.L.Unlock()
+
+	// When: we set addrs
+	uut.setAddresses(addrs)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setCallback(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	uut := newNodeUpdater(
+		logger,
+		nil,
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1
+	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.addresses = slices.Clone(addrs)
+	uut.L.Unlock()
+
+	// When: we set callback
+	nodeCh := make(chan *Node)
+	uut.setCallback(func(n *Node) {
+		nodeCh <- n
+	})
+
+	// Then: we get a node update
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Equal(t, 1, node.PreferredDERP)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: preferred DERP is 1, so we'll send an update && some endpoints
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.endpoints = []string{"10.11.12.13:7890"}
+	uut.L.Unlock()
+
+	// When: we setBlockEndpoints
+	uut.setBlockEndpoints(true)
+
+	// Then: we receive an update without endpoints
+	node := testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Len(t, node.Endpoints, 0)
+
+	// When: we unset BlockEndpoints
+	uut.setBlockEndpoints(false)
+
+	// Then: we receive an update with endpoints
+	node = testutil.RequireRecvCtx(ctx, t, nodeCh)
+	require.Equal(t, nodeKey, node.Key)
+	require.Equal(t, discoKey, node.DiscoKey)
+	require.Len(t, node.Endpoints, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// Given: preferred DERP is 1, so we would send an update on change &&
+	//        blockEndpoints already set
+	uut.L.Lock()
+	uut.preferredDERP = 1
+	uut.blockEndpoints = true
+	uut.L.Unlock()
+
+	// When: we set block endpoints
+	uut.setBlockEndpoints(true)
 
 	done := make(chan struct{})
 	go func() {

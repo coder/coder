@@ -1,10 +1,12 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspace, MockUser2 } from "testHelpers/entities";
-import { BatchDeleteConfirmation } from "./BatchActions";
+import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 
 const meta: Meta<typeof BatchDeleteConfirmation> = {
-  title: "pages/WorkspacesPage/BatchDelete",
+  title: "pages/WorkspacesPage/BatchDeleteConfirmation",
+  parameters: { chromatic },
   component: BatchDeleteConfirmation,
   args: {
     onClose: action("onClose"),
@@ -35,4 +37,4 @@ type Story = StoryObj<typeof BatchDeleteConfirmation>;
 
 const Example: Story = {};
 
-export { Example as BatchDelete };
+export { Example as BatchDeleteConfirmation };

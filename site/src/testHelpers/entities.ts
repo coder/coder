@@ -315,7 +315,7 @@ export const MockUser2: TypesGen.User = {
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
   theme_preference: "",
-  name: "",
+  name: "Mock User The Second",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -359,7 +359,14 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
-  tags: {},
+  tags: {
+    scope: "organization",
+    owner: "",
+    wowzers: "whatatag",
+    isCapable: "false",
+    department: "engineering",
+    dreaming: "true",
+  },
   queue_position: 0,
   queue_size: 0,
 };
@@ -1091,6 +1098,26 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   ...MockFailedWorkspace,
   id: "test-outdated-workspace",
   outdated: true,
+};
+
+export const MockRunningOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-running-outdated-workspace",
+  outdated: true,
+};
+
+export const MockDormantWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-workspace",
+  dormant_at: new Date().toISOString(),
+};
+
+export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-outdated-workspace",
+  name: "Dormant-Workspace",
+  outdated: true,
+  dormant_at: new Date().toISOString(),
 };
 
 export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =

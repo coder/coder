@@ -21,6 +21,9 @@ import Person from "@mui/icons-material/Person";
 import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import Tooltip from "@mui/material/Tooltip";
 import Sell from "@mui/icons-material/Sell";
+import { FC } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import IconButton from "@mui/material/IconButton";
 
 export const ProvisionerDaemonsPage = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
@@ -129,9 +132,9 @@ export const ProvisionerDaemonsPage = () => {
                       </span>
                     </Pill>
                   </Tooltip>
-                  {Object.keys(extraTags).map((k) =>
-                    renderTag(k, extraTags[k]),
-                  )}
+                  {Object.keys(extraTags).map((k) => (
+                    <ProvisionerTag key={k} k={k} v={extraTags[k]} />
+                  ))}
                 </div>
               </header>
 
@@ -188,13 +191,42 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
   }
 };
 
-const renderTag = (k: string, v: string) => {
+interface ProvisionerTagProps {
+  k: string;
+  v: string;
+  onDelete?: (key: string) => void;
+}
+
+export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
   const { valid, value: boolValue } = parseBool(v);
   const kv = `${k}: ${v}`;
+  const content = onDelete ? (
+    <>
+      {kv}
+      <IconButton
+        aria-label={"delete-" + k}
+        size="small"
+        color="secondary"
+        onClick={() => {
+          onDelete(k);
+        }}
+      >
+        <CloseIcon
+          fontSize="inherit"
+          css={{
+            width: 14,
+            height: 14,
+          }}
+        />
+      </IconButton>
+    </>
+  ) : (
+    kv
+  );
   if (valid) {
-    return <BooleanPill value={boolValue}>{kv}</BooleanPill>;
+    return <BooleanPill value={boolValue}>{content}</BooleanPill>;
   }
-  return <Pill icon={<Sell />}>{kv}</Pill>;
+  return <Pill icon={<Sell />}>{content}</Pill>;
 };
 
 export default ProvisionerDaemonsPage;

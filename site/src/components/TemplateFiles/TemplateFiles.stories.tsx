@@ -18,7 +18,7 @@ const meta: Meta<typeof TemplateFiles> = {
   component: TemplateFiles,
   args: {
     currentFiles: exampleFiles,
-    previousFiles: exampleFiles,
+    baseFiles: exampleFiles,
     tab: { value: "0", set: action("change tab") },
   },
 };

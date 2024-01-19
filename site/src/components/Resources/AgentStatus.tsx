@@ -272,8 +272,8 @@ export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 const styles = {
   status: {
-    width: 8,
-    height: 8,
+    width: 6,
+    height: 6,
     borderRadius: "100%",
     flexShrink: 0,
   },
@@ -306,15 +306,15 @@ const styles = {
 
   timeoutWarning: (theme) => ({
     color: theme.palette.warning.light,
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     position: "relative",
   }),
 
   errorWarning: (theme) => ({
     color: theme.palette.error.main,
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     position: "relative",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

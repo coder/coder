@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,13 +31,8 @@ import (
 // @Router /applications/host [get]
 // @Deprecated use api/v2/regions and see the primary proxy.
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
-	host := api.AppHostname
-	if host != "" && api.AccessURL.Port() != "" {
-		host += fmt.Sprintf(":%s", api.AccessURL.Port())
-	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
-		Host: host,
+		Host: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),
 	})
 }
 

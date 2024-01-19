@@ -170,7 +170,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
         border: `1px solid ${theme.palette.divider}`,
         fontSize: 12,
         fontWeight: 500,
-        padding: "8px 16px 8px 8px",
+        padding: 8,
         gap: 8,
         cursor: "default",
       }}
@@ -182,11 +182,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
   );
 });
 
-type BooleanPillProps = Omit<
-  ComponentProps<typeof Pill>,
-  "children" | "icon" | "value"
-> & {
-  children: string;
+type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
   value: boolean;
 };
 

@@ -4,6 +4,7 @@ import { FC } from "react";
 import * as TypesGen from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
 
 export const Language = {
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
@@ -34,6 +35,10 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
 
   return (
     <Link
+      underline="none"
+      color="inherit"
+      component={AgentButton}
+      startIcon={<TerminalIcon />}
       href={href}
       target="_blank"
       onClick={(event) => {
@@ -46,7 +51,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       }}
       data-testid="terminal"
     >
-      <AgentButton>{DisplayAppNameMap["web_terminal"]}</AgentButton>
+      {DisplayAppNameMap["web_terminal"]}
     </Link>
   );
 };

@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 // @Summary Agent is legacy
@@ -52,6 +52,21 @@ func (api *API) agentIsLegacy(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	version := "1.0"
+	qv := r.URL.Query().Get("version")
+	if qv != "" {
+		version = qv
+	}
+	if err := agpl.CurrentVersion.Validate(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
+
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
 	api.AGPL.WebsocketWaitMutex.Unlock()
@@ -66,14 +81,14 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	id := uuid.New()
-	sub := (*api.AGPL.TailnetCoordinator.Load()).ServeMultiAgent(id)
-
 	ctx, nc := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer nc.Close()
 
-	err = tailnet.ServeWorkspaceProxy(ctx, nc, sub)
+	id := uuid.New()
+	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
+	} else {
+		_ = conn.Close(websocket.StatusGoingAway, "")
 	}
 }

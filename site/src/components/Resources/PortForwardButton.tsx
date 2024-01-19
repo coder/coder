@@ -20,13 +20,12 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { AgentButton } from "components/Resources/AgentButton";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -59,14 +58,24 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   return (
     <Popover>
       <PopoverTrigger>
-        <AgentButton disabled={!data}>
-          {DisplayAppNameMap["port_forwarding_helper"]}
-          {data ? (
-            <div css={styles.portCount}>{data.ports.length}</div>
-          ) : (
-            <CircularProgress size={10} css={{ marginLeft: 8 }} />
-          )}
-        </AgentButton>
+        <Button
+          disabled={!data}
+          size="small"
+          variant="text"
+          endIcon={<KeyboardArrowDown />}
+          css={{ fontSize: 13, padding: "8px 12px" }}
+          startIcon={
+            data ? (
+              <div>
+                <span css={styles.portCount}>{data.ports.length}</span>
+              </div>
+            ) : (
+              <CircularProgress size={10} />
+            )
+          }
+        >
+          Open ports
+        </Button>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
         <PortForwardPopoverView {...props} ports={data?.ports} />
@@ -214,8 +223,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.experimental.l2.background,
-    marginLeft: 8,
+    backgroundColor: theme.palette.action.selected,
   }),
 
   portLink: (theme) => ({

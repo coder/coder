@@ -55,6 +55,9 @@ OPTIONS:
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
+      --support-links struct[[]codersdk.LinkConfig], $CODER_SUPPORT_LINKS
+          Support links to display in the top right drop down menu.
+
       --update-check bool, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.

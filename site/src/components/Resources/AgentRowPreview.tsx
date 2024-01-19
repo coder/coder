@@ -6,6 +6,7 @@ import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned
@@ -101,7 +102,10 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               {/* Additionally, we display any apps that are visible, e.g.
               apps that are included in agent.display_apps */}
               {agent.display_apps.includes("web_terminal") && (
-                <AppPreview>{DisplayAppNameMap["web_terminal"]}</AppPreview>
+                <AppPreview>
+                  <TerminalIcon sx={{ width: 12, height: 12 }} />
+                  {DisplayAppNameMap["web_terminal"]}
+                </AppPreview>
               )}
               {agent.display_apps.includes("ssh_helper") && (
                 <AppPreview>{DisplayAppNameMap["ssh_helper"]}</AppPreview>

@@ -34,7 +34,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
@@ -93,11 +93,18 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
 	addrs := []netip.Prefix{netip.MustParsePrefix("192.168.0.200/32")}
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), addrs)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
+	// Given: addresses already set
+	uut.L.Lock()
+	uut.addresses = addrs
+	uut.L.Unlock()
+
+	// Then: it doesn't configure
 	requireNeverConfigures(ctx, t, &uut.phased)
 
+	// When: we set addresses
 	uut.setAddresses(addrs)
 
 	done := make(chan struct{})
@@ -116,7 +123,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -186,7 +193,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	// Then: we don't configure
@@ -245,7 +252,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.UUID{1}
@@ -313,7 +320,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
 	mClock := clock.NewMock()
@@ -406,7 +413,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
 	mClock := clock.NewMock()
@@ -492,7 +499,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -536,7 +543,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
 	discoKey := key.NewDisco()
-	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
 	p1ID := uuid.MustParse("10000000-0000-0000-0000-000000000000")
@@ -562,6 +569,88 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 
 	// When we set blockEndpoints to true
 	uut.setBlockEndpoints(true)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_setDERPMap_different(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+
+	derpMap := &proto.DERPMap{
+		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
+		Regions: map[int64]*proto.DERPMap_Region{
+			1: {
+				RegionCode: "AUH",
+				Nodes: []*proto.DERPMap_Region_Node{
+					{Name: "AUH0"},
+				},
+			},
+		},
+	}
+	uut.setDERPMap(derpMap)
+
+	dm := testutil.RequireRecvCtx(ctx, t, fEng.setDERPMap)
+	require.Len(t, dm.HomeParams.RegionScore, 1)
+	require.Equal(t, dm.HomeParams.RegionScore[1], 0.025)
+	require.Len(t, dm.Regions, 1)
+	r1 := dm.Regions[1]
+	require.Equal(t, "AUH", r1.RegionCode)
+	require.Len(t, r1.Nodes, 1)
+	require.Equal(t, "AUH0", r1.Nodes[0].Name)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_setDERPMap_same(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+
+	// Given: DERP Map already set
+	derpMap := &proto.DERPMap{
+		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
+		Regions: map[int64]*proto.DERPMap_Region{
+			1: {
+				RegionCode: "AUH",
+				Nodes: []*proto.DERPMap_Region_Node{
+					{Name: "AUH0"},
+				},
+			},
+		},
+	}
+	uut.L.Lock()
+	uut.derpMap = derpMap
+	uut.L.Unlock()
+
+	// Then: we don't configure
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	// When we set the same DERP map
+	uut.setDERPMap(derpMap)
 
 	done := make(chan struct{})
 	go func() {
@@ -615,7 +704,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 			nodePrivateKey := key.NewNode()
 			nodeID := tailcfg.NodeID(5)
 			discoKey := key.NewDisco()
-			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public(), nil)
+			uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 			defer uut.close()
 
 			// Then: we don't configure
@@ -696,6 +785,7 @@ type fakeEngineConfigurable struct {
 	setNetworkMap chan *netmap.NetworkMap
 	reconfig      chan reconfigCall
 	filter        chan *filter.Filter
+	setDERPMap    chan *tailcfg.DERPMap
 
 	// To fake these fields the test should read from status, do stuff to the
 	// StatusBuilder, then write to statusDone
@@ -713,6 +803,7 @@ func newFakeEngineConfigurable() *fakeEngineConfigurable {
 		setNetworkMap: make(chan *netmap.NetworkMap),
 		reconfig:      make(chan reconfigCall),
 		filter:        make(chan *filter.Filter),
+		setDERPMap:    make(chan *tailcfg.DERPMap),
 		status:        make(chan *ipnstate.StatusBuilder),
 		statusDone:    make(chan struct{}),
 	}
@@ -727,9 +818,8 @@ func (f fakeEngineConfigurable) Reconfig(wg *wgcfg.Config, r *router.Config, _ *
 	return nil
 }
 
-func (fakeEngineConfigurable) SetDERPMap(*tailcfg.DERPMap) {
-	// TODO implement me
-	panic("implement me")
+func (f fakeEngineConfigurable) SetDERPMap(d *tailcfg.DERPMap) {
+	f.setDERPMap <- d
 }
 
 func (f fakeEngineConfigurable) SetFilter(flt *filter.Filter) {
