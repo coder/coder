@@ -359,6 +359,7 @@ func (c *wsNetConn) Close() error {
 		return nil
 	}
 
+	// Cancel before acquiring locks to speed up teardown.
 	c.cancel()
 
 	c.readMu.Lock()
@@ -371,6 +372,9 @@ func (c *wsNetConn) Close() error {
 }
 
 func websocketNetConn(conn *websocket.Conn, msgType websocket.MessageType) net.Conn {
+	// Since `websocket.NetConn` binds to a context for the lifetime of the
+	// connection, we need to create a new context that can be canceled when
+	// the connection is closed.
 	ctx, cancel := context.WithCancel(context.Background())
 	nc := websocket.NetConn(ctx, conn, msgType)
 	return &wsNetConn{cancel: cancel, Conn: nc}
