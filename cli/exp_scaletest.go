@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -859,6 +860,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		tickInterval time.Duration
 		bytesPerTick int64
 		ssh          bool
+		app          string
 		template     string
 
 		client          = &codersdk.Client{}
@@ -911,6 +913,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				}
 			}
 
+			appHost, err := client.AppHost(ctx)
+			if err != nil {
+				return xerrors.Errorf("get app host: %w", err)
+			}
+
 			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
 			if err != nil {
 				return err
@@ -945,35 +952,39 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
 				var (
-					agentID   uuid.UUID
-					agentName string
-					name      = "workspace-traffic"
-					id        = strconv.Itoa(idx)
+					agent codersdk.WorkspaceAgent
+					name  = "workspace-traffic"
+					id    = strconv.Itoa(idx)
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
 					if len(res.Agents) == 0 {
 						continue
 					}
-					agentID = res.Agents[0].ID
-					agentName = res.Agents[0].Name
+					agent = res.Agents[0]
 				}
 
-				if agentID == uuid.Nil {
+				if agent.ID == uuid.Nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
 					continue
 				}
 
+				appConfig, err := createWorkspaceAppConfig(client, appHost.Host, app, ws, agent)
+				if err != nil {
+					return xerrors.Errorf("configure workspace app: %w", err)
+				}
+
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agentID,
+					AgentID:      agent.ID,
 					BytesPerTick: bytesPerTick,
 					Duration:     strategy.timeout,
 					TickInterval: tickInterval,
-					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
-					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
+					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
+					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
 					SSH:          ssh,
 					Echo:         ssh,
+					App:          appConfig,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -1046,8 +1057,15 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Flag:        "ssh",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
 			Default:     "",
-			Description: "Send traffic over SSH.",
+			Description: "Send traffic over SSH, cannot be used with --app.",
 			Value:       clibase.BoolOf(&ssh),
+		},
+		{
+			Flag:        "app",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_APP",
+			Default:     "",
+			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
+			Value:       clibase.StringOf(&app),
 		},
 	}
 
@@ -1410,4 +1428,30 @@ func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs
 	}
 
 	return tpl, nil
+}
+
+func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent) (workspacetraffic.AppConfig, error) {
+	if app == "" {
+		return workspacetraffic.AppConfig{}, nil
+	}
+
+	i := slices.IndexFunc(agent.Apps, func(a codersdk.WorkspaceApp) bool { return a.Slug == app })
+	if i == -1 {
+		return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q not found in workspace %q", app, workspace.Name)
+	}
+
+	c := workspacetraffic.AppConfig{
+		Name: agent.Apps[i].Slug,
+	}
+	if agent.Apps[i].Subdomain {
+		if appHost == "" {
+			return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q is a subdomain app but no app host is configured", app)
+		}
+
+		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
+	} else {
+		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+	}
+
+	return c, nil
 }
