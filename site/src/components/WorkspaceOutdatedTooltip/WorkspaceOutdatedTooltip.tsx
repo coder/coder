@@ -26,8 +26,8 @@ export const Language = {
 
 interface TooltipProps {
   onUpdateVersion: () => void;
-  latestVersionId: string;
   templateName: string;
+  latestVersionId: string;
   ariaLabel?: string;
 }
 
