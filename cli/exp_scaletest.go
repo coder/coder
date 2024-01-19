@@ -857,11 +857,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval time.Duration
-		bytesPerTick int64
-		ssh          bool
-		app          string
-		template     string
+		tickInterval     time.Duration
+		bytesPerTick     int64
+		ssh              bool
+		app              string
+		template         string
+		targetWorkspaces string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -912,6 +913,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					return xerrors.Errorf("parse template: %w", err)
 				}
 			}
+			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetRange("workspaces", targetWorkspaces)
+			if err != nil {
+				return xerrors.Errorf("parse target workspaces: %w", err)
+			}
 
 			appHost, err := client.AppHost(ctx)
 			if err != nil {
@@ -923,8 +928,15 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				return err
 			}
 
+			if targetWorkspaceEnd == 0 {
+				targetWorkspaceEnd = len(workspaces)
+			}
+
 			if len(workspaces) == 0 {
 				return xerrors.Errorf("no scaletest workspaces exist")
+			}
+			if targetWorkspaceEnd > len(workspaces) {
+				return xerrors.Errorf("target workspace end %d is greater than the number of workspaces %d", targetWorkspaceEnd, len(workspaces))
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -951,6 +963,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
+				if idx < targetWorkspaceStart || idx >= targetWorkspaceEnd {
+					continue
+				}
+
 				var (
 					agent codersdk.WorkspaceAgent
 					name  = "workspace-traffic"
@@ -1040,6 +1056,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Value:         clibase.StringOf(&template),
 		},
 		{
+			Flag:        "target-workspaces",
+			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
+			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Value:       clibase.StringOf(&targetWorkspaces),
+		},
+		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
@@ -1080,10 +1102,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		interval time.Duration
-		jitter   time.Duration
-		headless bool
-		randSeed int64
+		interval    time.Duration
+		jitter      time.Duration
+		headless    bool
+		randSeed    int64
+		targetUsers string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1105,6 +1128,10 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			if !(jitter < interval) {
 				return xerrors.Errorf("--jitter must be less than --interval")
+			}
+			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)
+			if err != nil {
+				return xerrors.Errorf("parse target users: %w", err)
 			}
 			ctx := inv.Context()
 			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
@@ -1142,8 +1169,15 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("get scaletest users")
 			}
+			if targetUserEnd == 0 {
+				targetUserEnd = len(users)
+			}
 
-			for _, usr := range users {
+			for idx, usr := range users {
+				if idx < targetUserStart || idx >= targetUserEnd {
+					continue
+				}
+
 				//nolint:gosec // not used for cryptographic purposes
 				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
@@ -1214,6 +1248,12 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
+		{
+			Flag:        "target-users",
+			Env:         "CODER_SCALETEST_DASHBOARD_TARGET_USERS",
+			Description: "Target a specific range of users in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted users (0-9).",
+			Value:       clibase.StringOf(&targetUsers),
+		},
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
@@ -1428,6 +1468,36 @@ func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs
 	}
 
 	return tpl, nil
+}
+
+func parseTargetRange(name, targets string) (start, end int, err error) {
+	if targets == "" {
+		return 0, 0, nil
+	}
+
+	parts := strings.Split(targets, ":")
+	if len(parts) != 2 {
+		return 0, 0, xerrors.Errorf("invalid target %s %q", name, targets)
+	}
+
+	start, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	end, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	if start == end {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: start and end cannot be equal", name, targets)
+	}
+	if end < start {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: end cannot be less than start", name, targets)
+	}
+
+	return start, end, nil
 }
 
 func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent) (workspacetraffic.AppConfig, error) {
