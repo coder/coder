@@ -1080,7 +1080,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			"verification_uri": {verifyURL},
 			"expires_in":       {strconv.Itoa(int(lifetime.Seconds()))},
 			"interval":         {"3"},
-		})
+		}.Encode())
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
