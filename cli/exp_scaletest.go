@@ -1493,6 +1493,9 @@ func parseTargetRange(name, targets string) (start, end int, err error) {
 	if start == end {
 		return 0, 0, xerrors.Errorf("invalid target %s %q: start and end cannot be equal", name, targets)
 	}
+	if end < start {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: end cannot be less than start", name, targets)
+	}
 
 	return start, end, nil
 }
