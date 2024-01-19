@@ -31,9 +31,9 @@ const (
 	//
 	// 	failed to write frame: WebSocket closed: received close frame: status = StatusMessageTooBig and reason = "read limited at 32769 bytes"
 	//
-	// Since we can't control fragmentation/buffer sizes, we use a conservative
-	// value. Derived from 1024 * 9 * 3 = <28KB.
-	rptyJSONMaxDataSize = 1024 * 9
+	// Since we can't control fragmentation/buffer sizes, we keep it simple and
+	// match the conservative payload size used by agent/reconnectingpty (1024).
+	rptyJSONMaxDataSize = 1024
 )
 
 func connectRPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect uuid.UUID, cmd string) (*countReadWriteCloser, error) {
