@@ -1046,6 +1046,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		deviceCode := uuid.NewString()
 		lifetime := time.Second * 900
 		flow := deviceFlow{
+			//nolint:gosec
 			userInput: fmt.Sprintf("%d", rand.Intn(9999999)+1e8),
 		}
 		f.deviceCode.Store(deviceCode, deviceFlow{
