@@ -497,8 +497,9 @@ func (f *FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAut
 	// the verification url. No additional user input is needed.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	_, err = client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
+	resp, err := client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	// Now we need to exchange the device code for an access token. We do this
 	// in this method because it is the user that does the polling for the device

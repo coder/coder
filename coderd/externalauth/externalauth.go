@@ -345,7 +345,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 			// 429 returns a plaintext payload with a message.
 			return nil, xerrors.New(fmt.Sprintf("rate limit hit, unable to authorize device. %s", retryIn))
 		case mediaType == "application/x-www-form-urlencoded":
-			return nil, xerrors.Errorf("%s payload response is form-url encoded, expected a json payload", resp.StatusCode)
+			return nil, xerrors.Errorf("status_code=%d, payload response is form-url encoded, expected a json payload", resp.StatusCode)
 		default:
 			return nil, fmt.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
 		}
