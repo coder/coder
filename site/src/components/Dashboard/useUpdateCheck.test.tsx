@@ -14,7 +14,7 @@ const createWrapper = (): FC<PropsWithChildren> => {
 };
 
 beforeEach(() => {
-  window.localStorage.clear();
+  localStorage.clear();
 });
 
 it("is dismissed when does not have permission to see it", () => {
@@ -57,7 +57,7 @@ it("is dismissed when it was dismissed previously", async () => {
       );
     }),
   );
-  window.localStorage.setItem("dismissedVersion", MockUpdateCheck.version);
+  localStorage.setItem("dismissedVersion", MockUpdateCheck.version);
   const { result } = renderHook(() => useUpdateCheck(true), {
     wrapper: createWrapper(),
   });

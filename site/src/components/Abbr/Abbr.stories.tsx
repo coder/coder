@@ -1,11 +1,5 @@
-import { type PropsWithChildren } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Abbr } from "./Abbr";
-
-// Just here to make the abbreviated part more obvious in the component library
-const Underline = ({ children }: PropsWithChildren) => (
-  <span css={{ textDecoration: "underline dotted" }}>{children}</span>
-);
 
 const meta: Meta<typeof Abbr> = {
   title: "components/Abbr",
@@ -34,9 +28,9 @@ export const InlinedShorthand: Story = {
       <p css={{ maxWidth: "40em" }}>
         The physical pain of getting bonked on the head with a cartoon mallet
         lasts precisely 593{" "}
-        <Underline>
+        <span css={styles.underlined}>
           <Story />
-        </Underline>
+        </span>
         . The emotional turmoil and complete embarrassment lasts forever.
       </p>
     ),
@@ -51,9 +45,9 @@ export const Acronym: Story = {
   },
   decorators: [
     (Story) => (
-      <Underline>
+      <span css={styles.underlined}>
         <Story />
-      </Underline>
+      </span>
     ),
   ],
 };
@@ -66,9 +60,16 @@ export const Initialism: Story = {
   },
   decorators: [
     (Story) => (
-      <Underline>
+      <span css={styles.underlined}>
         <Story />
-      </Underline>
+      </span>
     ),
   ],
+};
+
+const styles = {
+  // Just here to make the abbreviated part more obvious in the component library
+  underlined: {
+    textDecoration: "underline dotted",
+  },
 };
