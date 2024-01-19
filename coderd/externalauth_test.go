@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -362,6 +363,30 @@ func TestExternalAuthDevice(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
 		require.ErrorContains(t, err, "rate limit hit")
+	})
+
+	// If we forget to add the accept header, we get a form encoded body instead.
+	t.Run("FormEncodedBody", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/x-www-form-urlencoded")
+			_, _ = w.Write([]byte(url.Values{"access_token": {"hey"}}.Encode()))
+		}))
+		defer srv.Close()
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				ID: "test",
+				DeviceAuth: &externalauth.DeviceAuth{
+					ClientID: "test",
+					CodeURL:  srv.URL,
+					Scopes:   []string{"repo"},
+				},
+			}},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "is form-url encoded")
 	})
 }
 
