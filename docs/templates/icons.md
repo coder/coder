@@ -46,6 +46,11 @@ come bundled with your Coder deployment.
     CODER_EXTERNAL_AUTH_1_ICON=/icon/google.svg
     ```
 
+- [**Support Links**](../admin/appearance#support-links):
+
+  - Use icons for support links to make them recognizable. You can set the
+    `icon` field for each link in `CODER_SUPPORT_LINKS` array.
+
 ## Bundled icons
 
 Coder is distributed with a bundle of icons for popular cloud providers and
