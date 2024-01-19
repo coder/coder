@@ -277,13 +277,8 @@ func TestExternalAuthDevice(t *testing.T) {
 			ExternalAuthConfigs: []*externalauth.Config{cfg},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		device, err := client.ExternalAuthDeviceByID(context.Background(), externalID)
-		require.NoError(t, err)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		resp, err := client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
-		require.NoError(t, err)
-		fmt.Println(resp.StatusCode)
+		// Login!
+		fake.DeviceLogin(t, client, externalID)
 
 		extAuth, err := client.ExternalAuthByID(context.Background(), externalID)
 		require.NoError(t, err)
