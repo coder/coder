@@ -89,8 +89,7 @@ type FakeIDP struct {
 	stateToIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
 	refreshIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
 	// Device flow
-	deviceCode      *syncmap.Map[string, deviceFlow]
-	deviceCodeInput *syncmap.Map[string, externalauth.ExchangeDeviceCodeResponse]
+	deviceCode *syncmap.Map[string, deviceFlow]
 
 	// hooks
 	// hookValidRedirectURL can be used to reject a redirect url from the
@@ -1031,7 +1030,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		_ = p.String(r.URL.Query(), "", "scopes")
 		if len(p.Errors) > 0 {
 			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-				Message:     fmt.Sprintf("Invalid query params"),
+				Message:     "Invalid query params",
 				Validations: p.Errors,
 			})
 			return
@@ -1039,7 +1038,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		if clientID != f.clientID {
 			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid client id"),
+				Message: "Invalid client id",
 			})
 			return
 		}
