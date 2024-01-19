@@ -1,5 +1,7 @@
-import { type FC, type PropsWithChildren, useState } from "react";
-
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { type User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
 import { groupsByUserId } from "api/queries/groups";
@@ -14,28 +16,23 @@ import {
   updateRoles,
   authMethods,
 } from "api/queries/users";
-
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { useOrganizationId } from "hooks";
-import { useMe } from "hooks/useMe";
-import { usePermissions } from "hooks/usePermissions";
-import { useStatusFilterMenu } from "./UsersFilter";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useMe } from "contexts/auth/useMe";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { generateRandomString } from "utils/random";
-
-import { Helmet } from "react-helmet-async";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { pageTitle } from "utils/page";
-import { UsersPageView } from "./UsersPageView";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { pageTitle } from "utils/page";
+import { generateRandomString } from "utils/random";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { useStatusFilterMenu } from "./UsersFilter";
+import { UsersPageView } from "./UsersPageView";
 
-export const UsersPage: FC<PropsWithChildren> = () => {
+export const UsersPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 

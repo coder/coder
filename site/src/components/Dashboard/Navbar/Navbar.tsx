@@ -1,10 +1,10 @@
 import { type FC } from "react";
-import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { useAuth } from "contexts/auth/useAuth";
+import { useMe } from "contexts/auth/useMe";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { useProxy } from "contexts/ProxyContext";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { useMe } from "hooks/useMe";
-import { usePermissions } from "hooks/usePermissions";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: FC = () => {

@@ -5,17 +5,17 @@ import {
   BrowserRouter as Router,
   Navigate,
 } from "react-router-dom";
+import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
-import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";

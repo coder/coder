@@ -1,34 +1,34 @@
-import {
-  TemplateVersionParameter,
-  Workspace,
-  WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { useMe } from "hooks/useMe";
-import { useOrganizationId } from "hooks/useOrganizationId";
 import { type FC, useCallback, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { Loader } from "components/Loader/Loader";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   uniqueNamesGenerator,
   animals,
   colors,
   NumberDictionary,
 } from "unique-names-generator";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import type {
+  TemplateVersionParameter,
+  Workspace,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated";
+import { useMe } from "contexts/auth/useMe";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
+import { checkAuthorization } from "api/queries/authCheck";
 import {
   templateByName,
   templateVersionExternalAuth,
   richParameters,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import { checkAuthorization } from "api/queries/authCheck";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { Loader } from "components/Loader/Loader";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];

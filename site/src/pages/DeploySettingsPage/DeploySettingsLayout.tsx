@@ -1,14 +1,14 @@
+import { createContext, type FC, Suspense, useContext } from "react";
+import { useQuery } from "react-query";
+import { Outlet } from "react-router-dom";
+import { DeploymentConfig } from "api/api";
+import { deploymentConfig } from "api/queries/deployment";
+import { RequirePermission } from "contexts/auth/RequirePermission";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { Sidebar } from "./Sidebar";
-import { createContext, Suspense, useContext, FC } from "react";
-import { Loader } from "components/Loader/Loader";
-import { RequirePermission } from "components/RequirePermission/RequirePermission";
-import { usePermissions } from "hooks/usePermissions";
-import { Outlet } from "react-router-dom";
-import { DeploymentConfig } from "api/api";
-import { useQuery } from "react-query";
-import { deploymentConfig } from "api/queries/deployment";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;

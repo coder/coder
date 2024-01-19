@@ -1,12 +1,12 @@
-import { Stack } from "@mui/system";
 import { type FC } from "react";
 import { useQuery } from "react-query";
-import { useOrganizationId } from "hooks";
-import { useMe } from "hooks/useMe";
-import { usePermissions } from "hooks/usePermissions";
 import { groupsForUser } from "api/queries/groups";
-import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { useAuth } from "contexts/auth/useAuth";
+import { useMe } from "contexts/auth/useMe";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { Stack } from "components/Stack/Stack";
 import { Section } from "../Section";
 import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";

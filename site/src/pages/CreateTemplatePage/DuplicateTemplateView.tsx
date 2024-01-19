@@ -1,4 +1,6 @@
+import { type FC } from "react";
 import { useQuery, useMutation } from "react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   templateVersionLogs,
   templateByName,
@@ -7,15 +9,14 @@ import {
   JobError,
   createTemplate,
 } from "api/queries/templates";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useOrganizationId } from "hooks";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { CreateTemplateForm } from "./CreateTemplateForm";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { CreateTemplateForm } from "./CreateTemplateForm";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
-export const DuplicateTemplateView = () => {
+export const DuplicateTemplateView: FC = () => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();

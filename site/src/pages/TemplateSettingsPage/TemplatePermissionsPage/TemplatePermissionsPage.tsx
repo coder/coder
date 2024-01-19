@@ -1,19 +1,19 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import { Paywall } from "components/Paywall/Paywall";
-import { Stack } from "components/Stack/Stack";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useTemplateSettings } from "../TemplateSettingsLayout";
-import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
-import { docs } from "utils/docs";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
+import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useFeatureVisibility } from "hooks/useFeatureVisibility";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
+import { docs } from "utils/docs";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
+import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
