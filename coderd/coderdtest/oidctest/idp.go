@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type token struct {
@@ -482,6 +483,31 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode, "client failed to login")
 	_ = res.Body.Close()
+}
+
+// DeviceLogin does the oauth2 device flow for external auth providers.
+func (*FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthID string) {
+	// First we need to initiate the device flow. This will have Coder hit the
+	// fake IDP and get a device code.
+	device, err := client.ExternalAuthDeviceByID(context.Background(), externalAuthID)
+	require.NoError(t, err)
+
+	// Now the user needs to go to the fake IDP page and click "allow" and enter
+	// the device code input. For our purposes, we just send an http request to
+	// the verification url. No additional user input is needed.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	resp, err := client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Now we need to exchange the device code for an access token. We do this
+	// in this method because it is the user that does the polling for the device
+	// auth flow, not the backend.
+	err = client.ExternalAuthDeviceExchange(context.Background(), externalAuthID, codersdk.ExternalAuthDeviceExchange{
+		DeviceCode: device.DeviceCode,
+	})
+	require.NoError(t, err)
 }
 
 // CreateAuthCode emulates a user clicking "allow" on the IDP page. When doing
