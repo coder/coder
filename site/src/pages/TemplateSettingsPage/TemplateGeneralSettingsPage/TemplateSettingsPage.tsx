@@ -29,10 +29,19 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async (data) => {
-        // we use data.name because an admin may have updated templateName to something new
-        await queryClient.invalidateQueries(
-          templateByNameKey(orgId, data.name),
-        );
+        // This update has a chance to return a 304 which means nothing was updated.
+        // In this case, the return payload will be empty and we should use the
+        // original template data.
+        if (!data) {
+          data = template;
+        } else {
+          // Only invalid the query if data is returned, indicating at least one field was updated.
+          //
+          // we use data.name because an admin may have updated templateName to something new
+          await queryClient.invalidateQueries(
+            templateByNameKey(orgId, data.name),
+          );
+        }
         displaySuccess("Template updated successfully");
         navigate(`/templates/${data.name}`);
       },
