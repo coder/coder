@@ -1,6 +1,7 @@
 package searchquery_test
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
@@ -114,6 +115,16 @@ func TestSearchWorkspace(t *testing.T) {
 			Expected: database.GetWorkspacesParams{
 				Name:          "bar",
 				OwnerUsername: "foo",
+			},
+		},
+		{
+			Name:  "Updated",
+			Query: `updated:true`,
+			Expected: database.GetWorkspacesParams{
+				UsingActive: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
 			},
 		},
 

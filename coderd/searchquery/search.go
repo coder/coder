@@ -1,6 +1,7 @@
 package searchquery
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -110,6 +111,12 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
+	filter.UsingActive = sql.NullBool{
+		// UsingActive returns if the workspace is on the latest template active version.
+		// This means the workspace is "up to date".
+		Bool:  parser.Boolean(values, false, "updated"),
+		Valid: values.Has("updated"),
+	}
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
