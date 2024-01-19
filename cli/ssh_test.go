@@ -925,7 +925,8 @@ func TestSSH(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 
-		clitest.Start(t, inv.WithContext(ctx))
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
 
 		// Since something was output, it should be safe to write input.
 		// This could show a prompt or "running startup scripts", so it's
