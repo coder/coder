@@ -159,7 +159,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	info, err := client.SDKClient.BuildInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("buildinfo: %w", errors.Join(
-			fmt.Errorf("unable to fetch build info from primary coderd. Are you sure %q is a coderd instance?", opts.DashboardURL),
+			xerrors.Errorf("unable to fetch build info from primary coderd. Are you sure %q is a coderd instance?", opts.DashboardURL),
 			err,
 		))
 	}
