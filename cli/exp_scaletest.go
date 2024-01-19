@@ -913,7 +913,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					return xerrors.Errorf("parse template: %w", err)
 				}
 			}
-			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetWorkspaces(targetWorkspaces)
+			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetRange("workspaces", targetWorkspaces)
 			if err != nil {
 				return xerrors.Errorf("parse target workspaces: %w", err)
 			}
@@ -1102,10 +1102,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		interval time.Duration
-		jitter   time.Duration
-		headless bool
-		randSeed int64
+		interval    time.Duration
+		jitter      time.Duration
+		headless    bool
+		randSeed    int64
+		targetUsers string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1127,6 +1128,10 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			if !(jitter < interval) {
 				return xerrors.Errorf("--jitter must be less than --interval")
+			}
+			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)
+			if err != nil {
+				return xerrors.Errorf("parse target users: %w", err)
 			}
 			ctx := inv.Context()
 			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
@@ -1164,8 +1169,15 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("get scaletest users")
 			}
+			if targetUserEnd == 0 {
+				targetUserEnd = len(users)
+			}
 
-			for _, usr := range users {
+			for idx, usr := range users {
+				if idx < targetUserStart || idx >= targetUserEnd {
+					continue
+				}
+
 				//nolint:gosec // not used for cryptographic purposes
 				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
@@ -1236,6 +1248,12 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
+		{
+			Flag:        "target-users",
+			Env:         "CODER_SCALETEST_DASHBOARD_TARGET_USERS",
+			Description: "Target a specific range of users in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted users (0-9).",
+			Value:       clibase.StringOf(&targetUsers),
+		},
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
@@ -1452,28 +1470,28 @@ func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs
 	return tpl, nil
 }
 
-func parseTargetWorkspaces(targetWorkspaces string) (start, end int, err error) {
-	if targetWorkspaces == "" {
+func parseTargetRange(name, targets string) (start, end int, err error) {
+	if targets == "" {
 		return 0, 0, nil
 	}
 
-	parts := strings.Split(targetWorkspaces, ":")
+	parts := strings.Split(targets, ":")
 	if len(parts) != 2 {
-		return 0, 0, xerrors.Errorf("invalid target workspaces %q", targetWorkspaces)
+		return 0, 0, xerrors.Errorf("invalid target %s %q", name, targets)
 	}
 
 	start, err = strconv.Atoi(parts[0])
 	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid target workspaces %q: %w", targetWorkspaces, err)
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
 	}
 
 	end, err = strconv.Atoi(parts[1])
 	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid target workspaces %q: %w", targetWorkspaces, err)
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
 	}
 
 	if start == end {
-		return 0, 0, xerrors.Errorf("invalid target workspaces %q: start and end cannot be equal", targetWorkspaces)
+		return 0, 0, xerrors.Errorf("invalid target %s %q: start and end cannot be equal", name, targets)
 	}
 
 	return start, end, nil

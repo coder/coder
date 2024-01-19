@@ -243,4 +243,27 @@ func TestScaleTestDashboard(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err, "")
 	})
+
+	t.Run("TargetUsers", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancelFunc()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &log,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+			"--target-users", "0:0",
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
+	})
 }
