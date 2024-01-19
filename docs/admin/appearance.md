@@ -48,64 +48,54 @@ server.
 
 ![support links](../images/admin/support-links.png)
 
-Custom links can be set in the deployment configuration using the
-`-c <yamlFile>` flag to `coder server`.
-
-```yaml
-supportLinks:
-  - name: "On-call 🔥"
-    target: "http://on-call.example.internal"
-    icon: "bug"
-  - name: "😉 Getting started with Go!"
-    target: "https://go.dev/"
-  - name: "Community"
-    target: "https://github.com/coder/coder"
-    icon: "chat"
-```
-
 ### Icons
 
-The link icons are optional, and limited to: `bug`, `chat`, and `docs`.
+The link icons are optional, and can be set to any url or
+[builtin icon](../templates/icons.md#bundled-icons), additionally `bug`, `chat`,
+and `docs` are available as three special icons.
 
-### Kubernetes configuration
+### Configuration
 
-To pass in the `supportLinks` YAML file above into your Coder Kubernetes
-deployment, follow the steps below.
+<div class=tab>
+  
+#### Kubernetes
 
-#### 1. Create Kubernetes Secret From File
-
-Run the below command to create the YAML file as a Kubernetes secret in your
-cluster:
-
-```console
-kubectl create secret generic coder-support-links -n <coder-namespace> --from-file=config.yaml
-```
-
-#### 2. Mount Secret as Volume in Helm Chart
-
-Next, update your Helm chart values as follows:
+To configure support links in your Coder Kubernetes deployment, update your Helm
+chart values as follows:
 
 ```yaml
 coder:
   env:
-    - name: CODER_CONFIG_PATH
-      value: /etc/coder/config.yaml
-  volumes:
-    - name: coder-config
-      secret:
-        secretName: coder-support-links
-  volumeMounts:
-    - name: coder-config
-      mountPath: /etc/coder/
+    - name: CODER_SUPPORT_LINKS
+      value: >
+        [{"name": "Hello GitHub", "target": "https://github.com/coder/coder",
+        "icon": "bug"},
+         {"name": "Hello Slack", "target":
+        "https://codercom.slack.com/archives/C014JH42DBJ", "icon":
+        "/icon/slack.svg"},
+         {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon":
+        "/icon/discord.svg"},
+         {"name": "Hello Foobar", "target": "https://foo.com/bar", "icon":
+        "/emojis/1f3e1.png"}]
 ```
 
-#### 3. Upgrade Coder
+#### System package
 
-Lastly, upgrade Coder using the following command:
+if running as a system service, set an environment variable
+`CODER_SUPPORT_LINKS` in `/etc/coder.d/coder.env` as follows,
 
-```console
-helm upgrade coder coder-v2/coder -n <coder-namespace> -f <values-file.yaml>
+```env
+CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
 ```
+
+For CLI, use,
+
+```shell
+export CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
+coder-server
+```
+
+</div>
 
 ## Up next
 
