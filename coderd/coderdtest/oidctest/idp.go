@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -34,6 +35,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
@@ -226,6 +228,7 @@ const (
 	authorizePath = "/oauth2/authorize"
 	keysPath      = "/oauth2/keys"
 	userInfoPath  = "/oauth2/userinfo"
+	deviceAuth    = "/login/device/code"
 )
 
 func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
@@ -784,6 +787,8 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			f.refreshTokensUsed.Store(refreshToken, true)
 			// Always invalidate the refresh token after it is used.
 			f.refreshTokens.Delete(refreshToken)
+		case "urn:ietf:params:oauth:grant-type:device_code":
+			// Device flow
 		default:
 			t.Errorf("unexpected grant_type %q", values.Get("grant_type"))
 			http.Error(rw, "invalid grant_type", http.StatusBadRequest)
@@ -884,6 +889,48 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			},
 		}
 		_ = json.NewEncoder(rw).Encode(set)
+	}))
+
+	mux.Handle(deviceAuth, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		p := httpapi.NewQueryParamParser()
+		p.Required("client_id")
+		p.Required("scopes")
+		clientID := p.String(r.URL.Query(), "", "client_id")
+		_ = p.String(r.URL.Query(), "", "scopes")
+		if len(p.Errors) > 0 {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message:     fmt.Sprintf("Invalid query params"),
+				Validations: p.Errors,
+			})
+			return
+		}
+
+		if clientID != f.clientID {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid client id"),
+			})
+			return
+		}
+
+		if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Accept")); mediaType == "application/json" {
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"device_code":      uuid.NewString(),
+				"user_code":        "1234",
+				"verification_uri": "",
+				"expires_in":       900,
+				"interval":         0,
+			})
+			return
+		}
+
+		// By default, GitHub form encodes these.
+		_, _ = fmt.Fprint(rw, url.Values{
+			"device_code":      {uuid.NewString()},
+			"user_code":        {"1234"},
+			"verification_uri": {""},
+			"expires_in":       {"900"},
+			"interval":         {"0"},
+		})
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
