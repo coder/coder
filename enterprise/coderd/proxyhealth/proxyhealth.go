@@ -276,9 +276,9 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			case err == nil && resp.StatusCode == http.StatusOK:
 				err := json.NewDecoder(resp.Body).Decode(&status.Report)
 				if err != nil {
-					isCoderErr := fmt.Errorf("proxy url %q is not a coder proxy instance, verify the url is correct", reqURL)
+					isCoderErr := xerrors.Errorf("proxy url %q is not a coder proxy instance, verify the url is correct", reqURL)
 					if resp.Header.Get(codersdk.BuildVersionHeader) != "" {
-						isCoderErr = fmt.Errorf("proxy url %q is a coder instance, but unable to decode the response payload. Could this be a primary coderd and not a proxy?", reqURL)
+						isCoderErr = xerrors.Errorf("proxy url %q is a coder instance, but unable to decode the response payload. Could this be a primary coderd and not a proxy?", reqURL)
 					}
 
 					// If the response is not json, then the user likely input a bad url that returns status code 200.
@@ -286,7 +286,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					if notJSONErr := codersdk.ExpectJSONMime(resp); notJSONErr != nil {
 						err = errors.Join(
 							isCoderErr,
-							fmt.Errorf("attempted to query health at %q but got back the incorrect content type: %w", reqURL, notJSONErr),
+							xerrors.Errorf("attempted to query health at %q but got back the incorrect content type: %w", reqURL, notJSONErr),
 						)
 
 						status.Report.Errors = []string{
@@ -300,7 +300,7 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 					status.Report.Errors = []string{
 						errors.Join(
 							isCoderErr,
-							fmt.Errorf("received a status code 200, but failed to decode health report body: %w", err),
+							xerrors.Errorf("received a status code 200, but failed to decode health report body: %w", err),
 						).Error(),
 					}
 					status.Status = Unhealthy

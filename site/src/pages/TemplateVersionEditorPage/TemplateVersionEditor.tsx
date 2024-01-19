@@ -64,13 +64,13 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
-  disablePreview: boolean;
-  disableUpdate: boolean;
+  disablePreview?: boolean;
+  disableUpdate?: boolean;
   onPreview: (files: FileTree) => void;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
   onCancelPublish: () => void;
-  publishingError: unknown;
+  publishingError?: unknown;
   publishedVersion?: TemplateVersion;
   onCreateWorkspace: () => void;
   isAskingPublishParameters: boolean;

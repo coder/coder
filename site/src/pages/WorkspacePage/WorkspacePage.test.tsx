@@ -317,7 +317,7 @@ describe("WorkspacePage", () => {
   });
 
   it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
-    window.localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
+    localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
     jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
       templateVersionRichParameters: [
         {
