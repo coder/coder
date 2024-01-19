@@ -2,7 +2,7 @@
 FROM nixos/nix:2.19.2 as nix
 
 # enable --experimental-features 'nix-command flakes' globally
-# nix does not enbale these features by default these are required to run commands like
+# nix does not enable these features by default these are required to run commands like
 # nix develop -c 'some command' or to use falke.nix
 RUN mkdir -p /etc/nix && echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
