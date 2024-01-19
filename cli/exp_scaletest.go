@@ -1058,7 +1058,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		{
 			Flag:        "target-workspaces",
 			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
-			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target workspaces the 10 first alphabetically sorted workspaces (0-9).",
+			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
 			Value:       clibase.StringOf(&targetWorkspaces),
 		},
 		{
