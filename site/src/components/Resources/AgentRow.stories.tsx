@@ -20,6 +20,7 @@ import {
   MockWorkspaceAgentDeprecated,
   MockWorkspaceApp,
   MockProxyLatencies,
+  MockListeningPortsResponse,
 } from "testHelpers/entities";
 import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
@@ -103,7 +104,15 @@ const storybookLogs: LineWithID[] = [
 
 const meta: Meta<typeof AgentRow> = {
   title: "components/AgentRow",
-  parameters: { chromatic },
+  parameters: {
+    chromatic,
+    queries: [
+      {
+        key: ["portForward", MockWorkspaceAgent.id],
+        data: MockListeningPortsResponse,
+      },
+    ],
+  },
   component: AgentRow,
   args: {
     storybookLogs,

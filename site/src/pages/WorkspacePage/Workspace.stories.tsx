@@ -28,6 +28,14 @@ const meta: Meta<typeof Workspace> = {
   title: "pages/WorkspacePage/Workspace",
   args: { permissions },
   component: Workspace,
+  parameters: {
+    queries: [
+      {
+        key: ["portForward", Mocks.MockWorkspaceAgent.id],
+        data: Mocks.MockListeningPortsResponse,
+      },
+    ],
+  },
   decorators: [
     (Story) => (
       <DashboardProviderContext.Provider

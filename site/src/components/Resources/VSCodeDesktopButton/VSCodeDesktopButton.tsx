@@ -48,16 +48,7 @@ export const VSCodeDesktopButton: FC<
 
   return includesVSCodeDesktop && includesVSCodeInsiders ? (
     <div>
-      <ButtonGroup
-        ref={menuAnchorRef}
-        variant="outlined"
-        css={{
-          // Workaround to make the border transitions smoothly on button groups
-          "& > button:hover + button": {
-            borderLeft: "1px solid #FFF",
-          },
-        }}
-      >
+      <ButtonGroup ref={menuAnchorRef} variant="outlined">
         {variant === "vscode" ? (
           <VSCodeButton {...props} />
         ) : (

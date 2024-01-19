@@ -31,12 +31,12 @@ import { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { Stack } from "../Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
-import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { AgentStatus } from "./AgentStatus";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -79,6 +79,11 @@ export const AgentRow: FC<AgentRowProps> = ({
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
+  const hasVSCodeApp =
+    agent.display_apps.includes("vscode") ||
+    agent.display_apps.includes("vscode_insiders");
+  const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
+
   const logSourceByID = useMemo(() => {
     const sources: { [id: string]: WorkspaceAgentLogSource } = {};
     for (const source of agent.log_sources) {
@@ -163,54 +168,68 @@ export const AgentRow: FC<AgentRowProps> = ({
         styles[`agentRow-lifecycle-${agent.lifecycle_state}`],
       ]}
     >
-      <div css={styles.agentInfo}>
-        <div css={styles.agentNameAndStatus}>
-          <div css={styles.agentNameAndInfo}>
+      <header css={styles.header}>
+        <div css={styles.agentInfo}>
+          <div css={styles.agentNameAndStatus}>
             <AgentStatus agent={agent} />
-            <div css={styles.agentName}>{agent.name}</div>
-            <Stack
-              direction="row"
-              spacing={2}
-              alignItems="baseline"
-              css={styles.agentDescription}
-            >
-              {agent.status === "connected" && (
-                <>
-                  <span css={styles.agentOS}>{agent.operating_system}</span>
-                  <AgentVersion
-                    agent={agent}
-                    serverVersion={serverVersion}
-                    serverAPIVersion={serverAPIVersion}
-                    onUpdate={onUpdateAgent}
-                  />
-                  <AgentLatency agent={agent} />
-                </>
-              )}
-              {agent.status === "connecting" && (
-                <>
-                  <Skeleton width={160} variant="text" />
-                  <Skeleton width={36} variant="text" />
-                </>
-              )}
-            </Stack>
+            <span css={styles.agentName}>{agent.name}</span>
           </div>
+          {agent.status === "connected" && (
+            <>
+              <AgentVersion
+                agent={agent}
+                serverVersion={serverVersion}
+                serverAPIVersion={serverAPIVersion}
+                onUpdate={onUpdateAgent}
+              />
+              <AgentLatency agent={agent} />
+            </>
+          )}
+          {agent.status === "connecting" && (
+            <>
+              <Skeleton width={160} variant="text" />
+              <Skeleton width={36} variant="text" />
+            </>
+          )}
         </div>
 
+        {showBuiltinApps && (
+          <div css={{ display: "flex" }}>
+            {!hideSSHButton && agent.display_apps.includes("ssh_helper") && (
+              <SSHButton
+                workspaceName={workspace.name}
+                agentName={agent.name}
+                sshPrefix={sshPrefix}
+              />
+            )}
+            {proxy.preferredWildcardHostname &&
+              proxy.preferredWildcardHostname !== "" &&
+              agent.display_apps.includes("port_forwarding_helper") && (
+                <PortForwardButton
+                  host={proxy.preferredWildcardHostname}
+                  workspaceName={workspace.name}
+                  agent={agent}
+                  username={workspace.owner_name}
+                />
+              )}
+          </div>
+        )}
+      </header>
+
+      <div css={styles.content}>
         {agent.status === "connected" && (
-          <div css={styles.agentButtons}>
+          <section css={styles.apps}>
             {shouldDisplayApps && (
               <>
-                {(agent.display_apps.includes("vscode") ||
-                  agent.display_apps.includes("vscode_insiders")) &&
-                  !hideVSCodeDesktopButton && (
-                    <VSCodeDesktopButton
-                      userName={workspace.owner_name}
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      folderPath={agent.expanded_directory}
-                      displayApps={agent.display_apps}
-                    />
-                  )}
+                {showVSCode && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    folderPath={agent.expanded_directory}
+                    displayApps={agent.display_apps}
+                  />
+                )}
                 {agent.apps.map((app) => (
                   <AppLink
                     key={app.slug}
@@ -222,40 +241,18 @@ export const AgentRow: FC<AgentRowProps> = ({
               </>
             )}
 
-            {showBuiltinApps && (
-              <>
-                {agent.display_apps.includes("web_terminal") && (
-                  <TerminalLink
-                    workspaceName={workspace.name}
-                    agentName={agent.name}
-                    userName={workspace.owner_name}
-                  />
-                )}
-                {!hideSSHButton &&
-                  agent.display_apps.includes("ssh_helper") && (
-                    <SSHButton
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      sshPrefix={sshPrefix}
-                    />
-                  )}
-                {proxy.preferredWildcardHostname &&
-                  proxy.preferredWildcardHostname !== "" &&
-                  agent.display_apps.includes("port_forwarding_helper") && (
-                    <PortForwardButton
-                      host={proxy.preferredWildcardHostname}
-                      workspaceName={workspace.name}
-                      agent={agent}
-                      username={workspace.owner_name}
-                    />
-                  )}
-              </>
+            {showBuiltinApps && agent.display_apps.includes("web_terminal") && (
+              <TerminalLink
+                workspaceName={workspace.name}
+                agentName={agent.name}
+                userName={workspace.owner_name}
+              />
             )}
-          </div>
+          </section>
         )}
 
         {agent.status === "connecting" && (
-          <div css={styles.agentButtons}>
+          <section css={styles.apps}>
             <Skeleton
               width={80}
               height={32}
@@ -268,14 +265,19 @@ export const AgentRow: FC<AgentRowProps> = ({
               variant="rectangular"
               css={styles.buttonSkeleton}
             />
-          </div>
+          </section>
         )}
+
+        <AgentMetadata
+          storybookMetadata={storybookAgentMetadata}
+          agent={agent}
+        />
       </div>
 
-      <AgentMetadata storybookMetadata={storybookAgentMetadata} agent={agent} />
-
       {hasStartupFeatures && (
-        <div css={styles.logsPanel}>
+        <section
+          css={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}
+        >
           <Collapse in={showLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
@@ -430,16 +432,14 @@ export const AgentRow: FC<AgentRowProps> = ({
             </AutoSizer>
           </Collapse>
 
-          <div css={{ display: "flex" }}>
-            <button
-              css={styles.logsPanelButton}
-              onClick={() => setShowLogs((v) => !v)}
-            >
-              <DropdownArrow close={showLogs} />
-              {showLogs ? "Hide" : "Show"} logs
-            </button>
-          </div>
-        </div>
+          <button
+            css={styles.logsPanelButton}
+            onClick={() => setShowLogs((v) => !v)}
+          >
+            <DropdownArrow close={showLogs} margin={false} />
+            {showLogs ? "Hide" : "Show"} logs
+          </button>
+        </section>
       )}
     </Stack>
   );
@@ -505,76 +505,83 @@ const useAgentLogs = (
 
 const styles = {
   agentRow: (theme) => ({
-    fontSize: 16,
-    borderLeft: `2px solid ${theme.palette.text.secondary}`,
-
-    "&:not(:first-of-type)": {
-      borderTop: `2px solid ${theme.palette.divider}`,
-    },
+    fontSize: 14,
+    border: `1px solid ${theme.palette.text.secondary}`,
+    backgroundColor: theme.palette.background.default,
+    borderRadius: 8,
   }),
 
   "agentRow-connected": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderColor: theme.palette.success.light,
   }),
 
   "agentRow-disconnected": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderColor: theme.palette.divider,
   }),
 
   "agentRow-connecting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-created": {},
 
   "agentRow-lifecycle-starting": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-lifecycle-ready": (theme) => ({
-    borderLeftColor: theme.palette.success.light,
+    borderColor: theme.palette.success.light,
   }),
 
   "agentRow-lifecycle-start_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-start_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderColor: theme.palette.error.light,
   }),
 
   "agentRow-lifecycle-shutting_down": (theme) => ({
-    borderLeftColor: theme.palette.info.light,
+    borderColor: theme.palette.info.light,
   }),
 
   "agentRow-lifecycle-shutdown_timeout": (theme) => ({
-    borderLeftColor: theme.palette.warning.light,
+    borderColor: theme.palette.warning.light,
   }),
 
   "agentRow-lifecycle-shutdown_error": (theme) => ({
-    borderLeftColor: theme.palette.error.light,
+    borderColor: theme.palette.error.light,
   }),
 
   "agentRow-lifecycle-off": (theme) => ({
-    borderLeftColor: theme.palette.text.secondary,
+    borderColor: theme.palette.divider,
   }),
 
-  agentInfo: (theme) => ({
-    padding: "24px 32px",
+  header: (theme) => ({
+    padding: "12px 24px",
     display: "flex",
-    gap: 16,
+    gap: 24,
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
-    backgroundColor: theme.palette.background.paper,
+    lineHeight: "1.5",
+    borderBottom: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
     },
+  }),
+
+  agentInfo: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 24,
+    color: theme.palette.text.secondary,
+    fontSize: 13,
   }),
 
   agentNameAndInfo: (theme) => ({
@@ -588,10 +595,21 @@ const styles = {
     },
   }),
 
-  agentButtons: (theme) => ({
+  content: {
+    padding: "32px 24px",
     display: "flex",
-    gap: 8,
+    flexDirection: "column",
+    gap: 32,
+  },
+
+  apps: (theme) => ({
+    display: "flex",
+    gap: 16,
     flexWrap: "wrap",
+
+    "&:empty": {
+      display: "none",
+    },
 
     [theme.breakpoints.down("md")]: {
       marginLeft: 0,
@@ -619,7 +637,7 @@ const styles = {
   agentNameAndStatus: (theme) => ({
     display: "flex",
     alignItems: "center",
-    gap: 32,
+    gap: 12,
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
@@ -632,9 +650,10 @@ const styles = {
     textOverflow: "ellipsis",
     maxWidth: 260,
     fontWeight: 600,
-    fontSize: 16,
     flexShrink: 0,
     width: "fit-content",
+    fontSize: 14,
+    color: theme.palette.text.primary,
 
     [theme.breakpoints.down("md")]: {
       overflow: "unset",
@@ -658,16 +677,12 @@ const styles = {
     },
   }),
 
-  logsPanel: (theme) => ({
-    borderTop: `1px solid ${theme.palette.divider}`,
-  }),
-
   logsPanelButton: (theme) => ({
     textAlign: "left",
     background: "transparent",
     border: 0,
     fontFamily: "inherit",
-    padding: "12px 32px",
+    padding: "12px 24px",
     color: theme.palette.text.secondary,
     cursor: "pointer",
     display: "flex",
@@ -675,6 +690,8 @@ const styles = {
     gap: 8,
     whiteSpace: "nowrap",
     width: "100%",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
 
     "&:hover": {
       color: theme.palette.text.primary,

@@ -14,8 +14,8 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { AgentButton } from "../AgentButton";
-import { DisplayAppNameMap } from "../AppLink/AppLink";
+import Button from "@mui/material/Button";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 export interface SSHButtonProps {
   workspaceName: string;
@@ -35,7 +35,14 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
       <PopoverTrigger>
-        <AgentButton>{DisplayAppNameMap["ssh_helper"]}</AgentButton>
+        <Button
+          size="small"
+          variant="text"
+          endIcon={<KeyboardArrowDown />}
+          css={{ fontSize: 13, padding: "8px 12px" }}
+        >
+          Connect to SSH
+        </Button>
       </PopoverTrigger>
 
       <PopoverContent horizontal="right" classes={{ paper }}>

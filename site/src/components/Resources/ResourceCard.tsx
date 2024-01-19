@@ -1,7 +1,7 @@
 import { type FC, type PropsWithChildren, useState } from "react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { Children } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "../DropdownArrow/DropdownArrow";
@@ -13,14 +13,28 @@ import { SensitiveValue } from "./SensitiveValue";
 
 const styles = {
   resourceCard: (theme) => ({
-    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.default,
+
+    "&:not(:last-child)": {
+      borderBottom: 0,
+    },
+
+    "&:first-child": {
+      borderTopLeftRadius: 8,
+      borderTopRightRadius: 8,
+    },
+
+    "&:last-child": {
+      borderBottomLeftRadius: 8,
+      borderBottomRightRadius: 8,
+    },
   }),
 
   resourceCardProfile: {
     flexShrink: 0,
     width: "fit-content",
+    minWidth: 220,
   },
 
   resourceCardHeader: (theme) => ({
@@ -37,9 +51,9 @@ const styles = {
     },
   }),
 
-  metadata: (theme) => ({
-    ...(theme.typography.body2 as CSSObject),
-    lineHeight: "120%",
+  metadata: () => ({
+    lineHeight: "1.5",
+    fontSize: 14,
   }),
 
   metadataLabel: (theme) => ({
@@ -50,11 +64,10 @@ const styles = {
     whiteSpace: "nowrap",
   }),
 
-  metadataValue: (theme) => ({
+  metadataValue: () => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    ...(theme.typography.body1 as CSSObject),
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
