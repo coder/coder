@@ -293,10 +293,10 @@ func TestRun(t *testing.T) {
 			defer nc.Close()
 
 			_, err = io.Copy(nc, nc)
-			if err != nil && !errors.Is(err, io.EOF) {
-				t.Error(err)
+			if err == nil || errors.Is(err, io.EOF) {
 				return
 			}
+			t.Error(err)
 		}))
 		defer srv.Close()
 
