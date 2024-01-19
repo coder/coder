@@ -65,11 +65,6 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"External Token Encryption Keys": {
 			yaml: true,
 		},
-		// These complex objects should be configured through YAML.
-		"Support Links": {
-			flag: true,
-			env:  true,
-		},
 		"External Auth Providers": {
 			// Technically External Auth Providers can be provided through the env,
 			// but bypassing clibase. See cli.ReadExternalAuthProvidersFromEnv.
