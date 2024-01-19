@@ -411,16 +411,19 @@ export const unarchiveTemplateVersion = async (templateVersionId: string) => {
   return response.data;
 };
 
-// updateTemplateMeta will return "undefined" if there is no change to the template.
-// A noop returns a "Not Modified" (304) response.
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
-): Promise<TypesGen.Template | undefined> => {
-  const response = await axios.patch<TypesGen.Template | undefined>(
+): Promise<TypesGen.Template | null> => {
+  const response = await axios.patch<TypesGen.Template>(
     `/api/v2/templates/${templateId}`,
     data,
   );
+  // On 304 response there is no data payload.
+  if (response.status === 304) {
+    return null;
+  }
+
   return response.data;
 };
 
