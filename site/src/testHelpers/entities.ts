@@ -3371,6 +3371,11 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     name: "foo",
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
+    endpoints: {
+      authorization: "http://localhost:3001/login/oauth2/authorize",
+      token: "http://localhost:3001/login/oauth2/token",
+      device_authorization: "",
+    },
   },
 ];
 
