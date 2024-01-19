@@ -264,6 +264,32 @@ func TestExternalAuthManagement(t *testing.T) {
 
 func TestExternalAuthDevice(t *testing.T) {
 	t.Parallel()
+	// This is an example test on how to do device auth flow using our fake idp.
+	t.Run("WithFakeIDP", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		externalID := "fake-idp"
+		cfg := fake.ExternalAuthConfig(t, externalID, &oidctest.ExternalAuthConfigOptions{
+			UseDeviceAuth: true,
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{cfg},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		device, err := client.ExternalAuthDeviceByID(context.Background(), externalID)
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
+		require.NoError(t, err)
+		fmt.Println(resp.StatusCode)
+
+		extAuth, err := client.ExternalAuthByID(context.Background(), externalID)
+		require.NoError(t, err)
+		require.True(t, extAuth.Authenticated)
+	})
+
 	t.Run("NotSupported", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
