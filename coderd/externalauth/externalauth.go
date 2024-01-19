@@ -300,6 +300,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
 
 	do := http.DefaultClient.Do
 	if c.Config != nil {
@@ -310,7 +311,6 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 
 	resp, err := do(req)
-	req.Header.Set("Accept", "application/json")
 	if err != nil {
 		return nil, err
 	}
