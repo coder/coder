@@ -51,8 +51,8 @@ server.
 ### Icons
 
 The link icons are optional, and can be set to any url or
-[builtin icon](../templates/icons.md), additionally `bug`, `chat`, and `docs`
-are available as three special icons.
+[builtin icon](../templates/icons.md#bundled-icons), additionally `bug`, `chat`,
+and `docs` are available as three special icons.
 
 ### Configuration
 
