@@ -28,10 +28,21 @@ type OAuth2AppEndpoints struct {
 	DeviceAuth string `json:"device_authorization"`
 }
 
+type OAuth2ProviderAppFilter struct {
+	UserID uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+}
+
 // OAuth2ProviderApps returns the applications configured to authenticate using
 // Coder as an OAuth2 provider.
-func (c *Client) OAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil)
+func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) ([]OAuth2ProviderApp, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil,
+		func(r *http.Request) {
+			if filter.UserID != uuid.Nil {
+				q := r.URL.Query()
+				q.Set("user_id", filter.UserID.String())
+				r.URL.RawQuery = q.Encode()
+			}
+		})
 	if err != nil {
 		return []OAuth2ProviderApp{}, err
 	}
