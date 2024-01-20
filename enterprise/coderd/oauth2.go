@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"net/http"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 )
 
 func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
@@ -241,7 +241,7 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	hashed := sha256.Sum256([]byte(rawSecret))
+	hashed := identityprovider.Hash(rawSecret, app.ID)
 	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:           uuid.New(),
 		CreatedAt:    dbtime.Now(),
@@ -285,4 +285,44 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary OAuth2 authorization request.
+// @ID oauth2-authorization-request
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param client_id query string true "Client ID"
+// @Param state query string true "A random unguessable string"
+// @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
+// @Param redirect_uri query string false "Redirect here after authorization"
+// @Param scope query string false "Token scopes (currently ignored)"
+// @Success 302
+// @Router /login/oauth2/authorize [post]
+func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
+	return identityprovider.Authorize(api.Database, api.AccessURL)
+}
+
+// @Summary OAuth2 token exchange.
+// @ID oauth2-token-exchange
+// @Produce json
+// @Tags Enterprise
+// @Param client_id formData string true "Client ID"
+// @Param client_secret formData string true "Client secret"
+// @Param code formData string true "Authorization code"
+// @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
+// @Success 200 {object} oauth2.Token
+// @Router /login/oauth2/tokens [post]
+func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
+	return identityprovider.Tokens(api.Database, api.DeploymentValues.SessionDuration.Value())
+}
+
+// @Summary Delete OAuth2 application tokens.
+// @ID delete-oauth2-application-tokens
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param client_id query string true "Client ID"
+// @Success 204
+// @Router /login/oauth2/tokens [delete]
+func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
+	return identityprovider.RevokeApp(api.Database)
 }
