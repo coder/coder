@@ -1,4 +1,4 @@
-We scale-test Coder with [a built-in utility](#scaletest-utility) that can be
+We scale-test Coder with [a built-in utility](#scale-testing-utility) that can be
 used in your environment for insights into how Coder scales with your
 infrastructure.
 
