@@ -156,6 +156,10 @@ const ExternalAuthPage = lazy(
 const UserExternalAuthSettingsPage = lazy(
   () => import("./pages/UserSettingsPage/ExternalAuthPage/ExternalAuthPage"),
 );
+const UserOAuth2ProviderSettingsPage = lazy(
+  () =>
+    import("./pages/UserSettingsPage/OAuth2ProviderPage/OAuth2ProviderPage"),
+);
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -361,6 +365,10 @@ export const AppRouter: FC = () => {
                 <Route
                   path="external-auth"
                   element={<UserExternalAuthSettingsPage />}
+                />
+                <Route
+                  path="oauth2-provider"
+                  element={<UserOAuth2ProviderSettingsPage />}
                 />
                 <Route path="tokens">
                   <Route index element={<TokensPage />} />
