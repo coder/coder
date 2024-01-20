@@ -689,6 +689,11 @@ export interface OAuth2ProviderApp {
 }
 
 // From codersdk/oauth2.go
+export interface OAuth2ProviderAppFilter {
+  readonly user_id?: string;
+}
+
+// From codersdk/oauth2.go
 export interface OAuth2ProviderAppSecret {
   readonly id: string;
   readonly last_used_at?: string;
@@ -1930,6 +1935,18 @@ export const LoginTypes: LoginType[] = [
   "oidc",
   "password",
   "token",
+];
+
+// From codersdk/oauth2.go
+export type OAuth2ProviderGrantType = "authorization_code";
+export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
+  "authorization_code",
+];
+
+// From codersdk/oauth2.go
+export type OAuth2ProviderResponseType = "code";
+export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
+  "code",
 ];
 
 // From codersdk/provisionerdaemons.go
