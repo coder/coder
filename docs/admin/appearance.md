@@ -56,9 +56,9 @@ and `docs` are available as three special icons.
 
 ### Configuration
 
-<div class=tab>
+<div class="tabs">
   
-#### Kubernetes
+## Kubernetes
 
 To configure support links in your Coder Kubernetes deployment, update your Helm
 chart values as follows:
@@ -79,7 +79,7 @@ coder:
         "/emojis/1f3e1.png"}]
 ```
 
-#### System package
+## System package
 
 if running as a system service, set an environment variable
 `CODER_SUPPORT_LINKS` in `/etc/coder.d/coder.env` as follows,
