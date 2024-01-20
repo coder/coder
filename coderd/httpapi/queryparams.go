@@ -90,8 +90,10 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 	return v
 }
 
-func (p *QueryParamParser) Required(queryParam string) *QueryParamParser {
-	p.RequiredParams[queryParam] = true
+func (p *QueryParamParser) Required(queryParam ...string) *QueryParamParser {
+	for _, q := range queryParam {
+		p.RequiredParams[q] = true
+	}
 	return p
 }
 
