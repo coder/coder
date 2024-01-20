@@ -188,7 +188,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// No apps yet.
-		apps, err := another.OAuth2ProviderApps(ctx)
+		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, apps, 0)
 
@@ -200,7 +200,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 		}
 
 		// Should get all the apps now.
-		apps, err = another.OAuth2ProviderApps(ctx)
+		apps, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, apps, 5)
 		require.Equal(t, expectedOrder, apps)
@@ -244,11 +244,28 @@ func TestOAuth2ProviderApps(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should show the new count.
-		newApps, err := another.OAuth2ProviderApps(ctx)
+		newApps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{})
 		require.NoError(t, err)
 		require.Len(t, newApps, 4)
 
 		require.Equal(t, expectedOrder[1:], newApps)
+	})
+
+	t.Run("ByUser", func(t *testing.T) {
+		t.Parallel()
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureOAuth2Provider: 1,
+			},
+		}})
+		another, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_ = generateApps(ctx, t, client, "by-user")
+		apps, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			UserID: user.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, apps, 0)
 	})
 }
 

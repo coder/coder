@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -45,14 +46,46 @@ func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
+// @Param user_id query string false "Filter by applications authorized for a user"
 // @Success 200 {array} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps [get]
 func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	dbApps, err := api.Database.GetOAuth2ProviderApps(ctx)
+
+	rawUserID := r.URL.Query().Get("user_id")
+	if rawUserID == "" {
+		dbApps, err := api.Database.GetOAuth2ProviderApps(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(api.AccessURL, dbApps))
+		return
+	}
+
+	userID, err := uuid.Parse(rawUserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid user UUID",
+			Detail:  fmt.Sprintf("queried user_id=%q", userID),
+		})
+		return
+	}
+
+	userApps, err := api.Database.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+
+	var dbApps []database.OAuth2ProviderApp
+	for _, app := range userApps {
+		dbApps = append(dbApps, database.OAuth2ProviderApp{
+			ID:          app.OAuth2ProviderApp.ID,
+			Name:        app.OAuth2ProviderApp.Name,
+			CallbackURL: app.OAuth2ProviderApp.CallbackURL,
+			Icon:        app.OAuth2ProviderApp.Icon,
+		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(api.AccessURL, dbApps))
 }
