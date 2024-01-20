@@ -1,0 +1,168 @@
+{{/* This template is used by application handlers to render allowing oauth2
+links */}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application {{.AppName}}</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        background-color: #05060b;
+        color: #f7f9fd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: sans-serif;
+        font-size: 16px;
+        height: 100%;
+      }
+
+      .container {
+        --side-padding: 24px;
+        width: 100%;
+        max-width: calc(320px + var(--side-padding) * 2);
+        padding: 0 var(--side-padding);
+        text-align: center;
+      }
+
+      .icons-container {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 24px;
+      }
+
+      .coder-svg,
+      .app-icon {
+        width: 80px;
+      }
+
+      .connect-symbol {
+        font-size: 40px;
+        font-weight: bold;
+        margin: 0 10px;
+      }
+
+      h1 {
+        font-weight: 700;
+        font-size: 36px;
+        margin-bottom: 8px;
+      }
+
+      p,
+      li {
+        color: #b2bfd7;
+        line-height: 140%;
+      }
+
+      .user-name {
+        font-weight: bold;
+      }
+
+      .button-group {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .button-group a,
+      .button-group button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 16px;
+        border-radius: 4px;
+        border: 1px solid #2c3854;
+        text-decoration: none;
+        background: none;
+        font-size: inherit;
+        color: inherit;
+        width: 200px;
+        height: 42px;
+        cursor: pointer;
+      }
+
+      .button-group a:hover,
+      .button-group button:hover {
+        border-color: hsl(222, 31%, 40%);
+      }
+
+      .button-group .primary-button {
+        background-color: #2c3854;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icons-container">
+        {{- if .AppIcon }}
+        <img class="app-icon" src="{{ .AppIcon }}" />
+        <div class="connect-symbol">+</div>
+        {{end}}
+        <svg
+          class="coder-svg"
+          viewBox="0 0 36 36"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <g clip-path="url(#clip0_1094_2915)">
+            <path
+              d="M32.9812 15.9039C32.326 15.9039 31.8894 15.5197 31.8894 14.7311V10.202C31.8894 7.31059 30.6982 5.71326 27.6211 5.71326H26.1917V8.76638H26.6285C27.8394 8.76638 28.4152 9.43363 28.4152 10.6266V14.63C28.4152 16.3689 28.9313 17.0766 30.0629 17.4405C28.9313 17.7843 28.4152 18.5122 28.4152 20.251C28.4152 21.2418 28.4152 22.2325 28.4152 23.2233C28.4152 24.0523 28.4152 24.8611 28.1968 25.69C27.9784 26.4584 27.6211 27.1863 27.1248 27.8131C26.8468 28.1771 26.5292 28.4803 26.1719 28.7635V29.1678H27.6012C30.6784 29.1678 31.8696 27.5705 31.8696 24.6791V20.1499C31.8696 19.3411 32.2863 18.9772 32.9614 18.9772H33.7754V15.924H32.9812V15.9039Z"
+              fill="white"
+            />
+            <path
+              d="M23.2539 10.3239H18.8466C18.7473 10.3239 18.668 10.243 18.668 10.1419V9.79819C18.668 9.69707 18.7473 9.61621 18.8466 9.61621H23.2737C23.373 9.61621 23.4524 9.69707 23.4524 9.79819V10.1419C23.4524 10.243 23.3531 10.3239 23.2539 10.3239Z"
+              fill="white"
+            />
+            <path
+              d="M24.0081 14.6911H20.792C20.6927 14.6911 20.6133 14.6102 20.6133 14.5091V14.1654C20.6133 14.0643 20.6927 13.9834 20.792 13.9834H24.0081C24.1074 13.9834 24.1867 14.0643 24.1867 14.1654V14.5091C24.1867 14.59 24.1074 14.6911 24.0081 14.6911Z"
+              fill="white"
+            />
+            <path
+              d="M25.2788 12.5075H18.8466C18.7473 12.5075 18.668 12.4266 18.668 12.3255V11.9818C18.668 11.8807 18.7473 11.7998 18.8466 11.7998H25.2589C25.3582 11.7998 25.4376 11.8807 25.4376 11.9818V12.3255C25.4376 12.4064 25.3781 12.5075 25.2788 12.5075Z"
+              fill="white"
+            />
+            <path
+              d="M13.7463 11.3141C14.183 11.3141 14.6198 11.3545 15.0367 11.4556V10.6266C15.0367 9.45384 15.6323 8.76638 16.8234 8.76638H17.2602V5.71326H15.8308C12.7536 5.71326 11.5625 7.31059 11.5625 10.202V11.6982C12.2573 11.4556 12.9919 11.3141 13.7463 11.3141Z"
+              fill="white"
+            />
+            <path
+              d="M26.6312 22.313C26.3135 19.7451 24.368 17.6018 21.8666 17.1166C21.1718 16.9751 20.4769 16.9548 19.8019 17.0761C19.7821 17.0761 19.7821 17.0559 19.7622 17.0559C18.6703 14.7307 16.3278 13.194 13.7866 13.194C11.2455 13.194 8.92278 14.6902 7.811 17.0155C7.79115 17.0155 7.79115 17.0357 7.77131 17.0357C7.05664 16.9548 6.34193 16.9952 5.62723 17.1772C3.16553 17.7838 1.29939 19.8866 0.961901 22.4342C0.922196 22.6971 0.902344 22.9599 0.902344 23.2026C0.902344 23.9709 1.41851 24.6786 2.1729 24.7797C3.10597 24.9213 3.91992 24.1933 3.90007 23.2633C3.90007 23.1217 3.90007 22.9599 3.91992 22.8184C4.07875 21.5244 5.05151 20.4326 6.32206 20.1292C6.71913 20.0281 7.11618 20.0079 7.49337 20.0686C8.70438 20.2304 9.89551 19.6035 10.4117 18.5117C10.7889 17.7029 11.3845 16.9952 12.1786 16.611C13.052 16.1864 14.0447 16.1258 14.958 16.4493C15.9108 16.793 16.6255 17.5209 17.0623 18.4308C17.5189 19.3205 17.7372 19.9473 18.7101 20.0686C19.1071 20.1292 20.2188 20.109 20.6357 20.0888C21.4497 20.0888 22.2637 20.3719 22.8394 20.9582C23.2165 21.3626 23.4945 21.8681 23.6136 22.4342C23.7923 23.3441 23.5739 24.254 23.0379 24.9414C22.6606 25.4267 22.1445 25.7907 21.5688 25.9524C21.2908 26.0333 21.0129 26.0535 20.735 26.0535C20.5762 26.0535 20.3578 26.0535 20.0997 26.0535C19.3057 26.0535 17.6182 26.0535 16.3476 26.0535C15.4741 26.0535 14.7792 25.3459 14.7792 24.4562V21.4637V18.5319C14.7792 18.2893 14.5807 18.0871 14.3425 18.0871H13.727C12.516 18.1073 11.5433 19.4823 11.5433 20.938C11.5433 22.3938 11.5433 26.2558 11.5433 26.2558C11.5433 27.8329 12.794 29.1067 14.3425 29.1067C14.3425 29.1067 21.2313 29.0864 21.3306 29.0864C22.9187 28.9247 24.3879 28.0957 25.3804 26.8219C26.3731 25.5885 26.8297 23.9709 26.6312 22.313Z"
+              fill="white"
+            />
+          </g>
+          <defs>
+            <clipPath id="clip0_1094_2915">
+              <rect
+                width="33.0769"
+                height="23.4545"
+                fill="white"
+                transform="translate(0.902344 5.71326)"
+              />
+            </clipPath>
+          </defs>
+        </svg>
+      </div>
+      <h1>Authorize {{ .AppName }}</h1>
+      <p>
+        Allow {{ .AppName }} to have full access to your
+        <span class="user-name">{{ .Username }}</span> account?
+      </p>
+      <div class="button-group">
+        <a class="primary-button" href="{{ .RedirectURI }}">Allow</a>
+        <a href="{{ .CancelURI }}">Cancel</a>
+      </div>
+    </div>
+  </body>
+</html>
