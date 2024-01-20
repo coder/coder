@@ -199,72 +199,125 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		if runtime.GOOS != "linux" {
 			t.Skip("JetBrains tracking is only supported on Linux")
 		}
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// JetBrains tracking works by looking at the process name listening on the
-		// forwarded port.  If the process's command line includes the magic string
-		// we are looking for, then we assume it is a JetBrains editor.  So when we
-		// connect to the port we must ensure the process includes that magic string
-		// to fool the agent into thinking this is JetBrains.  To do this we need to
-		// spawn an external process (in this case a simple echo server) so we can
-		// control the process name.  The -D here is just to mimic how Java options
-		// are set but is not necessary as the agent looks only for the magic
-		// string itself anywhere in the command.
-		_, b, _, ok := runtime.Caller(0)
-		require.True(t, ok)
-		dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
-		echoServerCmd := exec.Command("go", "run", dir,
-			"-D", agentssh.MagicProcessCmdlineJetBrains)
-		stdout, err := echoServerCmd.StdoutPipe()
-		require.NoError(t, err)
-		err = echoServerCmd.Start()
-		require.NoError(t, err)
-		defer echoServerCmd.Process.Kill()
-
-		// The echo server prints its port as the first line.
-		sc := bufio.NewScanner(stdout)
-		sc.Scan()
-		remotePort := sc.Text()
-
-		//nolint:dogsled
-		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
-
-		tunneledConn, err := sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", remotePort))
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			// always close on failure of test
-			_ = conn.Close()
-			_ = tunneledConn.Close()
-		})
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
-				ok, s.ConnectionCount, s.SessionCountJetBrains)
-			return ok && s.ConnectionCount > 0 &&
-				s.SessionCountJetBrains == 1
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats with conn open",
-		)
-
-		// Kill the server and connection after checking for the echo.
-		requireEcho(t, tunneledConn)
-		_ = echoServerCmd.Process.Kill()
-		_ = tunneledConn.Close()
-
-		require.Eventuallyf(t, func() bool {
-			s, ok := <-stats
-			t.Logf("got stats after disconnect %t, %d",
-				ok, s.SessionCountJetBrains)
-			return ok &&
-				s.SessionCountJetBrains == 0
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"never saw stats after conn closes",
-		)
+		tests := []struct {
+			name    string
+			network string
+			address string
+		}{
+			{"IPV4", "tcp4", "127.0.0.1"},
+			{"IPV4Localhost", "tcp4", "localhost"},
+			{"IPV6", "tcp6", "[::1]"},
+		}
+		for _, test := range tests {
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				verifyJetBrainsTracking(t, test.network, test.address)
+			})
+		}
 	})
+}
+
+func spawnEchoServer(t *testing.T, args ...string) (string, *exec.Cmd) {
+	_, b, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	dir := filepath.Join(filepath.Dir(b), "../scripts/echoserver/main.go")
+	//nolint:gosec
+	echoServerCmd := exec.Command("go", append([]string{"run", dir}, args...)...)
+
+	stderr, err := echoServerCmd.StderrPipe()
+	require.NoError(t, err)
+	go func() {
+		sc := bufio.NewScanner(stderr)
+		for sc.Scan() {
+			t.Logf("echo server stderr: %s", sc.Text())
+		}
+		t.Logf("echo server exited")
+	}()
+
+	stdout, err := echoServerCmd.StdoutPipe()
+	require.NoError(t, err)
+	err = echoServerCmd.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = stderr.Close()
+		_ = echoServerCmd.Process.Kill()
+	})
+
+	// The echo server prints its port as the first line.
+	sc := bufio.NewScanner(stdout)
+	sc.Scan()
+	remotePort := sc.Text()
+
+	return remotePort, echoServerCmd
+}
+
+func verifyJetBrainsTracking(t *testing.T, network, address string) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:dogsled
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+
+	// On Linux it is permissible to listen on the same port on different
+	// addresses, and when this happens `localhost` can route to the ipv6 loopback
+	// address instead of the ipv4 address.  Since we make requests to coderd with
+	// `localhost` this behavior can cause those requests to go to the ipv6 echo
+	// server instead of coderd when there is a port collision.  Listening on ipv4
+	// here occupies the port, preventing coderd from using it and running into
+	// this issue.
+	port := "0"
+	if network == "tcp6" {
+		port, _ = spawnEchoServer(t, "tcp4", "0")
+	}
+
+	// JetBrains tracking works by looking at the process name listening on
+	// the forwarded port.  If the process's command line includes the magic
+	// string we are looking for, then we assume it is a JetBrains editor.
+	// So when we connect to the port we must ensure the process includes
+	// that magic string to fool the agent into thinking this is JetBrains.
+	// To do this we need to spawn an external process (in this case a
+	// simple echo server) so we can control the process name.  The -D here
+	// is just to mimic how Java options are set but is not necessary as the
+	// agent looks only for the magic string itself anywhere in the command.
+	gotPort, echoServerCmd := spawnEchoServer(t, network, port, "-D", agentssh.MagicProcessCmdlineJetBrains)
+	if port != "0" {
+		require.Equal(t, gotPort, port) // Sanity check.
+	}
+
+	tunneledConn, err := sshClient.Dial(network, fmt.Sprintf("%s:%s", address, gotPort))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// always close on failure of test
+		_ = conn.Close()
+		_ = tunneledConn.Close()
+	})
+
+	require.Eventuallyf(t, func() bool {
+		s, ok := <-stats
+		t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
+			ok, s.ConnectionCount, s.SessionCountJetBrains)
+		return ok && s.ConnectionCount > 0 &&
+			s.SessionCountJetBrains == 1
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw stats with conn open",
+	)
+
+	// Kill the server and connection after checking for the echo.
+	requireEcho(t, tunneledConn)
+	_ = echoServerCmd.Process.Kill()
+	_ = tunneledConn.Close()
+
+	require.Eventuallyf(t, func() bool {
+		s, ok := <-stats
+		t.Logf("got stats after disconnect %t, %d",
+			ok, s.SessionCountJetBrains)
+		return ok &&
+			s.SessionCountJetBrains == 0
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw stats after conn closes",
+	)
 }
 
 func TestAgent_SessionExec(t *testing.T) {
