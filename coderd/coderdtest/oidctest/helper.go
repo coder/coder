@@ -1,14 +1,17 @@
 package oidctest
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -113,4 +116,52 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 	// Do any authenticated call to force the refresh
 	_, err := user.User(testutil.Context(t, testutil.WaitShort), "me")
 	require.NoError(t, err, "user must be able to be fetched")
+}
+
+// OAuth2GetCode emulates a user clicking "allow" on the IDP page. When doing
+// unit tests, it's easier to skip this step sometimes. It does make an actual
+// request to the IDP, so it should be equivalent to doing this "manually" with
+// actual requests.
+//
+// TODO: Is state param optional? Can we grab it from the authURL?
+func OAuth2GetCode(authURL string, state string, doRequest func(req *http.Request) (*http.Response, error)) (string, error) {
+	// We need to store some claims, because this is also an OIDC provider, and
+	// it expects some claims to be present.
+	// TODO: POST or GET method?
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, authURL, nil)
+	if err != nil {
+		return "", xerrors.Errorf("failed to create auth request: %w", err)
+	}
+
+	expCode := http.StatusTemporaryRedirect
+	resp, err := doRequest(r)
+	if err != nil {
+		return "", xerrors.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expCode {
+		return "", codersdk.ReadBodyAsError(resp)
+	}
+
+	to := resp.Header.Get("Location")
+	if to == "" {
+		return "", xerrors.Errorf("expected redirect location")
+	}
+
+	toURL, err := url.Parse(to)
+	if err != nil {
+		return "", xerrors.Errorf("failed to parse redirect location: %w", err)
+	}
+
+	code := toURL.Query().Get("code")
+	if code == "" {
+		return "", xerrors.Errorf("expected code in redirect location")
+	}
+
+	newState := toURL.Query().Get("state")
+	if newState != state {
+		return "", xerrors.Errorf("expected state %q, got %q", state, newState)
+	}
+	return code, nil
 }
