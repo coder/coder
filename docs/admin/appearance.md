@@ -55,7 +55,7 @@ The link icons are optional, and can be set to any url or
 and `docs` are available as three special icons.
 
 ### Configuration
-  
+
 #### Kubernetes
 
 To configure support links in your Coder Kubernetes deployment, update your Helm
