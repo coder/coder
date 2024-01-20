@@ -121,6 +121,17 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 	})
 }
 
+func (p *QueryParamParser) URL(vals url.Values, def *url.URL, queryParam string) *url.URL {
+	v, err := parseQueryParam(p, vals, url.Parse, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layout string) time.Time {
 	return p.timeWithMutate(vals, def, queryParam, layout, nil)
 }
