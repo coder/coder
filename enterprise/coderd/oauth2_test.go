@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestOAuthApps(t *testing.T) {
+func TestOAuth2ProviderApps(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Validation", func(t *testing.T) {
@@ -162,71 +162,62 @@ func TestOAuthApps(t *testing.T) {
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureOAuth2Provider: 1,
 			},
 		}})
+		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		_, err := client.OAuth2ProviderApp(ctx, uuid.New())
+		_, err := another.OAuth2ProviderApp(ctx, uuid.New())
 		require.Error(t, err)
 	})
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureOAuth2Provider: 1,
 			},
 		}})
+		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// No apps yet.
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		apps, err := client.OAuth2ProviderApps(ctx)
+		apps, err := another.OAuth2ProviderApps(ctx)
 		require.NoError(t, err)
 		require.Len(t, apps, 0)
 
 		// Should be able to add apps.
-		expected := []codersdk.OAuth2ProviderApp{}
-		for i := 0; i < 5; i++ {
-			postReq := codersdk.PostOAuth2ProviderAppRequest{
-				Name:        "foo-" + strconv.Itoa(i),
-				CallbackURL: "http://" + strconv.Itoa(i) + ".localhost:3000",
-			}
-			//nolint:gocritic // OAauth2 app management requires owner permission.
-			app, err := client.PostOAuth2ProviderApp(ctx, postReq)
-			require.NoError(t, err)
-			require.Equal(t, postReq.Name, app.Name)
-			require.Equal(t, postReq.CallbackURL, app.CallbackURL)
-			expected = append(expected, app)
+		expected := generateApps(ctx, t, client, "get-apps")
+		expectedOrder := []codersdk.OAuth2ProviderApp{
+			expected.Default, expected.NoPort, expected.Subdomain,
+			expected.Extra[0], expected.Extra[1],
 		}
 
 		// Should get all the apps now.
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		apps, err = client.OAuth2ProviderApps(ctx)
+		apps, err = another.OAuth2ProviderApps(ctx)
 		require.NoError(t, err)
 		require.Len(t, apps, 5)
-		require.Equal(t, expected, apps)
+		require.Equal(t, expectedOrder, apps)
 
 		// Should be able to keep the same name when updating.
 		req := codersdk.PutOAuth2ProviderAppRequest{
-			Name:        expected[0].Name,
+			Name:        expected.Default.Name,
 			CallbackURL: "http://coder.com",
 			Icon:        "test",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		newApp, err := client.PutOAuth2ProviderApp(ctx, expected[0].ID, req)
+		newApp, err := client.PutOAuth2ProviderApp(ctx, expected.Default.ID, req)
 		require.NoError(t, err)
 		require.Equal(t, req.Name, newApp.Name)
 		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
 		require.Equal(t, req.Icon, newApp.Icon)
-		require.Equal(t, expected[0].ID, newApp.ID)
+		require.Equal(t, expected.Default.ID, newApp.ID)
 
 		// Should be able to update name.
 		req = codersdk.PutOAuth2ProviderAppRequest{
@@ -235,34 +226,33 @@ func TestOAuthApps(t *testing.T) {
 			Icon:        "test",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		newApp, err = client.PutOAuth2ProviderApp(ctx, expected[0].ID, req)
+		newApp, err = client.PutOAuth2ProviderApp(ctx, expected.Default.ID, req)
 		require.NoError(t, err)
 		require.Equal(t, req.Name, newApp.Name)
 		require.Equal(t, req.CallbackURL, newApp.CallbackURL)
 		require.Equal(t, req.Icon, newApp.Icon)
-		require.Equal(t, expected[0].ID, newApp.ID)
+		require.Equal(t, expected.Default.ID, newApp.ID)
 
 		// Should be able to get a single app.
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		got, err := client.OAuth2ProviderApp(ctx, expected[0].ID)
+		got, err := another.OAuth2ProviderApp(ctx, expected.Default.ID)
 		require.NoError(t, err)
 		require.Equal(t, newApp, got)
 
 		// Should be able to delete an app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderApp(ctx, expected[0].ID)
+		err = client.DeleteOAuth2ProviderApp(ctx, expected.Default.ID)
 		require.NoError(t, err)
 
 		// Should show the new count.
-		//nolint:gocritic // OAauth2 app management requires owner permission.
-		newApps, err := client.OAuth2ProviderApps(ctx)
+		newApps, err := another.OAuth2ProviderApps(ctx)
 		require.NoError(t, err)
 		require.Len(t, newApps, 4)
-		require.Equal(t, expected[1:], newApps)
+
+		require.Equal(t, expectedOrder[1:], newApps)
 	})
 }
 
-func TestOAuthAppSecrets(t *testing.T) {
+func TestOAuth2ProviderAppSecrets(t *testing.T) {
 	t.Parallel()
 
 	client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
@@ -274,26 +264,14 @@ func TestOAuthAppSecrets(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Make some apps.
-	//nolint:gocritic // OAauth2 app management requires owner permission.
-	app1, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        "razzle-dazzle",
-		CallbackURL: "http://localhost",
-	})
-	require.NoError(t, err)
-
-	//nolint:gocritic // OAauth2 app management requires owner permission.
-	app2, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        "razzle-dazzle-the-sequel",
-		CallbackURL: "http://localhost",
-	})
-	require.NoError(t, err)
+	apps := generateApps(ctx, t, client, "app-secrets")
 
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
 
 		// Should not be able to create secrets for a non-existent app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		_, err = client.OAuth2ProviderAppSecrets(ctx, uuid.New())
+		_, err := client.OAuth2ProviderAppSecrets(ctx, uuid.New())
 		require.Error(t, err)
 
 		// Should not be able to delete non-existing secrets when there is no app.
@@ -303,16 +281,16 @@ func TestOAuthAppSecrets(t *testing.T) {
 
 		// Should not be able to delete non-existing secrets when the app exists.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderAppSecret(ctx, app1.ID, uuid.New())
+		err = client.DeleteOAuth2ProviderAppSecret(ctx, apps.Default.ID, uuid.New())
 		require.Error(t, err)
 
 		// Should not be able to delete an existing secret with the wrong app ID.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		secret, err := client.PostOAuth2ProviderAppSecret(ctx, app2.ID)
+		secret, err := client.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
 		require.NoError(t, err)
 
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderAppSecret(ctx, app1.ID, secret.ID)
+		err = client.DeleteOAuth2ProviderAppSecret(ctx, apps.Default.ID, secret.ID)
 		require.Error(t, err)
 	})
 
@@ -321,26 +299,26 @@ func TestOAuthAppSecrets(t *testing.T) {
 
 		// No secrets yet.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		secrets, err := client.OAuth2ProviderAppSecrets(ctx, app1.ID)
+		secrets, err := client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 0)
 
 		// Should be able to create secrets.
 		for i := 0; i < 5; i++ {
 			//nolint:gocritic // OAauth2 app management requires owner permission.
-			secret, err := client.PostOAuth2ProviderAppSecret(ctx, app1.ID)
+			secret, err := client.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 			require.NoError(t, err)
 			require.NotEmpty(t, secret.ClientSecretFull)
 			require.True(t, len(secret.ClientSecretFull) > 6)
 
 			//nolint:gocritic // OAauth2 app management requires owner permission.
-			_, err = client.PostOAuth2ProviderAppSecret(ctx, app2.ID)
+			_, err = client.PostOAuth2ProviderAppSecret(ctx, apps.NoPort.ID)
 			require.NoError(t, err)
 		}
 
 		// Should get secrets now, but only for the one app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		secrets, err = client.OAuth2ProviderAppSecrets(ctx, app1.ID)
+		secrets, err = client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 5)
 		for _, secret := range secrets {
@@ -349,19 +327,53 @@ func TestOAuthAppSecrets(t *testing.T) {
 
 		// Should be able to delete a secret.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderAppSecret(ctx, app1.ID, secrets[0].ID)
+		err = client.DeleteOAuth2ProviderAppSecret(ctx, apps.Default.ID, secrets[0].ID)
 		require.NoError(t, err)
-		secrets, err = client.OAuth2ProviderAppSecrets(ctx, app1.ID)
+		secrets, err = client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 4)
 
 		// No secrets once the app is deleted.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		err = client.DeleteOAuth2ProviderApp(ctx, app1.ID)
+		err = client.DeleteOAuth2ProviderApp(ctx, apps.Default.ID)
 		require.NoError(t, err)
 
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		_, err = client.OAuth2ProviderAppSecrets(ctx, app1.ID)
+		_, err = client.OAuth2ProviderAppSecrets(ctx, apps.Default.ID)
 		require.Error(t, err)
 	})
+}
+
+type provisionedApps struct {
+	Default   codersdk.OAuth2ProviderApp
+	NoPort    codersdk.OAuth2ProviderApp
+	Subdomain codersdk.OAuth2ProviderApp
+	// For sorting purposes these are included. You will likely never touch them.
+	Extra []codersdk.OAuth2ProviderApp
+}
+
+func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, suffix string) provisionedApps {
+	create := func(name, callback string) codersdk.OAuth2ProviderApp {
+		name = fmt.Sprintf("%s-%s", name, suffix)
+		//nolint:gocritic // OAauth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        name,
+			CallbackURL: callback,
+			Icon:        "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, name, app.Name)
+		require.Equal(t, callback, app.CallbackURL)
+		return app
+	}
+
+	return provisionedApps{
+		Default:   create("razzle-dazzle-a", "http://localhost1:8080/foo/bar"),
+		NoPort:    create("razzle-dazzle-b", "http://localhost2"),
+		Subdomain: create("razzle-dazzle-z", "http://30.localhost:3000"),
+		Extra: []codersdk.OAuth2ProviderApp{
+			create("second-to-last", "http://20.localhost:3000"),
+			create("woo-10", "http://10.localhost:3000"),
+		},
+	}
 }
