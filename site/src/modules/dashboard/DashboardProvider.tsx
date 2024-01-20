@@ -14,7 +14,6 @@ import {
   type PropsWithChildren,
   createContext,
   useCallback,
-  useContext,
   useState,
 } from "react";
 import { appearance } from "api/queries/appearance";
@@ -27,16 +26,16 @@ interface Appearance {
   setPreview: (config: AppearanceConfig) => void;
 }
 
-interface DashboardProviderValue {
+export interface DashboardValue {
   buildInfo: BuildInfoResponse;
   entitlements: Entitlements;
   experiments: Experiments;
   appearance: Appearance;
 }
 
-export const DashboardProviderContext = createContext<
-  DashboardProviderValue | undefined
->(undefined);
+export const DashboardContext = createContext<DashboardValue | undefined>(
+  undefined,
+);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const buildInfoQuery = useQuery(buildInfo());
@@ -83,7 +82,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   }
 
   return (
-    <DashboardProviderContext.Provider
+    <DashboardContext.Provider
       value={{
         buildInfo: buildInfoQuery.data,
         entitlements: entitlementsQuery.data,
@@ -96,23 +95,6 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
       }}
     >
       {children}
-    </DashboardProviderContext.Provider>
+    </DashboardContext.Provider>
   );
-};
-
-export const useDashboard = (): DashboardProviderValue => {
-  const context = useContext(DashboardProviderContext);
-
-  if (!context) {
-    throw new Error(
-      "useDashboard only can be used inside of DashboardProvider",
-    );
-  }
-
-  return context;
-};
-
-export const useIsWorkspaceActionsEnabled = (): boolean => {
-  const { entitlements } = useDashboard();
-  return entitlements.features["advanced_template_scheduling"].enabled;
 };

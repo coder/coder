@@ -8,7 +8,7 @@ import {
 import { useOrganizationId } from "hooks";
 import { useNavigate } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 import { uploadFile } from "api/queries/files";
 

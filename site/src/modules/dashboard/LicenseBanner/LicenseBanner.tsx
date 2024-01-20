@@ -1,5 +1,5 @@
 import { type FC } from "react";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 export const LicenseBanner: FC = () => {

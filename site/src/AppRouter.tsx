@@ -5,7 +5,7 @@ import {
   BrowserRouter as Router,
   Navigate,
 } from "react-router-dom";
-import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
+import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";

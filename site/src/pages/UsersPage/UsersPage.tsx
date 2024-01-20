@@ -1,6 +1,9 @@
 import { type FC, type PropsWithChildren, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
-import { type User } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
 import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
@@ -14,18 +17,12 @@ import {
   updateRoles,
   authMethods,
 } from "api/queries/users";
-
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
 import { useOrganizationId } from "hooks";
 import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
-import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateRandomString } from "utils/random";
-
-import { Helmet } from "react-helmet-async";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -34,6 +31,7 @@ import { pageTitle } from "utils/page";
 import { UsersPageView } from "./UsersPageView";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useStatusFilterMenu } from "./UsersFilter";
 
 export const UsersPage: FC<PropsWithChildren> = () => {
   const queryClient = useQueryClient();

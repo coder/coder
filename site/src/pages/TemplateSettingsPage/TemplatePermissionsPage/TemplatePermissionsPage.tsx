@@ -3,9 +3,9 @@ import Link from "@mui/material/Link";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -15,9 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 
-export const TemplatePermissionsPage: FC<
-  React.PropsWithChildren<unknown>
-> = () => {
+export const TemplatePermissionsPage: FC = () => {
   const organizationId = useOrganizationId();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();

@@ -19,7 +19,7 @@ import {
   MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { ComponentProps } from "react";
 import {
   MockMenu,
@@ -141,7 +141,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
   },
   decorators: [
     (Story) => (
-      <DashboardProviderContext.Provider
+      <DashboardContext.Provider
         value={{
           buildInfo: MockBuildInfo,
           entitlements: MockEntitlementsWithScheduling,
@@ -150,7 +150,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
         }}
       >
         <Story />
-      </DashboardProviderContext.Provider>
+      </DashboardContext.Provider>
     ),
   ],
 };

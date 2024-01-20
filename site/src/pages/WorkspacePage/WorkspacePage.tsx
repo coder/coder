@@ -1,20 +1,20 @@
-import { Loader } from "components/Loader/Loader";
-import { FC, useEffect } from "react";
+import { type FC, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useOrganizationId } from "hooks";
-import { Margins } from "components/Margins/Margins";
 import { useQuery, useQueryClient } from "react-query";
+import { watchWorkspace } from "api/api";
+import type { Workspace } from "api/typesGenerated";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
-import { WorkspacePermissions, workspaceChecks } from "./permissions";
-import { watchWorkspace } from "api/api";
-import { Workspace } from "api/typesGenerated";
+import { useOrganizationId } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { Navbar } from "components/Dashboard/Navbar/Navbar";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { Navbar } from "modules/dashboard/Navbar/Navbar";
+import { WorkspacePermissions, workspaceChecks } from "./permissions";
+import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 export const WorkspacePage: FC = () => {
   const queryClient = useQueryClient();

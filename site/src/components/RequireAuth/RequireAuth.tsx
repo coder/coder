@@ -5,7 +5,7 @@ import { embedRedirect } from "utils/redirect";
 import { isApiError } from "api/errors";
 import { useAuth } from "contexts/AuthProvider/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "../Dashboard/DashboardProvider";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { FullScreenLoader } from "../Loader/FullScreenLoader";
 
 export const RequireAuth: FC = () => {

@@ -12,7 +12,7 @@ import { useOrganizationId } from "hooks";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
 export const DuplicateTemplateView = () => {
