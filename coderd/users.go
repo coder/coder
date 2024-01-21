@@ -572,7 +572,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // Returns recent build parameters for the signed-in user.
 //
 // @Summary Get recent build parameters for user.
-// @ID get-user-params
+// @ID get-recent-build-parameters-for-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
