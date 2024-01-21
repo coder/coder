@@ -223,7 +223,7 @@ type OIDCAuthMethod struct {
 
 type UserParameter struct {
 	Name       string    `json:"name"`
-	Value      string    `json:"display_name"`
+	Value      string    `json:"value"`
 	LastUsedAt time.Time `json:"last_used"`
 }
 

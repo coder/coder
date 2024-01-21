@@ -1420,7 +1420,7 @@ export interface UserLoginType {
 // From codersdk/users.go
 export interface UserParameter {
   readonly name: string;
-  readonly display_name: string;
+  readonly value: string;
   readonly last_used: string;
 }
 

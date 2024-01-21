@@ -4,7 +4,7 @@ import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState, useMemo } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -43,6 +43,10 @@ export const Language = {
     "Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
 } as const;
 
+export type DefaultBuildParameter = {
+  reason: JSX.Element;
+} & TypesGen.WorkspaceBuildParameter;
+
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
   error: unknown;
@@ -55,7 +59,7 @@ export interface CreateWorkspacePageViewProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
-  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
+  defaultBuildParameters: DefaultBuildParameter[];
   permissions: CreateWSPermissions;
   creatingWorkspace: boolean;
   onCancel: () => void;
@@ -124,6 +128,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     form,
     error,
   );
+
+  const defaultReasons = useMemo(() => {
+    return defaultBuildParameters.reduce(
+      (acc, param) => {
+        acc[param.name] = param.reason;
+        return acc;
+      },
+      {} as Record<string, JSX.Element>,
+    );
+  }, [defaultBuildParameters]);
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
@@ -211,6 +225,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {parameters && (
           <>
             <MutableTemplateParametersSection
+              defaultReasons={defaultReasons}
               templateParameters={parameters}
               getInputProps={(parameter, index) => {
                 return {
@@ -231,6 +246,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               }}
             />
             <ImmutableTemplateParametersSection
+              defaultReasons={defaultReasons}
               templateParameters={parameters}
               classes={{
                 root: css`

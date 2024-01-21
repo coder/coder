@@ -8,6 +8,7 @@ import { ComponentProps, FC } from "react";
 
 export type TemplateParametersSectionProps = {
   templateParameters: TemplateVersionParameter[];
+  defaultReasons?: Record<string, JSX.Element>;
   getInputProps: (
     parameter: TemplateVersionParameter,
     index: number,
@@ -16,7 +17,12 @@ export type TemplateParametersSectionProps = {
 
 export const MutableTemplateParametersSection: FC<
   TemplateParametersSectionProps
-> = ({ templateParameters, getInputProps, ...formSectionProps }) => {
+> = ({
+  templateParameters,
+  getInputProps,
+  defaultReasons,
+  ...formSectionProps
+}) => {
   const hasMutableParameters =
     templateParameters.filter((p) => p.mutable).length > 0;
 
@@ -36,6 +42,9 @@ export const MutableTemplateParametersSection: FC<
                     {...getInputProps(parameter, index)}
                     key={parameter.name}
                     parameter={parameter}
+                    defaultReason={
+                      defaultReasons && defaultReasons[parameter.name]
+                    }
                   />
                 ),
             )}

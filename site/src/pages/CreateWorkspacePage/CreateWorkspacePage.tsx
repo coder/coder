@@ -1,5 +1,6 @@
 import {
   TemplateVersionParameter,
+  UserParameter,
   Workspace,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
@@ -9,7 +10,10 @@ import { type FC, useCallback, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
+import {
+  CreateWorkspacePageView,
+  DefaultBuildParameter,
+} from "./CreateWorkspacePageView";
 import { Loader } from "components/Loader/Loader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -29,6 +33,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { userParameters } from "api/queries/users";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -41,7 +46,6 @@ const CreateWorkspacePage: FC = () => {
   const me = useMe();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = getDefaultName(mode, searchParams);
@@ -53,6 +57,8 @@ const CreateWorkspacePage: FC = () => {
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
   const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const userParametersQuery = useQuery(userParameters());
+
   const permissionsQuery = useQuery(
     checkAuthorization({
       checks: createWorkspaceChecks(organizationId),
@@ -87,6 +93,11 @@ const CreateWorkspacePage: FC = () => {
       navigate(`/@${workspace.owner_name}/${workspace.name}`);
     },
     [navigate],
+  );
+
+  const defaultBuildParameters = getDefaultBuildParameters(
+    searchParams,
+    userParametersQuery.data ? userParametersQuery.data : [],
   );
 
   const automateWorkspaceCreation = useEffectEvent(async () => {
@@ -210,15 +221,31 @@ const useExternalAuth = (versionId: string | undefined) => {
 
 const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
-): WorkspaceBuildParameter[] => {
-  const buildValues: WorkspaceBuildParameter[] = [];
+  userParameters: UserParameter[],
+): DefaultBuildParameter[] => {
+  const userParamMap = userParameters.reduce((acc, param) => {
+    acc.set(param.name, param);
+    return acc;
+  }, new Map<string, UserParameter>());
+
+  const buildValues: DefaultBuildParameter[] = [];
   Array.from(urlSearchParams.keys())
     .filter((key) => key.startsWith("param."))
     .forEach((key) => {
       const name = key.replace("param.", "");
       const value = urlSearchParams.get(key) ?? "";
-      buildValues.push({ name, value });
+      // URL should take precedence over user parameters
+      userParamMap.delete(name);
+      buildValues.push({ name, value, reason: <>supplied by URL</> });
     });
+
+  userParamMap.forEach((param) => {
+    buildValues.push({
+      name: param.name,
+      value: param.value,
+      reason: <>recently used value</>,
+    });
+  });
   return buildValues;
 };
 

@@ -137,6 +137,8 @@ export type RichParameterInputProps = Omit<
   "size" | "onChange"
 > & {
   parameter: TemplateVersionParameter;
+  // defaultReason is commentary on how the default value was determined.
+  defaultReason?: JSX.Element;
   onChange: (value: string) => void;
   size?: Size;
 };
@@ -144,6 +146,7 @@ export type RichParameterInputProps = Omit<
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   parameter,
   size = "medium",
+  defaultReason,
   ...fieldProps
 }) => {
   return (
@@ -156,6 +159,11 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <ParameterLabel parameter={parameter} />
       <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
+        {defaultReason && (
+          <div css={{ marginTop: 4, fontSize: 12 }}>
+            🪄 Autofilled {defaultReason}
+          </div>
+        )}
       </div>
     </Stack>
   );

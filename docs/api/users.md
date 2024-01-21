@@ -1035,9 +1035,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
 ```json
 [
   {
-    "display_name": "string",
     "last_used": "string",
-    "name": "string"
+    "name": "string",
+    "value": "string"
   }
 ]
 ```
@@ -1052,12 +1052,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
 
 Status Code **200**
 
-| Name             | Type   | Required | Restrictions | Description |
-| ---------------- | ------ | -------- | ------------ | ----------- |
-| `[array item]`   | array  | false    |              |             |
-| `» display_name` | string | false    |              |             |
-| `» last_used`    | string | false    |              |             |
-| `» name`         | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» last_used`  | string | false    |              |             |
+| `» name`       | string | false    |              |             |
+| `» value`      | string | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

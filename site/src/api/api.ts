@@ -129,6 +129,13 @@ export const getAuthenticatedUser = async () => {
   return response.data;
 };
 
+export const getUserParameters = async () => {
+  const response = await axios.get<TypesGen.UserParameter[]>(
+    "/api/v2/users/me/parameters",
+  );
+  return response.data;
+};
+
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",

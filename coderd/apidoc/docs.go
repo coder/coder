@@ -11819,13 +11819,13 @@ const docTemplate = `{
         "codersdk.UserParameter": {
             "type": "object",
             "properties": {
-                "display_name": {
-                    "type": "string"
-                },
                 "last_used": {
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "string"
                 }
             }

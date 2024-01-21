@@ -9893,6 +9893,7 @@ FROM (
 ) sub
 WHERE
     sub.rn = 1
+LIMIT 100
 `
 
 type GetUserWorkspaceBuildParametersRow struct {

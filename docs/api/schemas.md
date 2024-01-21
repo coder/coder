@@ -5788,19 +5788,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "display_name": "string",
   "last_used": "string",
-  "name": "string"
+  "name": "string",
+  "value": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `display_name` | string | false    |              |             |
-| `last_used`    | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `last_used` | string | false    |              |             |
+| `name`      | string | false    |              |             |
+| `value`     | string | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
