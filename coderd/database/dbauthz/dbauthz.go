@@ -1759,6 +1759,8 @@ func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID u
 	if err != nil {
 		return nil, err
 	}
+	// The ability to update the user implies either the user themselves or someone
+	// with complete admin access to the user account.
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, u.UserDataRBACObject()); err != nil {
 		return nil, err
 	}

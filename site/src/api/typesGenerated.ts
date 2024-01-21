@@ -1421,7 +1421,7 @@ export interface UserLoginType {
 export interface UserParameter {
   readonly name: string;
   readonly value: string;
-  readonly last_used: string;
+  readonly last_used_at: string;
 }
 
 // From codersdk/deployment.go
@@ -2122,8 +2122,10 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
-export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
-  ["blocking", "non-blocking"];
+export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] = [
+  "blocking",
+  "non-blocking",
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =

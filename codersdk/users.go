@@ -224,7 +224,7 @@ type OIDCAuthMethod struct {
 type UserParameter struct {
 	Name       string    `json:"name"`
 	Value      string    `json:"value"`
-	LastUsedAt time.Time `json:"last_used"`
+	LastUsedAt time.Time `json:"last_used_at" format:"date-time"`
 }
 
 // UserParameters returns all recently used parameters for the given user.
