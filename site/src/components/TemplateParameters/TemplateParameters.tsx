@@ -5,10 +5,11 @@ import {
   RichParameterInputProps,
 } from "components/RichParameterInput/RichParameterInput";
 import { ComponentProps, FC } from "react";
+import { AutofillSource } from "utils/richParameters";
 
 export type TemplateParametersSectionProps = {
   templateParameters: TemplateVersionParameter[];
-  defaultReasons?: Record<string, JSX.Element>;
+  defaultReasons?: Record<string, AutofillSource>;
   getInputProps: (
     parameter: TemplateVersionParameter,
     index: number,
@@ -42,7 +43,7 @@ export const MutableTemplateParametersSection: FC<
                     {...getInputProps(parameter, index)}
                     key={parameter.name}
                     parameter={parameter}
-                    defaultReason={
+                    autofillSource={
                       defaultReasons && defaultReasons[parameter.name]
                     }
                   />

@@ -1,3 +1,4 @@
+import { randParamName } from "./../parameters";
 import { test, expect } from "@playwright/test";
 import {
   createTemplate,
@@ -101,10 +102,16 @@ test("create workspace with default and required parameters", async ({
 });
 
 test("create workspace and overwrite default parameters", async ({ page }) => {
-  const richParameters: RichParameter[] = [secondParameter, fourthParameter];
+  // We use randParamName to prevent the new values from corrupting user_history
+  // and thus affecting other tests.
+  const richParameters: RichParameter[] = [
+    randParamName(secondParameter),
+    randParamName(fourthParameter),
+  ];
+
   const buildParameters = [
-    { name: secondParameter.name, value: "AAAAA" },
-    { name: fourthParameter.name, value: "false" },
+    { name: richParameters[0].name, value: "AAAAA" },
+    { name: richParameters[1].name, value: "false" },
   ];
   const template = await createTemplate(
     page,

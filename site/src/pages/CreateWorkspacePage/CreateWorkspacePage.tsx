@@ -9,10 +9,7 @@ import { type FC, useCallback, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import {
-  CreateWorkspacePageView,
-  DefaultBuildParameter,
-} from "./CreateWorkspacePageView";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import { Loader } from "components/Loader/Loader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -33,6 +30,7 @@ import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { userParameters } from "api/queries/users";
+import { AutofillBuildParameter } from "utils/richParameters";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -94,7 +92,7 @@ const CreateWorkspacePage: FC = () => {
     [navigate],
   );
 
-  const defaultBuildParameters = getDefaultBuildParameters(
+  const autofillParameters = getAutofillParameters(
     searchParams,
     userParametersQuery.data ? userParametersQuery.data : [],
   );
@@ -104,7 +102,7 @@ const CreateWorkspacePage: FC = () => {
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
-        defaultBuildParameters,
+        defaultBuildParameters: autofillParameters,
         defaultName,
         versionId: realizedVersionId,
       });
@@ -135,7 +133,7 @@ const CreateWorkspacePage: FC = () => {
           mode={mode}
           defaultName={defaultName}
           defaultOwner={me}
-          defaultBuildParameters={defaultBuildParameters}
+          autofillParameters={autofillParameters}
           error={createWorkspaceMutation.error}
           resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
@@ -218,16 +216,16 @@ const useExternalAuth = (versionId: string | undefined) => {
   };
 };
 
-const getDefaultBuildParameters = (
+const getAutofillParameters = (
   urlSearchParams: URLSearchParams,
   userParameters: UserParameter[],
-): DefaultBuildParameter[] => {
+): AutofillBuildParameter[] => {
   const userParamMap = userParameters.reduce((acc, param) => {
     acc.set(param.name, param);
     return acc;
   }, new Map<string, UserParameter>());
 
-  const buildValues: DefaultBuildParameter[] = [];
+  const buildValues: AutofillBuildParameter[] = [];
   Array.from(urlSearchParams.keys())
     .filter((key) => key.startsWith("param."))
     .forEach((key) => {
@@ -235,18 +233,14 @@ const getDefaultBuildParameters = (
       const value = urlSearchParams.get(key) ?? "";
       // URL should take precedence over user parameters
       userParamMap.delete(name);
-      buildValues.push({ name, value, reason: <>supplied by URL</> });
+      buildValues.push({ name, value, source: "url" });
     });
 
   userParamMap.forEach((param) => {
     buildValues.push({
       name: param.name,
       value: param.value,
-      reason: (
-        <>
-          recently used <code>{param.name}</code> value.
-        </>
-      ),
+      source: "user_history",
     });
   });
   return buildValues;

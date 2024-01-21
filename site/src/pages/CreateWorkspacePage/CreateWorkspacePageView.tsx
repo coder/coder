@@ -20,6 +20,8 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import {
+  AutofillBuildParameter,
+  AutofillSource,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
@@ -43,10 +45,6 @@ export const Language = {
     "Duplicating a workspace only copies its parameters. No state from the old workspace is copied over.",
 } as const;
 
-export type DefaultBuildParameter = {
-  reason: JSX.Element;
-} & TypesGen.WorkspaceBuildParameter;
-
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
   error: unknown;
@@ -59,7 +57,7 @@ export interface CreateWorkspacePageViewProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
-  defaultBuildParameters: DefaultBuildParameter[];
+  autofillParameters: AutofillBuildParameter[];
   permissions: CreateWSPermissions;
   creatingWorkspace: boolean;
   onCancel: () => void;
@@ -81,7 +79,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   externalAuthPollingState,
   startPollingExternalAuth,
   parameters,
-  defaultBuildParameters,
+  autofillParameters,
   permissions,
   creatingWorkspace,
   onSubmit,
@@ -101,7 +99,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         template_id: template.id,
         rich_parameter_values: getInitialRichParameterValues(
           parameters,
-          defaultBuildParameters,
+          autofillParameters,
         ),
       },
       validationSchema: Yup.object({
@@ -129,15 +127,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     error,
   );
 
-  const defaultReasons = useMemo(() => {
-    return defaultBuildParameters.reduce(
+  const defaultSources = useMemo(() => {
+    return autofillParameters.reduce(
       (acc, param) => {
-        acc[param.name] = param.reason;
+        acc[param.name] = param.source;
         return acc;
       },
-      {} as Record<string, JSX.Element>,
+      {} as Record<string, AutofillSource>,
     );
-  }, [defaultBuildParameters]);
+  }, [autofillParameters]);
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
@@ -225,7 +223,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {parameters && (
           <>
             <MutableTemplateParametersSection
-              defaultReasons={defaultReasons}
+              defaultReasons={defaultSources}
               templateParameters={parameters}
               getInputProps={(parameter, index) => {
                 return {
@@ -246,7 +244,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               }}
             />
             <ImmutableTemplateParametersSection
-              defaultReasons={defaultReasons}
+              defaultReasons={defaultSources}
               templateParameters={parameters}
               classes={{
                 root: css`

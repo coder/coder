@@ -128,6 +128,12 @@ export const seventhParameter: RichParameter = {
   order: 1,
 };
 
+// randParamName returns a new parameter with a random name.
+export const randParamName = (p: RichParameter): RichParameter => {
+  p.name += Math.random().toString(36).substring(7);
+  return p;
+};
+
 // Build options
 
 export const firstBuildOption: RichParameter = {

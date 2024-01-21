@@ -4,25 +4,42 @@ import {
 } from "api/typesGenerated";
 import * as Yup from "yup";
 
+export type AutofillSource = "user_history" | "url";
+
+export type AutofillBuildParameter = {
+  source: AutofillSource;
+} & WorkspaceBuildParameter;
+
 export const getInitialRichParameterValues = (
-  templateParameters: TemplateVersionParameter[],
-  buildParameters?: WorkspaceBuildParameter[],
+  templateParams: TemplateVersionParameter[],
+  autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
-  return templateParameters.map((parameter) => {
-    const existentBuildParameter = buildParameters?.find(
+  return templateParams.map((parameter) => {
+    const autofillParam = autofillParams?.find(
       (p) => p.name === parameter.name,
     );
-    const shouldReturnTheDefaultValue =
-      !existentBuildParameter ||
-      !isValidValue(parameter, existentBuildParameter) ||
-      parameter.ephemeral;
-    if (shouldReturnTheDefaultValue) {
-      return {
-        name: parameter.name,
-        value: parameter.default_value,
-      };
+    if (autofillParam !== undefined && isValidValue(parameter, autofillParam)) {
+      // URL takes precedence over all other sources.
+      if (autofillParam.source === "url") {
+        return {
+          name: parameter.name,
+          value: autofillParam.value,
+        };
+      }
+
+      // Need to decide whether user_history is more important than default value.
+      if (autofillParam.source === "user_history") {
+        return {
+          name: parameter.name,
+          value: autofillParam.value,
+        };
+      }
     }
-    return existentBuildParameter;
+
+    return {
+      name: parameter.name,
+      value: parameter.default_value,
+    };
   });
 };
 

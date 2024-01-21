@@ -10,6 +10,7 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { AutofillSource } from "utils/richParameters";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -137,8 +138,7 @@ export type RichParameterInputProps = Omit<
   "size" | "onChange"
 > & {
   parameter: TemplateVersionParameter;
-  // defaultReason is commentary on how the default value was determined.
-  defaultReason?: JSX.Element;
+  autofillSource?: AutofillSource;
   onChange: (value: string) => void;
   size?: Size;
 };
@@ -146,7 +146,7 @@ export type RichParameterInputProps = Omit<
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   parameter,
   size = "medium",
-  defaultReason,
+  autofillSource,
   ...fieldProps
 }) => {
   return (
@@ -159,9 +159,15 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <ParameterLabel parameter={parameter} />
       <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
-        {defaultReason && (
+        {autofillSource && (
           <div css={{ marginTop: 4, fontSize: 12 }}>
-            🪄 Autofilled: {defaultReason}
+            🪄 Autofilled:{" "}
+            {
+              {
+                ["url"]: "supplied by URL.",
+                ["user_history"]: "recently used value.",
+              }[autofillSource]
+            }
           </div>
         )}
       </div>

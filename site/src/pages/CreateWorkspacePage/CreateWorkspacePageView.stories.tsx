@@ -17,7 +17,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
   args: {
     defaultName: "",
     defaultOwner: MockUser,
-    defaultBuildParameters: [],
+    autofillParameters: [],
     template: MockTemplate,
     parameters: [],
     externalAuth: [],
@@ -86,11 +86,11 @@ export const Parameters: Story = {
         ephemeral: false,
       },
     ],
-    defaultBuildParameters: [
+    autofillParameters: [
       {
         name: "first_parameter",
         value: "It works!",
-        reason: <>recently used.</>,
+        source: "user_history",
       },
     ],
   },
