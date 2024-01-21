@@ -291,5 +291,5 @@ parameters.
    This feature enables platform teams to create pre-filled template creation
    links.
 2. Coder will populate recently used parameter key-value pairs for the user.
-   This feature helps reduce repetition on common parameters such as
+   This feature helps reduce repetition when filling common parameters such as
    `dotfiles_url` or `region`.
