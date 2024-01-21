@@ -119,7 +119,7 @@ const filteredServerLogLines = (chunk: string): string[] =>
 
 const exportDebugPprof = async (outputFile: string) => {
   const response = await axios.get(
-    "http://127.0.0.1:6060/debug/pprof/goroutine?debug=1",
+    "http://127.0.0.1:6062/debug/pprof/goroutine?debug=1",
   );
   if (response.status !== 200) {
     throw new Error(`Error: Received status code ${response.status}`);
