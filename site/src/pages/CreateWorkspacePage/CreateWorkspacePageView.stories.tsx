@@ -86,6 +86,13 @@ export const Parameters: Story = {
         ephemeral: false,
       },
     ],
+    defaultBuildParameters: [
+      {
+        name: "first_parameter",
+        value: "It works!",
+        reason: <>recently used.</>,
+      },
+    ],
   },
 };
 

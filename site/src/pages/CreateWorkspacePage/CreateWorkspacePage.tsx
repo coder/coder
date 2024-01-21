@@ -2,7 +2,6 @@ import {
   TemplateVersionParameter,
   UserParameter,
   Workspace,
-  WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
@@ -243,7 +242,11 @@ const getDefaultBuildParameters = (
     buildValues.push({
       name: param.name,
       value: param.value,
-      reason: <>recently used value</>,
+      reason: (
+        <>
+          recently used <code>{param.name}</code> value.
+        </>
+      ),
     });
   });
   return buildValues;

@@ -161,7 +161,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
         {defaultReason && (
           <div css={{ marginTop: 4, fontSize: 12 }}>
-            🪄 Autofilled {defaultReason}
+            🪄 Autofilled: {defaultReason}
           </div>
         )}
       </div>

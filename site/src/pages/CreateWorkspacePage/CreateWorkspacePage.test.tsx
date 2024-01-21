@@ -241,7 +241,9 @@ describe("CreateWorkspacePage", () => {
         "me",
         expect.objectContaining({
           template_id: MockTemplate.id,
-          rich_parameter_values: [{ name: param, value: paramValue }],
+          rich_parameter_values: [
+            { name: param, value: paramValue, reason: <>supplied by URL</> },
+          ],
         }),
       );
     });
@@ -266,7 +268,9 @@ describe("CreateWorkspacePage", () => {
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
-          rich_parameter_values: [{ name: param, value: paramValue }],
+          rich_parameter_values: [
+            { name: param, value: paramValue, reason: <>supplied by URL</> },
+          ],
         }),
       );
     });

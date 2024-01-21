@@ -3758,7 +3758,7 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
-func (q *FakeQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID uuid.UUID) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, ownerID uuid.UUID) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
