@@ -221,6 +221,28 @@ type OIDCAuthMethod struct {
 	IconURL    string `json:"iconUrl"`
 }
 
+type UserParameter struct {
+	Name       string    `json:"name"`
+	Value      string    `json:"display_name"`
+	LastUsedAt time.Time `json:"last_used"`
+}
+
+// UserParameters returns all recently used parameters for the given user.
+func (c *Client) UserParameters(ctx context.Context, user string) ([]UserParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/parameters", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var params []UserParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
 // HasFirstUser returns whether the first user has been created.
 func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/first", nil)

@@ -5784,6 +5784,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
 
+## codersdk.UserParameter
+
+```json
+{
+  "display_name": "string",
+  "last_used": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `last_used`    | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
 ## codersdk.UserQuietHoursScheduleConfig
 
 ```json

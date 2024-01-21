@@ -9870,6 +9870,60 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 	return err
 }
 
+const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many
+SELECT
+    sub.name,
+    sub.value,
+    sub.created_at
+FROM (
+    SELECT
+        wbp.name,
+        wbp.value,
+        wb.created_at,
+        ROW_NUMBER() OVER (PARTITION BY wbp.name ORDER BY wb.created_at DESC) as rn
+    FROM
+        workspace_build_parameters wbp
+    JOIN 
+        workspace_builds wb ON wb.id = wbp.workspace_build_id
+    JOIN
+        workspaces w ON w.id = wb.workspace_id
+    WHERE
+        w.owner_id = $1
+        AND wb.transition = 'start'
+) sub
+WHERE
+    sub.rn = 1
+`
+
+type GetUserWorkspaceBuildParametersRow struct {
+	Name      string    `db:"name" json:"name"`
+	Value     string    `db:"value" json:"value"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID uuid.UUID) ([]GetUserWorkspaceBuildParametersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserWorkspaceBuildParameters, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserWorkspaceBuildParametersRow
+	for rows.Next() {
+		var i GetUserWorkspaceBuildParametersRow
+		if err := rows.Scan(&i.Name, &i.Value, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
 SELECT
     workspace_build_id, name, value

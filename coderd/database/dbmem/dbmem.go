@@ -3758,6 +3758,42 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
+func (q *FakeQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID uuid.UUID) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	userWorkspaceIDs := make(map[uuid.UUID]struct{})
+	for _, ws := range q.workspaces {
+		if ws.OwnerID != ownerID {
+			continue
+		}
+		userWorkspaceIDs[ws.ID] = struct{}{}
+	}
+
+	userWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
+	for _, wb := range q.workspaceBuilds {
+		if _, ok := userWorkspaceIDs[wb.WorkspaceID]; !ok {
+			continue
+		}
+		userWorkspaceBuilds[wb.ID] = wb
+	}
+
+	userWorkspaceBuildParameters := make([]database.GetUserWorkspaceBuildParametersRow, 0)
+	for _, wbp := range q.workspaceBuildParameters {
+		wb, ok := userWorkspaceBuilds[wbp.WorkspaceBuildID]
+		if !ok {
+			continue
+		}
+		userWorkspaceBuildParameters = append(userWorkspaceBuildParameters, database.GetUserWorkspaceBuildParametersRow{
+			Name:      wbp.Name,
+			Value:     wbp.Value,
+			CreatedAt: wb.CreatedAt,
+		})
+	}
+
+	return userWorkspaceBuildParameters, nil
+}
+
 func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return nil, err

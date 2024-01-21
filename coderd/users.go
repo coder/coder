@@ -569,6 +569,53 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
 }
 
+// Returns recent build parameters for the signed-in user.
+//
+// @Summary Get recent build parameters for user.
+// @ID get-user-params
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {array} codersdk.UserParameter
+// @Router /users/{user}/parameters [get]
+func (api *API) userParameters(rw http.ResponseWriter, r *http.Request) {
+	var (
+		apiKey = httpmw.APIKey(r)
+		user   = httpmw.UserParam(r)
+	)
+
+	if apiKey.UserID != user.ID {
+		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not authorized to view this user's parameters.",
+		})
+		return
+	}
+
+	params, err := api.Database.GetUserWorkspaceBuildParameters(
+		r.Context(),
+		apiKey.UserID,
+	)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var sdkParams []codersdk.UserParameter
+	for _, param := range params {
+		sdkParams = append(sdkParams, codersdk.UserParameter{
+			Name:       param.Name,
+			Value:      param.Value,
+			LastUsedAt: param.CreatedAt,
+		})
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, sdkParams)
+}
+
 // Returns the user's login type. This only works if the api key for authorization
 // and the requested user match. Eg: 'me'
 //

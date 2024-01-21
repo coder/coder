@@ -1417,6 +1417,13 @@ export interface UserLoginType {
   readonly login_type: LoginType;
 }
 
+// From codersdk/users.go
+export interface UserParameter {
+  readonly name: string;
+  readonly display_name: string;
+  readonly last_used: string;
+}
+
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;

@@ -1009,6 +1009,58 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get recent build parameters for user.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/parameters`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+| ------ | ---- | ------ | -------- | ------------------------ |
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "display_name": "string",
+    "last_used": "string",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                              |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserParameter](schemas.md#codersdkuserparameter) |
+
+<h3 id="get-recent-build-parameters-for-user.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]`   | array  | false    |              |             |
+| `» display_name` | string | false    |              |             |
+| `» last_used`    | string | false    |              |             |
+| `» name`         | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user password
 
 ### Code samples

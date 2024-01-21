@@ -1721,6 +1721,53 @@ func TestSuspendedPagination(t *testing.T) {
 	require.Equal(t, expected, page.Users, "expected page")
 }
 
+func TestUserParameters(t *testing.T) {
+	t.Parallel()
+	t.Run("NotSelf", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+
+		u1 := coderdtest.CreateFirstUser(t, client)
+
+		_, u2 := coderdtest.CreateAnotherUser(t, client, u1.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UserParameters(
+			ctx,
+			u2.ID.String(),
+		)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("FindsParameters", func(t *testing.T) {
+		t.Parallel()
+		client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+
+		u1 := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		version := coderdtest.CreateTemplateVersion(t, client, u1.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, u1.OrganizationID, version.ID)
+		coderdtest.CreateWorkspace(t, client, u1.OrganizationID, template.ID)
+
+		params, err := client.UserParameters(
+			ctx,
+			u1.UserID.String(),
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, len(params))
+	})
+}
+
 // TestPaginatedUsers creates a list of users, then tries to paginate through
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {
