@@ -4569,7 +4569,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get recent build parameters for user.",
-                "operationId": "get-user-params",
+                "operationId": "get-recent-build-parameters-for-user",
                 "parameters": [
                     {
                         "type": "string",
