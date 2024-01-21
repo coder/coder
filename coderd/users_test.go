@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1746,17 +1747,32 @@ func TestUserParameters(t *testing.T) {
 
 	t.Run("FindsParameters", func(t *testing.T) {
 		t.Parallel()
-		client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 
 		u1 := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		version := coderdtest.CreateTemplateVersion(t, client, u1.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, u1.OrganizationID, version.ID)
-		coderdtest.CreateWorkspace(t, client, u1.OrganizationID, template.ID)
+		db := api.Database
+
+		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			CreatedBy:      u1.UserID,
+			OrganizationID: u1.OrganizationID,
+		}).Params(database.TemplateVersionParameter{
+			Name:     "param",
+			Required: true,
+		}).Do()
+
+		coderdtest.CreateWorkspace(t, client, u1.OrganizationID, version.Template.ID,
+			func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+					{
+						Name:  "param",
+						Value: "foo",
+					},
+				}
+			})
 
 		params, err := client.UserParameters(
 			ctx,
@@ -1765,6 +1781,9 @@ func TestUserParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, 1, len(params))
+
+		require.Equal(t, "param", params[0].Name)
+		require.Equal(t, "foo", params[0].Value)
 	})
 }
 
