@@ -88,7 +88,7 @@ func TestTailnet(t *testing.T) {
 			}
 		})
 		node := testutil.RequireRecvCtx(ctx, t, nodes)
-		// Ensure this connected over DERP!
+		// Ensure this connected over raw (not websocket) DERP!
 		require.Len(t, node.DERPForcedWebsocket, 0)
 
 		w1.Close()
@@ -153,6 +153,94 @@ func TestTailnet(t *testing.T) {
 		require.Len(t, node.DERPForcedWebsocket, 1)
 		// Ensure the reason is valid!
 		require.Equal(t, `GET failed with status code 400 (a proxy could be disallowing the use of 'Upgrade: derp'): Invalid "Upgrade" header: DERP`, node.DERPForcedWebsocket[derpMap.RegionIDs()[0]])
+
+		w1.Close()
+		w2.Close()
+	})
+
+	t.Run("PingDirect", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w1IP := tailnet.IP()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+
+		require.Eventually(t, func() bool {
+			_, direct, pong, err := w2.Ping(ctx, w1IP)
+			if err != nil {
+				t.Logf("ping error: %s", err.Error())
+				return false
+			}
+			if !direct {
+				t.Logf("got pong: %+v", pong)
+				return false
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		w1.Close()
+		w2.Close()
+	})
+
+	t.Run("PingDERPOnly", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w1IP := tailnet.IP()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:         logger.Named("w1"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:         logger.Named("w2"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+
+		require.Eventually(t, func() bool {
+			_, direct, pong, err := w2.Ping(ctx, w1IP)
+			if err != nil {
+				t.Logf("ping error: %s", err.Error())
+				return false
+			}
+			if direct || pong.DERPRegionID != derpMap.RegionIDs()[0] {
+				t.Logf("got pong: %+v", pong)
+				return false
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		w1.Close()
 		w2.Close()
