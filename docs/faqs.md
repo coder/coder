@@ -17,8 +17,8 @@ In the UI, click the Deployment tab -> Licenses and upload the `jwt` license
 file.
 
 > To add the license with the CLI, first
-> [install the Coder CLI](https://coder.com/docs/v2/latest/install/install.sh)
-> and server to the latest release.
+> [install the Coder CLI](./install/index.md#install-script) and server to the
+> latest release.
 
 If the license is a text string:
 
@@ -450,9 +450,9 @@ Starting Colima on a M3 Macbook Pro:
 colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
-Colima will show the path to the docker socket so I have a
-[Coder template](./docker-code-server/main.tf) that prompts the Coder admin to
-enter the docker socket as a Terraform variable.
+Colima will show the path to the docker socket so we have a
+[community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
+that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
 </details>
 
