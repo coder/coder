@@ -4,7 +4,7 @@
 
 We recommend using the [Nix](https://nix.dev/) package manager as it makes any
 pain related to maintaining dependency versions
-[just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once
+[disappear](https://nixos.org/guides/how-nix-works). Once
 nix [has been installed](https://nixos.org/download.html) the development
 environment can be _manually instantiated_ through the `nix-shell` command:
 
