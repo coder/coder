@@ -1,11 +1,11 @@
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { usePermissions } from "hooks/usePermissions";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { templateExamples, templates } from "api/queries/templates";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
-import { templateExamples, templates } from "api/queries/templates";
-import { useQuery } from "react-query";
 
 export const TemplatesPage: FC = () => {
   const organizationId = useOrganizationId();

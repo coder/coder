@@ -1,16 +1,16 @@
-import { useMutation, useQueryClient } from "react-query";
-import { updateTemplateMeta } from "api/api";
-import { UpdateTemplateMeta } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
+import { updateTemplateMeta } from "api/api";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { templateByNameKey } from "api/queries/templates";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
-import { useOrganizationId } from "hooks";
-import { templateByNameKey } from "api/queries/templates";
 
 const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };

@@ -1,22 +1,23 @@
-import { usePagination } from "hooks/usePagination";
-import { Workspace } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useWorkspacesData, useWorkspaceUpdate } from "./data";
-import { WorkspacesPageView } from "./WorkspacesPageView";
-import { useOrganizationId, usePermissions } from "hooks";
-import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
+import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
+import { templates } from "api/queries/templates";
+import type { Workspace } from "api/typesGenerated";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { usePagination } from "hooks/usePagination";
+import { pageTitle } from "utils/page";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useQuery } from "react-query";
-import { templates } from "api/queries/templates";
 import { useBatchActions } from "./batchActions";
+import { useWorkspacesData, useWorkspaceUpdate } from "./data";
+import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
+import { WorkspacesPageView } from "./WorkspacesPageView";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that

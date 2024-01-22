@@ -7,19 +7,19 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
+import { visuallyHidden } from "@mui/utils";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import type * as TypesGen from "api/typesGenerated";
+import { usePermissions } from "contexts/auth/usePermissions";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { usePermissions } from "hooks/usePermissions";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
-import { visuallyHidden } from "@mui/utils";
-import { Abbr } from "components/Abbr/Abbr";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",

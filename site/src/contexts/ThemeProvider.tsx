@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
-import { AuthContext } from "./AuthProvider/AuthProvider";
+import { AuthContext } from "./auth/AuthProvider";
 
 /**
  *

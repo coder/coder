@@ -3,7 +3,6 @@ import {
   type FC,
   type PropsWithChildren,
   useCallback,
-  useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { checkAuthorization } from "api/queries/authCheck";
@@ -128,14 +127,4 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth should be used inside of <AuthProvider />");
-  }
-
-  return context;
 };

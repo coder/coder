@@ -1,16 +1,16 @@
 import { useQuery, useMutation } from "react-query";
+import { useNavigate } from "react-router-dom";
 import {
   templateVersionLogs,
   JobError,
   createTemplate,
   templateVersionVariables,
 } from "api/queries/templates";
-import { useOrganizationId } from "hooks";
-import { useNavigate } from "react-router-dom";
-import { CreateTemplateForm } from "./CreateTemplateForm";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 import { uploadFile } from "api/queries/files";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { CreateTemplateForm } from "./CreateTemplateForm";
+import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
 export const UploadTemplateView = () => {
   const navigate = useNavigate();

@@ -3,10 +3,10 @@ import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { embedRedirect } from "utils/redirect";
 import { isApiError } from "api/errors";
-import { useAuth } from "contexts/AuthProvider/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "../Dashboard/DashboardProvider";
-import { FullScreenLoader } from "../Loader/FullScreenLoader";
+import { DashboardProvider } from "components/Dashboard/DashboardProvider";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { useAuth } from "./useAuth";
 
 export const RequireAuth: FC = () => {
   const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
