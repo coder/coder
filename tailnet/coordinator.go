@@ -97,6 +97,7 @@ type Node struct {
 // Conn.
 type Coordinatee interface {
 	UpdatePeers([]*proto.CoordinateResponse_PeerUpdate) error
+	SetAllPeersLost()
 	SetNodeCallback(func(*Node))
 }
 
@@ -107,20 +108,28 @@ type Coordination interface {
 
 type remoteCoordination struct {
 	sync.Mutex
-	closed      bool
-	errChan     chan error
-	coordinatee Coordinatee
-	logger      slog.Logger
-	protocol    proto.DRPCTailnet_CoordinateClient
+	closed       bool
+	errChan      chan error
+	coordinatee  Coordinatee
+	logger       slog.Logger
+	protocol     proto.DRPCTailnet_CoordinateClient
+	respLoopDone chan struct{}
 }
 
-func (c *remoteCoordination) Close() error {
+func (c *remoteCoordination) Close() (retErr error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
 		return nil
 	}
 	c.closed = true
+	defer func() {
+		protoErr := c.protocol.Close()
+		<-c.respLoopDone
+		if retErr == nil {
+			retErr = protoErr
+		}
+	}()
 	err := c.protocol.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	if err != nil {
 		return xerrors.Errorf("send disconnect: %w", err)
@@ -140,6 +149,10 @@ func (c *remoteCoordination) sendErr(err error) {
 }
 
 func (c *remoteCoordination) respLoop() {
+	defer func() {
+		c.coordinatee.SetAllPeersLost()
+		close(c.respLoopDone)
+	}()
 	for {
 		resp, err := c.protocol.Recv()
 		if err != nil {
@@ -162,10 +175,11 @@ func NewRemoteCoordination(logger slog.Logger,
 	tunnelTarget uuid.UUID,
 ) Coordination {
 	c := &remoteCoordination{
-		errChan:     make(chan error, 1),
-		coordinatee: coordinatee,
-		logger:      logger,
-		protocol:    protocol,
+		errChan:      make(chan error, 1),
+		coordinatee:  coordinatee,
+		logger:       logger,
+		protocol:     protocol,
+		respLoopDone: make(chan struct{}),
 	}
 	if tunnelTarget != uuid.Nil {
 		c.Lock()
@@ -200,14 +214,15 @@ func NewRemoteCoordination(logger slog.Logger,
 
 type inMemoryCoordination struct {
 	sync.Mutex
-	ctx         context.Context
-	errChan     chan error
-	closed      bool
-	closedCh    chan struct{}
-	coordinatee Coordinatee
-	logger      slog.Logger
-	resps       <-chan *proto.CoordinateResponse
-	reqs        chan<- *proto.CoordinateRequest
+	ctx          context.Context
+	errChan      chan error
+	closed       bool
+	closedCh     chan struct{}
+	respLoopDone chan struct{}
+	coordinatee  Coordinatee
+	logger       slog.Logger
+	resps        <-chan *proto.CoordinateResponse
+	reqs         chan<- *proto.CoordinateRequest
 }
 
 func (c *inMemoryCoordination) sendErr(err error) {
@@ -238,11 +253,12 @@ func NewInMemoryCoordination(
 		thisID = clientID
 	}
 	c := &inMemoryCoordination{
-		ctx:         ctx,
-		errChan:     make(chan error, 1),
-		coordinatee: coordinatee,
-		logger:      logger,
-		closedCh:    make(chan struct{}),
+		ctx:          ctx,
+		errChan:      make(chan error, 1),
+		coordinatee:  coordinatee,
+		logger:       logger,
+		closedCh:     make(chan struct{}),
+		respLoopDone: make(chan struct{}),
 	}
 
 	// use the background context since we will depend exclusively on closing the req channel to
@@ -285,6 +301,10 @@ func NewInMemoryCoordination(
 }
 
 func (c *inMemoryCoordination) respLoop() {
+	defer func() {
+		c.coordinatee.SetAllPeersLost()
+		close(c.respLoopDone)
+	}()
 	for {
 		select {
 		case <-c.closedCh:
@@ -315,6 +335,7 @@ func (c *inMemoryCoordination) Close() error {
 	defer close(c.reqs)
 	c.closed = true
 	close(c.closedCh)
+	<-c.respLoopDone
 	select {
 	case <-c.ctx.Done():
 		return xerrors.Errorf("failed to gracefully disconnect: %w", c.ctx.Err())
