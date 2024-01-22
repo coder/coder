@@ -9,7 +9,7 @@ import { AutofillSource } from "utils/richParameters";
 
 export type TemplateParametersSectionProps = {
   templateParameters: TemplateVersionParameter[];
-  defaultReasons?: Record<string, AutofillSource>;
+  autofillSources?: Record<string, AutofillSource>;
   getInputProps: (
     parameter: TemplateVersionParameter,
     index: number,
@@ -21,7 +21,7 @@ export const MutableTemplateParametersSection: FC<
 > = ({
   templateParameters,
   getInputProps,
-  defaultReasons,
+  autofillSources: defaultReasons,
   ...formSectionProps
 }) => {
   const hasMutableParameters =

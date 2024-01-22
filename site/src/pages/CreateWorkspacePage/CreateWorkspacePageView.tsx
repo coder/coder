@@ -127,7 +127,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     error,
   );
 
-  const defaultSources = useMemo(() => {
+  const autofillSources = useMemo(() => {
     return autofillParameters.reduce(
       (acc, param) => {
         acc[param.name] = param.source;
@@ -223,7 +223,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {parameters && (
           <>
             <MutableTemplateParametersSection
-              defaultReasons={defaultSources}
+              autofillSources={autofillSources}
               templateParameters={parameters}
               getInputProps={(parameter, index) => {
                 return {
@@ -244,7 +244,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               }}
             />
             <ImmutableTemplateParametersSection
-              defaultReasons={defaultSources}
+              autofillSources={autofillSources}
               templateParameters={parameters}
               classes={{
                 root: css`

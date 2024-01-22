@@ -159,7 +159,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <ParameterLabel parameter={parameter} />
       <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
-        {autofillSource && (
+        {autofillSource && autofillSource !== "active_build" && (
           <div css={{ marginTop: 4, fontSize: 12 }}>
             🪄 Autofilled:{" "}
             {

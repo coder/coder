@@ -10,6 +10,7 @@ import {
 } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import {
+  AutofillBuildParameter,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
@@ -27,7 +28,7 @@ export type WorkspaceParametersFormValues = {
 interface WorkspaceParameterFormProps {
   workspace: Workspace;
   templateVersionRichParameters: TemplateVersionParameter[];
-  buildParameters: WorkspaceBuildParameter[];
+  autofillParams: AutofillBuildParameter[];
   isSubmitting: boolean;
   canChangeVersions: boolean;
   error: unknown;
@@ -40,7 +41,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
   onCancel,
   onSubmit,
   templateVersionRichParameters,
-  buildParameters,
+  autofillParams,
   error,
   canChangeVersions,
   isSubmitting,
@@ -50,7 +51,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(
         templateVersionRichParameters,
-        buildParameters,
+        autofillParams,
       ),
     },
     validationSchema: Yup.object({

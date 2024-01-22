@@ -21,7 +21,10 @@ import {
 import { useFormik } from "formik";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { getInitialRichParameterValues } from "utils/richParameters";
+import {
+  AutofillBuildParameter,
+  getInitialRichParameterValues,
+} from "utils/richParameters";
 import {
   Popover,
   PopoverContent,
@@ -113,7 +116,12 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
                   popover.setIsOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
-                buildParameters={buildParameters}
+                buildParameters={buildParameters.map(
+                  (p): AutofillBuildParameter => ({
+                    ...p,
+                    source: "active_build",
+                  }),
+                )}
               />
             </div>
           </>
@@ -147,7 +155,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 
 interface FormProps {
   ephemeralParameters: TemplateVersionParameter[];
-  buildParameters: WorkspaceBuildParameter[];
+  buildParameters: AutofillBuildParameter[];
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 

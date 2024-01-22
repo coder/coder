@@ -4,8 +4,10 @@ import {
 } from "api/typesGenerated";
 import * as Yup from "yup";
 
-export type AutofillSource = "user_history" | "url";
+export type AutofillSource = "user_history" | "url" | "active_build";
 
+// AutofillBuildParameter is a build parameter destined to a form, alongside
+// its source so that the form can explain where the value comes from.
 export type AutofillBuildParameter = {
   source: AutofillSource;
 } & WorkspaceBuildParameter;
@@ -19,21 +21,10 @@ export const getInitialRichParameterValues = (
       (p) => p.name === parameter.name,
     );
     if (autofillParam !== undefined && isValidValue(parameter, autofillParam)) {
-      // URL takes precedence over all other sources.
-      if (autofillParam.source === "url") {
-        return {
-          name: parameter.name,
-          value: autofillParam.value,
-        };
-      }
-
-      // Need to decide whether user_history is more important than default value.
-      if (autofillParam.source === "user_history") {
-        return {
-          name: parameter.name,
-          value: autofillParam.value,
-        };
-      }
+      return {
+        name: parameter.name,
+        value: autofillParam.value,
+      };
     }
 
     return {
