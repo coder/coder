@@ -82,7 +82,6 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	(fws.user_id IS NOT NULL)::boolean AS favorite,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -127,19 +126,6 @@ LEFT JOIN LATERAL (
 	WHERE
 		templates.id = workspaces.template_id
 ) template_name ON true
-LEFT JOIN LATERAL (
-	SELECT
-		user_id
-	FROM
-		favorite_workspaces
-	WHERE
-		workspaces.id = favorite_workspaces.workspace_id
-	AND
-		-- Omitting the owner_id parameter will result in
-		-- 00000000-0000-0000-0000-000000000000 which will not match
-		-- any rows in favorite_workspaces.
-		favorite_workspaces.user_id = @owner_id
-) fws ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -276,7 +262,6 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	favorite DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -564,7 +549,7 @@ WHERE
 		id = $1;
 
 -- name: FavoriteWorkspace :exec
-INSERT INTO favorite_workspaces (user_id, workspace_id) VALUES (sqlc.arg(user_id), sqlc.arg(workspace_id));
+UPDATE workspaces SET favorite_of = workspaces.owner_id WHERE id = @id;
 
 -- name: UnfavoriteWorkspace :exec
-DELETE FROM favorite_workspaces WHERE user_id = sqlc.arg(user_id) AND workspace_id = sqlc.arg(workspace_id);
+UPDATE workspaces SET favorite_of = NULL WHERE id = @id;

@@ -1,7 +1,3 @@
-CREATE TABLE favorite_workspaces (
-	user_id uuid NOT NULL,
-	workspace_id uuid NOT NULL,
-	UNIQUE(user_id, workspace_id)
-);
-
-ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'favorite_workspace';
+ALTER TABLE ONLY workspaces
+ADD COLUMN favorite_of uuid DEFAULT NULL;
+COMMENT ON COLUMN workspaces.favorite_of IS 'FavoriteOf contains the UUID of the workspace owner if the workspace has been favorited.';

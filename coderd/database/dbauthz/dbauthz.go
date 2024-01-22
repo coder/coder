@@ -891,11 +891,11 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
-func (q *querier) FavoriteWorkspace(ctx context.Context, arg database.FavoriteWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
+func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
+	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, id)
 	}
-	return q.db.FavoriteWorkspace(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2516,11 +2516,11 @@ func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.Una
 	return q.db.UnarchiveTemplateVersion(ctx, arg)
 }
 
-func (q *querier) UnfavoriteWorkspace(ctx context.Context, arg database.UnfavoriteWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
+func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
+	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, id)
 	}
-	return q.db.UnfavoriteWorkspace(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

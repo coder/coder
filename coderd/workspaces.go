@@ -1032,10 +1032,9 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		apiKey            = httpmw.APIKey(r)
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.FavoriteWorkspace](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -1043,24 +1042,20 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	aReq.Old = database.FavoriteWorkspace{}
+	aReq.Old = workspace
 
-	err := api.Database.FavoriteWorkspace(ctx, database.FavoriteWorkspaceParams{
-		UserID:      apiKey.UserID,
-		WorkspaceID: workspace.ID,
-	})
+	err := api.Database.FavoriteWorkspace(ctx, workspace.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error pinning workspace",
+			Message: "Internal error setting workspace as favorite",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	aReq.New = database.FavoriteWorkspace{
-		UserID:      apiKey.UserID,
-		WorkspaceID: workspace.ID,
-	}
+	aReq.New = workspace
+	aReq.New.FavoriteOf.Valid = true
+	aReq.New.FavoriteOf.UUID = workspace.OwnerID
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -1076,10 +1071,9 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		apiKey            = httpmw.APIKey(r)
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.FavoriteWorkspace](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -1087,23 +1081,18 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 		})
 	)
 	defer commitAudit()
-	aReq.Old = database.FavoriteWorkspace{
-		UserID:      apiKey.UserID,
-		WorkspaceID: workspace.ID,
-	}
+	aReq.Old = workspace
 
-	err := api.Database.UnfavoriteWorkspace(ctx, database.UnfavoriteWorkspaceParams{
-		UserID:      apiKey.UserID,
-		WorkspaceID: workspace.ID,
-	})
+	err := api.Database.UnfavoriteWorkspace(ctx, workspace.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error unpinning workspace",
+			Message: "Internal error unsetting workspace as favorite",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	aReq.New = database.FavoriteWorkspace{}
+	aReq.New = workspace
+	aReq.New.FavoriteOf = uuid.NullUUID{}
 
 	rw.WriteHeader(http.StatusNoContent)
 }

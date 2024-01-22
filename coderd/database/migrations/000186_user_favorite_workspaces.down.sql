@@ -1,1 +1,1 @@
-DROP TABLE favorite_workspaces;
+ALTER TABLE ONLY workspaces DROP COLUMN favorite_of;

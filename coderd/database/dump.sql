@@ -134,8 +134,7 @@ CREATE TYPE resource_type AS ENUM (
     'license',
     'workspace_proxy',
     'convert_login',
-    'health_settings',
-    'favorite_workspace'
+    'health_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -402,11 +401,6 @@ CREATE TABLE external_auth_links (
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
-
-CREATE TABLE favorite_workspaces (
-    user_id uuid NOT NULL,
-    workspace_id uuid NOT NULL
-);
 
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
@@ -1241,8 +1235,11 @@ CREATE TABLE workspaces (
     last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite_of uuid
 );
+
+COMMENT ON COLUMN workspaces.favorite_of IS 'FavoriteOf contains the UUID of the workspace owner if the workspace has been favorited.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
@@ -1273,9 +1270,6 @@ ALTER TABLE ONLY dbcrypt_keys
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
-
-ALTER TABLE ONLY favorite_workspaces
-    ADD CONSTRAINT favorite_workspaces_user_id_workspace_id_key UNIQUE (user_id, workspace_id);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);

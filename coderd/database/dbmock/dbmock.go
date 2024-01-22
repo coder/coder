@@ -501,7 +501,7 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(arg0, arg1 any) *gomock.Cal
 }
 
 // FavoriteWorkspace mocks base method.
-func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 database.FavoriteWorkspaceParams) error {
+func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FavoriteWorkspace", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -3425,7 +3425,7 @@ func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(arg0, arg1 any) *gomoc
 }
 
 // UnfavoriteWorkspace mocks base method.
-func (m *MockStore) UnfavoriteWorkspace(arg0 context.Context, arg1 database.UnfavoriteWorkspaceParams) error {
+func (m *MockStore) UnfavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UnfavoriteWorkspace", arg0, arg1)
 	ret0, _ := ret[0].(error)

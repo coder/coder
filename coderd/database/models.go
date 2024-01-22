@@ -1146,20 +1146,19 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization      ResourceType = "organization"
-	ResourceTypeTemplate          ResourceType = "template"
-	ResourceTypeTemplateVersion   ResourceType = "template_version"
-	ResourceTypeUser              ResourceType = "user"
-	ResourceTypeWorkspace         ResourceType = "workspace"
-	ResourceTypeGitSshKey         ResourceType = "git_ssh_key"
-	ResourceTypeApiKey            ResourceType = "api_key"
-	ResourceTypeGroup             ResourceType = "group"
-	ResourceTypeWorkspaceBuild    ResourceType = "workspace_build"
-	ResourceTypeLicense           ResourceType = "license"
-	ResourceTypeWorkspaceProxy    ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin      ResourceType = "convert_login"
-	ResourceTypeHealthSettings    ResourceType = "health_settings"
-	ResourceTypeFavoriteWorkspace ResourceType = "favorite_workspace"
+	ResourceTypeOrganization    ResourceType = "organization"
+	ResourceTypeTemplate        ResourceType = "template"
+	ResourceTypeTemplateVersion ResourceType = "template_version"
+	ResourceTypeUser            ResourceType = "user"
+	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
+	ResourceTypeApiKey          ResourceType = "api_key"
+	ResourceTypeGroup           ResourceType = "group"
+	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
+	ResourceTypeLicense         ResourceType = "license"
+	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin    ResourceType = "convert_login"
+	ResourceTypeHealthSettings  ResourceType = "health_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1211,8 +1210,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
-		ResourceTypeHealthSettings,
-		ResourceTypeFavoriteWorkspace:
+		ResourceTypeHealthSettings:
 		return true
 	}
 	return false
@@ -1233,7 +1231,6 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
-		ResourceTypeFavoriteWorkspace,
 	}
 }
 
@@ -1748,11 +1745,6 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 }
 
-type FavoriteWorkspace struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-}
-
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
@@ -2193,6 +2185,8 @@ type Workspace struct {
 	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	// FavoriteOf contains the UUID of the workspace owner if the workspace has been favorited.
+	FavoriteOf uuid.NullUUID `db:"favorite_of" json:"favorite_of"`
 }
 
 type WorkspaceAgent struct {

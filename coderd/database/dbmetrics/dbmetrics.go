@@ -300,7 +300,7 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	return r0, r1
 }
 
-func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg database.FavoriteWorkspaceParams) error {
+func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
 	m.queryLatencies.WithLabelValues("FavoriteWorkspace").Observe(time.Since(start).Seconds())
@@ -1621,7 +1621,7 @@ func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database
 	return r0
 }
 
-func (m metricsStore) UnfavoriteWorkspace(ctx context.Context, arg database.UnfavoriteWorkspaceParams) error {
+func (m metricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.UnfavoriteWorkspace(ctx, arg)
 	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())

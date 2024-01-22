@@ -71,7 +71,6 @@ func New() database.Store {
 			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
-			favoriteWorkspaces:        make([]database.FavoriteWorkspace, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			locks:                     map[int64]struct{}{},
@@ -155,7 +154,6 @@ type data struct {
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
 	workspaces                    []database.Workspace
-	favoriteWorkspaces            []database.FavoriteWorkspace
 	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -1317,7 +1315,7 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg database.FavoriteWorkspaceParams) error {
+func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
@@ -1326,10 +1324,13 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg database.Favorite
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, upw := range q.favoriteWorkspaces {
-		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
-			return errDuplicateKey
+	for i := 0; i < len(q.workspaces); i++ {
+		if q.workspaces[i].ID != arg {
+			continue
 		}
+		q.workspaces[i].FavoriteOf.Valid = true
+		q.workspaces[i].FavoriteOf.UUID = q.workspaces[i].OwnerID
+		return nil
 	}
 	return nil
 }
@@ -6003,7 +6004,7 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg database.UnfavoriteWorkspaceParams) error {
+func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
@@ -6012,15 +6013,11 @@ func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg database.Unfavo
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, upw := range q.favoriteWorkspaces {
-		if upw.UserID != arg.UserID {
+	for i := 0; i < len(q.workspaces); i++ {
+		if q.workspaces[i].ID != arg {
 			continue
 		}
-		if upw.WorkspaceID != arg.WorkspaceID {
-			continue
-		}
-		q.favoriteWorkspaces[index] = q.favoriteWorkspaces[len(q.apiKeys)-1]
-		q.favoriteWorkspaces = q.favoriteWorkspaces[:len(q.favoriteWorkspaces)-1]
+		q.workspaces[i].FavoriteOf = uuid.NullUUID{}
 		return nil
 	}
 
