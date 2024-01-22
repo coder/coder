@@ -374,9 +374,13 @@ func (c *Conn) Status() *ipnstate.Status {
 // Ping sends a ping to the Wireguard engine.
 // The bool returned is true if the ping was performed P2P.
 func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error) {
+	return c.pingWithType(ctx, ip, tailcfg.PingDisco)
+}
+
+func (c *Conn) pingWithType(ctx context.Context, ip netip.Addr, pt tailcfg.PingType) (time.Duration, bool, *ipnstate.PingResult, error) {
 	errCh := make(chan error, 1)
 	prChan := make(chan *ipnstate.PingResult, 1)
-	go c.wireguardEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
+	go c.wireguardEngine.Ping(ip, pt, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
@@ -418,7 +422,13 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
-		_, _, _, err := c.Ping(ctx, ip)
+		// For reachability, we use TSMP ping, which pings at the IP layer, and
+		// therefore requires that wireguard and the netstack are up.  If we
+		// don't wait for wireguard to be up, we could miss a handshake, and it
+		// might take 5 seconds for the handshake to be retried. A 5s initial
+		// round trip can set us up for poor TCP performance, since the initial
+		// round-trip-time sets the initial retransmit timeout.
+		_, _, _, err := c.pingWithType(ctx, ip, tailcfg.PingTSMP)
 		if err == nil {
 			completed()
 		}
