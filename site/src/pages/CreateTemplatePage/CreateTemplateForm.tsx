@@ -62,6 +62,7 @@ export interface CreateTemplateData {
   description: string;
   icon: string;
   default_ttl_hours: number;
+  activity_bump_hours: number;
   use_max_ttl: boolean;
   max_ttl_hours: number;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
@@ -90,6 +91,13 @@ const validationSchema = Yup.object({
       24 * MAX_TTL_DAYS /* 30 days in hours */,
       "Please enter a limit that is less than or equal to 720 hours (30 days).",
     ),
+  activity_bump_hours: Yup.number()
+    .integer()
+    .min(0, "Activity bump must not be less than 0.")
+    .max(
+      24 * MAX_TTL_DAYS /* 30 days in hours */,
+      "Please enter an activity bump duration that is less than or equal to 720 hours (30 days).",
+    ),
   max_ttl_hours: Yup.number()
     .integer()
     .min(0, "Maximum time until autostop must not be less than 0.")
@@ -108,6 +116,7 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
+  activity_bump_hours: 1,
   // max_ttl is an enterprise-only feature, and the server ignores the value if
   // you are not licensed. We hide the form value based on entitlements.
   //
@@ -374,6 +383,21 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
               onChange={onChangeTrimmed(form)}
               fullWidth
               label="Default autostop (hours)"
+              type="number"
+            />
+
+            <TextField
+              {...getFieldHelpers("activity_bump_hours", {
+                helperText: (
+                  <ActivityBumpHelperText
+                    bump={form.values.activity_bump_hours}
+                  />
+                ),
+              })}
+              disabled={isSubmitting}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              label="Activity bump (hours)"
               type="number"
             />
           </Stack>
@@ -732,8 +756,33 @@ const DefaultTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)}. This will be
-      extended by 1 hour after last activity in the workspace was detected.
+      Workspaces will default to stopping after {ttl} {hours(ttl)} after being
+      started.
+    </span>
+  );
+};
+
+const ActivityBumpHelperText = (props: { bump?: number }) => {
+  const { bump = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (bump < 0) {
+    return null;
+  }
+
+  if (bump === 0) {
+    return (
+      <span>
+        Workspaces will not have their stop time automatically extended based on
+        user activity. Users can still manually delay the stop time.
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      Workspaces will be automatically bumped by {bump} {hours(bump)} when user
+      activity is detected.
     </span>
   );
 };

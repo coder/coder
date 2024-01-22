@@ -1,4 +1,5 @@
 import {
+  CreateTemplateRequest,
   Entitlements,
   ProvisionerType,
   TemplateExample,
@@ -11,7 +12,9 @@ const provisioner: ProvisionerType =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
   typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
 
-export const newTemplate = (formData: CreateTemplateData) => {
+export const newTemplate = (
+  formData: CreateTemplateData,
+): Omit<CreateTemplateRequest, "template_version_id"> => {
   let {
     max_ttl_hours,
     autostop_requirement_days_of_week,
@@ -42,6 +45,7 @@ export const newTemplate = (formData: CreateTemplateData) => {
     ...safeTemplateData,
     disable_everyone_group_access: !formData.allow_everyone_group_access,
     default_ttl_ms: formData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+    activity_bump_ms: formData.activity_bump_hours * 60 * 60 * 1000, // Convert hours to ms
     max_ttl_ms: max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
     autostop_requirement: {
       days_of_week: calculateAutostopRequirementDaysValue(

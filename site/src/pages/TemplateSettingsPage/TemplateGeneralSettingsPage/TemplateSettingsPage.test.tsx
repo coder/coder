@@ -14,7 +14,7 @@ import { TemplateSettingsPage } from "./TemplateSettingsPage";
 type FormValues = Required<
   Omit<
     UpdateTemplateMeta,
-    "default_ttl_ms" | "max_ttl_ms" | "deprecation_message"
+    "default_ttl_ms" | "activity_bump_ms" | "max_ttl_ms" | "deprecation_message"
   >
 >;
 
