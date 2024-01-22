@@ -1028,10 +1028,9 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, code, resp)
 }
 
-// @Summary Favor workspace by ID.
+// @Summary Favorite workspace by ID.
 // @ID favorite-workspace-by-id
 // @Security CoderSessionToken
-// @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
@@ -1067,10 +1066,9 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Unfavor workspace by ID.
+// @Summary Unfavorite workspace by ID.
 // @ID unfavorite-workspace-by-id
 // @Security CoderSessionToken
-// @Accept json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
