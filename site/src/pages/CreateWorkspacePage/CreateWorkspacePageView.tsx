@@ -27,12 +27,12 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters";
-import { ExternalAuth } from "./ExternalAuth";
+import { ExternalAuthButton } from "./ExternalAuthButton";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import {
   CreateWorkspaceMode,
-  type ExternalAuthPollingState,
+  ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
 import { CreateWSPermissions } from "./permissions";
@@ -85,10 +85,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 }) => {
   const theme = useTheme();
   const [owner, setOwner] = useState(defaultOwner);
-  const { verifyExternalAuth, externalAuthErrors } =
-    useExternalAuthVerification(externalAuth);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
+  const requiresExternalAuth = externalAuth.some((auth) => !auth.authenticated);
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -106,7 +105,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (!verifyExternalAuth()) {
+        if (requiresExternalAuth) {
           return;
         }
 
@@ -192,16 +191,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             description="This template requires authentication to external services."
           >
             <FormFields>
+              {requiresExternalAuth && (
+                <Alert severity="error">
+                  To create a workspace using the selected template, please
+                  ensure you are authenticated with all the external providers
+                  listed below.
+                </Alert>
+              )}
               {externalAuth.map((auth) => (
-                <ExternalAuth
+                <ExternalAuthButton
                   key={auth.id}
-                  authenticateURL={auth.authenticate_url}
-                  authenticated={auth.authenticated}
-                  externalAuthPollingState={externalAuthPollingState}
-                  startPollingExternalAuth={startPollingExternalAuth}
-                  displayName={auth.display_name}
-                  displayIcon={auth.display_icon}
-                  error={externalAuthErrors[auth.id]}
+                  auth={auth}
+                  isLoading={externalAuthPollingState === "polling"}
+                  onStartPolling={startPollingExternalAuth}
+                  displayRetry={externalAuthPollingState === "abandoned"}
                 />
               ))}
             </FormFields>
@@ -271,43 +274,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       </HorizontalForm>
     </FullPageHorizontalForm>
   );
-};
-
-type ExternalAuthErrors = Record<string, string>;
-
-const useExternalAuthVerification = (
-  externalAuth: TypesGen.TemplateVersionExternalAuth[],
-) => {
-  const [externalAuthErrors, setExternalAuthErrors] =
-    useState<ExternalAuthErrors>({});
-
-  // Clear errors when externalAuth is refreshed
-  useEffect(() => {
-    setExternalAuthErrors({});
-  }, [externalAuth]);
-
-  const verifyExternalAuth = () => {
-    const errors: ExternalAuthErrors = {};
-
-    for (let i = 0; i < externalAuth.length; i++) {
-      const auth = externalAuth.at(i);
-      if (!auth) {
-        continue;
-      }
-      if (!auth.authenticated) {
-        errors[auth.id] = "You must authenticate to create a workspace!";
-      }
-    }
-
-    setExternalAuthErrors(errors);
-    const isValid = Object.keys(errors).length === 0;
-    return isValid;
-  };
-
-  return {
-    externalAuthErrors,
-    verifyExternalAuth,
-  };
 };
 
 const styles = {

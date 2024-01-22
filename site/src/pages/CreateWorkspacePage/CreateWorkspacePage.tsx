@@ -68,8 +68,12 @@ const CreateWorkspacePage: FC = () => {
     ? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
     : undefined;
 
-  const { externalAuth, externalAuthPollingState, startPollingExternalAuth } =
-    useExternalAuth(realizedVersionId);
+  const {
+    externalAuth,
+    externalAuthPollingState,
+    startPollingExternalAuth,
+    isLoadingExternalAuth,
+  } = useExternalAuth(realizedVersionId);
 
   const isLoadingFormData =
     templateQuery.isLoading ||
@@ -118,7 +122,9 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle(title)}</title>
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData || autoCreateWorkspaceMutation.isLoading ? (
+      {isLoadingFormData ||
+      isLoadingExternalAuth ||
+      autoCreateWorkspaceMutation.isLoading ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
@@ -169,7 +175,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     setExternalAuthPollingState("polling");
   }, []);
 
-  const { data: externalAuth } = useQuery(
+  const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
     versionId
       ? {
           ...templateVersionExternalAuth(versionId),
@@ -205,6 +211,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     startPollingExternalAuth,
     externalAuth,
     externalAuthPollingState,
+    isLoadingExternalAuth,
   };
 };
 
