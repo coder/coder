@@ -7006,13 +7006,10 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Favor workspace by ID.",
+                "summary": "Favorite workspace by ID.",
                 "operationId": "favorite-workspace-by-id",
                 "parameters": [
                     {
@@ -7036,13 +7033,10 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Unfavor workspace by ID.",
+                "summary": "Unfavorite workspace by ID.",
                 "operationId": "unfavorite-workspace-by-id",
                 "parameters": [
                     {

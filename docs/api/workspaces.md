@@ -1250,7 +1250,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Favor workspace by ID.
+## Favorite workspace by ID.
 
 ### Code samples
 
@@ -1276,7 +1276,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Unfavor workspace by ID.
+## Unfavorite workspace by ID.
 
 ### Code samples
 
