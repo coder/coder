@@ -1,13 +1,13 @@
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { usePermissions } from "hooks/usePermissions";
-import { pageTitle } from "utils/page";
 import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {

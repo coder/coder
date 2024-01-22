@@ -475,7 +475,8 @@ gen: \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
 	site/src/theme/icons.json \
-	examples/examples.gen.json
+	examples/examples.gen.json \
+	tailnet/tailnettest/coordinatormock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -502,6 +503,7 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
+		tailnet/tailnettest/coordinatormock.go \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -528,6 +530,9 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/tailnettest/coordinatormock.go: tailnet/coordinator.go
+	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
 	protoc \

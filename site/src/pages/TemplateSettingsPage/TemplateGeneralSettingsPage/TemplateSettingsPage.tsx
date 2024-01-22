@@ -9,6 +9,12 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
+import { updateTemplateMeta } from "api/api";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { templateByNameKey } from "api/queries/templates";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 

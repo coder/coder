@@ -9,7 +9,6 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -58,6 +58,7 @@ func TestBuildInfo(t *testing.T) {
 
 func TestDERP(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	client := coderdtest.New(t, nil)
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -96,16 +97,29 @@ func TestDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	w2Ready := make(chan struct{})
-	w2ReadyOnce := sync.Once{}
+	w1ID := uuid.New()
 	w1.SetNodeCallback(func(node *tailnet.Node) {
-		w2.UpdateNodes([]*tailnet.Node{node}, false)
-		w2ReadyOnce.Do(func() {
-			close(w2Ready)
-		})
+		pn, err := tailnet.NodeToProto(node)
+		if !assert.NoError(t, err) {
+			return
+		}
+		w2.UpdatePeers([]*tailnetproto.CoordinateResponse_PeerUpdate{{
+			Id:   w1ID[:],
+			Node: pn,
+			Kind: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+		}})
 	})
+	w2ID := uuid.New()
 	w2.SetNodeCallback(func(node *tailnet.Node) {
-		w1.UpdateNodes([]*tailnet.Node{node}, false)
+		pn, err := tailnet.NodeToProto(node)
+		if !assert.NoError(t, err) {
+			return
+		}
+		w1.UpdatePeers([]*tailnetproto.CoordinateResponse_PeerUpdate{{
+			Id:   w2ID[:],
+			Node: pn,
+			Kind: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+		}})
 	})
 
 	conn := make(chan struct{})
@@ -121,8 +135,8 @@ func TestDERP(t *testing.T) {
 	}()
 
 	<-conn
-	<-w2Ready
-	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
+	w2.AwaitReachable(ctx, w1IP)
+	nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()
 	<-conn
@@ -199,7 +213,11 @@ func TestDERPForceWebSockets(t *testing.T) {
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID,
+		&codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("client"),
+		},
+	)
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()

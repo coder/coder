@@ -10,6 +10,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -27,6 +29,12 @@ import (
 
 func Test_agentIsLegacy(t *testing.T) {
 	t.Parallel()
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nkBin, err := nodeKey.MarshalBinary()
+	require.NoError(t, err)
+	dkBin, err := discoKey.MarshalText()
+	require.NoError(t, err)
 
 	t.Run("Legacy", func(t *testing.T) {
 		t.Parallel()
@@ -54,18 +62,18 @@ func Test_agentIsLegacy(t *testing.T) {
 		nodeID := uuid.New()
 		ma := coordinator.ServeMultiAgent(nodeID)
 		defer ma.Close()
-		require.NoError(t, ma.UpdateSelf(&agpl.Node{
-			ID:            55,
-			AsOf:          time.Unix(1689653252, 0),
-			Key:           key.NewNode().Public(),
-			DiscoKey:      key.NewDisco().Public(),
-			PreferredDERP: 0,
-			DERPLatency: map[string]float64{
+		require.NoError(t, ma.UpdateSelf(&proto.Node{
+			Id:            55,
+			AsOf:          timestamppb.New(time.Unix(1689653252, 0)),
+			Key:           nkBin,
+			Disco:         string(dkBin),
+			PreferredDerp: 0,
+			DerpLatency: map[string]float64{
 				"0": 1.0,
 			},
-			DERPForcedWebsocket: map[int]string{},
-			Addresses:           []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-			AllowedIPs:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+			DerpForcedWebsocket: map[int32]string{},
+			Addresses:           []string{codersdk.WorkspaceAgentIP.String() + "/128"},
+			AllowedIps:          []string{codersdk.WorkspaceAgentIP.String() + "/128"},
 			Endpoints:           []string{"192.168.1.1:18842"},
 		}))
 		require.Eventually(t, func() bool {
@@ -114,18 +122,18 @@ func Test_agentIsLegacy(t *testing.T) {
 		nodeID := uuid.New()
 		ma := coordinator.ServeMultiAgent(nodeID)
 		defer ma.Close()
-		require.NoError(t, ma.UpdateSelf(&agpl.Node{
-			ID:            55,
-			AsOf:          time.Unix(1689653252, 0),
-			Key:           key.NewNode().Public(),
-			DiscoKey:      key.NewDisco().Public(),
-			PreferredDERP: 0,
-			DERPLatency: map[string]float64{
+		require.NoError(t, ma.UpdateSelf(&proto.Node{
+			Id:            55,
+			AsOf:          timestamppb.New(time.Unix(1689653252, 0)),
+			Key:           nkBin,
+			Disco:         string(dkBin),
+			PreferredDerp: 0,
+			DerpLatency: map[string]float64{
 				"0": 1.0,
 			},
-			DERPForcedWebsocket: map[int]string{},
-			Addresses:           []netip.Prefix{netip.PrefixFrom(agpl.IPFromUUID(nodeID), 128)},
-			AllowedIPs:          []netip.Prefix{netip.PrefixFrom(agpl.IPFromUUID(nodeID), 128)},
+			DerpForcedWebsocket: map[int32]string{},
+			Addresses:           []string{netip.PrefixFrom(agpl.IPFromUUID(nodeID), 128).String()},
+			AllowedIps:          []string{netip.PrefixFrom(agpl.IPFromUUID(nodeID), 128).String()},
 			Endpoints:           []string{"192.168.1.1:18842"},
 		}))
 		require.Eventually(t, func() bool {

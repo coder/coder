@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -438,6 +438,9 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 		cancel()
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := coordinateURL.Query()
+	q.Add("version", agpl.CurrentVersion.String())
+	coordinateURL.RawQuery = q.Encode()
 	coordinateHeaders := make(http.Header)
 	tokenHeader := codersdk.SessionTokenHeader
 	if c.SDKClient.SessionTokenHeader != "" {
@@ -457,10 +460,24 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
+	nc := websocket.NetConn(ctx, conn, websocket.MessageBinary)
+	client, err := agpl.NewDRPCClient(nc)
+	if err != nil {
+		logger.Debug(ctx, "failed to create DRPCClient", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, "")
+		return nil, xerrors.Errorf("failed to create DRPCClient: %w", err)
+	}
+	protocol, err := client.Coordinate(ctx)
+	if err != nil {
+		logger.Debug(ctx, "failed to reach the Coordinate endpoint", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, "")
+		return nil, xerrors.Errorf("failed to reach the Coordinate endpoint: %w", err)
+	}
+
 	rma := remoteMultiAgentHandler{
 		sdk:              c,
-		nc:               nc,
+		logger:           logger,
+		protocol:         protocol,
 		cancel:           cancel,
 		legacyAgentCache: map[uuid.UUID]bool{},
 	}
@@ -471,103 +488,75 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 		OnSubscribe:       rma.OnSubscribe,
 		OnUnsubscribe:     rma.OnUnsubscribe,
 		OnNodeUpdate:      rma.OnNodeUpdate,
-		OnRemove:          func(agpl.Queue) { conn.Close(websocket.StatusGoingAway, "closed") },
+		OnRemove:          rma.OnRemove,
 	}).Init()
 
 	go func() {
 		<-ctx.Done()
 		ma.Close()
+		_ = conn.Close(websocket.StatusGoingAway, "closed")
 	}()
 
-	go func() {
-		defer cancel()
-		dec := json.NewDecoder(nc)
-		for {
-			var msg CoordinateNodes
-			err := dec.Decode(&msg)
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					logger.Info(ctx, "websocket connection severed", slog.Error(err))
-					return
-				}
-
-				logger.Error(ctx, "decode coordinator nodes", slog.Error(err))
-				return
-			}
-
-			err = ma.Enqueue(msg.Nodes)
-			if err != nil {
-				logger.Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
-				continue
-			}
-		}
-	}()
+	rma.ma = ma
+	go rma.respLoop()
 
 	return ma, nil
 }
 
 type remoteMultiAgentHandler struct {
-	sdk    *Client
-	nc     net.Conn
-	cancel func()
+	sdk      *Client
+	logger   slog.Logger
+	protocol proto.DRPCTailnet_CoordinateClient
+	ma       *agpl.MultiAgent
+	cancel   func()
 
 	legacyMu           sync.RWMutex
 	legacyAgentCache   map[uuid.UUID]bool
 	legacySingleflight singleflight.Group[uuid.UUID, AgentIsLegacyResponse]
 }
 
-func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return xerrors.Errorf("json marshal message: %w", err)
-	}
+func (a *remoteMultiAgentHandler) respLoop() {
+	{
+		defer a.cancel()
+		for {
+			resp, err := a.protocol.Recv()
+			if err != nil {
+				if xerrors.Is(err, io.EOF) {
+					a.logger.Info(context.Background(), "remote multiagent connection severed", slog.Error(err))
+					return
+				}
 
-	// Set a deadline so that hung connections don't put back pressure on the system.
-	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
-	if err != nil {
-		a.cancel()
-		return xerrors.Errorf("set write deadline: %w", err)
-	}
-	_, err = a.nc.Write(data)
-	if err != nil {
-		a.cancel()
-		return xerrors.Errorf("write message: %w", err)
-	}
+				a.logger.Error(context.Background(), "error receiving multiagent responses", slog.Error(err))
+				return
+			}
 
-	// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
-	// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-	// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
-	// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
-	// our successful write, it is important that we reset the deadline before it fires.
-	err = a.nc.SetWriteDeadline(time.Time{})
-	if err != nil {
-		a.cancel()
-		return xerrors.Errorf("clear write deadline: %w", err)
+			err = a.ma.Enqueue(resp)
+			if err != nil {
+				a.logger.Error(context.Background(), "enqueue response from coordinator", slog.Error(err))
+				continue
+			}
+		}
 	}
-
-	return nil
 }
 
-func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *agpl.Node) error {
-	return a.writeJSON(CoordinateMessage{
-		Type: CoordinateMessageTypeNodeUpdate,
-		Node: node,
-	})
+func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *proto.Node) error {
+	return a.protocol.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: node}})
 }
 
-func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
-	return nil, a.writeJSON(CoordinateMessage{
-		Type:    CoordinateMessageTypeSubscribe,
-		AgentID: agentID,
-	})
+func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) error {
+	return a.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]}})
 }
 
 func (a *remoteMultiAgentHandler) OnUnsubscribe(_ agpl.Queue, agentID uuid.UUID) error {
-	return a.writeJSON(CoordinateMessage{
-		Type:    CoordinateMessageTypeUnsubscribe,
-		AgentID: agentID,
-	})
+	return a.protocol.Send(&proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]}})
+}
+
+func (a *remoteMultiAgentHandler) OnRemove(_ agpl.Queue) {
+	err := a.protocol.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	if err != nil {
+		a.logger.Warn(context.Background(), "failed to gracefully disconnect", slog.Error(err))
+	}
+	_ = a.protocol.CloseSend()
 }
 
 func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {

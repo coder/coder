@@ -30,6 +30,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -47,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
@@ -86,7 +88,7 @@ type Options struct {
 
 type Client interface {
 	Manifest(ctx context.Context) (agentsdk.Manifest, error)
-	Listen(ctx context.Context) (net.Conn, error)
+	Listen(ctx context.Context) (drpc.Conn, error)
 	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
@@ -1058,20 +1060,34 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	coordinator, err := a.client.Listen(ctx)
+	conn, err := a.client.Listen(ctx)
 	if err != nil {
 		return err
 	}
-	defer coordinator.Close()
+	defer func() {
+		cErr := conn.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
+		}
+	}()
+
+	tClient := tailnetproto.NewDRPCTailnetClient(conn)
+	coordinate, err := tClient.Coordinate(ctx)
+	if err != nil {
+		return xerrors.Errorf("failed to connect to the coordinate endpoint: %w", err)
+	}
+	defer func() {
+		cErr := coordinate.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing Coordinate client", slog.Error(err))
+		}
+	}()
 	a.logger.Info(ctx, "connected to coordination endpoint")
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(nodes []*tailnet.Node) error {
-		return network.UpdateNodes(nodes, false)
-	})
-	network.SetNodeCallback(sendNodes)
+	coordination := tailnet.NewRemoteCoordination(a.logger, coordinate, network, uuid.Nil)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case err := <-errChan:
+	case err := <-coordination.Error():
 		return err
 	}
 }

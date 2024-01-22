@@ -26,6 +26,7 @@ import (
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -663,6 +664,24 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		ActiveVersionID: dbTemplate.ActiveVersionID,
 		Name:            dbTemplate.Name,
 		Description:     dbTemplate.Description != "",
+
+		// Some of these fields are meant to be accessed using a specialized
+		// interface (for entitlement purposes), but for telemetry purposes
+		// there's minimal harm accessing them directly.
+		UseMaxTTL:                      dbTemplate.UseMaxTtl,
+		MaxTTLMillis:                   time.Duration(dbTemplate.MaxTTL).Milliseconds(),
+		DefaultTTLMillis:               time.Duration(dbTemplate.DefaultTTL).Milliseconds(),
+		AllowUserCancelWorkspaceJobs:   dbTemplate.AllowUserCancelWorkspaceJobs,
+		AllowUserAutostart:             dbTemplate.AllowUserAutostart,
+		AllowUserAutostop:              dbTemplate.AllowUserAutostop,
+		FailureTTLMillis:               time.Duration(dbTemplate.FailureTTL).Milliseconds(),
+		TimeTilDormantMillis:           time.Duration(dbTemplate.TimeTilDormant).Milliseconds(),
+		TimeTilDormantAutoDeleteMillis: time.Duration(dbTemplate.TimeTilDormantAutoDelete).Milliseconds(),
+		AutostopRequirementDaysOfWeek:  codersdk.BitmapToWeekdays(uint8(dbTemplate.AutostopRequirementDaysOfWeek)),
+		AutostopRequirementWeeks:       dbTemplate.AutostopRequirementWeeks,
+		AutostartAllowedDays:           codersdk.BitmapToWeekdays(dbTemplate.AutostartAllowedDays()),
+		RequireActiveVersion:           dbTemplate.RequireActiveVersion,
+		Deprecated:                     dbTemplate.Deprecated != "",
 	}
 }
 
@@ -883,6 +902,21 @@ type Template struct {
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	Name            string    `json:"name"`
 	Description     bool      `json:"description"`
+
+	UseMaxTTL                      bool     `json:"use_max_ttl"`
+	MaxTTLMillis                   int64    `json:"max_ttl_ms"`
+	DefaultTTLMillis               int64    `json:"default_ttl_ms"`
+	AllowUserCancelWorkspaceJobs   bool     `json:"allow_user_cancel_workspace_jobs"`
+	AllowUserAutostart             bool     `json:"allow_user_autostart"`
+	AllowUserAutostop              bool     `json:"allow_user_autostop"`
+	FailureTTLMillis               int64    `json:"failure_ttl_ms"`
+	TimeTilDormantMillis           int64    `json:"time_til_dormant_ms"`
+	TimeTilDormantAutoDeleteMillis int64    `json:"time_til_dormant_auto_delete_ms"`
+	AutostopRequirementDaysOfWeek  []string `json:"autostop_requirement_days_of_week"`
+	AutostopRequirementWeeks       int64    `json:"autostop_requirement_weeks"`
+	AutostartAllowedDays           []string `json:"autostart_allowed_days"`
+	RequireActiveVersion           bool     `json:"require_active_version"`
+	Deprecated                     bool     `json:"deprecated"`
 }
 
 type TemplateVersion struct {
