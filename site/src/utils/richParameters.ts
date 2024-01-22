@@ -17,9 +17,19 @@ export const getInitialRichParameterValues = (
   autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
   return templateParams.map((parameter) => {
+    // Short-circuit for ephemeral parameters, which are always reset to
+    // the template-defined default.
+    if (parameter.ephemeral) {
+      return {
+        name: parameter.name,
+        value: parameter.default_value,
+      };
+    }
+
     const autofillParam = autofillParams?.find(
       (p) => p.name === parameter.name,
     );
+
     if (autofillParam !== undefined && isValidValue(parameter, autofillParam)) {
       return {
         name: parameter.name,

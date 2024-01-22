@@ -49,7 +49,7 @@ test("restart workspace with ephemeral parameters", async ({ page }) => {
 
   // Verify that build options are default (not selected).
   await verifyParameters(page, workspaceName, richParameters, [
-    { name: firstBuildOption.name, value: firstBuildOption.defaultValue },
-    { name: secondBuildOption.name, value: secondBuildOption.defaultValue },
+    { name: richParameters[0].name, value: firstBuildOption.defaultValue },
+    { name: richParameters[1].name, value: secondBuildOption.defaultValue },
   ]);
 });
