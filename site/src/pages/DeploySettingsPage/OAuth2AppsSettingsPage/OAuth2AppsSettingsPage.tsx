@@ -18,6 +18,7 @@ const OAuth2AppsSettingsPage: FC = () => {
       <OAuth2AppsSettingsPageView
         apps={appsQuery.data}
         isLoading={appsQuery.isLoading}
+        error={appsQuery.error}
         isEntitled={
           entitlements.features.oauth2_provider.entitlement !== "not_entitled"
         }
