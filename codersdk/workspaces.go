@@ -479,7 +479,7 @@ func (c *Client) FavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID) e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return err
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -491,7 +491,7 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return err
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
