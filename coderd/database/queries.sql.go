@@ -11363,7 +11363,9 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	favorite_of IS NOT NULL AND
+	CASE WHEN workspaces.favorite_of = $13 THEN
+		workspaces.favorite_of = $13
+	END ASC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -11372,28 +11374,29 @@ ORDER BY
 	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
-		WHEN $14 :: integer > 0 THEN
-			$14
+		WHEN $15 :: integer > 0 THEN
+			$15
 	END
 OFFSET
-	$13
+	$14
 `
 
 type GetWorkspacesParams struct {
-	Deleted                               bool        `db:"deleted" json:"deleted"`
-	Status                                string      `db:"status" json:"status"`
-	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
-	TemplateName                          string      `db:"template_name" json:"template_name"`
-	TemplateIDs                           []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name                                  string      `db:"name" json:"name"`
-	HasAgent                              string      `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	Dormant                               bool        `db:"dormant" json:"dormant"`
-	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
-	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
-	Offset                                int32       `db:"offset_" json:"offset_"`
-	Limit                                 int32       `db:"limit_" json:"limit_"`
+	Deleted                               bool          `db:"deleted" json:"deleted"`
+	Status                                string        `db:"status" json:"status"`
+	OwnerID                               uuid.UUID     `db:"owner_id" json:"owner_id"`
+	OwnerUsername                         string        `db:"owner_username" json:"owner_username"`
+	TemplateName                          string        `db:"template_name" json:"template_name"`
+	TemplateIDs                           []uuid.UUID   `db:"template_ids" json:"template_ids"`
+	Name                                  string        `db:"name" json:"name"`
+	HasAgent                              string        `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64         `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	Dormant                               bool          `db:"dormant" json:"dormant"`
+	LastUsedBefore                        time.Time     `db:"last_used_before" json:"last_used_before"`
+	LastUsedAfter                         time.Time     `db:"last_used_after" json:"last_used_after"`
+	OrderByFavorite                       uuid.NullUUID `db:"order_by_favorite" json:"order_by_favorite"`
+	Offset                                int32         `db:"offset_" json:"offset_"`
+	Limit                                 int32         `db:"limit_" json:"limit_"`
 }
 
 type GetWorkspacesRow struct {
@@ -11432,6 +11435,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
+		arg.OrderByFavorite,
 		arg.Offset,
 		arg.Limit,
 	)

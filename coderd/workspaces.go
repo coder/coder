@@ -159,6 +159,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// To show the user's favorite workspaces first, we pass their userID and compare it to
+	// column favorite_of when ordering the rows.
+	filter.OrderByFavorite = uuid.NullUUID{Valid: true, UUID: apiKey.UserID}
+
 	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -479,11 +479,14 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client, func(r *codersdk.CreateFirstUserRequest) {
 		r.Username = "aaa"
 	})
-	_, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
+	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
 		r.Username = "zzz"
 	})
 
@@ -502,13 +505,16 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	// e-workspace should also be stopped
 	wsbE := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "e-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	// f-workspace is also stopped, but is marked as favorite
+	wsbF := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "f-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	require.NoError(t, client.FavoriteWorkspace(ctx, wsbF.Workspace.ID)) // need to do this via API call for now
+
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
 	workspaces := workspacesResponse.Workspaces
 
 	expectedNames := []string{
+		wsbF.Workspace.Name, // favorite
 		wsbA.Workspace.Name, // running
 		wsbC.Workspace.Name, // running
 		wsbB.Workspace.Name, // stopped, aaa < zzz
@@ -516,27 +522,44 @@ func TestWorkspacesSortOrder(t *testing.T) {
 		wsbE.Workspace.Name, // stopped, zzz > aaa
 	}
 
-	expectedStatus := []codersdk.WorkspaceStatus{
-		codersdk.WorkspaceStatusRunning,
-		codersdk.WorkspaceStatusRunning,
-		codersdk.WorkspaceStatusStopped,
-		codersdk.WorkspaceStatusStopped,
-		codersdk.WorkspaceStatusStopped,
-	}
-
-	var actualNames []string
-	var actualStatus []codersdk.WorkspaceStatus
+	actualNames := make([]string, 0, len(expectedNames))
 	for _, w := range workspaces {
 		actualNames = append(actualNames, w.Name)
-		actualStatus = append(actualStatus, w.LatestBuild.Status)
 	}
 
 	// the correct sorting order is:
-	// 1. Running workspaces
-	// 2. Sort by usernames
-	// 3. Sort by workspace names
-	assert.Equal(t, expectedNames, actualNames)
-	assert.Equal(t, expectedStatus, actualStatus)
+	// 1. Favorite workspaces (we have one, workspace-f)
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	require.Equal(t, expectedNames, actualNames)
+
+	// Once again but this time as a different user. This time we do not expect to see another
+	// user's favorites first.
+	workspacesResponse, err = secondUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(second) fetch workspaces")
+	workspaces = workspacesResponse.Workspaces
+
+	expectedNames = []string{
+		wsbA.Workspace.Name, // running
+		wsbC.Workspace.Name, // running
+		wsbB.Workspace.Name, // stopped, aaa < zzz
+		wsbF.Workspace.Name, // stopped, aaa < zzz
+		wsbD.Workspace.Name, // stopped, zzz > aaa
+		wsbE.Workspace.Name, // stopped, zzz > aaa
+	}
+
+	actualNames = make([]string, 0, len(expectedNames))
+	for _, w := range workspaces {
+		actualNames = append(actualNames, w.Name)
+	}
+
+	// the correct sorting order is:
+	// 1. Favorite workspaces (we have none this time)
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	require.Equal(t, expectedNames, actualNames)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
