@@ -2143,7 +2143,7 @@ func (api *API) workspaceAgentsExternalAuthListen(rw http.ResponseWriter, ctx co
 			continue
 		}
 
-		valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
+		valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthToken())
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to validate external auth token",
 				slog.F("workspace_owner_id", workspace.OwnerID.String()),
