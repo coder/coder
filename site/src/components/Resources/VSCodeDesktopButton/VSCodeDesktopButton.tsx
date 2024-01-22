@@ -1,14 +1,13 @@
-import { FC, PropsWithChildren, useState, useRef } from "react";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import { type FC, useState, useRef } from "react";
 import { getApiKey } from "api/api";
+import { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { AgentButton } from "components/Resources/AgentButton";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import ButtonGroup from "@mui/material/ButtonGroup";
-import { useLocalStorage } from "hooks";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import { DisplayApp } from "api/typesGenerated";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface VSCodeDesktopButtonProps {
@@ -23,12 +22,9 @@ type VSCodeVariant = "vscode" | "vscode-insiders";
 
 const VARIANT_KEY = "vscode-variant";
 
-export const VSCodeDesktopButton: FC<
-  PropsWithChildren<VSCodeDesktopButtonProps>
-> = (props) => {
+export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
   const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-  const localStorage = useLocalStorage();
-  const previousVariant = localStorage.getLocal(VARIANT_KEY);
+  const previousVariant = localStorage.getItem(VARIANT_KEY);
   const [variant, setVariant] = useState<VSCodeVariant>(() => {
     if (!previousVariant) {
       return "vscode";
@@ -38,7 +34,7 @@ export const VSCodeDesktopButton: FC<
   const menuAnchorRef = useRef<HTMLDivElement>(null);
 
   const selectVariant = (variant: VSCodeVariant) => {
-    localStorage.saveLocal(VARIANT_KEY, variant);
+    localStorage.setItem(VARIANT_KEY, variant);
     setVariant(variant);
     setIsVariantMenuOpen(false);
   };
@@ -109,12 +105,12 @@ export const VSCodeDesktopButton: FC<
   );
 };
 
-const VSCodeButton = ({
+const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
   userName,
   workspaceName,
   agentName,
   folderPath,
-}: VSCodeDesktopButtonProps) => {
+}) => {
   const [loading, setLoading] = useState(false);
 
   return (
@@ -153,12 +149,12 @@ const VSCodeButton = ({
   );
 };
 
-const VSCodeInsidersButton = ({
+const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
   userName,
   workspaceName,
   agentName,
   folderPath,
-}: VSCodeDesktopButtonProps) => {
+}) => {
   const [loading, setLoading] = useState(false);
 
   return (

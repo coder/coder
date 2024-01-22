@@ -22,3 +22,13 @@ func RequireRecvCtx[A any](ctx context.Context, t testing.TB, c <-chan A) (a A) 
 		return a
 	}
 }
+
+func RequireSendCtx[A any](ctx context.Context, t testing.TB, c chan<- A, a A) {
+	t.Helper()
+	select {
+	case <-ctx.Done():
+		t.Fatal("timeout")
+	case c <- a:
+		// OK!
+	}
+}

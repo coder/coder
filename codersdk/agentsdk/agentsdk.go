@@ -14,12 +14,15 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/retry"
 )
 
@@ -280,8 +283,8 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 
 // Listen connects to the workspace agent coordinate WebSocket
 // that handles connection negotiation.
-func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
-	coordinateURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/coordinate")
+func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
+	coordinateURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -312,14 +315,21 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "coordinate")
 
-	return &closeNetConn{
+	netConn := &closeNetConn{
 		Conn: wsNetConn,
 		closeFunc: func() {
 			cancelFunc()
 			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
 			<-pingClosed
 		},
-	}, nil
+	}
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Client(netConn, config)
+	if err != nil {
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	return drpcsdk.MultiplexedConn(session), nil
 }
 
 type PostAppHealthsRequest struct {

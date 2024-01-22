@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	agpl "github.com/coder/coder/v2/tailnet"
@@ -53,6 +54,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	version := "1.0"
+	msgType := websocket.MessageText
 	qv := r.URL.Query().Get("version")
 	if qv != "" {
 		version = qv
@@ -65,6 +67,11 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 			},
 		})
 		return
+	}
+	maj, _, _ := apiversion.Parse(version)
+	if maj >= 2 {
+		// Versions 2+ use dRPC over a binary connection
+		msgType = websocket.MessageBinary
 	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
@@ -81,7 +88,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, nc := websocketNetConn(ctx, conn, websocket.MessageText)
+	ctx, nc := websocketNetConn(ctx, conn, msgType)
 	defer nc.Close()
 
 	id := uuid.New()

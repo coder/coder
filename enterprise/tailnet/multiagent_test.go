@@ -6,12 +6,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -39,22 +42,19 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord1)
+	defer ma1.close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.sendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
@@ -86,23 +86,20 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord1)
+	defer ma1.close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.sendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.UnsubscribeAgent(agent1.id))
-	require.NoError(t, ma1.Close())
+	ma1.unsubscribeAgent(agent1.id)
+	ma1.close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
@@ -134,37 +131,35 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord1)
+	defer ma1.close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	require.NoError(t, ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3}))
+	ma1.sendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.UnsubscribeAgent(agent1.id))
+	ma1.unsubscribeAgent(agent1.id)
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
 
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
-		require.NoError(t, ma1.UpdateSelf(&agpl.Node{PreferredDERP: 9}))
+		ma1.sendNodeWithDERP(9)
 		assertNeverHasDERPs(ctx, t, agent1, 9)
 	}()
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
 		agent1.sendNode(&agpl.Node{PreferredDERP: 8})
-		assertMultiAgentNeverHasDERPs(ctx, t, ma1, 8)
+		ma1.assertNeverHasDERPs(ctx, 8)
 	}()
 
-	require.NoError(t, ma1.Close())
+	ma1.close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
@@ -201,22 +196,19 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord2.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord2)
+	defer ma1.close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.sendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
@@ -254,22 +246,19 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord2.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord2)
+	defer ma1.close()
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.sendNodeWithDERP(3)
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	require.NoError(t, ma1.Close())
+	ma1.close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
@@ -316,33 +305,129 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	defer agent1.close()
 	agent2.sendNode(&agpl.Node{PreferredDERP: 6})
 
-	id := uuid.New()
-	ma1 := coord3.ServeMultiAgent(id)
-	defer ma1.Close()
+	ma1 := newTestMultiAgent(t, coord3)
+	defer ma1.close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.subscribeAgent(agent1.id)
+	ma1.assertEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.assertEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.SubscribeAgent(agent2.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 6)
+	ma1.subscribeAgent(agent2.id)
+	ma1.assertEventuallyHasDERPs(ctx, 6)
 
 	agent2.sendNode(&agpl.Node{PreferredDERP: 2})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 2)
+	ma1.assertEventuallyHasDERPs(ctx, 2)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.sendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 	assertEventuallyHasDERPs(ctx, t, agent2, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.close()
 	require.NoError(t, agent1.close())
 	require.NoError(t, agent2.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
 	assertEventuallyLost(ctx, t, store, agent1.id)
+}
+
+type testMultiAgent struct {
+	t        testing.TB
+	id       uuid.UUID
+	a        agpl.MultiAgentConn
+	nodeKey  []byte
+	discoKey string
+}
+
+func newTestMultiAgent(t testing.TB, coord agpl.Coordinator) *testMultiAgent {
+	nk, err := key.NewNode().Public().MarshalBinary()
+	require.NoError(t, err)
+	dk, err := key.NewDisco().Public().MarshalText()
+	require.NoError(t, err)
+	m := &testMultiAgent{t: t, id: uuid.New(), nodeKey: nk, discoKey: string(dk)}
+	m.a = coord.ServeMultiAgent(m.id)
+	return m
+}
+
+func (m *testMultiAgent) sendNodeWithDERP(derp int32) {
+	m.t.Helper()
+	err := m.a.UpdateSelf(&proto.Node{
+		Key:           m.nodeKey,
+		Disco:         m.discoKey,
+		PreferredDerp: derp,
+	})
+	require.NoError(m.t, err)
+}
+
+func (m *testMultiAgent) close() {
+	m.t.Helper()
+	err := m.a.Close()
+	require.NoError(m.t, err)
+}
+
+func (m *testMultiAgent) subscribeAgent(id uuid.UUID) {
+	m.t.Helper()
+	err := m.a.SubscribeAgent(id)
+	require.NoError(m.t, err)
+}
+
+func (m *testMultiAgent) unsubscribeAgent(id uuid.UUID) {
+	m.t.Helper()
+	err := m.a.UnsubscribeAgent(id)
+	require.NoError(m.t, err)
+}
+
+func (m *testMultiAgent) assertEventuallyHasDERPs(ctx context.Context, expected ...int) {
+	m.t.Helper()
+	for {
+		resp, ok := m.a.NextUpdate(ctx)
+		require.True(m.t, ok)
+		nodes, err := agpl.OnlyNodeUpdates(resp)
+		require.NoError(m.t, err)
+		if len(nodes) != len(expected) {
+			m.t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				m.t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
+	}
+}
+
+func (m *testMultiAgent) assertNeverHasDERPs(ctx context.Context, expected ...int) {
+	m.t.Helper()
+	for {
+		resp, ok := m.a.NextUpdate(ctx)
+		if !ok {
+			return
+		}
+		nodes, err := agpl.OnlyNodeUpdates(resp)
+		require.NoError(m.t, err)
+		if len(nodes) != len(expected) {
+			m.t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				m.t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -12,6 +13,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -22,10 +24,10 @@ func TestMain(m *testing.M) {
 
 func TestTailnet(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			Logger:    logger.Named("w1"),
@@ -37,6 +39,8 @@ func TestTailnet(t *testing.T) {
 	})
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.IP()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
@@ -55,14 +59,8 @@ func TestTailnet(t *testing.T) {
 			_ = w1.Close()
 			_ = w2.Close()
 		})
-		w1.SetNodeCallback(func(node *tailnet.Node) {
-			err := w2.UpdateNodes([]*tailnet.Node{node}, false)
-			assert.NoError(t, err)
-		})
-		w2.SetNodeCallback(func(node *tailnet.Node) {
-			err := w1.UpdateNodes([]*tailnet.Node{node}, false)
-			assert.NoError(t, err)
-		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
 		conn := make(chan struct{}, 1)
 		go func() {
@@ -89,8 +87,8 @@ func TestTailnet(t *testing.T) {
 			default:
 			}
 		})
-		node := <-nodes
-		// Ensure this connected over DERP!
+		node := testutil.RequireRecvCtx(ctx, t, nodes)
+		// Ensure this connected over raw (not websocket) DERP!
 		require.Len(t, node.DERPForcedWebsocket, 0)
 
 		w1.Close()
@@ -99,6 +97,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		w1IP := tailnet.IP()
@@ -122,14 +121,8 @@ func TestTailnet(t *testing.T) {
 			_ = w1.Close()
 			_ = w2.Close()
 		})
-		w1.SetNodeCallback(func(node *tailnet.Node) {
-			err := w2.UpdateNodes([]*tailnet.Node{node}, false)
-			assert.NoError(t, err)
-		})
-		w2.SetNodeCallback(func(node *tailnet.Node) {
-			err := w1.UpdateNodes([]*tailnet.Node{node}, false)
-			assert.NoError(t, err)
-		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(ctx, w1IP))
 		conn := make(chan struct{}, 1)
 		go func() {
@@ -160,6 +153,94 @@ func TestTailnet(t *testing.T) {
 		require.Len(t, node.DERPForcedWebsocket, 1)
 		// Ensure the reason is valid!
 		require.Equal(t, `GET failed with status code 400 (a proxy could be disallowing the use of 'Upgrade: derp'): Invalid "Upgrade" header: DERP`, node.DERPForcedWebsocket[derpMap.RegionIDs()[0]])
+
+		w1.Close()
+		w2.Close()
+	})
+
+	t.Run("PingDirect", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w1IP := tailnet.IP()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+
+		require.Eventually(t, func() bool {
+			_, direct, pong, err := w2.Ping(ctx, w1IP)
+			if err != nil {
+				t.Logf("ping error: %s", err.Error())
+				return false
+			}
+			if !direct {
+				t.Logf("got pong: %+v", pong)
+				return false
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		w1.Close()
+		w2.Close()
+	})
+
+	t.Run("PingDERPOnly", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w1IP := tailnet.IP()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:         logger.Named("w1"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:         logger.Named("w2"),
+			DERPMap:        derpMap,
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		stitch(t, w2, w1)
+		stitch(t, w1, w2)
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+
+		require.Eventually(t, func() bool {
+			_, direct, pong, err := w2.Ping(ctx, w1IP)
+			if err != nil {
+				t.Logf("ping error: %s", err.Error())
+				return false
+			}
+			if direct || pong.DERPRegionID != derpMap.RegionIDs()[0] {
+				t.Logf("got pong: %+v", pong)
+				return false
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		w1.Close()
 		w2.Close()
@@ -243,11 +324,16 @@ func TestConn_UpdateDERP(t *testing.T) {
 		err := client1.Close()
 		assert.NoError(t, err)
 	}()
-	client1.SetNodeCallback(func(node *tailnet.Node) {
-		err := conn.UpdateNodes([]*tailnet.Node{node}, false)
-		assert.NoError(t, err)
-	})
-	client1.UpdateNodes([]*tailnet.Node{conn.Node()}, false)
+	stitch(t, conn, client1)
+	pn, err := tailnet.NodeToProto(conn.Node())
+	require.NoError(t, err)
+	connID := uuid.New()
+	err = client1.UpdatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+		Id:   connID[:],
+		Node: pn,
+		Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+	}})
+	require.NoError(t, err)
 
 	awaitReachableCtx1, awaitReachableCancel1 := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer awaitReachableCancel1()
@@ -288,7 +374,13 @@ parentLoop:
 
 	// ... unless the client updates it's derp map and nodes.
 	client1.SetDERPMap(derpMap2)
-	client1.UpdateNodes([]*tailnet.Node{conn.Node()}, false)
+	pn, err = tailnet.NodeToProto(conn.Node())
+	require.NoError(t, err)
+	client1.UpdatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+		Id:   connID[:],
+		Node: pn,
+		Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+	}})
 	awaitReachableCtx3, awaitReachableCancel3 := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer awaitReachableCancel3()
 	require.True(t, client1.AwaitReachable(awaitReachableCtx3, ip))
@@ -306,13 +398,34 @@ parentLoop:
 		err := client2.Close()
 		assert.NoError(t, err)
 	}()
-	client2.SetNodeCallback(func(node *tailnet.Node) {
-		err := conn.UpdateNodes([]*tailnet.Node{node}, false)
-		assert.NoError(t, err)
-	})
-	client2.UpdateNodes([]*tailnet.Node{conn.Node()}, false)
+	stitch(t, conn, client2)
+	pn, err = tailnet.NodeToProto(conn.Node())
+	require.NoError(t, err)
+	client2.UpdatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+		Id:   connID[:],
+		Node: pn,
+		Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+	}})
 
 	awaitReachableCtx4, awaitReachableCancel4 := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer awaitReachableCancel4()
 	require.True(t, client2.AwaitReachable(awaitReachableCtx4, ip))
+}
+
+// stitch sends node updates from src Conn as peer updates to dst Conn.  Sort of
+// like the Coordinator would, but without actually needing a Coordinator.
+func stitch(t *testing.T, dst, src *tailnet.Conn) {
+	srcID := uuid.New()
+	src.SetNodeCallback(func(node *tailnet.Node) {
+		pn, err := tailnet.NodeToProto(node)
+		if !assert.NoError(t, err) {
+			return
+		}
+		err = dst.UpdatePeers([]*proto.CoordinateResponse_PeerUpdate{{
+			Id:   srcID[:],
+			Node: pn,
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+		}})
+		assert.NoError(t, err)
+	})
 }

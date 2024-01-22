@@ -9,7 +9,6 @@ import { templateByNameKey } from "api/queries/templates";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useLocalStorage } from "hooks";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
 
@@ -22,7 +21,6 @@ const TemplateSchedulePage: FC = () => {
   const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
-  const { clearLocal } = useLocalStorage();
 
   const {
     mutate: updateTemplate,
@@ -37,8 +35,8 @@ const TemplateSchedulePage: FC = () => {
         );
         displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion
-        clearLocal("dismissedWorkspaceList"); // workspaces page
-        clearLocal("dismissedWorkspace"); // workspace page
+        localStorage.removeItem("dismissedWorkspaceList"); // workspaces page
+        localStorage.removeItem("dismissedWorkspace"); // workspace page
       },
     },
   );

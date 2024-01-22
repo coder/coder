@@ -121,12 +121,23 @@ func NewServerTailnet(
 	}
 	tn.agentConn.Store(&agentConn)
 
-	err = tn.getAgentConn().UpdateSelf(conn.Node())
+	pn, err := tailnet.NodeToProto(conn.Node())
 	if err != nil {
-		tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
+		tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+	} else {
+		err = tn.getAgentConn().UpdateSelf(pn)
+		if err != nil {
+			tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
+		}
 	}
+
 	conn.SetNodeCallback(func(node *tailnet.Node) {
-		err := tn.getAgentConn().UpdateSelf(node)
+		pn, err := tailnet.NodeToProto(node)
+		if err != nil {
+			tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+			return
+		}
+		err = tn.getAgentConn().UpdateSelf(pn)
 		if err != nil {
 			tn.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
 		}
@@ -191,21 +202,9 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 		// If no one has connected since the cutoff and there are no active
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(s.agentTickets[agentID]) == 0 {
-			deleted, err := s.conn.RemovePeer(tailnet.PeerSelector{
-				ID: tailnet.NodeID(agentID),
-				IP: netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-			})
-			if err != nil {
-				s.logger.Warn(ctx, "failed to remove peer from server tailnet", slog.Error(err))
-				continue
-			}
-			if !deleted {
-				s.logger.Warn(ctx, "peer didn't exist in tailnet", slog.Error(err))
-			}
-
 			deletedCount++
 			delete(s.agentConnectionTimes, agentID)
-			err = agentConn.UnsubscribeAgent(agentID)
+			err := agentConn.UnsubscribeAgent(agentID)
 			if err != nil {
 				s.logger.Error(ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
 			}
@@ -221,7 +220,7 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 func (s *ServerTailnet) watchAgentUpdates() {
 	for {
 		conn := s.getAgentConn()
-		nodes, ok := conn.NextUpdate(s.ctx)
+		resp, ok := conn.NextUpdate(s.ctx)
 		if !ok {
 			if conn.IsClosed() && s.ctx.Err() == nil {
 				s.logger.Warn(s.ctx, "multiagent closed, reinitializing")
@@ -231,7 +230,7 @@ func (s *ServerTailnet) watchAgentUpdates() {
 			return
 		}
 
-		err := s.conn.UpdateNodes(nodes, false)
+		err := s.conn.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			if xerrors.Is(err, tailnet.ErrConnClosed) {
 				s.logger.Warn(context.Background(), "tailnet conn closed, exiting watchAgentUpdates", slog.Error(err))
