@@ -11,7 +11,8 @@ December 13, 2023
 ---
 
 This is a guide on how to make Coder guides, it is not listed on our
-[official guides page](https://coder.com/docs/v2/latest/guides) in the docs. Intended for those who don't frequently contribute documentation changes to the
+[official guides page](https://coder.com/docs/v2/latest/guides) in the docs.
+Intended for those who don't frequently contribute documentation changes to the
 `coder/coder` repository.
 
 ## Content
