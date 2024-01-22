@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -98,14 +99,32 @@ func TestDERP(t *testing.T) {
 
 	w2Ready := make(chan struct{})
 	w2ReadyOnce := sync.Once{}
+	w1ID := uuid.New()
 	w1.SetNodeCallback(func(node *tailnet.Node) {
-		w2.UpdateNodes([]*tailnet.Node{node}, false)
+		pn, err := tailnet.NodeToProto(node)
+		if !assert.NoError(t, err) {
+			return
+		}
+		w2.UpdatePeers([]*tailnetproto.CoordinateResponse_PeerUpdate{{
+			Id:   w1ID[:],
+			Node: pn,
+			Kind: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+		}})
 		w2ReadyOnce.Do(func() {
 			close(w2Ready)
 		})
 	})
+	w2ID := uuid.New()
 	w2.SetNodeCallback(func(node *tailnet.Node) {
-		w1.UpdateNodes([]*tailnet.Node{node}, false)
+		pn, err := tailnet.NodeToProto(node)
+		if !assert.NoError(t, err) {
+			return
+		}
+		w1.UpdatePeers([]*tailnetproto.CoordinateResponse_PeerUpdate{{
+			Id:   w2ID[:],
+			Node: pn,
+			Kind: tailnetproto.CoordinateResponse_PeerUpdate_NODE,
+		}})
 	})
 
 	conn := make(chan struct{})
@@ -199,7 +218,11 @@ func TestDERPForceWebSockets(t *testing.T) {
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID,
+		&codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("client"),
+		},
+	)
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()

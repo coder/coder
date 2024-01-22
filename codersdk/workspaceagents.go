@@ -313,6 +313,9 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := coordinateURL.Query()
+	q.Add("version", tailnet.CurrentVersion.String())
+	coordinateURL.RawQuery = q.Encode()
 	closedCoordinator := make(chan struct{})
 	// Must only ever be used once, send error OR close to avoid
 	// reassignment race. Buffered so we don't hang in goroutine.
@@ -344,12 +347,22 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(nodes []*tailnet.Node) error {
-				return conn.UpdateNodes(nodes, false)
-			})
-			conn.SetNodeCallback(sendNode)
+			client, err := tailnet.NewDRPCClient(websocket.NetConn(ctx, ws, websocket.MessageBinary))
+			if err != nil {
+				options.Logger.Debug(ctx, "failed to create DRPCClient", slog.Error(err))
+				_ = ws.Close(websocket.StatusInternalError, "")
+				continue
+			}
+			coordinate, err := client.Coordinate(ctx)
+			if err != nil {
+				options.Logger.Debug(ctx, "failed to reach the Coordinate endpoint", slog.Error(err))
+				_ = ws.Close(websocket.StatusInternalError, "")
+				continue
+			}
+
+			coordination := tailnet.NewRemoteCoordination(options.Logger, coordinate, conn, agentID)
 			options.Logger.Debug(ctx, "serving coordinator")
-			err = <-errChan
+			err = <-coordination.Error()
 			if errors.Is(err, context.Canceled) {
 				_ = ws.Close(websocket.StatusGoingAway, "")
 				return

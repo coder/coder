@@ -75,7 +75,9 @@ func NewClientService(
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if xerrors.Is(err, io.EOF) ||
+				xerrors.Is(err, context.Canceled) ||
+				xerrors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))

@@ -18,8 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -156,25 +158,48 @@ func TestDialCoordinator(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		var (
-			ctx, cancel      = context.WithTimeout(context.Background(), testutil.WaitShort)
-			logger           = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-			agentID          = uuid.New()
-			serverMultiAgent = tailnettest.NewMockMultiAgentConn(gomock.NewController(t))
-			r                = chi.NewRouter()
-			srv              = httptest.NewServer(r)
+			ctx, cancel                  = context.WithTimeout(context.Background(), testutil.WaitShort)
+			logger                       = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			agentID                      = uuid.UUID{33}
+			proxyID                      = uuid.UUID{44}
+			mCoord                       = tailnettest.NewMockCoordinator(gomock.NewController(t))
+			coord       agpl.Coordinator = mCoord
+			r                            = chi.NewRouter()
+			srv                          = httptest.NewServer(r)
 		)
 		defer cancel()
+		defer srv.Close()
 
+		coordPtr := atomic.Pointer[agpl.Coordinator]{}
+		coordPtr.Store(&coord)
+		cSrv, err := tailnet.NewClientService(
+			logger, &coordPtr,
+			time.Hour,
+			func() *tailcfg.DERPMap { panic("not implemented") },
+		)
+		require.NoError(t, err)
+
+		// buffer the channels here, so we don't need to read and write in goroutines to
+		// avoid blocking
+		reqs := make(chan *proto.CoordinateRequest, 100)
+		resps := make(chan *proto.CoordinateResponse, 100)
+		mCoord.EXPECT().Coordinate(gomock.Any(), proxyID, gomock.Any(), agpl.SingleTailnetTunnelAuth{}).
+			Times(1).
+			Return(reqs, resps)
+
+		serveMACErr := make(chan error, 1)
 		r.Get("/api/v2/workspaceproxies/me/coordinate", func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
-			require.NoError(t, err)
-			nc := websocket.NetConn(r.Context(), conn, websocket.MessageText)
-			defer serverMultiAgent.Close()
-
-			err = tailnet.ServeWorkspaceProxy(ctx, nc, serverMultiAgent)
-			if !xerrors.Is(err, io.EOF) {
-				assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
 			}
+			version := r.URL.Query().Get("version")
+			if !assert.Equal(t, version, agpl.CurrentVersion.String()) {
+				return
+			}
+			nc := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
+			err = cSrv.ServeMultiAgentClient(ctx, version, nc, proxyID)
+			serveMACErr <- err
 		})
 		r.Get("/api/v2/workspaceagents/{workspaceagent}/legacy", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, w, http.StatusOK, wsproxysdk.AgentIsLegacyResponse{
@@ -188,51 +213,50 @@ func TestDialCoordinator(t *testing.T) {
 		client := wsproxysdk.New(u)
 		client.SDKClient.SetLogger(logger)
 
-		expected := []*agpl.Node{{
-			ID:            55,
-			AsOf:          time.Unix(1689653252, 0),
-			Key:           key.NewNode().Public(),
-			DiscoKey:      key.NewDisco().Public(),
-			PreferredDERP: 0,
-			DERPLatency: map[string]float64{
-				"0": 1.0,
+		peerID := uuid.UUID{55}
+		peerNodeKey, err := key.NewNode().Public().MarshalBinary()
+		require.NoError(t, err)
+		peerDiscoKey, err := key.NewDisco().Public().MarshalText()
+		require.NoError(t, err)
+		expected := &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
+			Id: peerID[:],
+			Node: &proto.Node{
+				Id:            55,
+				AsOf:          timestamppb.New(time.Unix(1689653252, 0)),
+				Key:           peerNodeKey[:],
+				Disco:         string(peerDiscoKey),
+				PreferredDerp: 0,
+				DerpLatency: map[string]float64{
+					"0": 1.0,
+				},
+				DerpForcedWebsocket: map[int32]string{},
+				Addresses:           []string{netip.PrefixFrom(netip.AddrFrom16([16]byte{1, 2, 3, 4}), 128).String()},
+				AllowedIps:          []string{netip.PrefixFrom(netip.AddrFrom16([16]byte{1, 2, 3, 4}), 128).String()},
+				Endpoints:           []string{"192.168.1.1:18842"},
 			},
-			DERPForcedWebsocket: map[int]string{},
-			Addresses:           []netip.Prefix{netip.PrefixFrom(netip.AddrFrom16([16]byte{1, 2, 3, 4}), 128)},
-			AllowedIPs:          []netip.Prefix{netip.PrefixFrom(netip.AddrFrom16([16]byte{1, 2, 3, 4}), 128)},
-			Endpoints:           []string{"192.168.1.1:18842"},
-		}}
-		sendNode := make(chan struct{})
-
-		serverMultiAgent.EXPECT().NextUpdate(gomock.Any()).AnyTimes().
-			DoAndReturn(func(ctx context.Context) ([]*agpl.Node, bool) {
-				select {
-				case <-sendNode:
-					return expected, true
-				case <-ctx.Done():
-					return nil, false
-				}
-			})
+		}}}
 
 		rma, err := client.DialCoordinator(ctx)
 		require.NoError(t, err)
 
 		// Subscribe
 		{
-			ch := make(chan struct{})
-			serverMultiAgent.EXPECT().SubscribeAgent(agentID).Do(func(uuid.UUID) {
-				close(ch)
-			})
 			require.NoError(t, rma.SubscribeAgent(agentID))
-			waitOrCancel(ctx, t, ch)
+
+			req := testutil.RequireRecvCtx(ctx, t, reqs)
+			require.Equal(t, agentID[:], req.GetAddTunnel().GetId())
 		}
 		// Read updated agent node
 		{
-			sendNode <- struct{}{}
-			got, ok := rma.NextUpdate(ctx)
+			resps <- expected
+
+			resp, ok := rma.NextUpdate(ctx)
 			assert.True(t, ok)
-			got[0].AsOf = got[0].AsOf.In(time.Local)
-			assert.Equal(t, *expected[0], *got[0])
+			updates := resp.GetPeerUpdates()
+			assert.Len(t, updates, 1)
+			eq, err := updates[0].GetNode().Equal(expected.GetPeerUpdates()[0].GetNode())
+			assert.NoError(t, err)
+			assert.True(t, eq)
 		}
 		// Check legacy
 		{
@@ -241,43 +265,36 @@ func TestDialCoordinator(t *testing.T) {
 		}
 		// UpdateSelf
 		{
-			ch := make(chan struct{})
-			serverMultiAgent.EXPECT().UpdateSelf(gomock.Any()).Do(func(node *agpl.Node) {
-				node.AsOf = node.AsOf.In(time.Local)
-				assert.Equal(t, expected[0], node)
-				close(ch)
-			})
-			require.NoError(t, rma.UpdateSelf(expected[0]))
-			waitOrCancel(ctx, t, ch)
+			require.NoError(t, rma.UpdateSelf(expected.PeerUpdates[0].GetNode()))
+
+			req := testutil.RequireRecvCtx(ctx, t, reqs)
+			eq, err := req.GetUpdateSelf().GetNode().Equal(expected.PeerUpdates[0].GetNode())
+			require.NoError(t, err)
+			require.True(t, eq)
 		}
 		// Unsubscribe
 		{
-			ch := make(chan struct{})
-			serverMultiAgent.EXPECT().UnsubscribeAgent(agentID).Do(func(uuid.UUID) {
-				close(ch)
-			})
 			require.NoError(t, rma.UnsubscribeAgent(agentID))
-			waitOrCancel(ctx, t, ch)
+
+			req := testutil.RequireRecvCtx(ctx, t, reqs)
+			require.Equal(t, agentID[:], req.GetRemoveTunnel().GetId())
 		}
 		// Close
 		{
-			ch := make(chan struct{})
-			serverMultiAgent.EXPECT().Close().Do(func() {
-				close(ch)
-			})
 			require.NoError(t, rma.Close())
-			waitOrCancel(ctx, t, ch)
+
+			req := testutil.RequireRecvCtx(ctx, t, reqs)
+			require.NotNil(t, req.Disconnect)
+			close(resps)
+			select {
+			case <-ctx.Done():
+				t.Fatal("timeout waiting for req close")
+			case _, ok := <-reqs:
+				require.False(t, ok, "didn't close requests")
+			}
+			require.Error(t, testutil.RequireRecvCtx(ctx, t, serveMACErr))
 		}
 	})
-}
-
-func waitOrCancel(ctx context.Context, t testing.TB, ch <-chan struct{}) {
-	t.Helper()
-	select {
-	case <-ch:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for channel")
-	}
 }
 
 type ResponseRecorder struct {
