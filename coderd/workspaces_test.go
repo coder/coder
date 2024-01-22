@@ -480,16 +480,27 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client, func(r *codersdk.CreateFirstUserRequest) {
+		r.Username = "aaa"
+	})
+	_, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
+		r.Username = "zzz"
+	})
 
 	// c-workspace should be running
-	wsb1 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+	wsbC := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	// b-workspace should be stopped
-	wsb2 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	wsbB := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// a-workspace should be running
-	wsb3 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+	wsbA := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+
+	// d-workspace should be stopped
+	wsbD := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "d-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+
+	// e-workspace should also be stopped
+	wsbE := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "e-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -498,14 +509,18 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	workspaces := workspacesResponse.Workspaces
 
 	expectedNames := []string{
-		wsb3.Workspace.Name,
-		wsb1.Workspace.Name,
-		wsb2.Workspace.Name,
+		wsbA.Workspace.Name, // running
+		wsbC.Workspace.Name, // running
+		wsbB.Workspace.Name, // stopped, aaa < zzz
+		wsbD.Workspace.Name, // stopped, zzz > aaa
+		wsbE.Workspace.Name, // stopped, zzz > aaa
 	}
 
 	expectedStatus := []codersdk.WorkspaceStatus{
 		codersdk.WorkspaceStatusRunning,
 		codersdk.WorkspaceStatusRunning,
+		codersdk.WorkspaceStatusStopped,
+		codersdk.WorkspaceStatusStopped,
 		codersdk.WorkspaceStatusStopped,
 	}
 
