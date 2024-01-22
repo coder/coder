@@ -39,8 +39,8 @@ locals {
   workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   workspace_pod_termination_grace_period_seconds = 5 * 60 * 60 # 5 hours (cleanup timeout).
   service_account_name                           = "scaletest-sa"
-  cpu                                            = 16
-  memory                                         = 64
+  cpu                                            = 32
+  memory                                         = 256
   home_disk_size                                 = 10
   scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
