@@ -2927,84 +2927,84 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
+}
 
-	t.Run("FavoriteUnfavorite", func(t *testing.T) {
-		t.Parallel()
-		// Given:
-		var (
-			auditRecorder = audit.NewMock()
-			client, db    = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				Auditor: auditRecorder,
-			})
-			owner                = coderdtest.CreateFirstUser(t, client)
-			memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-			wsb1                 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
-			_                    = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
-		)
+func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
+	t.Parallel()
+	// Given:
+	var (
+		auditRecorder = audit.NewMock()
+		client, db    = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			Auditor: auditRecorder,
+		})
+		owner                = coderdtest.CreateFirstUser(t, client)
+		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		wsb1                 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		_                    = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+	)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		// Initially, workspace should not be favored for member.
-		workspaces, err := memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.False(t, workspaces.Workspaces[0].Favored)
-		ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
-		require.False(t, ws.Favored)
+	// Initially, workspace should not be favored for member.
+	workspaces, err := memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 1)
+	require.False(t, workspaces.Workspaces[0].Favored)
+	ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favored)
 
-		// Also not for owner.
-		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 2)
-		require.False(t, workspaces.Workspaces[0].Favored)
-		require.False(t, workspaces.Workspaces[1].Favored)
+	// Also not for owner.
+	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.False(t, workspaces.Workspaces[0].Favored)
+	require.False(t, workspaces.Workspaces[1].Favored)
 
-		// When member pins workspace
-		err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
+	// When member pins workspace
+	err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
 
-		// Then it should be favored for them
-		workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.True(t, workspaces.Workspaces[0].Favored)
-		ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
-		require.True(t, ws.Favored)
+	// Then it should be favored for them
+	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 1)
+	require.True(t, workspaces.Workspaces[0].Favored)
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.True(t, ws.Favored)
 
-		// But not for someone else
-		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 2)
-		require.False(t, workspaces.Workspaces[0].Favored)
-		require.False(t, workspaces.Workspaces[1].Favored)
-		ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
-		require.False(t, ws.Favored)
+	// But not for someone else
+	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.False(t, workspaces.Workspaces[0].Favored)
+	require.False(t, workspaces.Workspaces[1].Favored)
+	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favored)
 
-		// When member unpins workspace
-		err = memberClient.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
+	// When member unpins workspace
+	err = memberClient.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
 
-		// Then it should no longer be favored
-		workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 1)
-		require.False(t, workspaces.Workspaces[0].Favored)
-		ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
-		require.False(t, ws.Favored)
+	// Then it should no longer be favored
+	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 1)
+	require.False(t, workspaces.Workspaces[0].Favored)
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favored)
 
-		// Assert invariant: workspace should remain unpinned for a different user
-		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		require.NoError(t, err)
-		require.Len(t, workspaces.Workspaces, 2)
-		require.False(t, workspaces.Workspaces[0].Favored)
-		require.False(t, workspaces.Workspaces[1].Favored)
-		ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
-		require.NoError(t, err)
-		require.False(t, ws.Favored)
-	})
+	// Assert invariant: workspace should remain unpinned for a different user
+	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.False(t, workspaces.Workspaces[0].Favored)
+	require.False(t, workspaces.Workspaces[1].Favored)
+	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favored)
 }
