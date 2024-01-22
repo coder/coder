@@ -1646,14 +1646,14 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		// Workspace is up-to-date
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "updated:true",
+			FilterQuery: "outdated:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "updated:false",
+			FilterQuery: "outdated:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
@@ -1670,13 +1670,13 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		// Check the query again
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "updated:true",
+			FilterQuery: "outdated:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
 
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: "updated:false",
+			FilterQuery: "outdated:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
