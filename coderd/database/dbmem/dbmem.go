@@ -7737,7 +7737,15 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		w1 := workspaces[i]
 		w2 := workspaces[j]
 
-		// Order by: running first
+		// Order by: favorite first
+		if w1.FavoriteOf.Valid && !w2.FavoriteOf.Valid {
+			return true
+		}
+		if !w1.FavoriteOf.Valid && w2.FavoriteOf.Valid {
+			return false
+		}
+
+		// Order by: running
 		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
 		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
 

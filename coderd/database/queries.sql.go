@@ -11363,6 +11363,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	favorite_of IS NOT NULL AND
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND

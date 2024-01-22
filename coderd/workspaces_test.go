@@ -2939,8 +2939,12 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 		})
 		owner                = coderdtest.CreateFirstUser(t, client)
 		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		wsb1                 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
-		_                    = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+		// This will be our 'favorite' workspace
+		wsb1 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		// Another workspace for member, but not their favorite.
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		// A workspace for another user.
+		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2949,8 +2953,9 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	// Initially, workspace should not be favored for member.
 	workspaces, err := memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favorite)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.False(t, workspaces.Workspaces[0].Favorite, "no favorites yet")
+	require.False(t, workspaces.Workspaces[1].Favorite, "no favorites yet")
 	ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.False(t, ws.Favorite)
@@ -2958,19 +2963,21 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	// Also not for owner.
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favorite)
-	require.False(t, workspaces.Workspaces[1].Favorite)
+	require.Len(t, workspaces.Workspaces, 3)
+	require.False(t, workspaces.Workspaces[0].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[1].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[2].Favorite, "this user is impartial and has no favorites")
 
 	// When member favorites workspace
 	err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 
-	// Then it should be favored for them
+	// Then it should be favored for them and show up first.
 	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.True(t, workspaces.Workspaces[0].Favorite)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.True(t, workspaces.Workspaces[0].Favorite, "favorites should come first")
+	require.False(t, workspaces.Workspaces[1].Favorite, "favorites should come first")
 	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.True(t, ws.Favorite)
@@ -2978,9 +2985,10 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	// But not for someone else
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favorite)
-	require.False(t, workspaces.Workspaces[1].Favorite)
+	require.Len(t, workspaces.Workspaces, 3)
+	require.False(t, workspaces.Workspaces[0].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[1].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[2].Favorite, "this user is impartial and has no favorites")
 	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.False(t, ws.Favorite)
@@ -2992,8 +3000,9 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	// Then it should no longer be favored
 	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favorite)
+	require.Len(t, workspaces.Workspaces, 2)
+	require.False(t, workspaces.Workspaces[0].Favorite, "no longer favorite")
+	require.False(t, workspaces.Workspaces[1].Favorite, "no longer favorite")
 	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.False(t, ws.Favorite)
@@ -3001,9 +3010,10 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	// Assert invariant: workspace should remain unfavorited for a different user
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favorite)
-	require.False(t, workspaces.Workspaces[1].Favorite)
+	require.Len(t, workspaces.Workspaces, 3)
+	require.False(t, workspaces.Workspaces[0].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[1].Favorite, "this user is impartial and has no favorites")
+	require.False(t, workspaces.Workspaces[2].Favorite, "this user is impartial and has no favorites")
 	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.False(t, ws.Favorite)
