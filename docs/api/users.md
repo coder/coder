@@ -513,6 +513,57 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get autofill build parameters for user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/autofill-parameters?template_id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/autofill-parameters`
+
+### Parameters
+
+| Name          | In    | Type   | Required | Description              |
+| ------------- | ----- | ------ | -------- | ------------------------ |
+| `user`        | path  | string | true     | User ID, username, or me |
+| `template_id` | query | string | true     | Template ID              |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "name": "string",
+    "value": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                              |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserParameter](schemas.md#codersdkuserparameter) |
+
+<h3 id="get-autofill-build-parameters-for-user-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» name`       | string | false    |              |             |
+| `» value`      | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user Git SSH key
 
 ### Code samples
@@ -1006,58 +1057,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 | Status | Meaning                                                 | Description | Schema                                                   |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get recent build parameters for user.
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /users/{user}/parameters`
-
-### Parameters
-
-| Name   | In   | Type   | Required | Description              |
-| ------ | ---- | ------ | -------- | ------------------------ |
-| `user` | path | string | true     | User ID, username, or me |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "last_used_at": "2019-08-24T14:15:22Z",
-    "name": "string",
-    "value": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                              |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserParameter](schemas.md#codersdkuserparameter) |
-
-<h3 id="get-recent-build-parameters-for-user.-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name             | Type              | Required | Restrictions | Description |
-| ---------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`   | array             | false    |              |             |
-| `» last_used_at` | string(date-time) | false    |              |             |
-| `» name`         | string            | false    |              |             |
-| `» value`        | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

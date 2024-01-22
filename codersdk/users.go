@@ -222,14 +222,13 @@ type OIDCAuthMethod struct {
 }
 
 type UserParameter struct {
-	Name       string    `json:"name"`
-	Value      string    `json:"value"`
-	LastUsedAt time.Time `json:"last_used_at" format:"date-time"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
-// UserParameters returns all recently used parameters for the given user.
-func (c *Client) UserParameters(ctx context.Context, user string) ([]UserParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/parameters", user), nil)
+// UserAutofillParameters returns all recently used parameters for the given user.
+func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID string) ([]UserParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
 	if err != nil {
 		return nil, err
 	}

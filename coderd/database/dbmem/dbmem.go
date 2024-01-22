@@ -3758,36 +3758,26 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
-func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, ownerID uuid.UUID) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	userWorkspaceIDs := make(map[uuid.UUID]struct{})
 	for _, ws := range q.workspaces {
-		if ws.OwnerID != ownerID {
+		if ws.OwnerID != params.OwnerID {
+			continue
+		}
+		if ws.TemplateID != params.TemplateID {
 			continue
 		}
 		userWorkspaceIDs[ws.ID] = struct{}{}
 	}
 
-	userWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
-	for _, wb := range q.workspaceBuilds {
-		if _, ok := userWorkspaceIDs[wb.WorkspaceID]; !ok {
-			continue
-		}
-		userWorkspaceBuilds[wb.ID] = wb
-	}
-
 	userWorkspaceBuildParameters := make([]database.GetUserWorkspaceBuildParametersRow, 0)
 	for _, wbp := range q.workspaceBuildParameters {
-		wb, ok := userWorkspaceBuilds[wbp.WorkspaceBuildID]
-		if !ok {
-			continue
-		}
 		userWorkspaceBuildParameters = append(userWorkspaceBuildParameters, database.GetUserWorkspaceBuildParametersRow{
-			Name:      wbp.Name,
-			Value:     wbp.Value,
-			CreatedAt: wb.CreatedAt,
+			Name:  wbp.Name,
+			Value: wbp.Value,
 		})
 	}
 

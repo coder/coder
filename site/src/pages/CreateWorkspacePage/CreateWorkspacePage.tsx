@@ -24,13 +24,13 @@ import {
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { userParameters } from "api/queries/users";
 import { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { Loader } from "components/Loader/Loader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
+import { getUserParameters } from "api/api";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -54,7 +54,14 @@ const CreateWorkspacePage: FC = () => {
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
   const templateQuery = useQuery(templateByName(organizationId, templateName));
-  const userParametersQuery = useQuery(userParameters());
+
+  const userParametersQuery = useQuery(
+    ["userParameters"],
+    () => getUserParameters(templateQuery.data!.id),
+    {
+      enabled: templateQuery.isSuccess,
+    },
+  );
 
   const permissionsQuery = useQuery(
     checkAuthorization({

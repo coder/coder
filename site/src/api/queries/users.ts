@@ -134,13 +134,6 @@ export const me = (): UseQueryOptions<User> & {
   };
 };
 
-export const userParameters = () => {
-  return {
-    queryKey: ["userParameters"],
-    queryFn: API.getUserParameters,
-  };
-};
-
 export const hasFirstUser = () => {
   return {
     queryKey: ["hasFirstUser"],

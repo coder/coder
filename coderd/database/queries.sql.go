@@ -9873,8 +9873,7 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many
 SELECT
     sub.name,
-    sub.value,
-    sub.created_at
+    sub.value
 FROM (
     SELECT
         wbp.name,
@@ -9887,23 +9886,34 @@ FROM (
         workspace_builds wb ON wb.id = wbp.workspace_build_id
     JOIN
         workspaces w ON w.id = wb.workspace_id
+    JOIN
+        template_version_parameters tvp ON tvp.template_version_id = wb.template_version_id
     WHERE
         w.owner_id = $1
         AND wb.transition = 'start'
+        AND w.template_id = $2
+        AND tvp.ephemeral = false
 ) sub
 WHERE
     sub.rn = 1
+ORDER BY sub.created_at DESC
 LIMIT 100
 `
 
-type GetUserWorkspaceBuildParametersRow struct {
-	Name      string    `db:"name" json:"name"`
-	Value     string    `db:"value" json:"value"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+type GetUserWorkspaceBuildParametersParams struct {
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
 }
 
-func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID uuid.UUID) ([]GetUserWorkspaceBuildParametersRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserWorkspaceBuildParameters, ownerID)
+type GetUserWorkspaceBuildParametersRow struct {
+	Name  string `db:"name" json:"name"`
+	Value string `db:"value" json:"value"`
+}
+
+// If there are many distinct parameters,
+// we only want the most recent ones.
+func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserWorkspaceBuildParameters, arg.OwnerID, arg.TemplateID)
 	if err != nil {
 		return nil, err
 	}
@@ -9911,7 +9921,7 @@ func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, ownerI
 	var items []GetUserWorkspaceBuildParametersRow
 	for rows.Next() {
 		var i GetUserWorkspaceBuildParametersRow
-		if err := rows.Scan(&i.Name, &i.Value, &i.CreatedAt); err != nil {
+		if err := rows.Scan(&i.Name, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

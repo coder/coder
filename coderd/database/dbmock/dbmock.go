@@ -2076,7 +2076,7 @@ func (mr *MockStoreMockRecorder) GetUserLinksByUserID(arg0, arg1 any) *gomock.Ca
 }
 
 // GetUserWorkspaceBuildParameters mocks base method.
-func (m *MockStore) GetUserWorkspaceBuildParameters(arg0 context.Context, arg1 uuid.UUID) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+func (m *MockStore) GetUserWorkspaceBuildParameters(arg0 context.Context, arg1 database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserWorkspaceBuildParameters", arg0, arg1)
 	ret0, _ := ret[0].([]database.GetUserWorkspaceBuildParametersRow)

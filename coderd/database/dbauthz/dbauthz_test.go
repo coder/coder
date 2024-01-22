@@ -1054,7 +1054,12 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("GetUserWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(
+		check.Args(
+			database.GetUserWorkspaceBuildParametersParams{
+				OwnerID:    u.ID,
+				TemplateID: uuid.UUID{},
+			},
+		).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))

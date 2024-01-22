@@ -1722,11 +1722,11 @@ func TestSuspendedPagination(t *testing.T) {
 	require.Equal(t, expected, page.Users, "expected page")
 }
 
-func TestUserParameters(t *testing.T) {
+func TestUserAutofillParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSelf", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 
 		u1 := coderdtest.CreateFirstUser(t, client)
 
@@ -1735,9 +1735,20 @@ func TestUserParameters(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.UserParameters(
+		db := api.Database
+
+		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			CreatedBy:      u1.UserID,
+			OrganizationID: u1.OrganizationID,
+		}).Params(database.TemplateVersionParameter{
+			Name:     "param",
+			Required: true,
+		}).Do()
+
+		_, err := client.UserAutofillParameters(
 			ctx,
 			u2.ID.String(),
+			version.Template.ID.String(),
 		)
 
 		var apiErr *codersdk.Error
@@ -1774,9 +1785,10 @@ func TestUserParameters(t *testing.T) {
 				}
 			})
 
-		params, err := client.UserParameters(
+		params, err := client.UserAutofillParameters(
 			ctx,
 			u1.UserID.String(),
+			version.Template.ID.String(),
 		)
 		require.NoError(t, err)
 

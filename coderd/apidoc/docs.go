@@ -4064,6 +4064,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/autofill-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get autofill build parameters for user",
+                "operationId": "get-autofill-build-parameters-for-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "template_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserParameter"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/convert-login": {
             "post": {
                 "security": [
@@ -4550,43 +4594,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/{user}/parameters": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get recent build parameters for user.",
-                "operationId": "get-recent-build-parameters-for-user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID, username, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.UserParameter"
-                            }
                         }
                     }
                 }
@@ -11819,10 +11826,6 @@ const docTemplate = `{
         "codersdk.UserParameter": {
             "type": "object",
             "properties": {
-                "last_used_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "name": {
                     "type": "string"
                 },

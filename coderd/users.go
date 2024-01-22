@@ -571,15 +571,16 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 
 // Returns recent build parameters for the signed-in user.
 //
-// @Summary Get recent build parameters for user.
-// @ID get-recent-build-parameters-for-user
+// @Summary Get autofill build parameters for user
+// @ID get-autofill-build-parameters-for-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
+// @Param template_id query string true "Template ID"
 // @Success 200 {array} codersdk.UserParameter
-// @Router /users/{user}/parameters [get]
-func (api *API) userParameters(rw http.ResponseWriter, r *http.Request) {
+// @Router /users/{user}/autofill-parameters [get]
+func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
 	var (
 		apiKey = httpmw.APIKey(r)
 		user   = httpmw.UserParam(r)
@@ -592,9 +593,28 @@ func (api *API) userParameters(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	templateIDStr := r.URL.Query().Get("template_id")
+	if templateIDStr == "" {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "template_id is required.",
+		})
+		return
+	}
+
+	templateID, err := uuid.Parse(templateIDStr)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "template_id must be a valid UUID.",
+		})
+		return
+	}
+
 	params, err := api.Database.GetUserWorkspaceBuildParameters(
 		r.Context(),
-		apiKey.UserID,
+		database.GetUserWorkspaceBuildParametersParams{
+			OwnerID:    user.ID,
+			TemplateID: templateID,
+		},
 	)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -607,9 +627,8 @@ func (api *API) userParameters(rw http.ResponseWriter, r *http.Request) {
 	var sdkParams []codersdk.UserParameter
 	for _, param := range params {
 		sdkParams = append(sdkParams, codersdk.UserParameter{
-			Name:       param.Name,
-			Value:      param.Value,
-			LastUsedAt: param.CreatedAt,
+			Name:  param.Name,
+			Value: param.Value,
 		})
 	}
 
