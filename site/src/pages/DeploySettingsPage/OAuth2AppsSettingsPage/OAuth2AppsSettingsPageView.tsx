@@ -29,7 +29,7 @@ type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];
   isEntitled: boolean;
   isLoading: boolean;
-  error?: unknown;
+  error: unknown;
 };
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
