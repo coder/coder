@@ -2031,78 +2031,25 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if listen {
-		// Since we're ticking frequently and this sign-in operation is rare,
-		// we are OK with polling to avoid the complexity of pubsub.
-		ticker, done := api.NewTicker(time.Second)
-		defer done()
-		var previousToken database.ExternalAuthLink
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker:
-			}
-			externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: externalAuthConfig.ID,
-				UserID:     workspace.OwnerID,
-			})
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					continue
-				}
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get external auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			// Expiry may be unset if the application doesn't configure tokens
-			// to expire.
-			// See
-			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
-			if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
-				continue
-			}
-
-			// Only attempt to revalidate an oauth token if it has actually changed.
-			// No point in trying to validate the same token over and over again.
-			if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
-				previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
-				previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
-				continue
-			}
-
-			valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
-			if err != nil {
-				api.Logger.Warn(ctx, "failed to validate external auth token",
-					slog.F("workspace_owner_id", workspace.OwnerID.String()),
-					slog.F("validate_url", externalAuthConfig.ValidateURL),
-					slog.Error(err),
-				)
-			}
-			previousToken = externalAuthLink
-			if !valid {
-				continue
-			}
-			resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to create external auth response.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusOK, resp)
+	// handleRetrying will attempt to continually check for a new token
+	// if listen is true. This is useful if an error is encountered in the
+	// original single flow.
+	//
+	// By default, if no errors are encountered, then the single flow response
+	// is returned.
+	handleRetrying := func(code int, response any) {
+		if !listen {
+			httpapi.Write(ctx, rw, code, response)
 			return
 		}
+
+		api.workspaceAgentsExternalAuthListen(rw, ctx, externalAuthConfig, workspace)
 	}
 
 	// This is the URL that will redirect the user with a state token.
 	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID))
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse access URL.",
 			Detail:  err.Error(),
 		})
@@ -2115,14 +2062,14 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			handleRetrying(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get external auth link.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
+		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
@@ -2130,27 +2077,94 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 	externalAuthLink, updated, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to refresh external auth token.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if !updated {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
+		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
 	}
 	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) workspaceAgentsExternalAuthListen(rw http.ResponseWriter, ctx context.Context, externalAuthConfig *externalauth.Config, workspace database.Workspace) {
+	// Since we're ticking frequently and this sign-in operation is rare,
+	// we are OK with polling to avoid the complexity of pubsub.
+	ticker, done := api.NewTicker(time.Second)
+	defer done()
+	var previousToken database.ExternalAuthLink
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker:
+		}
+		externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: externalAuthConfig.ID,
+			UserID:     workspace.OwnerID,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get external auth link.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Expiry may be unset if the application doesn't configure tokens
+		// to expire.
+		// See
+		// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
+		if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
+			continue
+		}
+
+		// Only attempt to revalidate an oauth token if it has actually changed.
+		// No point in trying to validate the same token over and over again.
+		if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
+			previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
+			previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
+			continue
+		}
+
+		valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to validate external auth token",
+				slog.F("workspace_owner_id", workspace.OwnerID.String()),
+				slog.F("validate_url", externalAuthConfig.ValidateURL),
+				slog.Error(err),
+			)
+		}
+		previousToken = externalAuthLink
+		if !valid {
+			continue
+		}
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create external auth response.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, resp)
+	}
 }
 
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
