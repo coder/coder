@@ -839,6 +839,9 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 		if err != nil {
 			return err
 		}
+		if template.ActivityBump == 0 {
+			return nil
+		}
 		activityBump := time.Duration(template.ActivityBump)
 
 		var ttlDur time.Duration

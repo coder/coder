@@ -12,6 +12,7 @@ WITH latest AS (
 		workspace_builds.max_deadline::timestamp with time zone AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
+		templates.activity_bump AS activity_bump,
 		(
 			CASE
 				-- If the extension would push us over the next_autostart
@@ -67,6 +68,8 @@ SET
 FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
+-- We only bump if the template has an activity bump duration set.
+AND l.activity_bump IS NOT NULL
 AND l.build_transition = 'start'
 -- We only bump if the raw interval is positive and non-zero.
 AND l.ttl_interval > '0 seconds'::interval

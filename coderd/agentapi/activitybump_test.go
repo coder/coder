@@ -148,6 +148,16 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			templateActivityBump: 5 * time.Hour, // instead of default 1h
 			expectedBump:         5 * time.Hour,
 		},
+		{
+			// Activity bump duration is 0.
+			name:                 "TemplateCustomActivityBumpZero",
+			transition:           database.WorkspaceTransitionStart,
+			jobCompletedAt:       sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset:  ptr.Ref(-30 * time.Minute),
+			workspaceTTL:         8 * time.Hour,
+			templateActivityBump: -1, // negative values get changed to 0 in the test
+			expectedBump:         0,
+		},
 	} {
 		tt := tt
 		for _, tz := range timezones {
@@ -198,7 +208,10 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				)
 
 				activityBump := 1 * time.Hour
-				if tt.templateActivityBump != 0 {
+				if tt.templateActivityBump < 0 {
+					// less than 0 => 0
+					activityBump = 0
+				} else if tt.templateActivityBump != 0 {
 					activityBump = tt.templateActivityBump
 				}
 				require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
