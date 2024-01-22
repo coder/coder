@@ -11819,8 +11819,9 @@ const docTemplate = `{
         "codersdk.UserParameter": {
             "type": "object",
             "properties": {
-                "last_used": {
-                    "type": "string"
+                "last_used_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "name": {
                     "type": "string"

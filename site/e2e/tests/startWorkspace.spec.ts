@@ -8,18 +8,11 @@ import {
   verifyParameters,
 } from "../helpers";
 
-import {
-  firstBuildOption,
-  randParamName,
-  secondBuildOption,
-} from "../parameters";
+import { firstBuildOption, secondBuildOption } from "../parameters";
 import { RichParameter } from "../provisionerGenerated";
 
 test("start workspace with ephemeral parameters", async ({ page }) => {
-  const richParameters: RichParameter[] = [
-    randParamName(firstBuildOption),
-    randParamName(secondBuildOption),
-  ];
+  const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];
   const template = await createTemplate(
     page,
     echoResponsesWithParameters(richParameters),

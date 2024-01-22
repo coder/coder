@@ -1,4 +1,3 @@
-import { randParamName } from "./../parameters";
 import { test, expect } from "@playwright/test";
 import {
   createTemplate,
@@ -15,6 +14,7 @@ import {
   thirdParameter,
   seventhParameter,
   sixthParameter,
+  randParamName,
 } from "../parameters";
 import { RichParameter } from "../provisionerGenerated";
 import { beforeCoderTest } from "../hooks";

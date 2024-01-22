@@ -1035,7 +1035,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
 ```json
 [
   {
-    "last_used": "string",
+    "last_used_at": "2019-08-24T14:15:22Z",
     "name": "string",
     "value": "string"
   }
@@ -1052,12 +1052,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/parameters \
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `[array item]` | array  | false    |              |             |
-| `» last_used`  | string | false    |              |             |
-| `» name`       | string | false    |              |             |
-| `» value`      | string | false    |              |             |
+| Name             | Type              | Required | Restrictions | Description |
+| ---------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`   | array             | false    |              |             |
+| `» last_used_at` | string(date-time) | false    |              |             |
+| `» name`         | string            | false    |              |             |
+| `» value`        | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

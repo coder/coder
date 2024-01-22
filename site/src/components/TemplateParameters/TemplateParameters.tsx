@@ -21,7 +21,7 @@ export const MutableTemplateParametersSection: FC<
 > = ({
   templateParameters,
   getInputProps,
-  autofillSources: defaultReasons,
+  autofillSources,
   ...formSectionProps
 }) => {
   const hasMutableParameters =
@@ -44,7 +44,7 @@ export const MutableTemplateParametersSection: FC<
                     key={parameter.name}
                     parameter={parameter}
                     autofillSource={
-                      defaultReasons && defaultReasons[parameter.name]
+                      autofillSources && autofillSources[parameter.name]
                     }
                   />
                 ),

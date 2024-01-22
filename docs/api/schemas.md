@@ -5788,7 +5788,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "last_used": "string",
+  "last_used_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "value": "string"
 }
@@ -5796,11 +5796,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-| ----------- | ------ | -------- | ------------ | ----------- |
-| `last_used` | string | false    |              |             |
-| `name`      | string | false    |              |             |
-| `value`     | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `last_used_at` | string | false    |              |             |
+| `name`         | string | false    |              |             |
+| `value`        | string | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
