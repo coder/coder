@@ -26,6 +26,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import LoadingButton from "@mui/lab/LoadingButton";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -60,8 +61,12 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
           <TableHead>
             <TableRow>
               <TableCell>Application</TableCell>
-              <TableCell />
-              <TableCell width="1%"></TableCell>
+              <TableCell>
+                <span aria-hidden css={{ ...visuallyHidden }}>
+                  Link to connect
+                </span>
+              </TableCell>
+              <TableCell width="1%" />
             </TableRow>
           </TableHead>
           <TableBody>
