@@ -13,7 +13,7 @@ import {
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { GitIcon } from "components/Icons/GitIcon";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 interface SidebarProps {
   user: User;

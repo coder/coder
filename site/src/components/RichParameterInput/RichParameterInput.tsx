@@ -164,7 +164,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
             🪄 Autofilled:{" "}
             {
               {
-                ["url"]: "supplied by URL.",
+                ["url"]: "value supplied by URL.",
                 ["user_history"]: "recently used value.",
               }[autofillSource]
             }

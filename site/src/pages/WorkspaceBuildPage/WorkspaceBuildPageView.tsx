@@ -1,7 +1,10 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { type FC } from "react";
-import { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
+import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
+import { Link } from "react-router-dom";
+import { displayWorkspaceBuildDuration } from "utils/workspace";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -10,16 +13,13 @@ import {
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
-import { Link } from "react-router-dom";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { displayWorkspaceBuildDuration } from "utils/workspace";
-import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 import { Alert } from "components/Alert/Alert";
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
 } from "components/WorkspaceBuild/WorkspaceBuildData";
+import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(

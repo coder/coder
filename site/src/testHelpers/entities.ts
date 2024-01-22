@@ -6,7 +6,7 @@ import {
 import { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "contexts/AuthProvider/permissions";
+import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";

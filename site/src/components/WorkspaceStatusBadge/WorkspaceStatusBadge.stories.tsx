@@ -15,7 +15,7 @@ import {
   MockAppearanceConfig,
 } from "testHelpers/entities";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const MockedAppearance = {
@@ -29,7 +29,7 @@ const meta: Meta<typeof WorkspaceStatusBadge> = {
   component: WorkspaceStatusBadge,
   decorators: [
     (Story) => (
-      <DashboardProviderContext.Provider
+      <DashboardContext.Provider
         value={{
           buildInfo: MockBuildInfo,
           entitlements: MockEntitlementsWithScheduling,
@@ -38,7 +38,7 @@ const meta: Meta<typeof WorkspaceStatusBadge> = {
         }}
       >
         <Story />
-      </DashboardProviderContext.Provider>
+      </DashboardContext.Provider>
     ),
   ],
 };

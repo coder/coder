@@ -857,8 +857,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // Deprecated: use api.tailnet.AgentConn instead.
 // See: https://github.com/coder/coder/issues/8218
 func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	clientConn, serverConn := net.Pipe()
-
 	derpMap := api.DERPMap()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -868,8 +866,6 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		BlockEndpoints:      api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 	ctx, cancel := context.WithCancel(api.ctx)
@@ -887,10 +883,10 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		return left
 	})
 
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-		return conn.UpdateNodes(nodes, true)
-	})
-	conn.SetNodeCallback(sendNodes)
+	clientID := uuid.New()
+	coordination := tailnet.NewInMemoryCoordination(ctx, api.Logger,
+		clientID, agentID,
+		*(api.TailnetCoordinator.Load()), conn)
 
 	// Check for updated DERP map every 5 seconds.
 	go func() {
@@ -920,27 +916,13 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		AgentID: agentID,
 		AgentIP: codersdk.WorkspaceAgentIP,
 		CloseFunc: func() error {
+			_ = coordination.Close()
 			cancel()
-			_ = clientConn.Close()
-			_ = serverConn.Close()
 			return nil
 		},
 	})
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			// Sometimes, we get benign closed pipe errors when the server is
-			// shutting down.
-			if api.ctx.Err() == nil {
-				api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
-			}
-			_ = agentConn.Close()
-		}
-	}()
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
-		_ = serverConn.Close()
-		_ = clientConn.Close()
 		cancel()
 		return nil, xerrors.Errorf("agent not reachable")
 	}

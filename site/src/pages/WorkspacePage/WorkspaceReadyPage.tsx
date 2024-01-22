@@ -1,24 +1,18 @@
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
+import dayjs from "dayjs";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useNavigate } from "react-router-dom";
-import { Workspace } from "./Workspace";
-import { pageTitle } from "utils/page";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
-import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { MissingBuildParameters, restartWorkspace } from "api/api";
-import {
-  ConfirmDialog,
-  ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import * as TypesGen from "api/typesGenerated";
-import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import { getErrorMessage } from "api/errors";
+import type * as TypesGen from "api/typesGenerated";
 import { templateVersion, templateVersions } from "api/queries/templates";
-import { Alert } from "components/Alert/Alert";
-import { Stack } from "components/Stack/Stack";
+import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
+import { useMe } from "contexts/auth/useMe";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { pageTitle } from "utils/page";
 import {
   activate,
   changeVersion,
@@ -28,13 +22,19 @@ import {
   startWorkspace,
   cancelBuild,
 } from "api/queries/workspaces";
-import { getErrorMessage } from "api/errors";
+import { Alert } from "components/Alert/Alert";
+import { Stack } from "components/Stack/Stack";
+import {
+  ConfirmDialog,
+  ConfirmDialogProps,
+} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
+import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { WorkspacePermissions } from "./permissions";
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
+import { Workspace } from "./Workspace";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
-import dayjs from "dayjs";
-import { useMe } from "hooks";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;

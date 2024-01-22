@@ -1,10 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useUpdateCheck } from "./useUpdateCheck";
-import { QueryClient, QueryClientProvider } from "react-query";
 import { type FC, type PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { rest } from "msw";
 import { MockUpdateCheck } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { useUpdateCheck } from "./useUpdateCheck";
 
 const createWrapper = (): FC<PropsWithChildren> => {
   const queryClient = new QueryClient();

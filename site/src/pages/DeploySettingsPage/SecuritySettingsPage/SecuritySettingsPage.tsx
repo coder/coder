@@ -1,7 +1,7 @@
 import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 import { useDeploySettings } from "../DeploySettingsLayout";
 

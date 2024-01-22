@@ -84,14 +84,13 @@ export default defineConfig({
     alias: {
       api: path.resolve(__dirname, "./src/api"),
       components: path.resolve(__dirname, "./src/components"),
-      hooks: path.resolve(__dirname, "./src/hooks"),
       contexts: path.resolve(__dirname, "./src/contexts"),
-      i18n: path.resolve(__dirname, "./src/i18n"),
+      hooks: path.resolve(__dirname, "./src/hooks"),
+      modules: path.resolve(__dirname, "./src/modules"),
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),
       theme: path.resolve(__dirname, "./src/theme"),
       utils: path.resolve(__dirname, "./src/utils"),
-      xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },
 });

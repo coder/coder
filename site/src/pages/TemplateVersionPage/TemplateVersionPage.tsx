@@ -1,18 +1,18 @@
-import { usePermissions } from "hooks/usePermissions";
-import { useOrganizationId } from "hooks/useOrganizationId";
 import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
-import { useParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import TemplateVersionPageView from "./TemplateVersionPageView";
 import { useQuery } from "react-query";
+import { useParams } from "react-router-dom";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
+import { useFileTab } from "components/TemplateFiles/TemplateFiles";
+import TemplateVersionPageView from "./TemplateVersionPageView";
 import {
   templateByName,
   templateFiles,
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
-import { useFileTab } from "components/TemplateFiles/TemplateFiles";
 
 type Params = {
   version: string;

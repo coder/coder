@@ -3,7 +3,7 @@ import { type FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { updateAppearanceSettings } from "api/queries/users";
 import { Stack } from "components/Stack/Stack";
-import { useMe } from "hooks";
+import { useMe } from "contexts/auth/useMe";
 import { Section } from "../Section";
 import { AppearanceForm } from "./AppearanceForm";
 
