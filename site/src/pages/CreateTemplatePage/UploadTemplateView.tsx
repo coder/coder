@@ -8,7 +8,7 @@ import {
 } from "api/queries/templates";
 import { uploadFile } from "api/queries/files";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 

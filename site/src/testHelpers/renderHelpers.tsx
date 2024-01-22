@@ -7,9 +7,9 @@ import {
 import { type ReactNode, useState } from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
-import { ThemeProvider } from "contexts/ThemeProvider";
-import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { RequireAuth } from "contexts/auth/RequireAuth";
+import { ThemeProvider } from "contexts/ThemeProvider";
+import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import {

@@ -5,9 +5,9 @@ import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { usePermissions } from "contexts/auth/usePermissions";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { pageTitle } from "utils/page";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {

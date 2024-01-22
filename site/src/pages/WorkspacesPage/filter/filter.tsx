@@ -1,9 +1,7 @@
-import { type FC } from "react";
 import { useTheme } from "@emotion/react";
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { type FC } from "react";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import type { TemplateFilterMenu, StatusFilterMenu } from "./menus";
-import type { TemplateOption, StatusOption } from "./options";
 import {
   Filter,
   FilterMenu,
@@ -15,6 +13,8 @@ import {
 } from "components/Filter/filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
+import type { TemplateFilterMenu, StatusFilterMenu } from "./menus";
+import type { TemplateOption, StatusOption } from "./options";
 
 export const workspaceFilterQuery = {
   me: "owner:me",
@@ -74,8 +74,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
   error,
   menus,
 }) => {
-  const actionsEnabled = useIsWorkspaceActionsEnabled();
-  const presets = actionsEnabled ? PRESETS_WITH_DORMANT : PRESET_FILTERS;
+  const { entitlements } = useDashboard();
+  const presets = entitlements.features["advanced_template_scheduling"].enabled
+    ? PRESETS_WITH_DORMANT
+    : PRESET_FILTERS;
 
   return (
     <Filter

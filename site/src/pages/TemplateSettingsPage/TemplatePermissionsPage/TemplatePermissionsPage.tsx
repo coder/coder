@@ -8,16 +8,14 @@ import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { docs } from "utils/docs";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
-export const TemplatePermissionsPage: FC<
-  React.PropsWithChildren<unknown>
-> = () => {
+export const TemplatePermissionsPage: FC = () => {
   const organizationId = useOrganizationId();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();

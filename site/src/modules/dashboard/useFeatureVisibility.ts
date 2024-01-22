@@ -1,5 +1,5 @@
 import { FeatureName } from "api/typesGenerated";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "./useDashboard";
 import { selectFeatureVisibility } from "utils/entitlements";
 
 export const useFeatureVisibility = (): Record<FeatureName, boolean> => {

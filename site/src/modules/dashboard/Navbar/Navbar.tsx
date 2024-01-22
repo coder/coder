@@ -3,8 +3,8 @@ import { useAuth } from "contexts/auth/useAuth";
 import { useMe } from "contexts/auth/useMe";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { useProxy } from "contexts/ProxyContext";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: FC = () => {

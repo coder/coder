@@ -4,21 +4,15 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { MissingBuildParameters, restartWorkspace } from "api/api";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { pageTitle } from "utils/page";
 import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { templateVersion, templateVersions } from "api/queries/templates";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import {
-  ConfirmDialog,
-  ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Alert } from "components/Alert/Alert";
-import { Stack } from "components/Stack/Stack";
 import { useMe } from "contexts/auth/useMe";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { pageTitle } from "utils/page";
 import {
   activate,
   changeVersion,
@@ -28,9 +22,15 @@ import {
   startWorkspace,
   cancelBuild,
 } from "api/queries/workspaces";
+import { Alert } from "components/Alert/Alert";
+import { Stack } from "components/Stack/Stack";
+import {
+  ConfirmDialog,
+  ConfirmDialogProps,
+} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { WorkspacePermissions } from "./permissions";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
+import { WorkspacePermissions } from "./permissions";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";

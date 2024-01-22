@@ -9,9 +9,9 @@ import {
   templateVersionVariables,
 } from "api/queries/templates";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import {
   firstVersionFromExample,

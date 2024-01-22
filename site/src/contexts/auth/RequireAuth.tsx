@@ -4,7 +4,7 @@ import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { embedRedirect } from "utils/redirect";
 import { isApiError } from "api/errors";
 import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "components/Dashboard/DashboardProvider";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { useAuth } from "./useAuth";
 

@@ -2,7 +2,7 @@ import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { type User } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
 import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
@@ -17,10 +17,10 @@ import {
   authMethods,
 } from "api/queries/users";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useMe } from "contexts/auth/useMe";
 import { usePermissions } from "contexts/auth/usePermissions";
+import { useMe } from "contexts/auth/useMe";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFilter } from "components/Filter/filter";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
