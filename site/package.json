@@ -170,10 +170,9 @@
     "vite-plugin-turbosnap": "1.0.2"
   },
   "browserslist": [
-    "chrome 66",
-    "firefox 63",
-    "edge 79",
-    "safari 15.4"
+    "chrome 110",
+    "firefox 111",
+    "safari 16.0"
   ],
   "resolutions": {
     "optionator": "0.9.3",
