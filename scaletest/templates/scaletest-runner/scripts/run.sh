@@ -90,15 +90,33 @@ else
 	}
 fi
 
+if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
+	start_phase "Load scenarios: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]}"
+fi
+
+declare -a pids=()
 declare -A failed=()
+target_start=0
+target_end=-1
 for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
-	start_phase "Load scenario: ${scenario}"
+	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+		start_phase "Load scenario: ${scenario}"
+	fi
 
 	set +e
 	status=0
 	case "${scenario}" in
 	"SSH Traffic")
 		greedy_agent_traffic "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}" "${scenario}" &
+		greedy_agent_traffic_pid=$!
+
+		target_count=$(jq -n --argjson percentage "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_PERCENTAGE}" --argjson num_workspaces "${SCALETEST_PARAM_NUM_WORKSPACES}" '$percentage / 100 * $num_workspaces | floor')
+		target_end=$((target_start + target_count))
+		if [[ ${target_end} -gt ${SCALETEST_PARAM_NUM_WORKSPACES} ]]; then
+			log "WARNING: Target count ${target_end} exceeds number of workspaces ${SCALETEST_PARAM_NUM_WORKSPACES}, using ${SCALETEST_PARAM_NUM_WORKSPACES} instead."
+			target_start=0
+			target_end=${target_count}
+		fi
 		coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--ssh \
@@ -107,17 +125,34 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json" \
-			"${non_greedy_agent_traffic_args[@]}"
-		status=$?
-		wait
+			--scaletest-prometheus-address "0.0.0.0:${SCALETEST_PROMETHEUS_START_PORT}" \
+			--target-workspaces "${target_start}:${target_end}" \
+			"${non_greedy_agent_traffic_args[@]}" &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+			show_json "${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
+		wait "${greedy_agent_traffic_pid}"
 		status2=$?
 		if [[ ${status} == 0 ]]; then
 			status=${status2}
 		fi
-		show_json "${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
 		;;
 	"Web Terminal Traffic")
 		greedy_agent_traffic "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}" "${scenario}" &
+		greedy_agent_traffic_pid=$!
+
+		target_count=$(jq -n --argjson percentage "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_PERCENTAGE}" --argjson num_workspaces "${SCALETEST_PARAM_NUM_WORKSPACES}" '$percentage / 100 * $num_workspaces | floor')
+		target_end=$((target_start + target_count))
+		if [[ ${target_end} -gt ${SCALETEST_PARAM_NUM_WORKSPACES} ]]; then
+			log "WARNING: Target count ${target_end} exceeds number of workspaces ${SCALETEST_PARAM_NUM_WORKSPACES}, using ${SCALETEST_PARAM_NUM_WORKSPACES} instead."
+			target_start=0
+			target_end=${target_count}
+		fi
 		coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK}" \
@@ -125,37 +160,114 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json" \
-			"${non_greedy_agent_traffic_args[@]}"
-		status=$?
-		wait
+			--scaletest-prometheus-address "0.0.0.0:${SCALETEST_PROMETHEUS_START_PORT}" \
+			--target-workspaces "${target_start}:${target_end}" \
+			"${non_greedy_agent_traffic_args[@]}" &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+			show_json "${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
+		wait "${greedy_agent_traffic_pid}"
 		status2=$?
 		if [[ ${status} == 0 ]]; then
 			status=${status2}
 		fi
-		show_json "${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
+		;;
+	"App Traffic")
+		greedy_agent_traffic "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_DURATION}" "${scenario}" &
+		greedy_agent_traffic_pid=$!
+
+		target_count=$(jq -n --argjson percentage "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_PERCENTAGE}" --argjson num_workspaces "${SCALETEST_PARAM_NUM_WORKSPACES}" '$percentage / 100 * $num_workspaces | floor')
+		target_end=$((target_start + target_count))
+		if [[ ${target_end} -gt ${SCALETEST_PARAM_NUM_WORKSPACES} ]]; then
+			log "WARNING: Target count ${target_end} exceeds number of workspaces ${SCALETEST_PARAM_NUM_WORKSPACES}, using ${SCALETEST_PARAM_NUM_WORKSPACES} instead."
+			target_start=0
+			target_end=${target_count}
+		fi
+		coder exp scaletest workspace-traffic \
+			--template "${SCALETEST_PARAM_TEMPLATE}" \
+			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_BYTES_PER_TICK}" \
+			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_TICK_INTERVAL}ms" \
+			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_DURATION}m" \
+			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_DURATION}m30s" \
+			--output json:"${SCALETEST_RESULTS_DIR}/traffic-app.json" \
+			--scaletest-prometheus-address "0.0.0.0:${SCALETEST_PROMETHEUS_START_PORT}" \
+			--app "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_MODE}" \
+			--target-workspaces "${target_start}:${target_end}" \
+			"${non_greedy_agent_traffic_args[@]}" &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+			show_json "${SCALETEST_RESULTS_DIR}/traffic-app.json"
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
+		wait "${greedy_agent_traffic_pid}"
+		status2=$?
+		if [[ ${status} == 0 ]]; then
+			status=${status2}
+		fi
 		;;
 	"Dashboard Traffic")
+		target_count=$(jq -n --argjson percentage "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_PERCENTAGE}" --argjson num_workspaces "${SCALETEST_PARAM_NUM_WORKSPACES}" '$percentage / 100 * $num_workspaces | floor')
+		target_end=$((target_start + target_count))
+		if [[ ${target_end} -gt ${SCALETEST_PARAM_NUM_WORKSPACES} ]]; then
+			log "WARNING: Target count ${target_end} exceeds number of workspaces ${SCALETEST_PARAM_NUM_WORKSPACES}, using ${SCALETEST_PARAM_NUM_WORKSPACES} instead."
+			target_start=0
+			target_end=${target_count}
+		fi
 		coder exp scaletest dashboard \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-dashboard.json" \
-			>"${SCALETEST_RESULTS_DIR}/traffic-dashboard-output.log"
-		status=$?
-		show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
+			--scaletest-prometheus-address "0.0.0.0:${SCALETEST_PROMETHEUS_START_PORT}" \
+			--target-users "${target_start}:${target_end}" \
+			>"${SCALETEST_RESULTS_DIR}/traffic-dashboard-output.log" &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+			show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
 		;;
 
 	# Debug scenarios, for testing the runner.
 	"debug:greedy_agent_traffic")
-		greedy_agent_traffic 10 "${scenario}"
+		greedy_agent_traffic 10 "${scenario}" &
 		status=$?
 		;;
 	"debug:success")
-		maybedryrun "$DRY_RUN" sleep 10
-		status=0
+		{
+			maybedryrun "$DRY_RUN" sleep 10
+			true
+		} &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
 		;;
 	"debug:error")
-		maybedryrun "$DRY_RUN" sleep 10
-		status=1
+		{
+			maybedryrun "$DRY_RUN" sleep 10
+			false
+		} &
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
 		;;
 
 	*)
@@ -163,23 +275,42 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		;;
 	esac
 	set -e
+
+	# Allow targeting to be distributed evenly across workspaces when each
+	# scenario is run concurrently and all percentages add up to 100.
+	target_start=${target_end}
+
+	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+		if ((status > 0)); then
+			log "Load scenario failed: ${scenario} (exit=${status})"
+			failed+=(["${scenario}"]="$status")
+			PHASE_ADD_TAGS=error end_phase
+		else
+			end_phase
+		fi
+
+		wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
+	fi
+done
+
+if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
+	wait "${pids[@]}"
+	status=$?
 	if ((status > 0)); then
-		log "Load scenario failed: ${scenario} (exit=${status})"
-		failed+=(["${scenario}"]="$status")
+		log "One or more load scenarios failed: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]} (exit=${status})"
 		PHASE_ADD_TAGS=error end_phase
+		exit 1
 	else
 		end_phase
 	fi
-
-	wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
-done
-
-if ((${#failed[@]} > 0)); then
-	log "Load scenarios failed: ${!failed[*]}"
-	for scenario in "${!failed[@]}"; do
-		log "  ${scenario}: exit=${failed[$scenario]}"
-	done
-	exit 1
+else
+	if ((${#failed[@]} > 0)); then
+		log "Load scenarios failed: ${!failed[*]}"
+		for scenario in "${!failed[@]}"; do
+			log "  ${scenario}: exit=${failed[$scenario]}"
+		done
+		exit 1
+	fi
 fi
 
 log "Scaletest complete!"

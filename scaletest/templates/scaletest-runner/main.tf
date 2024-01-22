@@ -237,12 +237,22 @@ data "coder_parameter" "load_scenarios" {
   default = jsonencode([
     "SSH Traffic",
     "Web Terminal Traffic",
+    "App Traffic",
     "Dashboard Traffic",
   ])
 }
 
-data "coder_parameter" "load_scenario_ssh_traffic_duration" {
+data "coder_parameter" "load_scenario_run_concurrently" {
   order       = 23
+  name        = "Run Load Scenarios Concurrently"
+  type        = "bool"
+  default     = false
+  description = "Run all load scenarios concurrently, this setting enables the load scenario percentages so that they can be assigned a percentage of 1-100%."
+  mutable     = true
+}
+
+data "coder_parameter" "load_scenario_ssh_traffic_duration" {
+  order       = 30
   name        = "SSH Traffic Duration"
   type        = "number"
   description = "The duration of the SSH traffic load scenario in minutes."
@@ -255,7 +265,7 @@ data "coder_parameter" "load_scenario_ssh_traffic_duration" {
 }
 
 data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
-  order       = 24
+  order       = 31
   name        = "SSH Bytes Per Tick"
   type        = "number"
   description = "The number of bytes to send per tick in the SSH traffic load scenario."
@@ -267,7 +277,7 @@ data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
 }
 
 data "coder_parameter" "load_scenario_ssh_tick_interval" {
-  order       = 25
+  order       = 32
   name        = "SSH Tick Interval"
   type        = "number"
   description = "The number of milliseconds between each tick in the SSH traffic load scenario."
@@ -278,8 +288,21 @@ data "coder_parameter" "load_scenario_ssh_tick_interval" {
   }
 }
 
+data "coder_parameter" "load_scenario_ssh_traffic_percentage" {
+  order       = 33
+  name        = "SSH Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for SSH traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
 data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
-  order       = 26
+  order       = 40
   name        = "Web Terminal Traffic Duration"
   type        = "number"
   description = "The duration of the web terminal traffic load scenario in minutes."
@@ -292,7 +315,7 @@ data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
 }
 
 data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
-  order       = 27
+  order       = 41
   name        = "Web Terminal Bytes Per Tick"
   type        = "number"
   description = "The number of bytes to send per tick in the web terminal traffic load scenario."
@@ -304,7 +327,7 @@ data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
 }
 
 data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
-  order       = 28
+  order       = 42
   name        = "Web Terminal Tick Interval"
   type        = "number"
   description = "The number of milliseconds between each tick in the web terminal traffic load scenario."
@@ -315,8 +338,94 @@ data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
   }
 }
 
+data "coder_parameter" "load_scenario_web_terminal_traffic_percentage" {
+  order       = 43
+  name        = "Web Terminal Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for web terminal traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_duration" {
+  order       = 50
+  name        = "App Traffic Duration"
+  type        = "number"
+  description = "The duration of the app traffic load scenario in minutes."
+  mutable     = true
+  default     = 30
+  validation {
+    min = 1
+    max = 1440 // 24 hours.
+  }
+}
+
+data "coder_parameter" "load_scenario_app_bytes_per_tick" {
+  order       = 51
+  name        = "App Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the app traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_app_tick_interval" {
+  order       = 52
+  name        = "App Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the app traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_percentage" {
+  order       = 53
+  name        = "App Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for app traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_mode" {
+  order       = 54
+  name        = "App Traffic Mode"
+  default     = "wsec"
+  description = "The mode of the app traffic load scenario."
+  mutable     = true
+  option {
+    name        = "WebSocket Echo"
+    value       = "wsec"
+    description = "Send traffic to the workspace via the app websocket and read it back."
+  }
+  option {
+    name        = "WebSocket Read (Random)"
+    value       = "wsra"
+    description = "Read traffic from the workspace via the app websocket."
+  }
+  option {
+    name        = "WebSocket Write (Discard)"
+    value       = "wsdi"
+    description = "Send traffic to the workspace via the app websocket."
+  }
+}
+
 data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
-  order       = 29
+  order       = 60
   name        = "Dashboard Traffic Duration"
   type        = "number"
   description = "The duration of the dashboard traffic load scenario in minutes."
@@ -328,8 +437,21 @@ data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
   }
 }
 
+data "coder_parameter" "load_scenario_dashboard_traffic_percentage" {
+  order       = 61
+  name        = "Dashboard Traffic Percentage"
+  type        = "number"
+  description = "The percentage of users that should be targeted for dashboard traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
 data "coder_parameter" "load_scenario_baseline_duration" {
-  order       = 26
+  order       = 100
   name        = "Baseline Wait Duration"
   type        = "number"
   description = "The duration to wait before starting a load scenario in minutes."
@@ -342,7 +464,7 @@ data "coder_parameter" "load_scenario_baseline_duration" {
 }
 
 data "coder_parameter" "greedy_agent" {
-  order       = 30
+  order       = 200
   type        = "bool"
   name        = "Greedy Agent"
   default     = false
@@ -352,7 +474,7 @@ data "coder_parameter" "greedy_agent" {
 }
 
 data "coder_parameter" "greedy_agent_template" {
-  order        = 31
+  order        = 201
   name         = "Greedy Agent Template"
   display_name = "Greedy Agent Template"
   description  = "The template used for the greedy agent workspace (must not be same as workspace template)."
@@ -432,6 +554,7 @@ resource "coder_agent" "main" {
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
     SCALETEST_RUN_START_TIME : local.scaletest_run_start_time,
+    SCALETEST_PROMETHEUS_START_PORT : "21112",
 
     # Comment is a scaletest param, but we want to surface it separately from
     # the rest, so we use a different name.
@@ -443,13 +566,22 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
     SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
+    SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY : data.coder_parameter.load_scenario_run_concurrently.value ? "1" : "0",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_ssh_bytes_per_tick.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_ssh_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_ssh_traffic_percentage.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_web_terminal_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_web_terminal_bytes_per_tick.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_web_terminal_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_web_terminal_traffic_percentage.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_app_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_app_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_app_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_app_traffic_percentage.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_MODE : data.coder_parameter.load_scenario_app_traffic_mode.value,
     SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_dashboard_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_dashboard_traffic_percentage.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
     SCALETEST_PARAM_GREEDY_AGENT : data.coder_parameter.greedy_agent.value ? "1" : "0",
     SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE : data.coder_parameter.greedy_agent_template.value,
@@ -709,10 +841,14 @@ resource "kubernetes_pod" "main" {
         name       = "home"
         read_only  = false
       }
-      port {
-        container_port = 21112
-        name           = "prometheus-http"
-        protocol       = "TCP"
+      dynamic "port" {
+        for_each = data.coder_parameter.load_scenario_run_concurrently.value ? jsondecode(data.coder_parameter.load_scenarios.value) : [""]
+        iterator = it
+        content {
+          container_port = 21112 + it.key
+          name           = "prom-http${it.key}"
+          protocol       = "TCP"
+        }
       }
     }
 
@@ -787,8 +923,8 @@ resource "kubernetes_manifest" "pod_monitor" {
         }
       }
       podMetricsEndpoints = [
-        {
-          port     = "prometheus-http"
+        for i, _ in data.coder_parameter.load_scenario_run_concurrently.value ? jsondecode(data.coder_parameter.load_scenarios.value) : [""] : {
+          port     = "prom-http${i}"
           interval = "15s"
         }
       ]
