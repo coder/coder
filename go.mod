@@ -131,7 +131,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hc-install v0.6.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
-	github.com/hashicorp/terraform-json v0.20.0
+	github.com/hashicorp/terraform-json v0.21.0
 	github.com/hashicorp/yamux v0.1.1
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
