@@ -112,10 +112,12 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 	filter.UsingActive = sql.NullBool{
+		// Invert the value of the query parameter to get the correct value.
 		// UsingActive returns if the workspace is on the latest template active version.
-		// This means the workspace is "up to date".
-		Bool:  parser.Boolean(values, false, "updated"),
-		Valid: values.Has("updated"),
+		Bool: !parser.Boolean(values, true, "outdated"),
+		// Only include this search term if it was provided. Otherwise default to omitting it
+		// which will return all workspaces.
+		Valid: values.Has("outdated"),
 	}
 
 	parser.ErrorExcessParams(values)

@@ -118,8 +118,18 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "Outdated",
+			Query: `outdated:true`,
+			Expected: database.GetWorkspacesParams{
+				UsingActive: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
 			Name:  "Updated",
-			Query: `updated:true`,
+			Query: `outdated:false`,
 			Expected: database.GetWorkspacesParams{
 				UsingActive: sql.NullBool{
 					Bool:  true,
@@ -127,7 +137,6 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
-
 		// Failures
 		{
 			Name:                  "NoPrefix",

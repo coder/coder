@@ -22,7 +22,7 @@ export const workspaceFilterQuery = {
   running: "status:running",
   failed: "status:failed",
   dormant: "dormant:true",
-  outdated: "updated:false",
+  outdated: "outdated:true",
 };
 
 type FilterPreset = {
