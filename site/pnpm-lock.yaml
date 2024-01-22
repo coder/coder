@@ -386,6 +386,9 @@ devDependencies:
   protobufjs:
     specifier: 7.2.4
     version: 7.2.4
+  rxjs:
+    specifier: 7.8.1
+    version: 7.8.1
   ssh2:
     specifier: 1.14.0
     version: 1.14.0
