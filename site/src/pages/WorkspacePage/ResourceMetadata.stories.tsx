@@ -24,6 +24,21 @@ export const Markdown: Story = {
   },
 };
 
+export const Sensitive: Story = {
+  args: {
+    resource: {
+      ...MockWorkspaceResource,
+      metadata: [
+        {
+          key: "GitHub Token",
+          value: "some-sensitive-token-here",
+          sensitive: true,
+        },
+      ],
+    },
+  },
+};
+
 export const WithLongStrings: Story = {
   args: {
     resource: {
