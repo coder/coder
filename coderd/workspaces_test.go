@@ -1664,7 +1664,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			newTv.ID,
+			ID: newTv.ID,
 		})
 		require.NoError(t, err)
 
