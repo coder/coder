@@ -117,7 +117,10 @@ type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
 	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
 	DefaultTTL           time.Duration `json:"default_ttl"`
-	MaxTTL               time.Duration `json:"max_ttl"`
+	// ActivityBump dictates the duration to bump the workspace's deadline by if
+	// Coder detects activity from the user. A value of 0 means no bumping.
+	ActivityBump time.Duration `json:"activity_bump"`
+	MaxTTL       time.Duration `json:"max_ttl"`
 	// UseMaxTTL dictates whether the max_ttl should be used instead of
 	// autostop_requirement for this template. This is governed by the template
 	// and licensing.
@@ -181,6 +184,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		ActivityBump:         time.Duration(tpl.ActivityBump),
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseMaxTTL: false,
@@ -205,7 +209,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.ActivityBump) == tpl.ActivityBump {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
@@ -213,9 +217,10 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-			ID:         tpl.ID,
-			UpdatedAt:  dbtime.Now(),
-			DefaultTTL: int64(opts.DefaultTTL),
+			ID:           tpl.ID,
+			UpdatedAt:    dbtime.Now(),
+			DefaultTTL:   int64(opts.DefaultTTL),
+			ActivityBump: int64(opts.ActivityBump),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
 			UseMaxTtl:                     tpl.UseMaxTtl,

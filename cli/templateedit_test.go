@@ -93,6 +93,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", template.Description,
 			"--icon", template.Icon,
 			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
+			"--activity-bump", (time.Duration(template.ActivityBumpMillis) * time.Millisecond).String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(template.AllowUserCancelWorkspaceJobs),
 		}
 		inv, root := clitest.New(t, cmdArgs...)

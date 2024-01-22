@@ -31,6 +31,7 @@ type Template struct {
 	DeprecationMessage string                 `json:"deprecation_message"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
+	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
 	// UseMaxTTL picks whether to use the deprecated max TTL for the template or
 	// the new autostop requirement.
 	UseMaxTTL bool `json:"use_max_ttl"`
@@ -208,6 +209,10 @@ type UpdateTemplateMeta struct {
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	// ActivityBumpMillis allows optionally specifying the activity bump
+	// duration for all workspaces created from this template. Defaults to 1h
+	// but can be set to 0 to disable activity bumping.
+	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`

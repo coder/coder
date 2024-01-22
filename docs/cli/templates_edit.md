@@ -12,6 +12,14 @@ coder templates edit [flags] <template>
 
 ## Options
 
+### --activity-bump
+
+|      |                       |
+| ---- | --------------------- |
+| Type | <code>duration</code> |
+
+Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to "Activity bump" in the UI.
+
 ### --allow-user-autostart
 
 |         |                   |

@@ -15,11 +15,15 @@ WITH latest AS (
 		(
 			CASE
 				-- If the extension would push us over the next_autostart
-				-- interval, then extend the deadline by the full ttl from
-				-- the autostart time. This will essentially be as if the
-				-- workspace auto started at the given time and the original
-				-- TTL was applied.
-				WHEN NOW() + ('60 minutes')::interval > @next_autostart :: timestamptz
+				-- interval, then extend the deadline by the full TTL (NOT
+				-- activity bump) from the autostart time. This will essentially
+				-- be as if the workspace auto started at the given time and the
+				-- original TTL was applied.
+				--
+				-- Sadly we can't define `activity_bump_interval` above since
+				-- it won't be available for this CASE statement, so we have to
+				-- copy the cast twice.
+				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > @next_autostart :: timestamptz
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
@@ -27,16 +31,16 @@ WITH latest AS (
 					-- that is a mistake by the caller.
 					AND @next_autostart > NOW()
 					THEN
-					-- Extend to the autostart, then add the TTL
+					-- Extend to the autostart, then add the activity bump
 					((@next_autostart :: timestamptz) - NOW()) + CASE
 						WHEN templates.allow_user_autostop
 					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 					END
 
-				-- Default to 60 minutes.
+				-- Default to the activity bump duration.
 				ELSE
-					('60 minutes')::interval
+					(templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval
 			END
 		) AS ttl_interval
 	FROM workspace_builds
