@@ -58,7 +58,7 @@ type Workspace struct {
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
-	Favored          bool             `json:"favored"`
+	Favorite         bool             `json:"favorite"`
 }
 
 func (w Workspace) FullName() string {

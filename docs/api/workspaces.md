@@ -53,6 +53,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -211,7 +212,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -265,6 +265,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -423,7 +424,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -480,6 +480,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
       "dormant_at": "2019-08-24T14:15:22Z",
+      "favorite": true,
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false
@@ -634,7 +635,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
-      "pinned": true,
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -689,6 +689,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -847,7 +848,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1017,6 +1017,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -1175,7 +1176,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "pinned": true,
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",

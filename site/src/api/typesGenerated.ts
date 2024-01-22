@@ -1490,7 +1490,7 @@ export interface Workspace {
   readonly health: WorkspaceHealth;
   readonly automatic_updates: AutomaticUpdates;
   readonly allow_renames: boolean;
-  readonly pinned: boolean;
+  readonly favorite: boolean;
 }
 
 // From codersdk/workspaceagents.go

@@ -732,47 +732,6 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
-func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg database.FavoriteWorkspaceParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for _, upw := range q.favoriteWorkspaces {
-		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
-			return errDuplicateKey
-		}
-	}
-	return nil
-}
-
-func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg database.UnfavoriteWorkspaceParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, upw := range q.favoriteWorkspaces {
-		if upw.UserID != arg.UserID {
-			continue
-		}
-		if upw.WorkspaceID != arg.WorkspaceID {
-			continue
-		}
-		q.favoriteWorkspaces[index] = q.favoriteWorkspaces[len(q.apiKeys)-1]
-		q.favoriteWorkspaces = q.favoriteWorkspaces[:len(q.favoriteWorkspaces)-1]
-		return nil
-	}
-
-	return nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1356,6 +1315,23 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg database.FavoriteWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, upw := range q.favoriteWorkspaces {
+		if arg.UserID == upw.UserID && arg.WorkspaceID == upw.WorkspaceID {
+			return errDuplicateKey
+		}
+	}
+	return nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -6025,6 +6001,30 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg database.UnfavoriteWorkspaceParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, upw := range q.favoriteWorkspaces {
+		if upw.UserID != arg.UserID {
+			continue
+		}
+		if upw.WorkspaceID != arg.WorkspaceID {
+			continue
+		}
+		q.favoriteWorkspaces[index] = q.favoriteWorkspaces[len(q.apiKeys)-1]
+		q.favoriteWorkspaces = q.favoriteWorkspaces[:len(q.favoriteWorkspaces)-1]
+		return nil
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

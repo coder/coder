@@ -2950,17 +2950,17 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	workspaces, err := memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favored)
+	require.False(t, workspaces.Workspaces[0].Favorite)
 	ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.False(t, ws.Favored)
+	require.False(t, ws.Favorite)
 
 	// Also not for owner.
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favored)
-	require.False(t, workspaces.Workspaces[1].Favored)
+	require.False(t, workspaces.Workspaces[0].Favorite)
+	require.False(t, workspaces.Workspaces[1].Favorite)
 
 	// When member pins workspace
 	err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
@@ -2970,20 +2970,20 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 1)
-	require.True(t, workspaces.Workspaces[0].Favored)
+	require.True(t, workspaces.Workspaces[0].Favorite)
 	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.True(t, ws.Favored)
+	require.True(t, ws.Favorite)
 
 	// But not for someone else
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favored)
-	require.False(t, workspaces.Workspaces[1].Favored)
+	require.False(t, workspaces.Workspaces[0].Favorite)
+	require.False(t, workspaces.Workspaces[1].Favorite)
 	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.False(t, ws.Favored)
+	require.False(t, ws.Favorite)
 
 	// When member unpins workspace
 	err = memberClient.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
@@ -2993,18 +2993,18 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	workspaces, err = memberClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favored)
+	require.False(t, workspaces.Workspaces[0].Favorite)
 	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.False(t, ws.Favored)
+	require.False(t, ws.Favorite)
 
 	// Assert invariant: workspace should remain unpinned for a different user
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, workspaces.Workspaces, 2)
-	require.False(t, workspaces.Workspaces[0].Favored)
-	require.False(t, workspaces.Workspaces[1].Favored)
+	require.False(t, workspaces.Workspaces[0].Favorite)
+	require.False(t, workspaces.Workspaces[1].Favorite)
 	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.False(t, ws.Favored)
+	require.False(t, ws.Favorite)
 }

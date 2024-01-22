@@ -11990,6 +11990,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "favorite": {
+                    "type": "boolean"
+                },
                 "health": {
                     "description": "Health shows the health of the workspace and information about\nwhat is causing an unhealthy status.",
                     "allOf": [
@@ -12025,9 +12028,6 @@ const docTemplate = `{
                 },
                 "owner_name": {
                     "type": "string"
-                },
-                "pinned": {
-                    "type": "boolean"
                 },
                 "template_active_version_id": {
                     "type": "string",

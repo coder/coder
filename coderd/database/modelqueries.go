@@ -253,7 +253,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
-			&i.Favored,
+			&i.Favorite,
 			&i.Count,
 		); err != nil {
 			return nil, err

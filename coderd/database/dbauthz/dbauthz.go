@@ -656,20 +656,6 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	}
 }
 
-func (q *querier) FavoriteWorkspace(ctx context.Context, arg database.FavoriteWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
-	}
-	return q.db.FavoriteWorkspace(ctx, arg)
-}
-
-func (q *querier) UnfavoriteWorkspace(ctx context.Context, arg database.UnfavoriteWorkspaceParams) error {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return err
-	}
-	return q.db.UnfavoriteWorkspace(ctx, arg)
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -903,6 +889,13 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) FavoriteWorkspace(ctx context.Context, arg database.FavoriteWorkspaceParams) error {
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return err
+	}
+	return q.db.FavoriteWorkspace(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2521,6 +2514,13 @@ func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.Una
 		return err
 	}
 	return q.db.UnarchiveTemplateVersion(ctx, arg)
+}
+
+func (q *querier) UnfavoriteWorkspace(ctx context.Context, arg database.UnfavoriteWorkspaceParams) error {
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return err
+	}
+	return q.db.UnfavoriteWorkspace(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

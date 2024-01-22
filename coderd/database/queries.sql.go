@@ -11184,7 +11184,7 @@ SELECT
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	(fws.user_id IS NOT NULL)::boolean AS favored,
+	(fws.user_id IS NOT NULL)::boolean AS favorite,
 	COUNT(*) OVER () as count
 FROM
     workspaces
@@ -11378,7 +11378,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	favored DESC,
+	favorite DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -11429,7 +11429,7 @@ type GetWorkspacesRow struct {
 	TemplateName        string           `db:"template_name" json:"template_name"`
 	TemplateVersionID   uuid.UUID        `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName sql.NullString   `db:"template_version_name" json:"template_version_name"`
-	Favored             bool             `db:"favored" json:"favored"`
+	Favorite            bool             `db:"favorite" json:"favorite"`
 	Count               int64            `db:"count" json:"count"`
 }
 
@@ -11475,7 +11475,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
-			&i.Favored,
+			&i.Favorite,
 			&i.Count,
 		); err != nil {
 			return nil, err
