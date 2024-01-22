@@ -12,14 +12,15 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
 type CreateParams struct {
-	UserID           uuid.UUID
-	LoginType        database.LoginType
-	DeploymentValues *codersdk.DeploymentValues
+	UserID    uuid.UUID
+	LoginType database.LoginType
+	// DefaultLifetime is configured in DeploymentValues.
+	// It is used if both ExpiresAt and LifetimeSeconds are not set.
+	DefaultLifetime time.Duration
 
 	// Optional.
 	ExpiresAt       time.Time
@@ -46,8 +47,8 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		if params.LifetimeSeconds != 0 {
 			params.ExpiresAt = dbtime.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
 		} else {
-			params.ExpiresAt = dbtime.Now().Add(params.DeploymentValues.SessionDuration.Value())
-			params.LifetimeSeconds = int64(params.DeploymentValues.SessionDuration.Value().Seconds())
+			params.ExpiresAt = dbtime.Now().Add(params.DefaultLifetime)
+			params.LifetimeSeconds = int64(params.DefaultLifetime.Seconds())
 		}
 	}
 	if params.LifetimeSeconds == 0 {
