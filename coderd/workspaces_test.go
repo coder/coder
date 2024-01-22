@@ -479,32 +479,17 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 
 	// c-workspace should be running
-	workspace1 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "c-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace1.LatestBuild.ID)
+	wsb1 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	// b-workspace should be stopped
-	workspace2 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "b-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace2.LatestBuild.ID)
-
-	build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+	wsb2 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// a-workspace should be running
-	workspace3 := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(ctr *codersdk.CreateWorkspaceRequest) {
-		ctr.Name = "a-workspace"
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace3.LatestBuild.ID)
+	wsb3 := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -512,22 +497,31 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	require.NoError(t, err, "(first) fetch workspaces")
 	workspaces := workspacesResponse.Workspaces
 
-	expected := []string{
-		workspace3.Name,
-		workspace1.Name,
-		workspace2.Name,
+	expectedNames := []string{
+		wsb3.Workspace.Name,
+		wsb1.Workspace.Name,
+		wsb2.Workspace.Name,
 	}
 
-	var actual []string
+	expectedStatus := []codersdk.WorkspaceStatus{
+		codersdk.WorkspaceStatusRunning,
+		codersdk.WorkspaceStatusRunning,
+		codersdk.WorkspaceStatusStopped,
+	}
+
+	var actualNames []string
+	var actualStatus []codersdk.WorkspaceStatus
 	for _, w := range workspaces {
-		actual = append(actual, w.Name)
+		actualNames = append(actualNames, w.Name)
+		actualStatus = append(actualStatus, w.LatestBuild.Status)
 	}
 
 	// the correct sorting order is:
 	// 1. Running workspaces
 	// 2. Sort by usernames
 	// 3. Sort by workspace names
-	require.Equal(t, expected, actual)
+	assert.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedStatus, actualStatus)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
