@@ -55,6 +55,7 @@ var (
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	var (
 		deletedStr  = r.URL.Query().Get("include_deleted")
@@ -102,6 +103,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -184,7 +186,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wss, err := convertWorkspaces(workspaces, data)
+	wss, err := convertWorkspaces(apiKey.UserID, workspaces, data)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspaces.",
@@ -213,6 +215,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
+	apiKey := httpmw.APIKey(r)
 
 	includeDeleted := false
 	if s := r.URL.Query().Get("include_deleted"); s != "" {
@@ -274,6 +277,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -583,6 +587,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		apiBuild,
 		template,
@@ -854,6 +859,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		workspace         = httpmw.WorkspaceParam(r)
+		apiKey            = httpmw.APIKey(r)
 		oldWorkspace      = workspace
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
@@ -922,6 +928,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = workspace
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -1262,6 +1269,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
@@ -1324,6 +1332,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspace(
+				apiKey.UserID,
 				workspace,
 				data.builds[0],
 				data.templates[0],
@@ -1442,7 +1451,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
+func convertWorkspaces(requestorID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
@@ -1477,6 +1486,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 		}
 
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
+			requestorID,
 			workspace,
 			build,
 			template,
@@ -1488,6 +1498,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 }
 
 func convertWorkspace(
+	requestorID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
@@ -1519,6 +1530,7 @@ func convertWorkspace(
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	requestorFavorite := workspace.FavoriteOf.UUID == requestorID
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -1548,7 +1560,7 @@ func convertWorkspace(
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
-		// Pinned: pinned, // TODO
+		Favorite:         requestorFavorite,
 	}
 }
 
