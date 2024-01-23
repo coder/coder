@@ -2043,7 +2043,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		api.workspaceAgentsExternalAuthListen(rw, ctx, externalAuthConfig, workspace)
+		api.workspaceAgentsExternalAuthListen(ctx, rw, externalAuthConfig, workspace)
 	}
 
 	// This is the URL that will redirect the user with a state token.
