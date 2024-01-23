@@ -39,6 +39,9 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="appearance" icon={AppearanceIcon}>
         Appearance
       </SidebarNavItem>
+      <SidebarNavItem href="external-auth" icon={GitIcon}>
+        External Authentication
+      </SidebarNavItem>
       {showSchedulePage && (
         <SidebarNavItem href="schedule" icon={ScheduleIcon}>
           Schedule
@@ -49,9 +52,6 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       </SidebarNavItem>
       <SidebarNavItem href="ssh-keys" icon={FingerprintOutlinedIcon}>
         SSH Keys
-      </SidebarNavItem>
-      <SidebarNavItem href="external-auth" icon={GitIcon}>
-        External Authentication
       </SidebarNavItem>
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens

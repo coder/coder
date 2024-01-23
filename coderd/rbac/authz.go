@@ -611,6 +611,12 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 	}
 }
 
+func ConfigWorkspaces() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.WorkspaceConverter(),
+	}
+}
+
 func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {

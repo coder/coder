@@ -1349,6 +1349,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 			make(chan *agentsdk.Stats, 50),
 			tailnet.NewCoordinator(logger),
 		)
+		defer client.Close()
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
@@ -1683,6 +1684,10 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		statsCh,
 		coordinator,
 	)
+	t.Cleanup(func() {
+		t.Log("closing client")
+		client.Close()
+	})
 	uut := agent.New(agent.Options{
 		Client:                 client,
 		Filesystem:             fs,
@@ -1690,6 +1695,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		ReconnectingPTYTimeout: time.Minute,
 	})
 	t.Cleanup(func() {
+		t.Log("closing agent")
 		_ = uut.Close()
 	})
 
@@ -1718,6 +1724,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 			if err != nil {
 				t.Logf("error closing in-memory coordination: %s", err.Error())
 			}
+			t.Logf("closed coordination %s", name)
 		})
 		// Force DERP.
 		conn.SetBlockEndpoints(true)
@@ -1753,11 +1760,9 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	}
 
 	// Push a new DERP map to the agent.
-	err := client.PushDERPMapUpdate(agentsdk.DERPMapUpdate{
-		DERPMap: newDerpMap,
-	})
+	err := client.PushDERPMapUpdate(newDerpMap)
 	require.NoError(t, err)
-	t.Logf("client Pushed DERPMap update")
+	t.Logf("pushed DERPMap update to agent")
 
 	require.Eventually(t, func() bool {
 		conn := uut.TailnetConn()
@@ -1826,6 +1831,7 @@ func TestAgent_Reconnect(t *testing.T) {
 		statsCh,
 		coordinator,
 	)
+	defer client.Close()
 	initialized := atomic.Int32{}
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1862,6 +1868,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 		make(chan *agentsdk.Stats, 50),
 		coordinator,
 	)
+	defer client.Close()
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -2039,6 +2046,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
 	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
+	t.Cleanup(c.Close)
 
 	options := agent.Options{
 		Client:                 c,

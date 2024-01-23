@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -146,14 +147,14 @@ func (c *configMaps) configLoop() {
 		if c.derpMapDirty {
 			derpMap := c.derpMapLocked()
 			actions = append(actions, func() {
-				c.logger.Debug(context.Background(), "updating engine DERP map", slog.F("derp_map", derpMap))
+				c.logger.Info(context.Background(), "updating engine DERP map", slog.F("derp_map", (*derpMapStringer)(derpMap)))
 				c.engine.SetDERPMap(derpMap)
 			})
 		}
 		if c.netmapDirty {
 			nm := c.netMapLocked()
 			actions = append(actions, func() {
-				c.logger.Debug(context.Background(), "updating engine network map", slog.F("network_map", nm))
+				c.logger.Info(context.Background(), "updating engine network map", slog.F("network_map", nm))
 				c.engine.SetNetworkMap(nm)
 				c.reconfig(nm)
 			})
@@ -161,7 +162,7 @@ func (c *configMaps) configLoop() {
 		if c.filterDirty {
 			f := c.filterLocked()
 			actions = append(actions, func() {
-				c.logger.Debug(context.Background(), "updating engine filter", slog.F("filter", f))
+				c.logger.Info(context.Background(), "updating engine filter", slog.F("filter", f))
 				c.engine.SetFilter(f)
 			})
 		}
@@ -569,4 +570,17 @@ func prefixesDifferent(a, b []netip.Prefix) bool {
 		}
 	}
 	return false
+}
+
+// derpMapStringer converts a DERPMap into a readable string for logging, since
+// it includes pointers that we want to know the contents of, not actual pointer
+// address.
+type derpMapStringer tailcfg.DERPMap
+
+func (d *derpMapStringer) String() string {
+	out, err := json.Marshal((*tailcfg.DERPMap)(d))
+	if err != nil {
+		return fmt.Sprintf("!!!error marshaling DERPMap: %s", err.Error())
+	}
+	return string(out)
 }

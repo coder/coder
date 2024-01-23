@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -321,13 +323,31 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
-		// Some status codes do not return json payloads, and we should
-		// return a better error.
-		switch resp.StatusCode {
-		case http.StatusTooManyRequests:
-			return nil, xerrors.New("rate limit hit, unable to authorize device. please try again later")
+		mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			mediaType = "unknown"
+		}
+
+		// If the json fails to decode, do a best effort to return a better error.
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			retryIn := "please try again later"
+			resetIn := resp.Header.Get("x-ratelimit-reset")
+			if resetIn != "" {
+				// Best effort to tell the user exactly how long they need
+				// to wait for.
+				unix, err := strconv.ParseInt(resetIn, 10, 64)
+				if err == nil {
+					waitFor := time.Unix(unix, 0).Sub(time.Now().Truncate(time.Second))
+					retryIn = fmt.Sprintf(" retry after %s", waitFor.Truncate(time.Second))
+				}
+			}
+			// 429 returns a plaintext payload with a message.
+			return nil, xerrors.New(fmt.Sprintf("rate limit hit, unable to authorize device. %s", retryIn))
+		case mediaType == "application/x-www-form-urlencoded":
+			return nil, xerrors.Errorf("status_code=%d, payload response is form-url encoded, expected a json payload", resp.StatusCode)
 		default:
-			return nil, xerrors.Errorf("status_code=%d: %w", resp.StatusCode, err)
+			return nil, fmt.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
 		}
 	}
 	if r.ErrorDescription != "" {

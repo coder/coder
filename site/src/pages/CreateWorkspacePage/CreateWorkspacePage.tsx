@@ -1,36 +1,36 @@
+import { getUserParameters } from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
+import {
+  richParameters,
+  templateByName,
+  templateVersionExternalAuth,
+} from "api/queries/templates";
+import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import {
   TemplateVersionParameter,
   UserParameter,
   Workspace,
 } from "api/typesGenerated";
-import { type FC, useCallback, useState, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-  uniqueNamesGenerator,
-  animals,
-  colors,
-  NumberDictionary,
-} from "unique-names-generator";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
-import { checkAuthorization } from "api/queries/authCheck";
-import {
-  templateByName,
-  templateVersionExternalAuth,
-  richParameters,
-} from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useCallback, useEffect, useMemo, useState, type FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  NumberDictionary,
+  animals,
+  colors,
+  uniqueNamesGenerator,
+} from "unique-names-generator";
+import { pageTitle } from "utils/page";
 import { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { Loader } from "components/Loader/Loader";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { getUserParameters } from "api/api";
+import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -45,7 +45,15 @@ const CreateWorkspacePage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
-  const defaultName = getDefaultName(mode, searchParams);
+
+  const defaultName = useMemo(() => {
+    const paramsName = searchParams.get("name");
+    if (mode === "duplicate" && paramsName) {
+      return `${paramsName}-copy`;
+    }
+
+    return paramsName ?? generateUniqueName();
+  }, [mode, searchParams]);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -78,8 +86,12 @@ const CreateWorkspacePage: FC = () => {
     ? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
     : undefined;
 
-  const { externalAuth, externalAuthPollingState, startPollingExternalAuth } =
-    useExternalAuth(realizedVersionId);
+  const {
+    externalAuth,
+    externalAuthPollingState,
+    startPollingExternalAuth,
+    isLoadingExternalAuth,
+  } = useExternalAuth(realizedVersionId);
 
   const isLoadingFormData =
     templateQuery.isLoading ||
@@ -133,7 +145,9 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle(title)}</title>
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData || autoCreateWorkspaceMutation.isLoading ? (
+      {isLoadingFormData ||
+      isLoadingExternalAuth ||
+      autoCreateWorkspaceMutation.isLoading ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
@@ -184,7 +198,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     setExternalAuthPollingState("polling");
   }, []);
 
-  const { data: externalAuth } = useQuery(
+  const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
     versionId
       ? {
           ...templateVersionExternalAuth(versionId),
@@ -220,6 +234,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     startPollingExternalAuth,
     externalAuth,
     externalAuthPollingState,
+    isLoadingExternalAuth,
   };
 };
 
@@ -273,17 +288,4 @@ function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   }
 
   return "form";
-}
-
-function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
-  if (mode === "auto") {
-    return generateUniqueName();
-  }
-
-  const paramsName = params.get("name");
-  if (mode === "duplicate" && paramsName) {
-    return `${paramsName}-copy`;
-  }
-
-  return paramsName ?? "";
 }

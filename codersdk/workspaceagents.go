@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/retry"
 )
 
@@ -314,7 +315,7 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := coordinateURL.Query()
-	q.Add("version", tailnet.CurrentVersion.String())
+	q.Add("version", proto.CurrentVersion.String())
 	coordinateURL.RawQuery = q.Encode()
 	closedCoordinator := make(chan struct{})
 	// Must only ever be used once, send error OR close to avoid

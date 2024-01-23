@@ -22,6 +22,7 @@ export const workspaceFilterQuery = {
   running: "status:running",
   failed: "status:failed",
   dormant: "dormant:true",
+  outdated: "outdated:true",
 };
 
 type FilterPreset = {
@@ -47,6 +48,10 @@ const PRESET_FILTERS: FilterPreset[] = [
   {
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
+  },
+  {
+    query: workspaceFilterQuery.outdated,
+    name: "Outdated workspaces",
   },
 ];
 
