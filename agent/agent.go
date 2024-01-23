@@ -89,7 +89,6 @@ type Options struct {
 type Client interface {
 	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (drpc.Conn, error)
-	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
@@ -822,10 +821,22 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
+	// Listen returns the dRPC connection we use for both Coordinator and DERPMap updates
+	conn, err := a.client.Listen(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cErr := conn.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
+		}
+	}()
+
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running tailnet connection coordinator")
-		err := a.runCoordinator(egCtx, network)
+		err := a.runCoordinator(egCtx, conn, network)
 		if err != nil {
 			return xerrors.Errorf("run coordinator: %w", err)
 		}
@@ -834,7 +845,7 @@ func (a *agent) run(ctx context.Context) error {
 
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running derp map subscriber")
-		err := a.runDERPMapSubscriber(egCtx, network)
+		err := a.runDERPMapSubscriber(egCtx, conn, network)
 		if err != nil {
 			return xerrors.Errorf("run derp map subscriber: %w", err)
 		}
@@ -1056,21 +1067,8 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
-func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	conn, err := a.client.Listen(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		cErr := conn.Close()
-		if cErr != nil {
-			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
-		}
-	}()
-
+func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+	defer a.logger.Debug(ctx, "disconnected from coordination RPC")
 	tClient := tailnetproto.NewDRPCTailnetClient(conn)
 	coordinate, err := tClient.Coordinate(ctx)
 	if err != nil {
@@ -1082,7 +1080,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 			a.logger.Debug(ctx, "error closing Coordinate client", slog.Error(err))
 		}
 	}()
-	a.logger.Info(ctx, "connected to coordination endpoint")
+	a.logger.Info(ctx, "connected to coordination RPC")
 	coordination := tailnet.NewRemoteCoordination(a.logger, coordinate, network, uuid.Nil)
 	select {
 	case <-ctx.Done():
@@ -1093,30 +1091,29 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
-func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn) error {
+func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+	defer a.logger.Debug(ctx, "disconnected from derp map RPC")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	updates, closer, err := a.client.DERPMapUpdates(ctx)
+	tClient := tailnetproto.NewDRPCTailnetClient(conn)
+	stream, err := tClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
-		return err
+		return xerrors.Errorf("stream DERP Maps: %w", err)
 	}
-	defer closer.Close()
-
-	a.logger.Info(ctx, "connected to derp map endpoint")
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case update := <-updates:
-			if update.Err != nil {
-				return update.Err
-			}
-			if update.DERPMap != nil && !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
-				a.logger.Info(ctx, "updating derp map due to detected changes")
-				network.SetDERPMap(update.DERPMap)
-			}
+	defer func() {
+		cErr := stream.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing DERPMap stream", slog.Error(err))
 		}
+	}()
+	a.logger.Info(ctx, "connected to derp map RPC")
+	for {
+		dmp, err := stream.Recv()
+		if err != nil {
+			return xerrors.Errorf("recv DERPMap error: %w", err)
+		}
+		dm := tailnet.DERPMapFromProto(dmp)
+		network.SetDERPMap(dm)
 	}
 }
 
