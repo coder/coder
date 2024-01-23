@@ -91,27 +91,42 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
-	t.Run("StartStoppedWorkspace", func(t *testing.T) {
+	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
 		authToken := uuid.NewString()
 		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleMember())
+
+		echoResponses := &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		}
+
+		version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
 		// Stop the workspace
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
-		// SSH to the workspace which should autostart it
+		// Update template version
+		version = coderdtest.UpdateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses, template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		err := ownerClient.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.NoError(t, err)
+
+		// SSH to the workspace which should auto-update and autostart it
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -132,7 +147,15 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+
+		// Double-check if workspace's template version is up-to-date
+		workspace, err = client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		assert.Equal(t, version.ID, workspace.TemplateActiveVersionID)
+		assert.Equal(t, workspace.TemplateActiveVersionID, workspace.LatestBuild.TemplateVersionID)
+		assert.False(t, workspace.Outdated)
 	})
+
 	t.Run("ShowTroubleshootingURLAfterTimeout", func(t *testing.T) {
 		t.Parallel()
 
