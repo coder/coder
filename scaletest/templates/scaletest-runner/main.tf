@@ -169,6 +169,16 @@ data "coder_parameter" "cleanup_strategy" {
   }
 }
 
+data "coder_parameter" "cleanup_prepare" {
+  order       = 14
+  type        = "bool"
+  name        = "Cleanup before scaletest"
+  default     = true
+  description = "Cleanup existing scaletest users and workspaces before the scaletest starts (prepare phase)."
+  mutable     = true
+  ephemeral   = true
+}
+
 
 data "coder_parameter" "workspace_template" {
   order        = 20
@@ -563,6 +573,7 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
+    SCALETEST_PARAM_CLEANUP_PREPARE : data.coder_parameter.cleanup_prepare.value ? "1" : "0",
     SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
     SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY : data.coder_parameter.load_scenario_run_concurrently.value ? "1" : "0",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",

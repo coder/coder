@@ -21,17 +21,20 @@ if [[ $event = manual ]]; then
 	fi
 fi
 
-start_phase "Cleanup (${event})"
-coder exp scaletest cleanup \
-	--cleanup-job-timeout 2h \
-	--cleanup-timeout 5h |
-	tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
-end_phase
+if [[ $event != shutdown_scale_down_only ]]; then
+	start_phase "Cleanup (${event})"
+	coder exp scaletest cleanup \
+		--cleanup-job-timeout 2h \
+		--cleanup-timeout 5h \
+		| tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
+	end_phase
+fi
 
 if [[ $event != prepare ]]; then
-	start_phase "Scaling down provisioners..."
+	start_phase "Scale down provisioners"
 	maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner --replicas 1
 	maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
+	end_phase
 fi
 
 if [[ $event = manual ]]; then
