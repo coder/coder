@@ -1453,7 +1453,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-func convertWorkspaces(requestorID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
+func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
@@ -1488,7 +1488,7 @@ func convertWorkspaces(requestorID uuid.UUID, workspaces []database.Workspace, d
 		}
 
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
-			requestorID,
+			requesterID,
 			workspace,
 			build,
 			template,
@@ -1500,7 +1500,7 @@ func convertWorkspaces(requestorID uuid.UUID, workspaces []database.Workspace, d
 }
 
 func convertWorkspace(
-	requestorID uuid.UUID,
+	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
@@ -1532,7 +1532,7 @@ func convertWorkspace(
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
-	requestorFavorite := workspace.FavoriteOf.UUID == requestorID
+	requesterFavorite := workspace.FavoriteOf.UUID == requesterID
 
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
@@ -1562,7 +1562,7 @@ func convertWorkspace(
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
-		Favorite:         requestorFavorite,
+		Favorite:         requesterFavorite,
 	}
 }
 
