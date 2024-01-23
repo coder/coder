@@ -2967,56 +2967,64 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 		client, db    = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor: auditRecorder,
 		})
-		owner           = coderdtest.CreateFirstUser(t, client)
-		memberClient, _ = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		owner                = coderdtest.CreateFirstUser(t, client)
+		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		// This will be our 'favorite' workspace
-		wsb = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+		wsb1 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		wsb2 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	// Initially, workspace should not be favored for member.
-	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favorite, "no favorites yet")
-	ws, err := client.Workspace(ctx, wsb.Workspace.ID)
+	ws, err := memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.False(t, ws.Favorite)
 
 	// When user favorites workspace
-	err = client.FavoriteWorkspace(ctx, wsb.Workspace.ID)
+	err = memberClient.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 
 	// Then it should be favored for them.
-	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.True(t, workspaces.Workspaces[0].Favorite, "favorites should come first")
-	ws, err = client.Workspace(ctx, wsb.Workspace.ID)
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 	require.True(t, ws.Favorite)
 
 	// When member unfavorites workspace
-	err = client.UnfavoriteWorkspace(ctx, wsb.Workspace.ID)
+	err = memberClient.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
 
 	// Then it should no longer be favored
-	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
 	require.NoError(t, err)
-	require.Len(t, workspaces.Workspaces, 1)
-	require.False(t, workspaces.Workspaces[0].Favorite, "no longer favorite")
-	ws, err = client.Workspace(ctx, wsb.Workspace.ID)
-	require.NoError(t, err)
-	require.False(t, ws.Favorite)
+	require.False(t, ws.Favorite, "no longer favorite")
 
 	// Users without write access to the workspace should not be able to perform the above.
-	err = memberClient.FavoriteWorkspace(ctx, wsb.Workspace.ID)
+	err = memberClient.FavoriteWorkspace(ctx, wsb2.Workspace.ID)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-	err = memberClient.UnfavoriteWorkspace(ctx, wsb.Workspace.ID)
+	err = memberClient.UnfavoriteWorkspace(ctx, wsb2.Workspace.ID)
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	// Owners should be able to favorite/unfavorite any workspace.
+	err = client.FavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite, "not owner's favorite")
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.True(t, ws.Favorite)
+
+	err = client.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	ws, err = client.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite)
+	ws, err = memberClient.Workspace(ctx, wsb1.Workspace.ID)
+	require.NoError(t, err)
+	require.False(t, ws.Favorite)
 }
