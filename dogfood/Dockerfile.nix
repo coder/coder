@@ -13,7 +13,7 @@ RUN mkdir -p /etc/nix && \
 COPY flake.* /app/
 RUN nix profile install "/app#all" --priority 4 && \
     rm -rf /app && \
-    nix-garbage-collect -d
+    nix-collect-garbage -d
 
 # Final image
 FROM codercom/enterprise-base:latest as final
