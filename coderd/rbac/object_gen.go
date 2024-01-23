@@ -25,6 +25,7 @@ func AllResources() []Object {
 		ResourceTemplateInsights,
 		ResourceUser,
 		ResourceUserData,
+		ResourceUserWorkspaceBuildParameters,
 		ResourceWildcard,
 		ResourceWorkspace,
 		ResourceWorkspaceApplicationConnect,

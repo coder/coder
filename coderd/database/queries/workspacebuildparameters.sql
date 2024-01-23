@@ -38,6 +38,7 @@ FROM (
         AND wb.transition = 'start'
         AND w.template_id = $2
         AND tvp.ephemeral = false
+        AND tvp.name = wbp.name
 ) sub
 WHERE
     sub.rn = 1

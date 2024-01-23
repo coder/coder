@@ -581,30 +581,15 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} codersdk.UserParameter
 // @Router /users/{user}/autofill-parameters [get]
 func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
-	var (
-		apiKey = httpmw.APIKey(r)
-		user   = httpmw.UserParam(r)
-	)
+	user := httpmw.UserParam(r)
 
-	if apiKey.UserID != user.ID {
-		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-			Message: "You are not authorized to view this user's parameters.",
-		})
-		return
-	}
-
-	templateIDStr := r.URL.Query().Get("template_id")
-	if templateIDStr == "" {
+	p := httpapi.NewQueryParamParser().Required("template_id")
+	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "template_id is required.",
-		})
-		return
-	}
-
-	templateID, err := uuid.Parse(templateIDStr)
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "template_id must be a valid UUID.",
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
 		})
 		return
 	}
@@ -616,7 +601,7 @@ func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) 
 			TemplateID: templateID,
 		},
 	)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's parameters.",
 			Detail:  err.Error(),

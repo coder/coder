@@ -27,19 +27,15 @@ export const getInitialRichParameterValues = (
     }
 
     const autofillParam = autofillParams?.find(
-      (p) => p.name === parameter.name,
+      ({ name }) => name === parameter.name,
     );
-
-    if (autofillParam !== undefined && isValidValue(parameter, autofillParam)) {
-      return {
-        name: parameter.name,
-        value: autofillParam.value,
-      };
-    }
 
     return {
       name: parameter.name,
-      value: parameter.default_value,
+      value:
+        autofillParam && isValidValue(parameter, autofillParam)
+          ? autofillParam.value
+          : parameter.default_value,
     };
   });
 };

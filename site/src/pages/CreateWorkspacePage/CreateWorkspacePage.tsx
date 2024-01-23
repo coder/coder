@@ -232,15 +232,16 @@ const getAutofillParameters = (
     return acc;
   }, new Map<string, UserParameter>());
 
-  const buildValues: AutofillBuildParameter[] = [];
-  Array.from(urlSearchParams.keys())
+  const buildValues: AutofillBuildParameter[] = Array.from(
+    urlSearchParams.keys(),
+  )
     .filter((key) => key.startsWith("param."))
-    .forEach((key) => {
+    .map((key) => {
       const name = key.replace("param.", "");
       const value = urlSearchParams.get(key) ?? "";
       // URL should take precedence over user parameters
       userParamMap.delete(name);
-      buildValues.push({ name, value, source: "url" });
+      return { name, value, source: "url" };
     });
 
   userParamMap.forEach((param) => {

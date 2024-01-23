@@ -3773,15 +3773,48 @@ func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params 
 		userWorkspaceIDs[ws.ID] = struct{}{}
 	}
 
-	userWorkspaceBuildParameters := make([]database.GetUserWorkspaceBuildParametersRow, 0)
-	for _, wbp := range q.workspaceBuildParameters {
-		userWorkspaceBuildParameters = append(userWorkspaceBuildParameters, database.GetUserWorkspaceBuildParametersRow{
-			Name:  wbp.Name,
-			Value: wbp.Value,
-		})
+	userWorkspaceBuilds := make(map[uuid.UUID]struct{})
+	for _, wb := range q.workspaceBuilds {
+		if _, ok := userWorkspaceIDs[wb.WorkspaceID]; !ok {
+			continue
+		}
+		userWorkspaceBuilds[wb.ID] = struct{}{}
 	}
 
-	return userWorkspaceBuildParameters, nil
+	templateVersions := make(map[uuid.UUID]struct{})
+	for _, tv := range q.templateVersions {
+		if tv.TemplateID.UUID != params.TemplateID {
+			continue
+		}
+		templateVersions[tv.ID] = struct{}{}
+	}
+
+	tvps := make(map[string]struct{})
+	for _, tvp := range q.templateVersionParameters {
+		if _, ok := templateVersions[tvp.TemplateVersionID]; !ok {
+			continue
+		}
+
+		if _, ok := tvps[tvp.Name]; !ok && !tvp.Ephemeral {
+			tvps[tvp.Name] = struct{}{}
+		}
+	}
+
+	userWorkspaceBuildParameters := make(map[string]database.GetUserWorkspaceBuildParametersRow)
+	for _, wbp := range q.workspaceBuildParameters {
+		if _, ok := userWorkspaceBuilds[wbp.WorkspaceBuildID]; !ok {
+			continue
+		}
+		if _, ok := tvps[wbp.Name]; !ok {
+			continue
+		}
+		userWorkspaceBuildParameters[wbp.Name] = database.GetUserWorkspaceBuildParametersRow{
+			Name:  wbp.Name,
+			Value: wbp.Value,
+		}
+	}
+
+	return maps.Values(userWorkspaceBuildParameters), nil
 }
 
 func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {

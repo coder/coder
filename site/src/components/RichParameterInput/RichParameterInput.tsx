@@ -160,16 +160,16 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
         {autofillSource && autofillSource !== "active_build" && (
-          <div css={{ marginTop: 4, fontSize: 12 }}>
-            🪄 Autofilled:{" "}
-            {
-              {
-                ["url"]: "value supplied by URL.",
-                ["user_history"]: "recently used value.",
-              }[autofillSource]
-            }
-          </div>
-        )}
+  <div css={{ marginTop: 4, fontSize: 12 }}>
+    🪄 Autofilled:{" "}
+    {autofillSourceLabel[autofillSource]}
+  </div>
+)}
+
+const autofillSourceLabel = {
+  url: "value supplied by URL.",
+  user_history: "recently used value.",
+};
       </div>
     </Stack>
   );
