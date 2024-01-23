@@ -244,14 +244,10 @@ function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
 }
 
 function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
-  if (mode === "auto") {
-    return generateUniqueName();
-  }
-
   const paramsName = params.get("name");
   if (mode === "duplicate" && paramsName) {
     return `${paramsName}-copy`;
   }
 
-  return paramsName ?? "";
+  return paramsName ?? generateUniqueName();
 }
