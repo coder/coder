@@ -600,8 +600,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
-// with the passed in codersdk client. Optionally, pass a function to mutate
-// the first user create request as required.
+// with the passed in codersdk client.
 func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
 	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
