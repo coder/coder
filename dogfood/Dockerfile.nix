@@ -5,9 +5,7 @@ FROM nixos/nix:2.19.2 as nix
 # nix does not enable these features by default these are required to run commands like
 # nix develop -c 'some command' or to use falke.nix
 RUN mkdir -p /etc/nix && \
-    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf && \
-    cp /etc/passwd /etc/passwd.nix && \
-    cp /etc/group /etc/group.nix
+    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
 # Copy Nix flake and install dependencies
 COPY flake.* /app/
@@ -22,16 +20,11 @@ FROM codercom/enterprise-base:latest as final
 USER root
 
 # Copy the Nix related files into the Docker image
-COPY --from=nix /nix /nix
+COPY --from=nix --chown=coder:coder /nix /nix
 COPY --from=nix /etc/nix /etc/nix
-COPY --from=nix /root/.nix-* /home/coder/.nix-*
-COPY --from=nix /etc/passwd.nix /etc/passwd.nix
-COPY --from=nix /etc/group.nix /etc/group.nix
-
-# Change permissions on Nix directories
-RUN chown -R coder:coder /nix && \
-    chown -R coder:coder /etc/nix && \
-    chown -R coder:coder /home/coder
+COPY --from=nix --chown=coder:coder /root/.nix-profile /home/coder/.nix-profile
+COPY --from=nix /etc/passwd /etc/passwd.nix
+COPY --from=nix /etc/group /etc/group.nix
 
 # Merge the passwd and group files
 # We need all nix users and groups to be available in the final image
