@@ -33,7 +33,7 @@ RUN cat /etc/passwd.nix >> /etc/passwd && \
     rm /etc/passwd.nix /etc/group.nix
 
 # Set environment variables and PATH
-ENV PATH=/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/nix/var/nix/profiles/default/sbin:$PATH \
+ENV PATH=/home/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/nix/var/nix/profiles/default/sbin:$PATH \
     GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder" \
     NODE_OPTIONS="--max-old-space-size=8192"
 
