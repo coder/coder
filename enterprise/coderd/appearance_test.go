@@ -6,7 +6,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -125,13 +128,15 @@ func TestServiceBanners(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		store, ps := dbtestutil.NewDB(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
+				Database: store,
+				Pubsub:   ps,
 			},
 			DontAddLicense: true,
 		})
-		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		lic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureAppearance: 1,
 			},
@@ -146,35 +151,28 @@ func TestServiceBanners(t *testing.T) {
 		err := client.UpdateAppearance(ctx, cfg)
 		require.NoError(t, err)
 
-		authToken := uuid.NewString()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
 
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
 		banner, err := agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, cfg.ServiceBanner, banner)
 
-		// No enterprise means a 404 on the endpoint meaning no banner.
-		client = coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
-		agentClient = agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		banner, err = agentClient.GetServiceBanner(ctx)
+		// Create an AGPL Coderd against the same database
+		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
+		agplAgentClient := agentsdk.New(agplClient.URL)
+		agplAgentClient.SetSessionToken(r.AgentToken)
+		banner, err = agplAgentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 
 		// No license means no banner.
-		client.DeleteLicense(ctx, license.ID)
+		err = client.DeleteLicense(ctx, lic.ID)
+		require.NoError(t, err)
 		banner, err = agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
