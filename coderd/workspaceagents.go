@@ -2164,6 +2164,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
+		return
 	}
 }
 
