@@ -479,13 +479,8 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	client, db := coderdtest.NewWithDatabase(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, client, func(r *codersdk.CreateFirstUserRequest) {
-		r.Username = "aaa"
-	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
 	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
 		r.Username = "zzz"
 	})
@@ -507,6 +502,9 @@ func TestWorkspacesSortOrder(t *testing.T) {
 
 	// f-workspace is also stopped, but is marked as favorite
 	wsbF := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "f-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	require.NoError(t, client.FavoriteWorkspace(ctx, wsbF.Workspace.ID)) // need to do this via API call for now
 
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
@@ -517,9 +515,9 @@ func TestWorkspacesSortOrder(t *testing.T) {
 		wsbF.Workspace.Name, // favorite
 		wsbA.Workspace.Name, // running
 		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, aaa < zzz
-		wsbD.Workspace.Name, // stopped, zzz > aaa
-		wsbE.Workspace.Name, // stopped, zzz > aaa
+		wsbB.Workspace.Name, // stopped, testuser < zzz
+		wsbD.Workspace.Name, // stopped, zzz > testuser
+		wsbE.Workspace.Name, // stopped, zzz > testuser
 	}
 
 	actualNames := make([]string, 0, len(expectedNames))
@@ -543,10 +541,10 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	expectedNames = []string{
 		wsbA.Workspace.Name, // running
 		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, aaa < zzz
-		wsbF.Workspace.Name, // stopped, aaa < zzz
-		wsbD.Workspace.Name, // stopped, zzz > aaa
-		wsbE.Workspace.Name, // stopped, zzz > aaa
+		wsbB.Workspace.Name, // stopped, testuser < zzz
+		wsbF.Workspace.Name, // stopped, testuser < zzz
+		wsbD.Workspace.Name, // stopped, zzz > testuser
+		wsbE.Workspace.Name, // stopped, zzz > testuser
 	}
 
 	actualNames = make([]string, 0, len(expectedNames))
