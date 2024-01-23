@@ -79,7 +79,7 @@ WHERE
 -- name: GetWorkspaces :many
 SELECT
 	workspaces.*,
-	COALESCE(template_name.template_name, 'unknown') as template_name,
+	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	COUNT(*) OVER () as count
@@ -120,12 +120,12 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		templates.name AS template_name
+		*
 	FROM
 		templates
 	WHERE
 		templates.id = workspaces.template_id
-) template_name ON true
+) template ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -257,6 +257,11 @@ WHERE
 	AND CASE
 		  WHEN @last_used_after :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
 				  workspaces.last_used_at >= @last_used_after
+		  ELSE true
+	END
+  	AND CASE
+		  WHEN sqlc.narg('using_active') :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces

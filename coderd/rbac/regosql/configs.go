@@ -53,6 +53,20 @@ func UserConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func WorkspaceConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("workspaces.organization_id :: text", []string{"input", "object", "org_owner"}),
+		userOwnerMatcher(),
+	)
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+
+	return matcher
+}
+
 // NoACLConverter should be used when the target SQL table does not contain
 // group or user ACL columns.
 func NoACLConverter() *sqltypes.VariableConverter {

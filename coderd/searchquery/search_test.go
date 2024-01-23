@@ -1,6 +1,7 @@
 package searchquery_test
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
@@ -116,7 +117,26 @@ func TestSearchWorkspace(t *testing.T) {
 				OwnerUsername: "foo",
 			},
 		},
-
+		{
+			Name:  "Outdated",
+			Query: `outdated:true`,
+			Expected: database.GetWorkspacesParams{
+				UsingActive: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		},
+		{
+			Name:  "Updated",
+			Query: `outdated:false`,
+			Expected: database.GetWorkspacesParams{
+				UsingActive: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+		},
 		// Failures
 		{
 			Name:                  "NoPrefix",

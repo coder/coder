@@ -11167,7 +11167,7 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
-	COALESCE(template_name.template_name, 'unknown') as template_name,
+	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	COUNT(*) OVER () as count
@@ -11208,12 +11208,12 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		templates.name AS template_name
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl
 	FROM
 		templates
 	WHERE
 		templates.id = workspaces.template_id
-) template_name ON true
+) template ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $1
@@ -11347,6 +11347,11 @@ WHERE
 				  workspaces.last_used_at >= $12
 		  ELSE true
 	END
+  	AND CASE
+		  WHEN $13 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $13 :: boolean
+		  ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
@@ -11358,28 +11363,29 @@ ORDER BY
 	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
-		WHEN $14 :: integer > 0 THEN
-			$14
+		WHEN $15 :: integer > 0 THEN
+			$15
 	END
 OFFSET
-	$13
+	$14
 `
 
 type GetWorkspacesParams struct {
-	Deleted                               bool        `db:"deleted" json:"deleted"`
-	Status                                string      `db:"status" json:"status"`
-	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
-	TemplateName                          string      `db:"template_name" json:"template_name"`
-	TemplateIDs                           []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name                                  string      `db:"name" json:"name"`
-	HasAgent                              string      `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	Dormant                               bool        `db:"dormant" json:"dormant"`
-	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
-	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
-	Offset                                int32       `db:"offset_" json:"offset_"`
-	Limit                                 int32       `db:"limit_" json:"limit_"`
+	Deleted                               bool         `db:"deleted" json:"deleted"`
+	Status                                string       `db:"status" json:"status"`
+	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
+	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
+	TemplateName                          string       `db:"template_name" json:"template_name"`
+	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
+	Name                                  string       `db:"name" json:"name"`
+	HasAgent                              string       `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64        `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	Dormant                               bool         `db:"dormant" json:"dormant"`
+	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
+	LastUsedAfter                         time.Time    `db:"last_used_after" json:"last_used_after"`
+	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
+	Offset                                int32        `db:"offset_" json:"offset_"`
+	Limit                                 int32        `db:"limit_" json:"limit_"`
 }
 
 type GetWorkspacesRow struct {
@@ -11417,6 +11423,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
+		arg.UsingActive,
 		arg.Offset,
 		arg.Limit,
 	)
