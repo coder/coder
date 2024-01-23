@@ -160,7 +160,7 @@ func TestStart(t *testing.T) {
 						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
 						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
 						if initialTemplateVersion != ws.LatestBuild.TemplateVersionID {
-							require.Contains(t, buf.String(), "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+							require.Contains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
 						}
 					})
 				}
