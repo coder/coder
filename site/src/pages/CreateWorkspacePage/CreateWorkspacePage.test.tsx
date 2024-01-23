@@ -201,7 +201,7 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("external auth: errors if unauthenticated and submits", async () => {
+  it("external auth: errors if unauthenticated", async () => {
     jest
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
@@ -209,17 +209,9 @@ describe("CreateWorkspacePage", () => {
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
 
-    const nameField = await screen.findByLabelText(nameLabelText);
-
-    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-    fireEvent.change(nameField, {
-      target: { value: "test" },
-    });
-
-    const submitButton = screen.getByText(createWorkspaceText);
-    await userEvent.click(submitButton);
-
-    await screen.findByText("You must authenticate to create a workspace!");
+    await screen.findByText(
+      "To create a workspace using the selected template, please ensure you are authenticated with all the external providers listed below.",
+    );
   });
 
   it("auto create a workspace if uses mode=auto", async () => {
