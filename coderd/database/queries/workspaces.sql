@@ -262,9 +262,9 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	CASE WHEN workspaces.favorite_of = @order_by_favorite THEN
-		workspaces.favorite_of = @order_by_favorite
-	END ASC,
+	-- COALESCE because the result of the comparison is NULL if not true
+	-- and this messes up the ordering.
+	COALESCE(workspaces.favorite_of = @order_by_favorite, false) DESC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
