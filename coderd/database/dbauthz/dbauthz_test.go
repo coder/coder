@@ -1059,7 +1059,7 @@ func (s *MethodTestSuite) TestUser() {
 				OwnerID:    u.ID,
 				TemplateID: uuid.UUID{},
 			},
-		).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(
+		).Asserts(u.UserWorkspaceBuildParametersObject(), rbac.ActionRead).Returns(
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))

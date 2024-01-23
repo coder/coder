@@ -1788,8 +1788,9 @@ func TestUserAutofillParameters(t *testing.T) {
 		).Do()
 
 		dbfake.WorkspaceBuild(t, db, database.Workspace{
-			OwnerID:    u2.ID,
-			TemplateID: version.Template.ID,
+			OwnerID:        u2.ID,
+			TemplateID:     version.Template.ID,
+			OrganizationID: u1.OrganizationID,
 		}).Params(
 			database.WorkspaceBuildParameter{
 				Name:  "param",

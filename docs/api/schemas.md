@@ -4189,31 +4189,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                 |
-| --------------------- |
-| `workspace`           |
-| `workspace_proxy`     |
-| `workspace_execution` |
-| `application_connect` |
-| `audit_log`           |
-| `template`            |
-| `group`               |
-| `file`                |
-| `provisioner_daemon`  |
-| `organization`        |
-| `assign_role`         |
-| `assign_org_role`     |
-| `api_key`             |
-| `user`                |
-| `user_data`           |
-| `organization_member` |
-| `license`             |
-| `deployment_config`   |
-| `deployment_stats`    |
-| `replicas`            |
-| `debug_info`          |
-| `system`              |
-| `template_insights`   |
+| Value                             |
+| --------------------------------- |
+| `workspace`                       |
+| `workspace_proxy`                 |
+| `workspace_execution`             |
+| `application_connect`             |
+| `audit_log`                       |
+| `template`                        |
+| `group`                           |
+| `file`                            |
+| `provisioner_daemon`              |
+| `organization`                    |
+| `assign_role`                     |
+| `assign_org_role`                 |
+| `api_key`                         |
+| `user`                            |
+| `user_data`                       |
+| `user_workspace_build_parameters` |
+| `organization_member`             |
+| `license`                         |
+| `deployment_config`               |
+| `deployment_stats`                |
+| `replicas`                        |
+| `debug_info`                      |
+| `system`                          |
+| `template_insights`               |
 
 ## codersdk.RateLimitConfig
 

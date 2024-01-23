@@ -2004,6 +2004,7 @@ export type RBACResource =
   | "template_insights"
   | "user"
   | "user_data"
+  | "user_workspace_build_parameters"
   | "workspace"
   | "workspace_execution"
   | "workspace_proxy";
@@ -2028,6 +2029,7 @@ export const RBACResources: RBACResource[] = [
   "template_insights",
   "user",
   "user_data",
+  "user_workspace_build_parameters",
   "workspace",
   "workspace_execution",
   "workspace_proxy",
