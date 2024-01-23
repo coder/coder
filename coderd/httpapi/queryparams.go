@@ -246,7 +246,7 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
-	if parser.RequiredParams[queryParam] && (!vals.Has(queryParam)) {
+	if parser.RequiredParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q is required", queryParam),

@@ -323,6 +323,11 @@ func TestParseQueryParams(t *testing.T) {
 		parser.Required("test_value")
 		parser.UUID(url.Values{}, uuid.New(), "test_value")
 		require.Len(t, parser.Errors, 1)
+
+		parser = httpapi.NewQueryParamParser()
+		parser.Required("test_value")
+		parser.String(url.Values{"test_value": {""}}, "", "test_value")
+		require.Len(t, parser.Errors, 1)
 	})
 }
 
