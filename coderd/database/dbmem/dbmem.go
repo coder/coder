@@ -7534,6 +7534,23 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.UsingActive.Valid {
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template: %w", err)
+			}
+
+			updated := build.TemplateVersionID == template.ActiveVersionID
+			if arg.UsingActive.Bool != updated {
+				continue
+			}
+		}
+
 		if !arg.Deleted && workspace.Deleted {
 			continue
 		}

@@ -1632,6 +1632,56 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, afterRes.Workspaces, 1)
 		require.Equal(t, after.ID, afterRes.Workspaces[0].ID)
 	})
+	t.Run("Updated", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Workspace is up-to-date
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "outdated:false",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "outdated:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+
+		// Now make it out of date
+		newTv := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+			request.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: newTv.ID,
+		})
+		require.NoError(t, err)
+
+		// Check the query again
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "outdated:false",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "outdated:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
 }
 
 func TestOffsetLimit(t *testing.T) {

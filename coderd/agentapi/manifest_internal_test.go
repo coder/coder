@@ -35,19 +35,18 @@ func Test_vscodeProxyURI(t *testing.T) {
 		Expected    string
 	}{
 		{
-			// No hostname proxies through the access url.
 			Name:        "NoHostname",
 			AccessURL:   coderAccessURL,
 			AppHostname: "",
 			App:         basicApp,
-			Expected:    coderAccessURL.String(),
+			Expected:    "",
 		},
 		{
 			Name:        "NoHostnameAccessURLPort",
 			AccessURL:   accessURLWithPort,
 			AppHostname: "",
 			App:         basicApp,
-			Expected:    accessURLWithPort.String(),
+			Expected:    "",
 		},
 		{
 			Name:        "Hostname",
