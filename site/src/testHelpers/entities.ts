@@ -6,7 +6,7 @@ import {
 import { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "contexts/AuthProvider/permissions";
+import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -3371,6 +3371,11 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     name: "foo",
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
+    endpoints: {
+      authorization: "http://localhost:3001/login/oauth2/authorize",
+      token: "http://localhost:3001/login/oauth2/token",
+      device_authorization: "",
+    },
   },
 ];
 

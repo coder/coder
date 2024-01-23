@@ -24,8 +24,9 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { ExternalAuth } from "pages/CreateWorkspacePage/ExternalAuth";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import LoadingButton from "@mui/lab/LoadingButton";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -60,8 +61,12 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
           <TableHead>
             <TableRow>
               <TableCell>Application</TableCell>
-              <TableCell>Link</TableCell>
-              <TableCell width="1%"></TableCell>
+              <TableCell>
+                <span aria-hidden css={{ ...visuallyHidden }}>
+                  Link to connect
+                </span>
+              </TableCell>
+              <TableCell width="1%" />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -133,57 +138,59 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
           title={name}
           avatar={
             app.display_icon && (
-              <Avatar src={app.display_icon} variant="square" fitImage />
+              <Avatar
+                src={app.display_icon}
+                variant="square"
+                fitImage
+                size="sm"
+              />
             )
           }
         />
       </TableCell>
-      <TableCell>
-        <ExternalAuth
-          displayName={name}
-          // We could specify the user is linked, but the link is invalid.
-          // This could indicate it expired, or was revoked on the other end.
-          authenticated={authenticated}
-          authenticateURL={authURL}
-          displayIcon=""
-          message={authenticated ? "Authenticated" : "Click to Login"}
-          externalAuthPollingState={externalAuthPollingState}
-          startPollingExternalAuth={startPollingExternalAuth}
-          fullWidth={false}
-        />
+      <TableCell css={{ textAlign: "right" }}>
+        <LoadingButton
+          disabled={authenticated}
+          variant="contained"
+          loading={externalAuthPollingState === "polling"}
+          onClick={() => {
+            window.open(authURL, "_blank", "width=900,height=600");
+            startPollingExternalAuth();
+          }}
+        >
+          {authenticated ? "Authenticated" : "Click to Login"}
+        </LoadingButton>
       </TableCell>
       <TableCell>
-        {(link || externalAuth?.authenticated) && (
-          <MoreMenu>
-            <MoreMenuTrigger>
-              <ThreeDotsButton />
-            </MoreMenuTrigger>
-            <MoreMenuContent>
-              <MoreMenuItem
-                onClick={async () => {
-                  onValidateExternalAuth();
-                  // This is kinda jank. It does a refetch of the thing
-                  // it just validated... But we need to refetch to update the
-                  // login button. And the 'onValidateExternalAuth' does the
-                  // message display.
-                  await refetch();
-                }}
-              >
-                Test Validate&hellip;
-              </MoreMenuItem>
-              <Divider />
-              <MoreMenuItem
-                danger
-                onClick={async () => {
-                  onUnlinkExternalAuth();
-                  await refetch();
-                }}
-              >
-                Unlink&hellip;
-              </MoreMenuItem>
-            </MoreMenuContent>
-          </MoreMenu>
-        )}
+        <MoreMenu>
+          <MoreMenuTrigger>
+            <ThreeDotsButton size="small" disabled={!authenticated} />
+          </MoreMenuTrigger>
+          <MoreMenuContent>
+            <MoreMenuItem
+              onClick={async () => {
+                onValidateExternalAuth();
+                // This is kinda jank. It does a refetch of the thing
+                // it just validated... But we need to refetch to update the
+                // login button. And the 'onValidateExternalAuth' does the
+                // message display.
+                await refetch();
+              }}
+            >
+              Test Validate&hellip;
+            </MoreMenuItem>
+            <Divider />
+            <MoreMenuItem
+              danger
+              onClick={async () => {
+                onUnlinkExternalAuth();
+                await refetch();
+              }}
+            >
+              Unlink&hellip;
+            </MoreMenuItem>
+          </MoreMenuContent>
+        </MoreMenu>
       </TableCell>
     </TableRow>
   );

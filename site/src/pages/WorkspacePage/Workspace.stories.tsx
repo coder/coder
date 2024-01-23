@@ -1,14 +1,14 @@
 import { action } from "@storybook/addon-actions";
 import { Meta, StoryObj } from "@storybook/react";
-import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
-import { ProvisionerJobLog } from "api/typesGenerated";
-import * as Mocks from "testHelpers/entities";
-import { Workspace } from "./Workspace";
-import { withReactContext } from "storybook-react-context";
 import EventSource from "eventsourcemock";
+import { withReactContext } from "storybook-react-context";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import * as Mocks from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
-import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
+import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
+import { Workspace } from "./Workspace";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
@@ -38,7 +38,7 @@ const meta: Meta<typeof Workspace> = {
   },
   decorators: [
     (Story) => (
-      <DashboardProviderContext.Provider
+      <DashboardContext.Provider
         value={{
           buildInfo: Mocks.MockBuildInfo,
           entitlements: Mocks.MockEntitlementsWithScheduling,
@@ -66,7 +66,7 @@ const meta: Meta<typeof Workspace> = {
         >
           <Story />
         </ProxyContext.Provider>
-      </DashboardProviderContext.Provider>
+      </DashboardContext.Provider>
     ),
     withReactContext({
       Context: WatchAgentMetadataContext,

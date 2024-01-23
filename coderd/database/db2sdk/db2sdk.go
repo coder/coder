@@ -4,6 +4,7 @@ package db2sdk
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -226,19 +227,29 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	return options, nil
 }
 
-func OAuth2ProviderApp(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 	return codersdk.OAuth2ProviderApp{
 		ID:          dbApp.ID,
 		Name:        dbApp.Name,
 		CallbackURL: dbApp.CallbackURL,
 		Icon:        dbApp.Icon,
+		Endpoints: codersdk.OAuth2AppEndpoints{
+			Authorization: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/authorize",
+			}).String(),
+			Token: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/tokens",
+			}).String(),
+			// We do not currently support DeviceAuth.
+			DeviceAuth: "",
+		},
 	}
 }
 
-func OAuth2ProviderApps(dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
+func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	apps := []codersdk.OAuth2ProviderApp{}
 	for _, dbApp := range dbApps {
-		apps = append(apps, OAuth2ProviderApp(dbApp))
+		apps = append(apps, OAuth2ProviderApp(accessURL, dbApp))
 	}
 	return apps
 }

@@ -1664,9 +1664,11 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	require.NotNil(t, originalDerpMap)
 
 	coordinator := tailnet.NewCoordinator(logger)
-	defer func() {
+	// use t.Cleanup so the coordinator closing doesn't deadlock with in-memory
+	// coordination
+	t.Cleanup(func() {
 		_ = coordinator.Close()
-	}()
+	})
 	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
@@ -1681,41 +1683,42 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		statsCh,
 		coordinator,
 	)
-	closer := agent.New(agent.Options{
+	uut := agent.New(agent.Options{
 		Client:                 client,
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: time.Minute,
 	})
-	defer func() {
-		_ = closer.Close()
-	}()
+	t.Cleanup(func() {
+		_ = uut.Close()
+	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap) *codersdk.WorkspaceAgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *codersdk.WorkspaceAgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   derpMap,
-			Logger:    logger.Named("client"),
+			Logger:    logger.Named(name),
 		})
 		require.NoError(t, err)
-		clientConn, serverConn := net.Pipe()
-		serveClientDone := make(chan struct{})
 		t.Cleanup(func() {
-			_ = clientConn.Close()
-			_ = serverConn.Close()
+			t.Logf("closing conn %s", name)
 			_ = conn.Close()
-			<-serveClientDone
 		})
-		go func() {
-			defer close(serveClientDone)
-			err := coordinator.ServeClient(serverConn, uuid.New(), agentID)
-			assert.NoError(t, err)
-		}()
-		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-			return conn.UpdateNodes(nodes, false)
+		testCtx, testCtxCancel := context.WithCancel(context.Background())
+		t.Cleanup(testCtxCancel)
+		clientID := uuid.New()
+		coordination := tailnet.NewInMemoryCoordination(
+			testCtx, logger,
+			clientID, agentID,
+			coordinator, conn)
+		t.Cleanup(func() {
+			t.Logf("closing coordination %s", name)
+			err := coordination.Close()
+			if err != nil {
+				t.Logf("error closing in-memory coordination: %s", err.Error())
+			}
 		})
-		conn.SetNodeCallback(sendNode)
 		// Force DERP.
 		conn.SetBlockEndpoints(true)
 
@@ -1724,6 +1727,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
 		})
 		t.Cleanup(func() {
+			t.Logf("closing sdkConn %s", name)
 			_ = sdkConn.Close()
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1734,7 +1738,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 		return sdkConn
 	}
-	conn1 := newClientConn(originalDerpMap)
+	conn1 := newClientConn(originalDerpMap, "client1")
 
 	// Change the DERP map.
 	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -1753,27 +1757,34 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		DERPMap: newDerpMap,
 	})
 	require.NoError(t, err)
+	t.Logf("client Pushed DERPMap update")
 
 	require.Eventually(t, func() bool {
-		conn := closer.TailnetConn()
+		conn := uut.TailnetConn()
 		if conn == nil {
 			return false
 		}
 		regionIDs := conn.DERPMap().RegionIDs()
-		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+		preferredDERP := conn.Node().PreferredDERP
+		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
+	t.Logf("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
-	conn2 := newClientConn(newDerpMap)
+	conn2 := newClientConn(newDerpMap, "client2")
 	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	t.Log("conn2 got the new DERPMap")
 
 	// If the first client gets a DERP map update, it should be able to
 	// reconnect just fine.
 	conn1.SetDERPMap(newDerpMap)
 	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	t.Log("set the new DERPMap on conn1")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	require.True(t, conn1.AwaitReachable(ctx))
+	t.Log("conn1 reached agent with new DERP")
 }
 
 func TestAgent_Speedtest(t *testing.T) {
@@ -2050,22 +2061,22 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		Logger:    logger.Named("client"),
 	})
 	require.NoError(t, err)
-	clientConn, serverConn := net.Pipe()
-	serveClientDone := make(chan struct{})
 	t.Cleanup(func() {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
 		_ = conn.Close()
-		<-serveClientDone
 	})
-	go func() {
-		defer close(serveClientDone)
-		coordinator.ServeClient(serverConn, uuid.New(), metadata.AgentID)
-	}()
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-		return conn.UpdateNodes(nodes, false)
+	testCtx, testCtxCancel := context.WithCancel(context.Background())
+	t.Cleanup(testCtxCancel)
+	clientID := uuid.New()
+	coordination := tailnet.NewInMemoryCoordination(
+		testCtx, logger,
+		clientID, metadata.AgentID,
+		coordinator, conn)
+	t.Cleanup(func() {
+		err := coordination.Close()
+		if err != nil {
+			t.Logf("error closing in-mem coordination: %s", err.Error())
+		}
 	})
-	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: metadata.AgentID,
 	})

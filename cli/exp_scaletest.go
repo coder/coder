@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -856,10 +857,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval time.Duration
-		bytesPerTick int64
-		ssh          bool
-		template     string
+		tickInterval     time.Duration
+		bytesPerTick     int64
+		ssh              bool
+		app              string
+		template         string
+		targetWorkspaces string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -910,14 +913,30 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					return xerrors.Errorf("parse template: %w", err)
 				}
 			}
+			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetRange("workspaces", targetWorkspaces)
+			if err != nil {
+				return xerrors.Errorf("parse target workspaces: %w", err)
+			}
+
+			appHost, err := client.AppHost(ctx)
+			if err != nil {
+				return xerrors.Errorf("get app host: %w", err)
+			}
 
 			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
 			if err != nil {
 				return err
 			}
 
+			if targetWorkspaceEnd == 0 {
+				targetWorkspaceEnd = len(workspaces)
+			}
+
 			if len(workspaces) == 0 {
 				return xerrors.Errorf("no scaletest workspaces exist")
+			}
+			if targetWorkspaceEnd > len(workspaces) {
+				return xerrors.Errorf("target workspace end %d is greater than the number of workspaces %d", targetWorkspaceEnd, len(workspaces))
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -944,36 +963,44 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
+				if idx < targetWorkspaceStart || idx >= targetWorkspaceEnd {
+					continue
+				}
+
 				var (
-					agentID   uuid.UUID
-					agentName string
-					name      = "workspace-traffic"
-					id        = strconv.Itoa(idx)
+					agent codersdk.WorkspaceAgent
+					name  = "workspace-traffic"
+					id    = strconv.Itoa(idx)
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
 					if len(res.Agents) == 0 {
 						continue
 					}
-					agentID = res.Agents[0].ID
-					agentName = res.Agents[0].Name
+					agent = res.Agents[0]
 				}
 
-				if agentID == uuid.Nil {
+				if agent.ID == uuid.Nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
 					continue
 				}
 
+				appConfig, err := createWorkspaceAppConfig(client, appHost.Host, app, ws, agent)
+				if err != nil {
+					return xerrors.Errorf("configure workspace app: %w", err)
+				}
+
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agentID,
+					AgentID:      agent.ID,
 					BytesPerTick: bytesPerTick,
 					Duration:     strategy.timeout,
 					TickInterval: tickInterval,
-					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
-					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
+					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
+					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
 					SSH:          ssh,
 					Echo:         ssh,
+					App:          appConfig,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -1029,6 +1056,12 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Value:         clibase.StringOf(&template),
 		},
 		{
+			Flag:        "target-workspaces",
+			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
+			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Value:       clibase.StringOf(&targetWorkspaces),
+		},
+		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
@@ -1046,8 +1079,15 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Flag:        "ssh",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
 			Default:     "",
-			Description: "Send traffic over SSH.",
+			Description: "Send traffic over SSH, cannot be used with --app.",
 			Value:       clibase.BoolOf(&ssh),
+		},
+		{
+			Flag:        "app",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_APP",
+			Default:     "",
+			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
+			Value:       clibase.StringOf(&app),
 		},
 	}
 
@@ -1062,10 +1102,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		interval time.Duration
-		jitter   time.Duration
-		headless bool
-		randSeed int64
+		interval    time.Duration
+		jitter      time.Duration
+		headless    bool
+		randSeed    int64
+		targetUsers string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1087,6 +1128,10 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			if !(jitter < interval) {
 				return xerrors.Errorf("--jitter must be less than --interval")
+			}
+			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)
+			if err != nil {
+				return xerrors.Errorf("parse target users: %w", err)
 			}
 			ctx := inv.Context()
 			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
@@ -1124,8 +1169,15 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("get scaletest users")
 			}
+			if targetUserEnd == 0 {
+				targetUserEnd = len(users)
+			}
 
-			for _, usr := range users {
+			for idx, usr := range users {
+				if idx < targetUserStart || idx >= targetUserEnd {
+					continue
+				}
+
 				//nolint:gosec // not used for cryptographic purposes
 				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
@@ -1196,6 +1248,12 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
+		{
+			Flag:        "target-users",
+			Env:         "CODER_SCALETEST_DASHBOARD_TARGET_USERS",
+			Description: "Target a specific range of users in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted users (0-9).",
+			Value:       clibase.StringOf(&targetUsers),
+		},
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
@@ -1410,4 +1468,60 @@ func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs
 	}
 
 	return tpl, nil
+}
+
+func parseTargetRange(name, targets string) (start, end int, err error) {
+	if targets == "" {
+		return 0, 0, nil
+	}
+
+	parts := strings.Split(targets, ":")
+	if len(parts) != 2 {
+		return 0, 0, xerrors.Errorf("invalid target %s %q", name, targets)
+	}
+
+	start, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	end, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	if start == end {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: start and end cannot be equal", name, targets)
+	}
+	if end < start {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: end cannot be less than start", name, targets)
+	}
+
+	return start, end, nil
+}
+
+func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent) (workspacetraffic.AppConfig, error) {
+	if app == "" {
+		return workspacetraffic.AppConfig{}, nil
+	}
+
+	i := slices.IndexFunc(agent.Apps, func(a codersdk.WorkspaceApp) bool { return a.Slug == app })
+	if i == -1 {
+		return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q not found in workspace %q", app, workspace.Name)
+	}
+
+	c := workspacetraffic.AppConfig{
+		Name: agent.Apps[i].Slug,
+	}
+	if agent.Apps[i].Subdomain {
+		if appHost == "" {
+			return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q is a subdomain app but no app host is configured", app)
+		}
+
+		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
+	} else {
+		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+	}
+
+	return c, nil
 }

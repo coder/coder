@@ -89,7 +89,7 @@
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
     "unique-names-generator": "4.7.1",
     "uuid": "9.0.0",
-    "vite": "4.5.1",
+    "vite": "4.5.2",
     "xterm": "5.2.0",
     "xterm-addon-canvas": "0.5.0",
     "xterm-addon-fit": "0.8.0",
@@ -170,10 +170,9 @@
     "vite-plugin-turbosnap": "1.0.2"
   },
   "browserslist": [
-    "chrome 66",
-    "firefox 63",
-    "edge 79",
-    "safari 15.4"
+    "chrome 110",
+    "firefox 111",
+    "safari 16.0"
   ],
   "resolutions": {
     "optionator": "0.9.3",

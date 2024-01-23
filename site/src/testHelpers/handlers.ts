@@ -1,6 +1,6 @@
 import { rest } from "msw";
 import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionsToCheck } from "contexts/AuthProvider/permissions";
+import { permissionsToCheck } from "contexts/auth/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 import fs from "fs";

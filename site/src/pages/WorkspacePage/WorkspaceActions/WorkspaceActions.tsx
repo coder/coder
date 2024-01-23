@@ -83,7 +83,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
     workspace.outdated;
 
-  const tooltipText = getTooltipText(workspace, mustUpdate);
+  const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
@@ -202,17 +202,25 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   );
 };
 
-function getTooltipText(workspace: Workspace, disabled: boolean): string {
-  if (!disabled) {
+function getTooltipText(
+  workspace: Workspace,
+  mustUpdate: boolean,
+  canChangeVersions: boolean,
+): string {
+  if (!mustUpdate && !canChangeVersions) {
     return "";
   }
 
+  if (!mustUpdate && canChangeVersions) {
+    return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
+  }
+
   if (workspace.template_require_active_version) {
-    return "This template requires automatic updates";
+    return "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.";
   }
 
   if (workspace.automatic_updates === "always") {
-    return "You have enabled automatic updates for this workspace";
+    return "Automatic updates are enabled for this workspace. Modify the update policy in workspace settings if you want to preserve the template version.";
   }
 
   return "";

@@ -53,7 +53,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		waitEnum         string
 		noWait           bool
 		logDirPath       string
-		remoteForward    string
+		remoteForwards   []string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -135,13 +135,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			stack := newCloserStack(ctx, logger)
 			defer stack.close(nil)
 
-			if remoteForward != "" {
-				isValid := validateRemoteForward(remoteForward)
-				if !isValid {
-					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-				}
-				if isValid && stdio {
-					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+			if len(remoteForwards) > 0 {
+				for _, remoteForward := range remoteForwards {
+					isValid := validateRemoteForward(remoteForward)
+					if !isValid {
+						return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+					}
+					if isValid && stdio {
+						return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+					}
 				}
 			}
 
@@ -311,18 +313,20 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			if remoteForward != "" {
-				localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
-				if err != nil {
-					return err
-				}
+			if len(remoteForwards) > 0 {
+				for _, remoteForward := range remoteForwards {
+					localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
+					if err != nil {
+						return err
+					}
 
-				closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
-				if err != nil {
-					return xerrors.Errorf("ssh remote forward: %w", err)
-				}
-				if err = stack.push("sshRemoteForward", closer); err != nil {
-					return err
+					closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
+					if err != nil {
+						return xerrors.Errorf("ssh remote forward: %w", err)
+					}
+					if err = stack.push("sshRemoteForward", closer); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -460,7 +464,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
-			Value:         clibase.StringOf(&remoteForward),
+			Value:         clibase.StringArrayOf(&remoteForwards),
 		},
 		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}

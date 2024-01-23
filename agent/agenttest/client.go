@@ -3,19 +3,26 @@ package agenttest
 import (
 	"context"
 	"io"
-	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -24,11 +31,31 @@ func NewClient(t testing.TB,
 	agentID uuid.UUID,
 	manifest agentsdk.Manifest,
 	statsChan chan *agentsdk.Stats,
-	coordinator tailnet.CoordinatorV1,
+	coordinator tailnet.Coordinator,
 ) *Client {
 	if manifest.AgentID == uuid.Nil {
 		manifest.AgentID = agentID
 	}
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coordinator)
+	mux := drpcmux.New()
+	drpcService := &tailnet.DRPCService{
+		CoordPtr: &coordPtr,
+		Logger:   logger,
+		// TODO: handle DERPMap too!
+		DerpMapUpdateFrequency: time.Hour,
+		DerpMapFn:              func() *tailcfg.DERPMap { panic("not implemented") },
+	}
+	err := proto.DRPCRegisterTailnet(mux, drpcService)
+	require.NoError(t, err)
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+		},
+	})
 	return &Client{
 		t:              t,
 		logger:         logger.Named("client"),
@@ -36,6 +63,7 @@ func NewClient(t testing.TB,
 		manifest:       manifest,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
+		server:         server,
 		derpMapUpdates: make(chan agentsdk.DERPMapUpdate),
 	}
 }
@@ -47,7 +75,8 @@ type Client struct {
 	manifest             agentsdk.Manifest
 	metadata             map[string]agentsdk.Metadata
 	statsChan            chan *agentsdk.Stats
-	coordinator          tailnet.CoordinatorV1
+	coordinator          tailnet.Coordinator
+	server               *drpcserver.Server
 	LastWorkspaceAgent   func()
 	PatchWorkspaceLogs   func() error
 	GetServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
@@ -63,20 +92,29 @@ func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
 }
 
-func (c *Client) Listen(_ context.Context) (net.Conn, error) {
-	clientConn, serverConn := net.Pipe()
+func (c *Client) Listen(_ context.Context) (drpc.Conn, error) {
+	conn, lis := drpcsdk.MemTransportPipe()
 	closed := make(chan struct{})
 	c.LastWorkspaceAgent = func() {
-		_ = serverConn.Close()
-		_ = clientConn.Close()
+		_ = conn.Close()
+		_ = lis.Close()
 		<-closed
 	}
 	c.t.Cleanup(c.LastWorkspaceAgent)
+	serveCtx, cancel := context.WithCancel(context.Background())
+	c.t.Cleanup(cancel)
+	auth := tailnet.AgentTunnelAuth{}
+	streamID := tailnet.StreamID{
+		Name: "agenttest",
+		ID:   c.agentID,
+		Auth: auth,
+	}
+	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
+		_ = c.server.Serve(serveCtx, lis)
 		close(closed)
 	}()
-	return clientConn, nil
+	return conn, nil
 }
 
 func (c *Client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
