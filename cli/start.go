@@ -49,7 +49,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 				// It's possible for a workspace build to fail due to the template requiring starting
 				// workspaces with the active version.
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-					_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+					_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
 					build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 					if err != nil {
 						return xerrors.Errorf("start workspace with active template version: %w", err)
@@ -79,6 +79,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
+
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
