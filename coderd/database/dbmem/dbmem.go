@@ -7738,11 +7738,8 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		w2 := workspaces[j]
 
 		// Order by: favorite first
-		if w1.FavoriteOf.Valid && !w2.FavoriteOf.Valid {
+		if w1.FavoriteOf == arg.OrderByFavorite {
 			return true
-		}
-		if !w1.FavoriteOf.Valid && w2.FavoriteOf.Valid {
-			return false
 		}
 
 		// Order by: running

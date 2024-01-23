@@ -479,6 +479,10 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("sort order is only tested on postgres")
+	}
+
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
