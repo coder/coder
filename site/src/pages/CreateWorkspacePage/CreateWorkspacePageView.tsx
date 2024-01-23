@@ -11,8 +11,6 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { SelectedTemplate } from "./SelectedTemplate";
 import {
   FormFields,
   FormSection,
@@ -37,6 +35,15 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { CreateWSPermissions } from "./permissions";
 import { Alert } from "components/Alert/Alert";
+import { Margins } from "components/Margins/Margins";
+import Button from "@mui/material/Button";
+import { Avatar } from "components/Avatar/Avatar";
+import {
+  PageHeader,
+  PageHeaderTitle,
+  PageHeaderSubtitle,
+} from "components/PageHeader/PageHeader";
+import { Pill } from "components/Pill/Pill";
 
 export const Language = {
   duplicationWarning:
@@ -125,8 +132,30 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   );
 
   return (
-    <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
-      <HorizontalForm onSubmit={form.handleSubmit}>
+    <Margins size="medium">
+      <PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
+        <Stack direction="row" spacing={3} alignItems="center">
+          {template.icon !== "" ? (
+            <Avatar size="xl" src={template.icon} variant="square" fitImage />
+          ) : (
+            <Avatar size="xl">{template.name}</Avatar>
+          )}
+
+          <div>
+            <PageHeaderTitle>
+              {template.display_name.length > 0
+                ? template.display_name
+                : template.name}
+            </PageHeaderTitle>
+
+            <PageHeaderSubtitle condensed>New workspace</PageHeaderSubtitle>
+          </div>
+
+          {template.deprecated && <Pill type="warning">Deprecated</Pill>}
+        </Stack>
+      </PageHeader>
+
+      <HorizontalForm onSubmit={form.handleSubmit} css={{ padding: "16px 0" }}>
         {Boolean(error) && <ErrorAlert error={error} />}
 
         {mode === "duplicate" && (
@@ -138,10 +167,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {/* General info */}
         <FormSection
           title="General"
-          description="The template and name of your new workspace."
+          description={
+            permissions.createWorkspaceForUser
+              ? "The name of the workspace and its owner. Only admins can create workspace for other users."
+              : "The name of your new workspace."
+          }
         >
           <FormFields>
-            <SelectedTemplate template={template} />
             {versionId && versionId !== template.active_version_id && (
               <Stack spacing={1} css={styles.hasDescription}>
                 <TextField
@@ -155,6 +187,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 </span>
               </Stack>
             )}
+
             <TextField
               {...getFieldHelpers("name")}
               disabled={creatingWorkspace}
@@ -164,15 +197,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               fullWidth
               label="Workspace Name"
             />
-          </FormFields>
-        </FormSection>
 
-        {permissions.createWorkspaceForUser && (
-          <FormSection
-            title="Workspace Owner"
-            description="Only admins can create workspace for other users."
-          >
-            <FormFields>
+            {permissions.createWorkspaceForUser && (
               <UserAutocomplete
                 value={owner}
                 onChange={(user) => {
@@ -181,9 +207,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 label="Owner"
                 size="medium"
               />
-            </FormFields>
-          </FormSection>
-        )}
+            )}
+          </FormFields>
+        </FormSection>
 
         {externalAuth && externalAuth.length > 0 && (
           <FormSection
@@ -272,7 +298,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           submitLabel="Create Workspace"
         />
       </HorizontalForm>
-    </FullPageHorizontalForm>
+    </Margins>
   );
 };
 
