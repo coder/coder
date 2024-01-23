@@ -7738,8 +7738,11 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		w2 := workspaces[j]
 
 		// Order by: favorite first
-		if w1.FavoriteOf == arg.OrderByFavorite {
+		if w1.FavoriteOf == arg.OrderByFavorite && w2.FavoriteOf != arg.OrderByFavorite {
 			return true
+		}
+		if w1.FavoriteOf != arg.OrderByFavorite && w2.FavoriteOf == arg.OrderByFavorite {
+			return false
 		}
 
 		// Order by: running
@@ -7755,12 +7758,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// Order by: usernames
-		if w1.ID != w2.ID {
-			return sort.StringsAreSorted([]string{preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username})
+		if strings.Compare(preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username) < 0 {
+			return true
 		}
 
 		// Order by: workspace names
-		return sort.StringsAreSorted([]string{w1.Name, w2.Name})
+		return strings.Compare(w1.Name, w2.Name) < 0
 	})
 
 	beforePageCount := len(workspaces)

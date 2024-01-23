@@ -479,10 +479,6 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestWorkspacesSortOrder(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("sort order is only tested on postgres")
-	}
-
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
@@ -534,7 +530,7 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	// 2. Running workspaces
 	// 3. Sort by usernames
 	// 4. Sort by workspace names
-	require.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedNames, actualNames)
 
 	// Once again but this time as a different user. This time we do not expect to see another
 	// user's favorites first.
@@ -561,7 +557,7 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	// 2. Running workspaces
 	// 3. Sort by usernames
 	// 4. Sort by workspace names
-	require.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedNames, actualNames)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
