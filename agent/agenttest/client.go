@@ -39,12 +39,12 @@ func NewClient(t testing.TB,
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coordinator)
 	mux := drpcmux.New()
+	derpMapUpdates := make(chan *tailcfg.DERPMap)
 	drpcService := &tailnet.DRPCService{
-		CoordPtr: &coordPtr,
-		Logger:   logger,
-		// TODO: handle DERPMap too!
-		DerpMapUpdateFrequency: time.Hour,
-		DerpMapFn:              func() *tailcfg.DERPMap { panic("not implemented") },
+		CoordPtr:               &coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: time.Microsecond,
+		DerpMapFn:              func() *tailcfg.DERPMap { return <-derpMapUpdates },
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func NewClient(t testing.TB,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
 		server:         server,
-		derpMapUpdates: make(chan agentsdk.DERPMapUpdate),
+		derpMapUpdates: derpMapUpdates,
 	}
 }
 
@@ -85,23 +85,26 @@ type Client struct {
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
 	logs            []agentsdk.Log
-	derpMapUpdates  chan agentsdk.DERPMapUpdate
+	derpMapUpdates  chan *tailcfg.DERPMap
+	derpMapOnce     sync.Once
+}
+
+func (c *Client) Close() {
+	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
 func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
 }
 
-func (c *Client) Listen(_ context.Context) (drpc.Conn, error) {
+func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
 	conn, lis := drpcsdk.MemTransportPipe()
-	closed := make(chan struct{})
 	c.LastWorkspaceAgent = func() {
 		_ = conn.Close()
 		_ = lis.Close()
-		<-closed
 	}
 	c.t.Cleanup(c.LastWorkspaceAgent)
-	serveCtx, cancel := context.WithCancel(context.Background())
+	serveCtx, cancel := context.WithCancel(ctx)
 	c.t.Cleanup(cancel)
 	auth := tailnet.AgentTunnelAuth{}
 	streamID := tailnet.StreamID{
@@ -112,7 +115,6 @@ func (c *Client) Listen(_ context.Context) (drpc.Conn, error) {
 	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
 		_ = c.server.Serve(serveCtx, lis)
-		close(closed)
 	}()
 	return conn, nil
 }
@@ -235,7 +237,7 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 	return codersdk.ServiceBannerConfig{}, nil
 }
 
-func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
+func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	timer := time.NewTimer(testutil.WaitShort)
 	defer timer.Stop()
 	select {
@@ -245,14 +247,6 @@ func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
 	}
 
 	return nil
-}
-
-func (c *Client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
-	closed := make(chan struct{})
-	return c.derpMapUpdates, closeFunc(func() error {
-		close(closed)
-		return nil
-	}), nil
 }
 
 type closeFunc func() error

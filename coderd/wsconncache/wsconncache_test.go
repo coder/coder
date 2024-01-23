@@ -171,13 +171,16 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = coordinator.Close()
 	})
 	manifest.AgentID = uuid.New()
+	aC := &client{
+		t:              t,
+		agentID:        manifest.AgentID,
+		manifest:       manifest,
+		coordinator:    coordinator,
+		derpMapUpdates: make(chan *tailcfg.DERPMap),
+	}
+	t.Cleanup(aC.close)
 	closer := agent.New(agent.Options{
-		Client: &client{
-			t:           t,
-			agentID:     manifest.AgentID,
-			manifest:    manifest,
-			coordinator: coordinator,
-		},
+		Client:                 aC,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 		Addresses:              []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
@@ -230,52 +233,37 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 }
 
 type client struct {
-	t           *testing.T
-	agentID     uuid.UUID
-	manifest    agentsdk.Manifest
-	coordinator tailnet.Coordinator
+	t              *testing.T
+	agentID        uuid.UUID
+	manifest       agentsdk.Manifest
+	coordinator    tailnet.Coordinator
+	closeOnce      sync.Once
+	derpMapUpdates chan *tailcfg.DERPMap
+}
+
+func (c *client) close() {
+	c.closeOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
 func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
 }
 
-type closer struct {
-	closeFunc func() error
-}
-
-func (c *closer) Close() error {
-	return c.closeFunc()
-}
-
-func (*client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
-	closed := make(chan struct{})
-	return make(<-chan agentsdk.DERPMapUpdate), &closer{
-		closeFunc: func() error {
-			close(closed)
-			return nil
-		},
-	}, nil
-}
-
 func (c *client) Listen(_ context.Context) (drpc.Conn, error) {
 	logger := slogtest.Make(c.t, nil).Leveled(slog.LevelDebug).Named("drpc")
 	conn, lis := drpcsdk.MemTransportPipe()
-	closed := make(chan struct{})
 	c.t.Cleanup(func() {
 		_ = conn.Close()
 		_ = lis.Close()
-		<-closed
 	})
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&c.coordinator)
 	mux := drpcmux.New()
 	drpcService := &tailnet.DRPCService{
-		CoordPtr: &coordPtr,
-		Logger:   logger,
-		// TODO: handle DERPMap too!
-		DerpMapUpdateFrequency: time.Hour,
-		DerpMapFn:              func() *tailcfg.DERPMap { panic("not implemented") },
+		CoordPtr:               &coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: time.Microsecond,
+		DerpMapFn:              func() *tailcfg.DERPMap { return <-c.derpMapUpdates },
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -302,7 +290,6 @@ func (c *client) Listen(_ context.Context) (drpc.Conn, error) {
 	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
 		server.Serve(serveCtx, lis)
-		close(closed)
 	}()
 	return conn, nil
 }

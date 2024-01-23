@@ -656,6 +656,13 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2AppEndpoints {
+  readonly authorization: string;
+  readonly token: string;
+  readonly device_authorization: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig;
@@ -678,6 +685,7 @@ export interface OAuth2ProviderApp {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;
+  readonly endpoints: OAuth2AppEndpoints;
 }
 
 // From codersdk/oauth2.go

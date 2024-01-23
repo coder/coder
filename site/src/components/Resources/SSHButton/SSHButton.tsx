@@ -41,7 +41,7 @@ export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
           endIcon={<KeyboardArrowDown />}
           css={{ fontSize: 13, padding: "8px 12px" }}
         >
-          Connect to SSH
+          Connect via SSH
         </Button>
       </PopoverTrigger>
 

@@ -1683,11 +1683,11 @@ func workspaceSessionTokenName(workspace database.Workspace) string {
 
 func (s *server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
 	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:           user.ID,
-		LoginType:        user.LoginType,
-		DeploymentValues: s.DeploymentValues,
-		TokenName:        workspaceSessionTokenName(workspace),
-		LifetimeSeconds:  int64(s.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
+		UserID:          user.ID,
+		LoginType:       user.LoginType,
+		DefaultLifetime: s.DeploymentValues.SessionDuration.Value(),
+		TokenName:       workspaceSessionTokenName(workspace),
+		LifetimeSeconds: int64(s.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
 	})
 	if err != nil {
 		return "", xerrors.Errorf("generate API key: %w", err)

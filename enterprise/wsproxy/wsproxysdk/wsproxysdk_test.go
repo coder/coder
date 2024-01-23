@@ -194,7 +194,7 @@ func TestDialCoordinator(t *testing.T) {
 				return
 			}
 			version := r.URL.Query().Get("version")
-			if !assert.Equal(t, version, agpl.CurrentVersion.String()) {
+			if !assert.Equal(t, version, proto.CurrentVersion.String()) {
 				return
 			}
 			nc := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)

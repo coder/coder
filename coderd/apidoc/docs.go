@@ -9688,6 +9688,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2AppEndpoints": {
+            "type": "object",
+            "properties": {
+                "authorization": {
+                    "type": "string"
+                },
+                "device_authorization": {
+                    "description": "DeviceAuth is optional.",
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -9733,6 +9748,14 @@ const docTemplate = `{
             "properties": {
                 "callback_url": {
                     "type": "string"
+                },
+                "endpoints": {
+                    "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OAuth2AppEndpoints"
+                        }
+                    ]
                 },
                 "icon": {
                     "type": "string"

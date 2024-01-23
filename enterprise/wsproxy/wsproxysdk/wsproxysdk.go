@@ -439,7 +439,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := coordinateURL.Query()
-	q.Add("version", agpl.CurrentVersion.String())
+	q.Add("version", proto.CurrentVersion.String())
 	coordinateURL.RawQuery = q.Encode()
 	coordinateHeaders := make(http.Header)
 	tokenHeader := codersdk.SessionTokenHeader
