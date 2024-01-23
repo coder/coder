@@ -120,7 +120,7 @@ module "code-server" {
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.1"  
+  version        = "1.0.1"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -130,7 +130,7 @@ module "jetbrains_gateway" {
 
 module "vscode-desktop" {
   source   = "registry.coder.com/modules/vscode-desktop/coder"
-  version  = "1.0.1"  
+  version  = "1.0.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
