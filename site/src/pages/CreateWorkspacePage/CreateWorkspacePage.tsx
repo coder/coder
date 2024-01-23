@@ -1,4 +1,4 @@
-import { type FC, useCallback, useState, useEffect } from "react";
+import { type FC, useCallback, useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -44,7 +44,15 @@ const CreateWorkspacePage: FC = () => {
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
-  const defaultName = getDefaultName(mode, searchParams);
+
+  const defaultName = useMemo(() => {
+    const paramsName = searchParams.get("name");
+    if (mode === "duplicate" && paramsName) {
+      return `${paramsName}-copy`;
+    }
+
+    return paramsName ?? generateUniqueName();
+  }, [mode, searchParams]);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -248,17 +256,4 @@ function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   }
 
   return "form";
-}
-
-function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
-  if (mode === "auto") {
-    return generateUniqueName();
-  }
-
-  const paramsName = params.get("name");
-  if (mode === "duplicate" && paramsName) {
-    return `${paramsName}-copy`;
-  }
-
-  return paramsName ?? "";
 }
