@@ -6,19 +6,17 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -214,9 +212,9 @@ func TestCustomSupportLinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := anotherClient.Appearance(ctx)
+	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, supportLinks, appearance.SupportLinks)
+	require.Equal(t, supportLinks, appr.SupportLinks)
 }
 
 func TestDefaultSupportLinks(t *testing.T) {
@@ -229,7 +227,7 @@ func TestDefaultSupportLinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := anotherClient.Appearance(ctx)
+	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, coderd.DefaultSupportLinks, appearance.SupportLinks)
+	require.Equal(t, appearance.DefaultSupportLinks, appr.SupportLinks)
 }

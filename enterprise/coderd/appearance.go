@@ -11,28 +11,12 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-var DefaultSupportLinks = []codersdk.LinkConfig{
-	{
-		Name:   "Documentation",
-		Target: "https://coder.com/docs/coder-oss",
-		Icon:   "docs",
-	},
-	{
-		Name:   "Report a bug",
-		Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
-		Icon:   "bug",
-	},
-	{
-		Name:   "Join the Coder Discord",
-		Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
-		Icon:   "chat",
-	},
-}
 
 // @Summary Get appearance
 // @ID get-appearance
@@ -42,7 +26,8 @@ var DefaultSupportLinks = []codersdk.LinkConfig{
 // @Success 200 {object} codersdk.AppearanceConfig
 // @Router /appearance [get]
 func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
-	cfg, err := api.fetchAppearanceConfig(r.Context())
+	af := *api.AGPL.AppearanceFetcher.Load()
+	cfg, err := af.Fetch(r.Context())
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to fetch appearance config.",
@@ -54,37 +39,39 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
 }
 
-func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceConfig, error) {
-	api.entitlementsMu.RLock()
-	isEntitled := api.entitlements.Features[codersdk.FeatureAppearance].Entitlement == codersdk.EntitlementEntitled
-	api.entitlementsMu.RUnlock()
+type appearanceFetcher struct {
+	database     database.Store
+	supportLinks []codersdk.LinkConfig
+}
 
-	if !isEntitled {
-		return codersdk.AppearanceConfig{
-			SupportLinks: DefaultSupportLinks,
-		}, nil
+func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig) agpl.Fetcher {
+	return &appearanceFetcher{
+		database:     store,
+		supportLinks: links,
 	}
+}
 
+func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfig, error) {
 	var eg errgroup.Group
 	var applicationName string
 	var logoURL string
 	var serviceBannerJSON string
 	eg.Go(func() (err error) {
-		applicationName, err = api.Database.GetApplicationName(ctx)
+		applicationName, err = f.database.GetApplicationName(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get application name: %w", err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
-		logoURL, err = api.Database.GetLogoURL(ctx)
+		logoURL, err = f.database.GetLogoURL(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get logo url: %w", err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
-		serviceBannerJSON, err = api.Database.GetServiceBanner(ctx)
+		serviceBannerJSON, err = f.database.GetServiceBanner(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get service banner: %w", err)
 		}
@@ -108,10 +95,10 @@ func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceC
 		}
 	}
 
-	if len(api.DeploymentValues.Support.Links.Value) == 0 {
-		cfg.SupportLinks = DefaultSupportLinks
+	if len(f.supportLinks) == 0 {
+		cfg.SupportLinks = agpl.DefaultSupportLinks
 	} else {
-		cfg.SupportLinks = api.DeploymentValues.Support.Links.Value
+		cfg.SupportLinks = f.supportLinks
 	}
 
 	return cfg, nil
