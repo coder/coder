@@ -130,6 +130,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
+		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsBatcher:                      api.statsBatcher,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,

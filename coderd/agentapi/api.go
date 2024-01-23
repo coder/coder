@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -61,6 +62,7 @@ type Options struct {
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 	StatsBatcher                      StatsBatcher
+	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
@@ -98,7 +100,7 @@ func New(opts Options) *API {
 	}
 
 	api.ServiceBannerAPI = &ServiceBannerAPI{
-		Database: opts.Database,
+		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
 	api.StatsAPI = &StatsAPI{
