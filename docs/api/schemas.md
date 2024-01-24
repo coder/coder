@@ -5921,6 +5921,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -6101,6 +6102,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `created_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `deleting_at`                               | string                                                 | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template. |
 | `dormant_at`                                | string                                                 | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time*til* field on its template.                          |
+| `favorite`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)   | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                   |
 | `id`                                        | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `last_used_at`                              | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -7184,6 +7186,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
       "dormant_at": "2019-08-24T14:15:22Z",
+      "favorite": true,
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false

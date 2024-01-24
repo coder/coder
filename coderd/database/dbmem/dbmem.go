@@ -359,6 +359,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			DeletingAt:        w.DeletingAt,
 			Count:             count,
 			AutomaticUpdates:  w.AutomaticUpdates,
+			Favorite:          w.Favorite,
 		}
 
 		for _, t := range q.templates {
@@ -1313,6 +1314,25 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := 0; i < len(q.workspaces); i++ {
+		if q.workspaces[i].ID != arg {
+			continue
+		}
+		q.workspaces[i].Favorite = true
+		return nil
+	}
+	return nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -5984,6 +6004,26 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UnfavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := 0; i < len(q.workspaces); i++ {
+		if q.workspaces[i].ID != arg {
+			continue
+		}
+		q.workspaces[i].Favorite = false
+		return nil
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -7713,7 +7753,15 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		w1 := workspaces[i]
 		w2 := workspaces[j]
 
-		// Order by: running first
+		// Order by: favorite first
+		if arg.RequesterID == w1.OwnerID && w1.Favorite {
+			return true
+		}
+		if arg.RequesterID == w2.OwnerID && w2.Favorite {
+			return false
+		}
+
+		// Order by: running
 		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
 		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
 
@@ -7726,12 +7774,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// Order by: usernames
-		if w1.ID != w2.ID {
-			return sort.StringsAreSorted([]string{preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username})
+		if strings.Compare(preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username) < 0 {
+			return true
 		}
 
 		// Order by: workspace names
-		return sort.StringsAreSorted([]string{w1.Name, w2.Name})
+		return strings.Compare(w1.Name, w2.Name) < 0
 	})
 
 	beforePageCount := len(workspaces)

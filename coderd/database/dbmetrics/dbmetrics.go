@@ -300,6 +300,13 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	return r0, r1
 }
 
+func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.FavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("FavoriteWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -1611,6 +1618,13 @@ func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database
 	start := time.Now()
 	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
 	m.queryLatencies.WithLabelValues("UnarchiveTemplateVersion").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnfavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())
 	return r0
 }
 

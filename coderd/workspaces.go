@@ -55,6 +55,7 @@ var (
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	var (
 		deletedStr  = r.URL.Query().Get("include_deleted")
@@ -102,6 +103,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -157,6 +159,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// To show the requester's favorite workspaces first, we pass their userID and compare it to
+	// the workspace owner_id when ordering the rows.
+	filter.RequesterID = apiKey.UserID
+
 	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -184,7 +190,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wss, err := convertWorkspaces(workspaces, data)
+	wss, err := convertWorkspaces(apiKey.UserID, workspaces, data)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspaces.",
@@ -213,6 +219,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
+	apiKey := httpmw.APIKey(r)
 
 	includeDeleted := false
 	if s := r.URL.Query().Get("include_deleted"); s != "" {
@@ -274,6 +281,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -583,6 +591,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		apiBuild,
 		template,
@@ -854,6 +863,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		workspace         = httpmw.WorkspaceParam(r)
+		apiKey            = httpmw.APIKey(r)
 		oldWorkspace      = workspace
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
@@ -922,6 +932,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = workspace
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -1019,6 +1030,98 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
+}
+
+// @Summary Favorite workspace by ID.
+// @ID favorite-workspace-by-id
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/favorite [put]
+func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+		apiKey    = httpmw.APIKey(r)
+		auditor   = api.Auditor.Load()
+	)
+
+	if apiKey.UserID != workspace.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You can only favorite workspaces that you own.",
+		})
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+	aReq.Old = workspace
+
+	err := api.Database.FavoriteWorkspace(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting workspace as favorite",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq.New = workspace
+	aReq.New.Favorite = true
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Unfavorite workspace by ID.
+// @ID unfavorite-workspace-by-id
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/favorite [delete]
+func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+		apiKey    = httpmw.APIKey(r)
+		auditor   = api.Auditor.Load()
+	)
+
+	if apiKey.UserID != workspace.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You can only un-favorite workspaces that you own.",
+		})
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+
+	defer commitAudit()
+	aReq.Old = workspace
+
+	err := api.Database.UnfavoriteWorkspace(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error unsetting workspace as favorite",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = workspace
+	aReq.New.Favorite = false
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Update workspace automatic updates by ID
@@ -1186,6 +1289,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
@@ -1248,6 +1352,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspace(
+				apiKey.UserID,
 				workspace,
 				data.builds[0],
 				data.templates[0],
@@ -1366,7 +1471,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
-func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
+func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
@@ -1401,6 +1506,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 		}
 
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
+			requesterID,
 			workspace,
 			build,
 			template,
@@ -1412,6 +1518,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 }
 
 func convertWorkspace(
+	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
@@ -1444,6 +1551,9 @@ func convertWorkspace(
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 
+	// Only show favorite status if you own the workspace.
+	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1472,6 +1582,7 @@ func convertWorkspace(
 		},
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
+		Favorite:         requesterFavorite,
 	}
 }
 

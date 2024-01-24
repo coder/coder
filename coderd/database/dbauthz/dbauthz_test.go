@@ -1578,6 +1578,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
