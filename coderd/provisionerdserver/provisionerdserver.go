@@ -72,6 +72,9 @@ type Options struct {
 	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
 	// This is mainly used for testing.
 	HeartbeatFn func(context.Context) error
+
+	// HeartbeatDone is used for testing.
+	HeartbeatDone chan struct{}
 }
 
 type server struct {
@@ -183,6 +186,9 @@ func NewServer(
 	if options.HeartbeatInterval == 0 {
 		options.HeartbeatInterval = DefaultHeartbeatInterval
 	}
+	if options.HeartbeatDone == nil {
+		options.HeartbeatDone = make(chan struct{})
+	}
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
@@ -213,7 +219,7 @@ func NewServer(
 		s.heartbeatFn = s.defaultHeartbeat
 	}
 
-	go s.heartbeatLoop()
+	go s.heartbeatLoop(options.HeartbeatDone)
 	return s, nil
 }
 
@@ -227,17 +233,21 @@ func (s *server) timeNow() time.Time {
 }
 
 // heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
-// until the lifecycle context is canceled.
-func (s *server) heartbeatLoop() {
+// until the lifecycle context is canceled. Done is closed on exit.
+func (s *server) heartbeatLoop(hbDone chan<- struct{}) {
 	tick := time.NewTicker(time.Nanosecond)
-	defer tick.Stop()
+	defer func() {
+		close(hbDone)
+	}()
 	for {
 		select {
 		case <-s.lifecycleCtx.Done():
 			s.Logger.Debug(s.lifecycleCtx, "heartbeat loop canceled")
+			tick.Stop()
 			return
 		case <-tick.C:
 			if s.lifecycleCtx.Err() != nil {
+				tick.Stop()
 				return
 			}
 			start := s.timeNow()
