@@ -228,20 +228,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               */}
               <div css={{ display: "flex", flexDirection: "column", gap: 36 }}>
                 {parameters.map((parameter, index) => {
-                  const parameterFieldName = `rich_parameter_values.${index}`;
+                  const parameterField = `rich_parameter_values.${index}`;
+                  const parameterInputName = `${parameterField}.value`;
                   const isDisabled =
                     disabledParamsList?.includes(
                       parameter.name.toLowerCase().replace(/ /g, "_"),
                     ) || creatingWorkspace;
-                  const parameterValue =
-                    form.values.rich_parameter_values?.[index];
 
                   return (
                     <RichParameterInput
-                      {...getFieldHelpers(parameterFieldName)}
-                      value={parameterValue?.value}
+                      {...getFieldHelpers(parameterInputName)}
                       onChange={async (value) => {
-                        await form.setFieldValue(parameterFieldName, {
+                        await form.setFieldValue(parameterField, {
                           name: parameter.name,
                           value,
                         });

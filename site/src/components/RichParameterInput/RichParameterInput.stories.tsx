@@ -19,7 +19,7 @@ const createTemplateVersionParameter = (
     name: "first_parameter",
     description: "This is first parameter.",
     type: "string",
-    mutable: false,
+    mutable: true,
     default_value: "default string",
     icon: "/icon/folder.svg",
     options: [],
@@ -69,6 +69,17 @@ export const Immutable: Story = {
       name: "project_name",
       description:
         "Customize the name of a Google Cloud project that will be created!",
+    }),
+  },
+};
+
+export const WithError: Story = {
+  args: {
+    id: "number_parameter",
+    parameter: createTemplateVersionParameter({
+      name: "number_parameter",
+      type: "number",
+      description: "Numeric parameter",
     }),
   },
 };
