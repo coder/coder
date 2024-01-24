@@ -243,6 +243,10 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			target_start=0
 			target_end=${target_count}
 		fi
+		# TODO: Remove this once the dashboard traffic command is fixed,
+		# (i.e. once images are no longer dumped into PWD).
+		mkdir -p dashboard
+		pushd dashboard
 		run_scenario_cmd "${scenario}" coder exp scaletest dashboard \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m30s" \
@@ -251,6 +255,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--target-users "${target_start}:${target_end}" \
 			>"${SCALETEST_RESULTS_DIR}/traffic-dashboard-output.log" &
 		pids+=($!)
+		popd
 		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
 			wait "${pids[-1]}"
 			status=$?
