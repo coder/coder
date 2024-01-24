@@ -74,6 +74,32 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
+	t.Run("HostRewrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agentID, _, serverTailnet := setupAgent(t, nil)
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
+		require.NoError(t, err)
+		defer release()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+
+		// Ensure the reverse proxy director rewrites the url host to the agent's IP.
+		rp.Director(req)
+		assert.Equal(t,
+			fmt.Sprintf("[%s]:%d", tailnet.IPFromUUID(agentID).String(), codersdk.WorkspaceAgentHTTPAPIServerPort),
+			req.URL.Host,
+		)
+	})
+
 	t.Run("HTTPSProxy", func(t *testing.T) {
 		t.Parallel()
 

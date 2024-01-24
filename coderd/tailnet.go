@@ -99,14 +99,7 @@ func NewServerTailnet(
 		transport:            tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
-
-	// Bugfix: for some reason all calls to tn.dialContext come from
-	// "localhost", causing connections to be cached and requests to go to the
-	// wrong workspaces. This disables keepalives for now until the root cause
-	// can be found.
-	tn.transport.MaxIdleConnsPerHost = -1
-	tn.transport.DisableKeepAlives = true
-
+	tn.transport.MaxIdleConnsPerHost = 10
 	tn.transport.MaxIdleConns = 0
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
@@ -308,7 +301,15 @@ type ServerTailnet struct {
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	// Rewrite the targetURL's Host to point to the agent's IP. This is
+	// necessary because due to TCP connection caching, each agent needs to be
+	// addressed invidivually. Otherwise, all connections get dialed as
+	// "localhost:port", causing connections to be shared across agents.
+	tgt := *targetURL
+	_, port, _ := net.SplitHostPort(tgt.Host)
+	tgt.Host = net.JoinHostPort(tailnet.IPFromUUID(agentID).String(), port)
+
+	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
