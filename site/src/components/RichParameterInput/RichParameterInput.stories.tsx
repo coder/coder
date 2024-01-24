@@ -47,6 +47,32 @@ export const Basic: Story = {
   },
 };
 
+export const Optional: Story = {
+  args: {
+    value: "initial-value",
+    id: "project_name",
+    parameter: createTemplateVersionParameter({
+      required: false,
+      name: "project_name",
+      description:
+        "Customize the name of a Google Cloud project that will be created!",
+    }),
+  },
+};
+
+export const Immutable: Story = {
+  args: {
+    value: "initial-value",
+    id: "project_name",
+    parameter: createTemplateVersionParameter({
+      mutable: false,
+      name: "project_name",
+      description:
+        "Customize the name of a Google Cloud project that will be created!",
+    }),
+  },
+};
+
 export const NumberType: Story = {
   args: {
     value: "4",
