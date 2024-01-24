@@ -7,10 +7,10 @@ const muiTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
-      main: tw.sky[600],
-      contrastText: tw.sky[50],
+      main: tw.sky[500],
+      contrastText: tw.white,
       light: tw.sky[400],
-      dark: tw.sky[500],
+      dark: tw.sky[600],
     },
     secondary: {
       main: tw.zinc[500],
