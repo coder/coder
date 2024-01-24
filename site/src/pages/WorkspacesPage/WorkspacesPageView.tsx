@@ -139,7 +139,9 @@ export const WorkspacesPageView = ({
                   onClick={onStartAll}
                   disabled={
                     !checkedWorkspaces?.every(
-                      (w) => w.latest_build.status === "stopped" && !mustUpdateWorkspace(w, canChangeVersions),
+                      (w) =>
+                        w.latest_build.status === "stopped" &&
+                        !mustUpdateWorkspace(w, canChangeVersions),
                     )
                   }
                 >
