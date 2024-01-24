@@ -89,11 +89,6 @@
           "icon_path": "./images/google-cloud.svg"
         },
         {
-          "title": "JFrog",
-          "description": "Integrate Coder with JFrog",
-          "path": "./platforms/jfrog.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Set up Coder on Kubernetes",
           "path": "./platforms/kubernetes/index.md",

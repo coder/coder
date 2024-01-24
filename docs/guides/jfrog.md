@@ -1,3 +1,15 @@
+# Coder JFrog Integration
+
+<div>
+  <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
+    <span style="vertical-align:middle;">Your Name</span>
+    <img src="https://github.com/matifali.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+  </a>
+</div>
+January 24, 20204
+
+---
+
 # JFrog
 
 Use Coder and JFrog together to secure your development environments without
@@ -84,7 +96,7 @@ developers or stored in workspaces.
 
 ## Offline Deployments
 
-See the [offline deployments](../install/offline.md#coder-modules) guide for
+See the [offline deployments](../install/offline.md#coder-modules) section for
 instructions on how to use coder-modules in an offline environment with
 Artifactory.
 
