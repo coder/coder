@@ -403,10 +403,15 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if body.Error != "" {
 		return nil, xerrors.New(body.Error)
 	}
+	// If expiresIn is 0, then the token never expires.
+	expires := dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second)
+	if body.ExpiresIn == 0 {
+		expires = time.Time{}
+	}
 	return &oauth2.Token{
 		AccessToken:  body.AccessToken,
 		RefreshToken: body.RefreshToken,
-		Expiry:       dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+		Expiry:       expires,
 	}, nil
 }
 
