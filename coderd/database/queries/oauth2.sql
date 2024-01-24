@@ -98,7 +98,7 @@ INSERT INTO oauth2_provider_app_tokens (
     id,
     created_at,
     expires_at,
-    hashed_secret,
+    refresh_hash,
     app_secret_id,
     api_key_id
 ) VALUES(

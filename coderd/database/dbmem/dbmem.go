@@ -5372,12 +5372,12 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg databa
 		if secret.ID == arg.AppSecretID {
 			//nolint:gosimple // Go wants database.OAuth2ProviderAppToken(arg), but we cannot be sure the structs will remain identical.
 			token := database.OAuth2ProviderAppToken{
-				ID:           arg.ID,
-				CreatedAt:    arg.CreatedAt,
-				ExpiresAt:    arg.ExpiresAt,
-				HashedSecret: arg.HashedSecret,
-				APIKeyID:     arg.APIKeyID,
-				AppSecretID:  arg.AppSecretID,
+				ID:          arg.ID,
+				CreatedAt:   arg.CreatedAt,
+				ExpiresAt:   arg.ExpiresAt,
+				RefreshHash: arg.RefreshHash,
+				APIKeyID:    arg.APIKeyID,
+				AppSecretID: arg.AppSecretID,
 			}
 			q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens, token)
 			return token, nil

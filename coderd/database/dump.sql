@@ -496,12 +496,12 @@ CREATE TABLE oauth2_provider_app_tokens (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
-    hashed_secret bytea NOT NULL,
+    refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL,
     api_key_id text NOT NULL
 );
 
-COMMENT ON TABLE oauth2_provider_app_tokens IS 'Refresh tokens both provide a way to refresh an access tokens (API keys) and a way to link API keys with the OAuth2 app and secret that generated them.';
+COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -1342,7 +1342,7 @@ ALTER TABLE ONLY oauth2_provider_app_secrets
     ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
-    ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_hashed_secret_key UNIQUE (app_secret_id, hashed_secret);
+    ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_refresh_hash_key UNIQUE (app_secret_id, refresh_hash);
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_pkey PRIMARY KEY (id);

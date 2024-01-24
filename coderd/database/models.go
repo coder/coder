@@ -1821,14 +1821,14 @@ type OAuth2ProviderAppSecret struct {
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
 }
 
-// Refresh tokens both provide a way to refresh an access tokens (API keys) and a way to link API keys with the OAuth2 app and secret that generated them.
 type OAuth2ProviderAppToken struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-	AppSecretID  uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID     string    `db:"api_key_id" json:"api_key_id"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
+	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
 }
 
 type Organization struct {

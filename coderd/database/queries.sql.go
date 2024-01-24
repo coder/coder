@@ -3035,7 +3035,7 @@ INSERT INTO oauth2_provider_app_tokens (
     id,
     created_at,
     expires_at,
-    hashed_secret,
+    refresh_hash,
     app_secret_id,
     api_key_id
 ) VALUES(
@@ -3045,16 +3045,16 @@ INSERT INTO oauth2_provider_app_tokens (
     $4,
     $5,
     $6
-) RETURNING id, created_at, expires_at, hashed_secret, app_secret_id, api_key_id
+) RETURNING id, created_at, expires_at, refresh_hash, app_secret_id, api_key_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-	AppSecretID  uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
-	APIKeyID     string    `db:"api_key_id" json:"api_key_id"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
+	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -3062,7 +3062,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.ID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
-		arg.HashedSecret,
+		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
 	)
@@ -3071,7 +3071,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.ID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
-		&i.HashedSecret,
+		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
 	)

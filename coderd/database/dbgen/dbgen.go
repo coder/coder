@@ -719,12 +719,12 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
-		ID:           takeFirst(seed.ID, uuid.New()),
-		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
-		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
-		AppSecretID:  takeFirst(seed.AppSecretID, uuid.New()),
-		APIKeyID:     takeFirst(seed.APIKeyID, uuid.New().String()),
+		ID:          takeFirst(seed.ID, uuid.New()),
+		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
+		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
