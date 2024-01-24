@@ -347,7 +347,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 		case mediaType == "application/x-www-form-urlencoded":
 			return nil, xerrors.Errorf("status_code=%d, payload response is form-url encoded, expected a json payload", resp.StatusCode)
 		default:
-			return nil, fmt.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
+			return nil, xerrors.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
 		}
 	}
 	if r.ErrorDescription != "" {

@@ -40,10 +40,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 	version := r.URL.Query().Get("version")
 	if version == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing required query parameter: version",
-		})
-		return
+		// The initial version on this HTTP endpoint was 2.0, so assume this version if unspecified.
+		// Coder v2.7.1 (not to be confused with the Agent API version) calls this endpoint without
+		// a version parameter and wants Agent API version 2.0.
+		version = "2.0"
 	}
 	if err := proto.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
