@@ -232,7 +232,7 @@ accessible for your team to use.
 
 ## Coder Modules
 
-## Air-gapped Users
+### Artifactory
 
 Air gapped users can clone the [coder/modules](htpps://github.com/coder/modules)
 repo and publish a
