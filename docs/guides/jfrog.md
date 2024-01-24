@@ -55,6 +55,7 @@ module "jfrog" {
   version = "1.0.0"
   agent_id = coder_agent.example.id
   jfrog_url = "https://jfrog.example.com"
+  configure_code_server = true # this depends on the code-server
   username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
   package_managers = {
     "npm": "npm",
@@ -80,6 +81,7 @@ module "jfrog" {
   version = "1.0.0"
   agent_id = coder_agent.example.id
   jfrog_url = "https://XXXX.jfrog.io"
+  configure_code_server = true # this depends on the code-server
   artifactory_access_token = var.artifactory_access_token
   package_managers = {
     "npm": "npm",
