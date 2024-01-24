@@ -10,7 +10,7 @@ VALUES (
 );
 
 INSERT INTO oauth2_provider_app_tokens
-	(id, created_at, expires_at, hashed_secret, app_secret_id, api_key_id)
+	(id, created_at, expires_at, refresh_hash, app_secret_id, api_key_id)
 VALUES (
 	'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
 	'2023-06-15 10:25:33+00',
