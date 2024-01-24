@@ -18,26 +18,24 @@ The full example template can be found
 - Repositories configured in Artifactory for each package manager you want to
   use
 
-<blockquote class="info">
-The admin-level access token is used to provision user tokens and is never exposed to
-developers or stored in workspaces.
-</blockquote>
-
-<blockquote class="info">
-You can skip the whole page and use [JFrog module](https://registry.coder.com/modules/jfrog-token) for easy JFrog Artifactory integration.
-</blockquote>
-
 ## Provisioner Authentication
 
 The most straight-forward way to authenticate your template with Artifactory is
-by using our officaial Coder [modules](rhttps://egistry.coder.com). We publish two type of modules that automate the JFrog Artifactory and Coder integartion.
+by using our official Coder [modules](rhttps://egistry.coder.com). We publish
+two type of modules that automate the JFrog Artifactory and Coder integration.
 
-1. JFrog-OAuth: 
-2. JFrog-Token: 
+1. JFrog-OAuth:
+2. JFrog-Token:
 
 ### JFrog-OAuth
 
-This module is usable by Jfrog self-hossted(on-premises) Artifactory as it requires configuring a custom integration. This integration benefits from Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth) feature and allows each user to authticate with Artifactory using an OAuth flow and issues user-scoped tokens to each user. For instrutions on how to set this up, please see the details at: https://registry.coder.com/modules/jfrog-oauth
+This module is usable by Jfrog self-hosted (on-premises) Artifactory as it
+requires configuring a custom integration. This integration benefits from
+Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth)
+feature and allows each user to authenticate with Artifactory using an OAuth
+flow and issues user-scoped tokens to each user. For instructions on how to set
+this up, please see the details at:
+https://registry.coder.com/modules/jfrog-oauth
 
 ```hcl
 module "jfrog" {
@@ -56,7 +54,13 @@ module "jfrog" {
 
 ### JFrog-Token
 
-This module makes use of the [Artifactory terraform provider](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs) and an admin-scoped token to create user-scoped tokens for each user by matching their Coder email or username with Artifactory. This can be used for both SaaS and self-hosted(on-premisis) Artifactory instances. For Instrctions on how to configure this, please see the details at: https://registry.coder.com/modules/jfrog-token
+This module makes use of the
+[Artifactory terraform provider](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs)
+and an admin-scoped token to create user-scoped tokens for each user by matching
+their Coder email or username with Artifactory. This can be used for both SaaS
+and self-hosted(on-premises) Artifactory instances. For Instructions on how to
+configure this, please see the details at:
+https://registry.coder.com/modules/jfrog-token
 
 ```hcl
 module "jfrog" {
@@ -73,9 +77,16 @@ module "jfrog" {
 }
 ```
 
+<blockquote class="info">
+The admin-level access token is used to provision user tokens and is never exposed to
+developers or stored in workspaces.
+</blockquote>
+
 ## Offline Deployments
 
-TODO
+See the [offline deployments](../install/offline.md#coder-modules) guide for
+instructions on how to use coder-modules in an offline environment with
+Artifactory.
 
 ## More reading
 
