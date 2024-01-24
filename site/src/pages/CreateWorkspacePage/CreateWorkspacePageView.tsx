@@ -163,6 +163,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         />
       ) : (
         <HorizontalForm
+          name="create-workspace-form"
           onSubmit={form.handleSubmit}
           css={{ padding: "16px 0" }}
         >

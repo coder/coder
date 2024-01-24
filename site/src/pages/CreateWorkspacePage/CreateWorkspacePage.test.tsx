@@ -6,14 +6,12 @@ import {
   MockUser,
   MockWorkspace,
   MockWorkspaceQuota,
-  MockWorkspaceRequest,
   MockWorkspaceRichParametersRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionExternalAuthGithub,
   MockOrganization,
-  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -21,6 +19,8 @@ import {
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import { Language } from "./CreateWorkspacePageView";
+import { server } from "testHelpers/server";
+import { rest } from "msw";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -157,63 +157,6 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
-  it("external auth authenticates and succeeds", async () => {
-    jest
-      .spyOn(API, "getWorkspaceQuota")
-      .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest
-      .spyOn(API, "getUsers")
-      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    const nameField = await screen.findByLabelText(nameLabelText);
-    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-    fireEvent.change(nameField, {
-      target: { value: "test" },
-    });
-
-    const githubButton = await screen.findByText("Login with GitHub");
-    await userEvent.click(githubButton);
-
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
-
-    await screen.findByText("Authenticated with GitHub");
-
-    const submitButton = screen.getByText(createWorkspaceText);
-    await userEvent.click(submitButton);
-
-    await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
-        MockUser.id,
-        expect.objectContaining({
-          ...MockWorkspaceRequest,
-        }),
-      ),
-    );
-  });
-
-  it("external auth: errors if unauthenticated", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    await screen.findByText(
-      "To create a workspace using the selected template, please ensure you are authenticated with all the external providers listed below.",
-    );
-  });
-
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
@@ -283,5 +226,47 @@ describe("CreateWorkspacePage", () => {
 
     expect(warningMessage).toHaveTextContent(Language.duplicationWarning);
     expect(nameInput).toHaveValue(`${MockWorkspace.name}-copy`);
+  });
+
+  it("displays the form after connecting to all the external services", async () => {
+    jest.spyOn(window, "open").mockImplementation(() => null);
+    const user = userEvent.setup();
+    const notAuthenticatedExternalAuth = {
+      ...MockTemplateVersionExternalAuthGithub,
+      authenticated: false,
+    };
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:versionId/external-auth",
+        (req, res, ctx) => {
+          return res(ctx.json([notAuthenticatedExternalAuth]));
+        },
+      ),
+    );
+    renderCreateWorkspacePage();
+
+    await screen.findByText("External authentication");
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+
+    const connectButton = screen.getByRole("button", {
+      name: /connect/i,
+    });
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:versionId/external-auth",
+        (req, res, ctx) => {
+          const authenticatedExternalAuth = {
+            ...MockTemplateVersionExternalAuthGithub,
+            authenticated: true,
+          };
+          return res(ctx.json([authenticatedExternalAuth]));
+        },
+      ),
+    );
+    await user.click(connectButton);
+    // TODO: Consider improving the timeout by simulating react-query polling.
+    // Current implementation could not achieve this, further research is
+    // needed.
+    await screen.findByRole("form", undefined, { timeout: 10_000 });
   });
 });
