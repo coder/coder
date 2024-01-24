@@ -36,6 +36,7 @@ manual)
 		echo $'\nAborting...'
 		exit 1
 	fi
+	echo
 
 	do_cleanup
 	do_scaledown
