@@ -46,7 +46,8 @@ manual)
 prepare)
 	do_cleanup
 	;;
-shutdown)
+on_stop) ;; # Do nothing, handled by "shutdown".
+always | on_success | on_error | shutdown)
 	do_cleanup
 	do_scaledown
 	;;
