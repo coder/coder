@@ -94,10 +94,32 @@ if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
 	start_phase "Load scenarios: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]}"
 fi
 
+run_scenario_cmd() {
+	local scenario=${1}
+	shift
+	local command=("$@")
+
+	set +e
+	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
+		annotate_grafana scenario "Load scenario: ${scenario}"
+	fi
+	"${command[@]}"
+	status=${?}
+	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
+		export GRAFANA_ADD_TAGS=
+		if [[ ${status} != 0 ]]; then
+			GRAFANA_ADD_TAGS=error
+		fi
+		annotate_grafana_end scenario "Load scenario: ${scenario}"
+	fi
+	exit "${status}"
+}
+
 declare -a pids=()
 declare -A failed=()
 target_start=0
 target_end=-1
+
 for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
 		start_phase "Load scenario: ${scenario}"
@@ -117,7 +139,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			target_start=0
 			target_end=${target_count}
 		fi
-		coder exp scaletest workspace-traffic \
+		run_scenario_cmd "${scenario}" coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--ssh \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK}" \
@@ -153,7 +175,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			target_start=0
 			target_end=${target_count}
 		fi
-		coder exp scaletest workspace-traffic \
+		run_scenario_cmd "${scenario}" coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK}" \
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL}ms" \
@@ -188,7 +210,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			target_start=0
 			target_end=${target_count}
 		fi
-		coder exp scaletest workspace-traffic \
+		run_scenario_cmd "${scenario}" coder exp scaletest workspace-traffic \
 			--template "${SCALETEST_PARAM_TEMPLATE}" \
 			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_BYTES_PER_TICK}" \
 			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_TICK_INTERVAL}ms" \
@@ -221,7 +243,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			target_start=0
 			target_end=${target_count}
 		fi
-		coder exp scaletest dashboard \
+		run_scenario_cmd "${scenario}" coder exp scaletest dashboard \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-dashboard.json" \
@@ -290,6 +312,10 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		fi
 
 		wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
+	else
+		# Stagger the start of each scenario to avoid a burst of load and deted
+		# problematic scenarios.
+		sleep $((SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGERING * 60))
 	fi
 done
 
