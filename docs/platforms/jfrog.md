@@ -13,8 +13,7 @@ The full example template can be found
 ## Requirements
 
 - A JFrog Artifactory instance
-- An admin-level access token for Artifactory
-- 1:1 mapping of users in Coder to users in Artifactory by email address and
+- 1:1 mapping of users in Coder to users in Artifactory by email address or
   username
 - Repositories configured in Artifactory for each package manager you want to
   use
@@ -31,230 +30,52 @@ You can skip the whole page and use [JFrog module](https://registry.coder.com/mo
 ## Provisioner Authentication
 
 The most straight-forward way to authenticate your template with Artifactory is
-by using
-[Terraform-managed variables](https://coder.com/docs/v2/latest/templates/parameters#terraform-template-wide-variables).
+by using our officaial Coder [modules](rhttps://egistry.coder.com). We publish two type of modules that automate the JFrog Artifactory and Coder integartion.
 
-See the following example:
+1. JFrog-OAuth: 
+2. JFrog-Token: 
 
-```hcl
-terraform {
-  required_providers {
-    coder = {
-      source  = "coder/coder"
-    }
-    docker = {
-      source  = "kreuzwerker/docker"
-    }
-    artifactory = {
-      source  = "registry.terraform.io/jfrog/artifactory"
-    }
-  }
-}
+### JFrog-OAuth
 
-variable "jfrog_url" {
-  type        = string
-  description = "JFrog instance URL. e.g. https://jfrog.example.com"
-  # validate the URL to ensure it starts with https:// or http://
-  validation {
-    condition     = can(regex("^https?://", var.jfrog_url))
-    error_message = "JFrog URL must start with https:// or http://"
-  }
-}
-
-variable "artifactory_admin_access_token" {
-  type        = string
-  description = "The admin-level access token to use for JFrog with scope applied-permissions/admin"
-}
-
-# Configure the Artifactory provider
-provider "artifactory" {
-  url           = "${var.jfrog_url}/artifactory"
-  access_token  = "${var.artifactory_admin_access_token}"
-}
-
-resource "artifactory_scoped_token" "me" {
-  # This is hacky, but on terraform plan the data source gives empty strings,
-  # which fails validation.
-  username = length(local.artifactory_username) > 0 ? local.artifactory_username : "plan"
-}
-```
-
-When pushing the template, you can pass in the variables using the `--var` flag:
-
-```shell
-coder templates push --var 'jfrog_url=https://YYY.jfrog.io' --var 'artifactory_admin_access_token=XXX'
-```
-
-## Installing JFrog CLI
-
-`jf` is the JFrog CLI. It can do many things across the JFrog platform, but
-we'll focus on its ability to configure package managers, as that's the relevant
-functionality for most developers.
-
-Most users should be able to install `jf` by running the following command:
-
-```shell
-curl -fL https://install-cli.jfrog.io | sh
-```
-
-Other methods are listed [here](https://jfrog.com/getcli/).
-
-In our Docker-based example, we install `jf` by adding these lines to our
-`Dockerfile`:
-
-```Dockerfile
-RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
-```
-
-## Configuring Coder workspace to use JFrog Artifactory repositories
-
-Create a `locals` block to store the Artifactory repository keys for each
-package manager you want to use in your workspace. For example, if you want to
-use artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a
-`locals` block like this:
+This module is usable by Jfrog self-hossted(on-premises) Artifactory as it requires configuring a custom integration. This integration benefits from Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth) feature and allows each user to authticate with Artifactory using an OAuth flow and issues user-scoped tokens to each user. For instrutions on how to set this up, please see the details at: https://registry.coder.com/modules/jfrog-oauth
 
 ```hcl
-locals {
-  artifactory_repository_keys = {
-    npm    = "npm"
-    python = "pypi"
-    go     = "go"
-  }
-  # Make sure to use the same field as the username field in the Artifactory
-  # It can be either the username or the email address.
-  artifactory_username = data.coder_workspace.me.owner_email
-  jfrog_host = replace(var.jfrog_url, "^https://", "")
-}
-```
-
-To automatically configure `jf` CLI and Artifactory repositories for each user,
-add the following lines to your `startup_script` in the `coder_agent` block:
-
-```hcl
-resource "coder_agent" "main" {
-  arch                   = data.coder_provisioner.me.arch
-  os                     = "linux"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
-    set -e
-
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
-
-    # The jf CLI checks $CI when determining whether to use interactive
-    # flows.
-    export CI=true
-
-    jf c rm 0 || true
-    echo ${artifactory_scoped_token.me.access_token} | \
-      jf c add --access-token-stdin --url ${var.jfrog_url} 0
-
-    # Configure the `npm` CLI to use the Artifactory "npm" repository.
-    cat << EOF > ~/.npmrc
-    email = ${data.coder_workspace.me.owner_email}
-    registry = ${var.jfrog_url}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
-    EOF
-    jf rt curl /api/npm/auth >> .npmrc
-
-    # Configure the `pip` to use the Artifactory "python" repository.
-    mkdir -p ~/.pip
-    cat << EOF > ~/.pip/pip.conf
-    [global]
-    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
-    EOF
-
-  EOT
-  # Set GOPROXY to use the Artifactory "go" repository.
-  env = {
-    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${local..jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
+module "jfrog" {
+  source = "registry.coder.com/modules/jfrog-oauth/coder"
+  version = "1.0.0"
+  agent_id = coder_agent.example.id
+  jfrog_url = "https://jfrog.example.com"
+  username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
+  package_managers = {
+    "npm": "npm",
+    "go": "go",
+    "pypi": "pypi"
   }
 }
 ```
 
-You can verify that `jf` is configured correctly in your workspace by running
-`jf c show`. It should display output like:
+### JFrog-Token
 
-```text
-coder@jf:~$ jf c show
-Server ID:                      0
-JFrog Platform URL:             https://YYY.jfrog.io/
-Artifactory URL:                https://YYY.jfrog.io/artifactory/
-Distribution URL:               https://YYY.jfrog.io/distribution/
-Xray URL:                       https://YYY.jfrog.io/xray/
-Mission Control URL:            https://YYY.jfrog.io/mc/
-Pipelines URL:                  https://YYY.jfrog.io/pipelines/
-User:                           ammar@....com
-Access token:                   ...
-Default:                        true
-```
-
-## Installing the JFrog VS Code Extension
-
-You can install the JFrog VS Code extension into workspaces by inserting the
-following lines into your `startup_script`:
-
-```shell
-# Install the JFrog VS Code extension.
-# Find the latest version number at
-# https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
-/tmp/code-server/bin/code-server --install-extension jfrog.jfrog-vscode-extension
-```
-
-Note that this method will only work if your developers use code-server.
-
-## Configuring npm
-
-Add the following line to your `startup_script` to configure `npm` to use
-Artifactory:
-
-```shell
-    # Configure the `npm` CLI to use the Artifactory "npm" registry.
-    cat << EOF > ~/.npmrc
-    email = ${data.coder_workspace.me.owner_email}
-    registry = ${var.jfrog_url}/artifactory/api/npm/npm/
-    EOF
-    jf rt curl /api/npm/auth >> .npmrc
-```
-
-Now, your developers can run `npm install`, `npm audit`, etc. and transparently
-use Artifactory as the package registry. You can verify that `npm` is configured
-correctly by running `npm install --loglevel=http react` and checking that npm
-is only hitting your Artifactory URL.
-
-## Configuring pip
-
-Add the following lines to your `startup_script` to configure `pip` to use
-Artifactory:
-
-```shell
-    mkdir -p ~/.pip
-    cat << EOF > ~/.pip/pip.conf
-    [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/pypi/pypi/simple
-    EOF
-```
-
-Now, your developers can run `pip install` and transparently use Artifactory as
-the package registry. You can verify that `pip` is configured correctly by
-running `pip install --verbose requests` and checking that pip is only hitting
-your Artifactory URL.
-
-## Configuring Go
-
-Add the following environment variable to your `coder_agent` block to configure
-`go` to use Artifactory:
+This module makes use of the [Artifactory terraform provider](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs) and an admin-scoped token to create user-scoped tokens for each user by matching their Coder email or username with Artifactory. This can be used for both SaaS and self-hosted(on-premisis) Artifactory instances. For Instrctions on how to configure this, please see the details at: https://registry.coder.com/modules/jfrog-token
 
 ```hcl
-  env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${local.jfrog_host}/artifactory/api/go/go"
+module "jfrog" {
+  source = "registry.coder.com/modules/jfrog-token/coder"
+  version = "1.0.0"
+  agent_id = coder_agent.example.id
+  jfrog_url = "https://XXXX.jfrog.io"
+  artifactory_access_token = var.artifactory_access_token
+  package_managers = {
+    "npm": "npm",
+    "go": "go",
+    "pypi": "pypi"
   }
+}
 ```
 
-You can apply the same concepts to Docker, Maven, and other package managers
-supported by Artifactory. See the
-[JFrog documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/package-management)
-for more information.
+## Offline Deployments
+
+TODO
 
 ## More reading
 
