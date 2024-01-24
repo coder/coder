@@ -26,6 +26,17 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import Stack from "@mui/material/Stack";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import TextField from "@mui/material/TextField";
+import SensorsIcon from '@mui/icons-material/Sensors';
+import Add from '@mui/icons-material/Add';
+import IconButton from "@mui/material/IconButton";
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 export interface PortForwardButtonProps {
   host: string;
@@ -96,6 +107,16 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   ports,
 }) => {
   const theme = useTheme();
+  const sharedPorts = [
+    {
+      port: 8090,
+      share_level: "Authenticated",
+    },
+    {
+      port: 8091,
+      share_level: "Public",
+    }
+  ];
 
   return (
     <>
@@ -105,13 +126,69 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
+        <Stack direction="row" justifyContent="space-between" alignItems="start">
+        <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+          <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
+            Learn more
+          </HelpTooltipLink>
+        </Stack>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
           {ports?.length === 0
             ? "No open ports were detected."
-            : "The forwarded ports are exclusively accessible to you."}
+            : "The listening ports are exclusively accessible to you."
+          }
+
         </HelpTooltipText>
-        <div css={{ marginTop: 12 }}>
+        <form
+          css={styles.newPortForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const port = Number(formData.get("portNumber"));
+            const url = portForwardURL(
+              host,
+              port,
+              agent.name,
+              workspaceName,
+              username,
+            );
+            window.open(url, "_blank");
+          }}
+        >
+          <input
+            aria-label="Port number"
+            name="portNumber"
+            type="number"
+            placeholder="Connect to port..."
+            min={0}
+            max={65535}
+            required
+            css={styles.newPortInput}
+          />
+          <Button
+            type="submit"
+            size="small"
+            variant="text"
+            css={{
+              paddingLeft: 12,
+              paddingRight: 12,
+              minWidth: 0,
+            }}
+          >
+            <OpenInNewOutlined
+              css={{
+                flexShrink: 0,
+                width: 14,
+                height: 14,
+                color: theme.palette.text.primary,
+              }}
+            />
+          </Button>
+        </form>
+        <div
+        css={{
+          paddingTop: 10,
+        }}>
           {ports?.map((port) => {
             const url = portForwardURL(
               host,
@@ -123,24 +200,123 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             const label =
               port.process_name !== "" ? port.process_name : port.port;
             return (
-              <Link
-                underline="none"
-                css={styles.portLink}
-                key={port.port}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <OpenInNewOutlined css={{ width: 14, height: 14 }} />
-                {label}
-                <span css={styles.portNumber}>{port.port}</span>
-              </Link>
+              <Stack key={port.port} direction="row" justifyContent="space-between" alignItems="center">
+                <Link
+                  underline="none"
+                  css={styles.portLink}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <SensorsIcon css={{ width: 14, height: 14 }} />
+                  {label}
+                </Link>
+                <Link
+                  underline="none"
+                  css={styles.portLink}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span css={styles.portNumber}>{port.port}</span>
+                </Link>
+                <Button size="small" variant="text">
+                  Share
+                </Button>
+              </Stack>
             );
           })}
         </div>
+        </div>
+        <div css={{
+          padding: 20,
+        }}>
+        <HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
+        <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+          {ports?.length === 0
+            ? "No ports are shared."
+            : "Ports can be shared with other Coder users or with the public."}
+        </HelpTooltipText>
+        <div>
+          {sharedPorts?.map((port) => {
+            const url = portForwardURL(
+              host,
+              port.port,
+              agent.name,
+              workspaceName,
+              username,
+            );
+            const label = port.port;
+            return (
+              <Stack key={port.port} direction="row" justifyContent="space-between" alignItems="center">
+                <Link
+                  underline="none"
+                  css={styles.portLink}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {port.share_level === "Public" ?
+                  (
+                    <LockOpenIcon css={{ width: 14, height: 14 }} />
+                  )
+                  : (
+                    <LockIcon css={{ width: 14, height: 14 }} />
+                  )}
+                  {label}
+                </Link>
+                <Stack direction="row" gap={1}>
+                <FormControl size="small">
+                  <Select
+                    sx={{
+                      boxShadow: "none",
+                      ".MuiOutlinedInput-notchedOutline": { border: 0 },
+                      "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
+                        {
+                          border: 0,
+                        },
+                      "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                        {
+                          border: 0,
+                        },
+                    }}
+                    value={port.share_level}
+                  >
+                    <MenuItem value="Owner">Owner</MenuItem>
+                    <MenuItem value="Authenticated">Authenticated</MenuItem>
+                    <MenuItem value="Public">Public</MenuItem>
+                  </Select>
+                </FormControl>
+                </Stack>
+
+              </Stack>
+            );
+          })}
+          </div>
+          <Stack direction="column" gap={1} justifyContent="flex-end" sx={{
+          marginTop: 2,
+        }}>
+          <TextField
+            label="Port"
+            variant="outlined"
+            size="small"
+          />
+          <FormControl size="small">
+                  <Select
+                    value="Authenticated"
+                  >
+                    <MenuItem value="Authenticated">Authenticated</MenuItem>
+                    <MenuItem value="Public">Public</MenuItem>
+                  </Select>
+          </FormControl>
+          <Button variant="contained">
+            Add Shared Port
+          </Button>
+        </Stack>
       </div>
 
-      <div css={{ padding: 20 }}>
+
+      {/* <div css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
           Access ports running on the agent:
@@ -198,7 +374,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             Learn more
           </HelpTooltipLink>
         </HelpTooltipLinksGroup>
-      </div>
+      </div> */}
     </>
   );
 };
@@ -232,8 +408,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
     fontWeight: 500,
   }),
 
@@ -247,7 +423,7 @@ const styles = {
   newPortForm: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: "4px",
-    marginTop: 16,
+    marginTop: 8,
     display: "flex",
     alignItems: "center",
     "&:focus-within": {
