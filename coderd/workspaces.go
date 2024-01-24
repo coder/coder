@@ -159,9 +159,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// To show the user's favorite workspaces first, we pass their userID and compare it to
-	// column favorite_of when ordering the rows.
-	filter.OrderByFavorite = apiKey.UserID
+	// To show the requester's favorite workspaces first, we pass their userID and compare it to
+	// the workspace owner_id when ordering the rows.
+	filter.RequesterID = apiKey.UserID
 
 	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
@@ -1049,7 +1049,7 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 	if apiKey.UserID != workspace.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You can only favorite workspaces that you own",
+			Message: "You can only favorite workspaces that you own.",
 		})
 		return
 	}
@@ -1095,7 +1095,7 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 
 	if apiKey.UserID != workspace.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You can only un-favorite workspaces that you own",
+			Message: "You can only un-favorite workspaces that you own.",
 		})
 		return
 	}

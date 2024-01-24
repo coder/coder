@@ -11368,6 +11368,7 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
 	CASE WHEN workspaces.owner_id = $14 AND workspaces.favorite THEN 0 ELSE 1 END ASC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
@@ -11398,7 +11399,7 @@ type GetWorkspacesParams struct {
 	LastUsedBefore                        time.Time    `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time    `db:"last_used_after" json:"last_used_after"`
 	UsingActive                           sql.NullBool `db:"using_active" json:"using_active"`
-	OrderByFavorite                       uuid.UUID    `db:"order_by_favorite" json:"order_by_favorite"`
+	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
 }
@@ -11440,7 +11441,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.UsingActive,
-		arg.OrderByFavorite,
+		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
 	)

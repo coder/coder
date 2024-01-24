@@ -267,7 +267,8 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-	CASE WHEN workspaces.owner_id = @order_by_favorite AND workspaces.favorite THEN 0 ELSE 1 END ASC,
+	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+	CASE WHEN workspaces.owner_id = @requester_id AND workspaces.favorite THEN 0 ELSE 1 END ASC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND

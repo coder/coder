@@ -7754,10 +7754,10 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		w2 := workspaces[j]
 
 		// Order by: favorite first
-		if arg.OrderByFavorite == w1.OwnerID && w1.Favorite {
+		if arg.RequesterID == w1.OwnerID && w1.Favorite {
 			return true
 		}
-		if arg.OrderByFavorite == w2.OwnerID && w2.Favorite {
+		if arg.RequesterID == w2.OwnerID && w2.Favorite {
 			return false
 		}
 
