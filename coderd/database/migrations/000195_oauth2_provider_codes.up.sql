@@ -15,14 +15,14 @@ CREATE TABLE oauth2_provider_app_tokens (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
-    hashed_secret bytea NOT NULL,
+    refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL REFERENCES oauth2_provider_app_secrets (id) ON DELETE CASCADE,
     api_key_id text NOT NULL REFERENCES api_keys (id) ON DELETE CASCADE,
     PRIMARY KEY (id),
-    UNIQUE(app_secret_id, hashed_secret)
+    UNIQUE(app_secret_id, refresh_hash)
 );
 
-COMMENT ON TABLE oauth2_provider_app_tokens IS 'Refresh tokens both provide a way to refresh an access tokens (API keys) and a way to link API keys with the OAuth2 app and secret that generated them.';
+COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
 
 -- When we delete a token, delete the API key associated with it.
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
