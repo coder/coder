@@ -1310,7 +1310,8 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 		keyIdx := slices.IndexFunc(q.apiKeys, func(key database.APIKey) bool {
 			return key.ID == token.APIKeyID
 		})
-		if q.oauth2ProviderAppSecrets[secretIdx].AppID == arg.AppID && q.apiKeys[keyIdx].UserID == arg.UserID {
+		if secretIdx != -1 && q.oauth2ProviderAppSecrets[secretIdx].AppID == arg.AppID &&
+			keyIdx != -1 && q.apiKeys[keyIdx].UserID == arg.UserID {
 			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
 		} else {
 			tokens = append(tokens, token)
@@ -2312,7 +2313,7 @@ func (q *FakeQuerier) GetOAuth2ProviderAppsByUserID(_ context.Context, userID uu
 						keyIdx := slices.IndexFunc(q.apiKeys, func(key database.APIKey) bool {
 							return key.ID == token.APIKeyID
 						})
-						if q.apiKeys[keyIdx].UserID == userID {
+						if keyIdx != -1 && q.apiKeys[keyIdx].UserID == userID {
 							tokens = append(tokens, token)
 						}
 					}
