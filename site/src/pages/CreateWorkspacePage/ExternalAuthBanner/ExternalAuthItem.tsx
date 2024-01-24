@@ -3,9 +3,9 @@ import DoneAllOutlined from "@mui/icons-material/DoneAllOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { ComponentProps, useEffect, useState } from "react";
+import { FC, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- used to allow extension with "component"
-import Box from "@mui/material/Box";
+import Box, { BoxProps } from "@mui/material/Box";
 
 type Status = "idle" | "connecting";
 
@@ -14,15 +14,15 @@ type ExternalAuthItemProps = {
   isPolling: boolean;
   defaultStatus?: Status;
   onStartPolling: () => void;
-} & ComponentProps<typeof Box>;
+} & BoxProps;
 
-export const ExternalAuthItem = ({
+export const ExternalAuthItem: FC<ExternalAuthItemProps> = ({
   provider,
   isPolling,
   defaultStatus = "idle",
   onStartPolling,
   ...boxProps
-}: ExternalAuthItemProps) => {
+}) => {
   const [status, setStatus] = useState(defaultStatus);
 
   useEffect(() => {

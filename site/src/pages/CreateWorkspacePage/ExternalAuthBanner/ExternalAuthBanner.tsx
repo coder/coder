@@ -2,6 +2,7 @@ import { Interpolation, Theme } from "@emotion/react";
 import { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ExternalAuthPollingState } from "../CreateWorkspacePage";
 import { ExternalAuthItem } from "./ExternalAuthItem";
+import { FC } from "react";
 
 type ExternalAuthBannerProps = {
   providers: TemplateVersionExternalAuth[];
@@ -9,11 +10,11 @@ type ExternalAuthBannerProps = {
   onStartPolling: () => void;
 };
 
-export const ExternalAuthBanner = ({
+export const ExternalAuthBanner: FC<ExternalAuthBannerProps> = ({
   providers,
   pollingState,
   onStartPolling,
-}: ExternalAuthBannerProps) => {
+}) => {
   return (
     <section css={styles.root}>
       <div css={styles.content}>

@@ -12,7 +12,7 @@ const MockExternalAuth: TemplateVersionExternalAuth = {
 };
 
 const meta: Meta<typeof ExternalAuthBanner> = {
-  title: "pages/CreateWorkspacePage/ExternalAuthBanner/ExternalAuthBanner",
+  title: "pages/CreateWorkspacePage/ExternalAuthBanner",
   component: ExternalAuthBanner,
 };
 
