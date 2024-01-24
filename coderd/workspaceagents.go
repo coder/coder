@@ -904,7 +904,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 				}
 
 				derpMap := api.DERPMap()
-				if lastDERPMap == nil || tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+				if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
 					conn.SetDERPMap(derpMap)
 					lastDERPMap = derpMap
 				}

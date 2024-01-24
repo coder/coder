@@ -65,7 +65,7 @@ type configMaps struct {
 	static         netmap.NetworkMap
 	peers          map[uuid.UUID]*peerLifecycle
 	addresses      []netip.Prefix
-	derpMap        *proto.DERPMap
+	derpMap        *tailcfg.DERPMap
 	logger         slog.Logger
 	blockEndpoints bool
 
@@ -204,7 +204,7 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 	nm.Addresses = make([]netip.Prefix, len(c.addresses))
 	copy(nm.Addresses, c.addresses)
 
-	nm.DERPMap = DERPMapFromProto(c.derpMap)
+	nm.DERPMap = c.derpMap.Clone()
 	nm.Peers = c.peerConfigLocked()
 	nm.SelfNode.Addresses = nm.Addresses
 	nm.SelfNode.AllowedIPs = nm.Addresses
@@ -255,15 +255,10 @@ func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
 
 // setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
 // c.L MUST NOT be held.
-func (c *configMaps) setDERPMap(derpMap *proto.DERPMap) {
+func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) {
 	c.L.Lock()
 	defer c.L.Unlock()
-	eq, err := c.derpMap.Equal(derpMap)
-	if err != nil {
-		c.logger.Critical(context.Background(), "failed to compare DERP maps", slog.Error(err))
-		return
-	}
-	if eq {
+	if CompareDERPMaps(c.derpMap, derpMap) {
 		return
 	}
 	c.derpMap = derpMap
@@ -273,8 +268,7 @@ func (c *configMaps) setDERPMap(derpMap *proto.DERPMap) {
 
 // derMapLocked returns the current DERPMap.  c.L must be held
 func (c *configMaps) derpMapLocked() *tailcfg.DERPMap {
-	m := DERPMapFromProto(c.derpMap)
-	return m
+	return c.derpMap.Clone()
 }
 
 // reconfig computes the correct wireguard config and calls the engine.Reconfig
