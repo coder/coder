@@ -2653,8 +2653,10 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id u
 }
 
 const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
-DELETE FROM oauth2_provider_app_tokens
-USING oauth2_provider_app_secrets, api_keys
+DELETE FROM
+  oauth2_provider_app_tokens
+USING
+  oauth2_provider_app_secrets, api_keys
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   AND api_keys.id = oauth2_provider_app_tokens.api_key_id
@@ -2841,7 +2843,8 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 }
 
 const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
-SELECT COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
+SELECT
+  COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
   oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
@@ -2850,8 +2853,10 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
   INNER JOIN api_keys
     ON api_keys.id = oauth2_provider_app_tokens.api_key_id
-WHERE api_keys.user_id = $1
-GROUP BY oauth2_provider_apps.id
+WHERE
+  api_keys.user_id = $1
+GROUP BY
+  oauth2_provider_apps.id
 `
 
 type GetOAuth2ProviderAppsByUserIDRow struct {
