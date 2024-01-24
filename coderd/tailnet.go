@@ -102,7 +102,14 @@ func NewServerTailnet(
 		transport:            tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
-	tn.transport.MaxIdleConnsPerHost = 10
+
+	// Bugfix: for some reason all calls to tn.dialContext come from
+	// "localhost", causing connections to be cached and requests to go to the
+	// wrong workspaces. This disables keepalives for now until the root cause
+	// can be found.
+	tn.transport.MaxIdleConnsPerHost = -1
+	tn.transport.DisableKeepAlives = true
+
 	tn.transport.MaxIdleConns = 0
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
