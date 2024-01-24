@@ -826,7 +826,7 @@ func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(code.UserID.String())); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, code); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppCodeByID(ctx, id)
@@ -1222,7 +1222,7 @@ func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2P
 }
 
 func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetOAuth2ProviderAppsByUserIDRow, error) {
-	// These two authz checks make sure the caller can read all their own tokens.
+	// This authz check is to make sure the caller can read all their own tokens.
 	if err := q.authorizeContext(ctx, rbac.ActionRead,
 		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(userID.String())); err != nil {
 		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
