@@ -151,7 +151,7 @@ export const PopoverContent: FC<PopoverContentProps> = ({
         marginTop: hoverMode ? undefined : 8,
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
-          minWidth: 320,
+          minWidth: 520,
           fontSize: 14,
           pointerEvents: hoverMode ? "auto" : undefined,
         },
