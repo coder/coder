@@ -102,14 +102,23 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+
+	w, err := convertWorkspace(
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
 		ownerName,
 		api.Options.AllowWorkspaceRenames,
-	))
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
 // workspaces returns all workspaces a user can read.
@@ -280,14 +289,22 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+	w, err := convertWorkspace(
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
 		ownerName,
 		api.Options.AllowWorkspaceRenames,
-	))
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -590,14 +607,22 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertWorkspace(
+	w, err := convertWorkspace(
 		apiKey.UserID,
 		workspace,
 		apiBuild,
 		template,
 		member.Username,
 		api.Options.AllowWorkspaceRenames,
-	))
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, w)
 }
 
 // @Summary Update workspace metadata by ID
@@ -931,14 +956,23 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = workspace
-	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+
+	w, err := convertWorkspace(
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
 		data.templates[0],
 		ownerName,
 		api.Options.AllowWorkspaceRenames,
-	))
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
 // @Summary Extend workspace deadline by ID
@@ -1349,16 +1383,27 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+
+		w, err := convertWorkspace(
+			apiKey.UserID,
+			workspace,
+			data.builds[0],
+			data.templates[0],
+			ownerName,
+			api.Options.AllowWorkspaceRenames,
+		)
+		if err != nil {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal error converting workspace.",
+					Detail:  err.Error(),
+				},
+			})
+		}
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: convertWorkspace(
-				apiKey.UserID,
-				workspace,
-				data.builds[0],
-				data.templates[0],
-				ownerName,
-				api.Options.AllowWorkspaceRenames,
-			),
+			Data: w,
 		})
 	}
 
@@ -1505,14 +1550,19 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 			continue
 		}
 
-		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
+		w, err := convertWorkspace(
 			requesterID,
 			workspace,
 			build,
 			template,
 			owner.Username,
 			data.allowRenames,
-		))
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("convert workspace: %w", err)
+		}
+
+		apiWorkspaces = append(apiWorkspaces, w)
 	}
 	return apiWorkspaces, nil
 }
@@ -1524,7 +1574,10 @@ func convertWorkspace(
 	template database.Template,
 	ownerName string,
 	allowRenames bool,
-) codersdk.Workspace {
+) (codersdk.Workspace, error) {
+	if requesterID == uuid.Nil {
+		return codersdk.Workspace{}, xerrors.Errorf("developer error: requesterID cannot be uuid.Nil!")
+	}
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
 		autostartSchedule = &workspace.AutostartSchedule.String
@@ -1583,7 +1636,7 @@ func convertWorkspace(
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
-	}
+	}, nil
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
