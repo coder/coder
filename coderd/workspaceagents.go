@@ -2031,6 +2031,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	var previousToken *database.ExternalAuthLink
 	// handleRetrying will attempt to continually check for a new token
 	// if listen is true. This is useful if an error is encountered in the
 	// original single flow.
@@ -2043,7 +2044,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		api.workspaceAgentsExternalAuthListen(ctx, rw, externalAuthConfig, workspace)
+		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace)
 	}
 
 	// This is the URL that will redirect the user with a state token.
@@ -2075,7 +2076,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	externalAuthLink, updated, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
+	externalAuthLink, valid, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to refresh external auth token.",
@@ -2083,7 +2084,11 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	if !updated {
+	if !valid {
+		// Set the previous token so the retry logic will skip validating the
+		// same token again. This should only be set if the token is invalid and there
+		// was no error. If it is invalid because of an error, then we should recheck.
+		previousToken = &externalAuthLink
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
@@ -2100,12 +2105,19 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, externalAuthConfig *externalauth.Config, workspace database.Workspace) {
+func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace) {
 	// Since we're ticking frequently and this sign-in operation is rare,
 	// we are OK with polling to avoid the complexity of pubsub.
 	ticker, done := api.NewTicker(time.Second)
 	defer done()
+	// If we have a previous token that is invalid, we should not check this again.
+	// This serves to prevent doing excessive unauthorized requests to the external
+	// auth provider. For github, this limit is 60 per hour, so saving a call
+	// per invalid token can be significant.
 	var previousToken database.ExternalAuthLink
+	if previous != nil {
+		previousToken = *previous
+	}
 	for {
 		select {
 		case <-ctx.Done():
