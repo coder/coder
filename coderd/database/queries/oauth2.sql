@@ -111,7 +111,8 @@ INSERT INTO oauth2_provider_app_tokens (
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
-SELECT COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
+SELECT
+  COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
   sqlc.embed(oauth2_provider_apps)
 FROM oauth2_provider_app_tokens
   INNER JOIN oauth2_provider_app_secrets
@@ -120,12 +121,16 @@ FROM oauth2_provider_app_tokens
     ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
   INNER JOIN api_keys
     ON api_keys.id = oauth2_provider_app_tokens.api_key_id
-WHERE api_keys.user_id = $1
-GROUP BY oauth2_provider_apps.id;
+WHERE
+  api_keys.user_id = $1
+GROUP BY
+  oauth2_provider_apps.id;
 
 -- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
-DELETE FROM oauth2_provider_app_tokens
-USING oauth2_provider_app_secrets, api_keys
+DELETE FROM
+  oauth2_provider_app_tokens
+USING
+  oauth2_provider_app_secrets, api_keys
 WHERE
   oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   AND api_keys.id = oauth2_provider_app_tokens.api_key_id
