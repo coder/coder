@@ -618,6 +618,11 @@
           "path": "cli/external-auth_access-token.md"
         },
         {
+          "title": "favorite",
+          "description": "Add a workspace to your favorites",
+          "path": "cli/favorite.md"
+        },
+        {
           "title": "features",
           "description": "List Enterprise features",
           "path": "cli/features.md"
@@ -950,6 +955,11 @@
           "title": "tokens remove",
           "description": "Delete a token",
           "path": "cli/tokens_remove.md"
+        },
+        {
+          "title": "unfavorite",
+          "description": "Remove a workspace from your favorites",
+          "path": "cli/unfavorite.md"
         },
         {
           "title": "update",
