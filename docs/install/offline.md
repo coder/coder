@@ -261,7 +261,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
          exclude = ["registry.terraform.io/*/*"]
      }
      network_mirror {
-         url = "https://jfrt.cdr.dev/artifactory/api/terraform/tf/providers/"
+         url = "https://example.jfrog.io/artifactory/api/terraform/tf/providers/"
      }
    }
    ```
@@ -270,12 +270,14 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
    ```hcl
    module "module-name" {
-     source = "https://jfrog.example.com/tf__coder/module-name/coder"
+     source = "https://example.jfrog.io/tf__coder/module-name/coder"
      version = "1.0.0"
      agent_id = coder_agent.example.id
      ...
    }
    ```
+
+> Do not forget to replace example.jgrog.io with uour Artifactory URL
 
 Based on the instructions
 [here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
