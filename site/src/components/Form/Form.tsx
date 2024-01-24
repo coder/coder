@@ -135,7 +135,7 @@ export const FormSection: FC<
 
 export const FormFields: FC<PropsWithChildren> = ({ children }) => {
   return (
-    <Stack direction="column" spacing={2.5} css={styles.formSectionFields}>
+    <Stack direction="column" spacing={3} css={styles.formSectionFields}>
       {children}
     </Stack>
   );
