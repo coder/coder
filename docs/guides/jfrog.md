@@ -33,7 +33,7 @@ The full example template can be found
 ## Provisioner Authentication
 
 The most straight-forward way to authenticate your template with Artifactory is
-by using our official Coder [modules](rhttps://egistry.coder.com). We publish
+by using our official Coder [modules](https://registry.coder.com). We publish
 two type of modules that automate the JFrog Artifactory and Coder integration.
 
 1. JFrog-OAuth:
@@ -41,7 +41,7 @@ two type of modules that automate the JFrog Artifactory and Coder integration.
 
 ### JFrog-OAuth
 
-This module is usable by Jfrog self-hosted (on-premises) Artifactory as it
+This module is usable by JFrog self-hosted (on-premises) Artifactory as it
 requires configuring a custom integration. This integration benefits from
 Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth)
 feature and allows each user to authenticate with Artifactory using an OAuth
