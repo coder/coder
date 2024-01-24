@@ -29,7 +29,7 @@ func (r *RootCmd) favorite() *clibase.Cmd {
 			if err := client.FavoriteWorkspace(inv.Context(), ws.ID); err != nil {
 				return xerrors.Errorf("favorite workspace: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q added to favorites.", ws.Name)
+			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q added to favorites.\n", ws.Name)
 			return nil
 		},
 	}
@@ -56,7 +56,7 @@ func (r *RootCmd) unfavorite() *clibase.Cmd {
 			if err := client.UnfavoriteWorkspace(inv.Context(), ws.ID); err != nil {
 				return xerrors.Errorf("unfavorite workspace: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q removed from favorites.", ws.Name)
+			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q removed from favorites.\n", ws.Name)
 			return nil
 		},
 	}
