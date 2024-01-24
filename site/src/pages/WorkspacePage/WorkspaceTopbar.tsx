@@ -5,6 +5,7 @@ import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonOutline from "@mui/icons-material/PersonOutline";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
+import Star from "@mui/icons-material/Star";
 import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { useQuery } from "react-query";
@@ -148,6 +149,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
               >
                 <TopbarAvatar src={workspace.template_icon} />
                 <span css={{ fontWeight: 500 }}>{workspace.name}</span>
+                {workspace.favorite && (
+                  <Star css={{width: 16, height: 16}}/>
+                )}
               </span>
             </PopoverTrigger>
 
