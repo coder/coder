@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError, MockTemplate } from "testHelpers/entities";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {
   title: "pages/TemplateSettingsPage",
@@ -8,7 +8,6 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   args: {
     template: MockTemplate,
     accessControlEnabled: true,
-    templatePoliciesEnabled: true,
   },
 };
 

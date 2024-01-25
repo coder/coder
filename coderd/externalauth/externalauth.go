@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,19 +24,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
-type OAuth2Config interface {
-	AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
-	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
-	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
-}
-
 // Config is used for authentication for Git operations.
 type Config struct {
-	OAuth2Config
+	promoauth.InstrumentedOAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -192,12 +189,8 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, err
 	}
 
-	cli := http.DefaultClient
-	if v, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		cli = v
-	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := cli.Do(req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -247,7 +240,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceAppInstallations, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -287,6 +280,8 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 }
 
 type DeviceAuth struct {
+	// Config is provided for the http client method.
+	Config   promoauth.InstrumentedOAuth2Config
 	ClientID string
 	TokenURL string
 	Scopes   []string
@@ -308,7 +303,16 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+
+	do := http.DefaultClient.Do
+	if c.Config != nil {
+		// The cfg can be nil in unit tests.
+		do = func(req *http.Request) (*http.Response, error) {
+			return c.Config.Do(ctx, promoauth.SourceAuthorizeDevice, req)
+		}
+	}
+
+	resp, err := do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +323,32 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
-		return nil, err
+		mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			mediaType = "unknown"
+		}
+
+		// If the json fails to decode, do a best effort to return a better error.
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			retryIn := "please try again later"
+			resetIn := resp.Header.Get("x-ratelimit-reset")
+			if resetIn != "" {
+				// Best effort to tell the user exactly how long they need
+				// to wait for.
+				unix, err := strconv.ParseInt(resetIn, 10, 64)
+				if err == nil {
+					waitFor := time.Unix(unix, 0).Sub(time.Now().Truncate(time.Second))
+					retryIn = fmt.Sprintf(" retry after %s", waitFor.Truncate(time.Second))
+				}
+			}
+			// 429 returns a plaintext payload with a message.
+			return nil, xerrors.New(fmt.Sprintf("rate limit hit, unable to authorize device. %s", retryIn))
+		case mediaType == "application/x-www-form-urlencoded":
+			return nil, xerrors.Errorf("status_code=%d, payload response is form-url encoded, expected a json payload", resp.StatusCode)
+		default:
+			return nil, xerrors.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
+		}
 	}
 	if r.ErrorDescription != "" {
 		return nil, xerrors.New(r.ErrorDescription)
@@ -401,7 +430,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -453,7 +482,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			Scopes:      entry.Scopes,
 		}
 
-		var oauthConfig OAuth2Config = oc
+		var oauthConfig promoauth.OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
@@ -462,18 +491,23 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			oauthConfig = &exchangeWithClientSecret{oc}
 		}
 
+		instrumented := instrument.New(entry.ID, oauthConfig)
+		if strings.EqualFold(entry.Type, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
+			instrumented = instrument.NewGithub(entry.ID, oauthConfig)
+		}
+
 		cfg := &Config{
-			OAuth2Config:        oauthConfig,
-			ID:                  entry.ID,
-			Regex:               regex,
-			Type:                entry.Type,
-			NoRefresh:           entry.NoRefresh,
-			ValidateURL:         entry.ValidateURL,
-			AppInstallationsURL: entry.AppInstallationsURL,
-			AppInstallURL:       entry.AppInstallURL,
-			DisplayName:         entry.DisplayName,
-			DisplayIcon:         entry.DisplayIcon,
-			ExtraTokenKeys:      entry.ExtraTokenKeys,
+			InstrumentedOAuth2Config: instrumented,
+			ID:                       entry.ID,
+			Regex:                    regex,
+			Type:                     entry.Type,
+			NoRefresh:                entry.NoRefresh,
+			ValidateURL:              entry.ValidateURL,
+			AppInstallationsURL:      entry.AppInstallationsURL,
+			AppInstallURL:            entry.AppInstallURL,
+			DisplayName:              entry.DisplayName,
+			DisplayIcon:              entry.DisplayIcon,
+			ExtraTokenKeys:           entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {
@@ -481,6 +515,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
+				Config:   cfg,
 				ClientID: entry.ClientID,
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
@@ -515,6 +550,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
 		copyDefaultSettings(config, bitbucketServerDefaults(config))
+		return
+	case codersdk.EnhancedExternalAuthProviderJFrog:
+		copyDefaultSettings(config, jfrogArtifactoryDefaults(config))
 		return
 	default:
 		// No defaults for this type. We still want to run this apply with
@@ -604,6 +642,44 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 	// user's inbox. Which will work perfectly for our use case.
 	validate := auth.ResolveReference(&url.URL{Path: "/rest/api/latest/inbox/pull-requests/count"})
 	defaults.ValidateURL = validate.String()
+
+	return defaults
+}
+
+func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "JFrog Artifactory",
+		Scopes:      []string{"applied-permissions/user"},
+		DisplayIcon: "/icon/jfrog.svg",
+	}
+	// Artifactory servers will have some base url, e.g. https://jfrog.coder.com.
+	// We will grab this from the Auth URL. This choice is not arbitrary. It is a
+	// static string for all integrations on the same artifactory.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	if config.ClientID == "" {
+		return defaults
+	}
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: fmt.Sprintf("/access/api/v1/integrations/%s/token", config.ClientID)})
+	defaults.TokenURL = tokenURL.String()
+
+	// validate needs to return a 200 when logged in and a 401 when unauthenticated.
+	validate := auth.ResolveReference(&url.URL{Path: "/access/api/v1/system/ping"})
+	defaults.ValidateURL = validate.String()
+
+	// Some options omitted:
+	// - Regex: Artifactory can span pretty much all domains (git, docker, etc).
+	//          I do not think we can intelligently guess this as a default.
 
 	return defaults
 }

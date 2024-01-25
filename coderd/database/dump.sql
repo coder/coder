@@ -458,6 +458,28 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
+CREATE TABLE oauth2_provider_app_secrets (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone,
+    hashed_secret bytea NOT NULL,
+    display_secret text NOT NULL,
+    app_id uuid NOT NULL
+);
+
+COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
+
+CREATE TABLE oauth2_provider_apps (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    icon character varying(256) NOT NULL,
+    callback_url text NOT NULL
+);
+
+COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
+
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -752,12 +774,15 @@ CREATE TABLE users (
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL
+    theme_preference text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
 
 COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
+
+COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1210,8 +1235,11 @@ CREATE TABLE workspaces (
     last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL
 );
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
@@ -1269,6 +1297,18 @@ ALTER TABLE ONLY licenses
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_name_key UNIQUE (name);
+
+ALTER TABLE ONLY oauth2_provider_apps
+    ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
@@ -1417,9 +1457,9 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower((tags ->> 'owner'::text)));
+CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
-COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Relax uniqueness constraint for provisioner daemon names';
+COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Allow unique provisioner daemon names by user';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -1495,6 +1535,9 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

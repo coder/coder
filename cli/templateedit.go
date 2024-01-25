@@ -35,6 +35,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		allowUserAutostop              bool
 		requireActiveVersion           bool
 		deprecationMessage             string
+		disableEveryone                bool
 	)
 	client := new(codersdk.Client)
 
@@ -46,18 +47,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			// This clause can be removed when workspace_actions is no longer experimental
-			if failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 {
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
-
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl, --dormancy-threshold, and --dormancy-auto-deletion are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-			}
-
 			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
 			requiresScheduling := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
 				autostopRequirementWeeks > 0 ||
@@ -86,15 +75,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					if !entitlements.Features[codersdk.FeatureAccessControl].Enabled {
 						return xerrors.Errorf("your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
 					}
-
-					experiments, exErr := client.Experiments(inv.Context())
-					if exErr != nil {
-						return xerrors.Errorf("get experiments: %w", exErr)
-					}
-
-					if !experiments.Enabled(codersdk.ExperimentTemplateUpdatePolicies) {
-						return xerrors.Errorf("--require-active-version is an experimental feature, contact an administrator to enable the 'template_update_policies' experiment on your Coder server")
-					}
 				}
 			}
 
@@ -105,30 +85,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace template: %w", err)
-			}
-
-			// Copy the default value if the list is empty, or if the user
-			// specified the "none" value clear the list.
-			if len(autostopRequirementDaysOfWeek) == 0 {
-				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
-			}
-			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
-				// Set it to every day of the week
-				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
-			} else if len(autostartRequirementDaysOfWeek) == 0 {
-				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
-			}
-			if unsetAutostopRequirementDaysOfWeek {
-				autostopRequirementDaysOfWeek = []string{}
-			}
-			if failureTTL == 0 {
-				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
-			}
-			if dormancyThreshold == 0 {
-				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
-			}
-			if dormancyAutoDeletion == 0 {
-				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 			}
 
 			// Default values
@@ -144,9 +100,71 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				displayName = template.DisplayName
 			}
 
+			if !userSetOption(inv, "max-ttl") {
+				maxTTL = time.Duration(template.MaxTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "default-ttl") {
+				defaultTTL = time.Duration(template.DefaultTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "allow-user-autostop") {
+				allowUserAutostop = template.AllowUserAutostop
+			}
+
+			if !userSetOption(inv, "allow-user-autostart") {
+				allowUserAutostart = template.AllowUserAutostart
+			}
+
+			if !userSetOption(inv, "allow-user-cancel-workspace-jobs") {
+				allowUserCancelWorkspaceJobs = template.AllowUserCancelWorkspaceJobs
+			}
+
+			if !userSetOption(inv, "failure-ttl") {
+				failureTTL = time.Duration(template.FailureTTLMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "dormancy-threshold") {
+				dormancyThreshold = time.Duration(template.TimeTilDormantMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "dormancy-auto-deletion") {
+				dormancyAutoDeletion = time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "require-active-version") {
+				requireActiveVersion = template.RequireActiveVersion
+			}
+
+			if !userSetOption(inv, "autostop-requirement-weekdays") {
+				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
+			}
+
+			if unsetAutostopRequirementDaysOfWeek {
+				autostopRequirementDaysOfWeek = []string{}
+			}
+
+			if !userSetOption(inv, "autostop-requirement-weeks") {
+				autostopRequirementWeeks = template.AutostopRequirement.Weeks
+			}
+
+			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+				// Set it to every day of the week
+				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+			} else if !userSetOption(inv, "autostart-requirement-weekdays") {
+				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+			} else if len(autostartRequirementDaysOfWeek) == 0 {
+				autostartRequirementDaysOfWeek = []string{}
+			}
+
 			var deprecated *string
-			if !userSetOption(inv, "deprecated") {
+			if userSetOption(inv, "deprecated") {
 				deprecated = &deprecationMessage
+			}
+
+			var disableEveryoneGroup bool
+			if userSetOption(inv, "private") {
+				disableEveryoneGroup = disableEveryone
 			}
 
 			req := codersdk.UpdateTemplateMeta{
@@ -171,6 +189,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AllowUserAutostop:              allowUserAutostop,
 				RequireActiveVersion:           requireActiveVersion,
 				DeprecationMessage:             deprecated,
+				DisableEveryoneGroupAccess:     disableEveryoneGroup,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -300,6 +319,13 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
 			Value:       clibase.BoolOf(&requireActiveVersion),
 			Default:     "false",
+		},
+		{
+			Flag: "private",
+			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
+				"The template permissions must be updated to allow non-admin users to use this template.",
+			Value:   clibase.BoolOf(&disableEveryone),
+			Default: "false",
 		},
 		cliui.SkipPromptOption(),
 	}

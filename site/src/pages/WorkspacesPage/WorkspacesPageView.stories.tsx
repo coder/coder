@@ -19,7 +19,7 @@ import {
   MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { ComponentProps } from "react";
 import {
   MockMenu,
@@ -141,7 +141,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
   },
   decorators: [
     (Story) => (
-      <DashboardProviderContext.Provider
+      <DashboardContext.Provider
         value={{
           buildInfo: MockBuildInfo,
           entitlements: MockEntitlementsWithScheduling,
@@ -150,7 +150,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
         }}
       >
         <Story />
-      </DashboardProviderContext.Provider>
+      </DashboardContext.Provider>
     ),
   ],
 };
@@ -161,6 +161,25 @@ type Story = StoryObj<typeof WorkspacesPageView>;
 export const AllStates: Story = {
   args: {
     workspaces: allWorkspaces,
+    count: allWorkspaces.length,
+  },
+};
+
+const icons = [
+  "/icon/code.svg",
+  "/icon/aws.svg",
+  "/icon/docker-white.svg",
+  "/icon/docker.svg",
+  "",
+  "/icon/doesntexist.svg",
+];
+
+export const Icons: Story = {
+  args: {
+    workspaces: allWorkspaces.map((workspace, i) => ({
+      ...workspace,
+      template_icon: icons[i % icons.length],
+    })),
     count: allWorkspaces.length,
   },
 };

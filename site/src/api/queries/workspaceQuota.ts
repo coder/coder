@@ -1,6 +1,6 @@
 import * as API from "api/api";
 
-const getWorkspaceQuotaQueryKey = (username: string) => [
+export const getWorkspaceQuotaQueryKey = (username: string) => [
   username,
   "workspaceQuota",
 ];
@@ -12,7 +12,7 @@ export const workspaceQuota = (username: string) => {
   };
 };
 
-const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
+export const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
   workspaceId,
   "workspaceResolveAutostart",
 ];

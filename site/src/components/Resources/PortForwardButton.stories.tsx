@@ -1,43 +1,31 @@
-import { PortForwardPopoverView } from "./PortForwardButton";
+import { PortForwardButton } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 
-const meta: Meta<typeof PortForwardPopoverView> = {
-  title: "components/PortForwardPopoverView",
-  component: PortForwardPopoverView,
-  decorators: [
-    (Story) => (
-      <div
-        css={(theme) => ({
-          width: 304,
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 8,
-          backgroundColor: theme.palette.background.paper,
-        })}
-      >
-        <Story />
-      </div>
-    ),
-  ],
+const meta: Meta<typeof PortForwardButton> = {
+  title: "components/PortForwardButton",
+  component: PortForwardButton,
   args: {
     agent: MockWorkspaceAgent,
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof PortForwardPopoverView>;
+type Story = StoryObj<typeof PortForwardButton>;
 
-export const WithPorts: Story = {
+export const Example: Story = {
   args: {
-    ports: MockListeningPortsResponse.ports,
+    storybook: {
+      portsQueryData: MockListeningPortsResponse,
+    },
   },
 };
 
-export const Empty: Story = {
+export const Loading: Story = {
   args: {
-    ports: [],
+    storybook: {},
   },
 };

@@ -1,15 +1,17 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import { WorkspaceAgent } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import WarningRounded from "@mui/icons-material/WarningRounded";
+import Link from "@mui/material/Link";
+import { type FC } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
-  HelpPopover,
+  HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { useRef, useState } from "react";
-import Link from "@mui/material/Link";
+import { PopoverTrigger } from "components/Popover/Popover";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -17,7 +19,7 @@ import Link from "@mui/material/Link";
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifecycle = () => {
+const ReadyLifecycle: FC = () => {
   return (
     <div
       role="status"
@@ -28,7 +30,7 @@ const ReadyLifecycle = () => {
   );
 };
 
-const StartingLifecycle: React.FC = () => {
+const StartingLifecycle: FC = () => {
   return (
     <Tooltip title="Starting...">
       <div
@@ -40,30 +42,18 @@ const StartingLifecycle: React.FC = () => {
   );
 };
 
-const StartTimeoutLifecycle: React.FC<{
+interface AgentStatusProps {
   agent: WorkspaceAgent;
-}> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
+}
 
+const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Start timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Agent timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to start.{" "}
@@ -76,35 +66,18 @@ const StartTimeoutLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
-const StartErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
+const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Start error"
-        css={styles.errorWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Start error">
+        <WarningRounded css={styles.errorWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
         <HelpTooltipText>
           Something went wrong during the agent startup.{" "}
@@ -117,12 +90,12 @@ const StartErrorLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
-const ShuttingDownLifecycle: React.FC = () => {
+const ShuttingDownLifecycle: FC = () => {
   return (
     <Tooltip title="Stopping...">
       <div
@@ -134,30 +107,13 @@ const ShuttingDownLifecycle: React.FC = () => {
   );
 };
 
-const ShutdownTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
+const ShutdownTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Stop timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Stop timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to stop.{" "}
@@ -170,35 +126,18 @@ const ShutdownTimeoutLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
-const ShutdownErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
+const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Stop error"
-        css={styles.errorWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Stop error">
+        <WarningRounded css={styles.errorWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
         <HelpTooltipText>
           Something went wrong while trying to stop the agent.{" "}
@@ -211,12 +150,12 @@ const ShutdownErrorLifecycle: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
-const OffLifecycle: React.FC = () => {
+const OffLifecycle: FC = () => {
   return (
     <Tooltip title="Stopped">
       <div
@@ -228,9 +167,7 @@ const OffLifecycle: React.FC = () => {
   );
 };
 
-const ConnectedStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
   // This is to support legacy agents that do not support
   // reporting the lifecycle_state field.
   if (agent.scripts.length === 0) {
@@ -266,7 +203,7 @@ const ConnectedStatus: React.FC<{
   );
 };
 
-const DisconnectedStatus: React.FC = () => {
+const DisconnectedStatus: FC = () => {
   return (
     <Tooltip title="Disconnected">
       <div
@@ -278,7 +215,7 @@ const DisconnectedStatus: React.FC = () => {
   );
 };
 
-const ConnectingStatus: React.FC = () => {
+const ConnectingStatus: FC = () => {
   return (
     <Tooltip title="Connecting...">
       <div
@@ -290,30 +227,13 @@ const ConnectingStatus: React.FC = () => {
   );
 };
 
-const TimeoutStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
-  const anchorRef = useRef<SVGSVGElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const id = isOpen ? "timeout-popover" : undefined;
-
+const TimeoutStatus: FC<AgentStatusProps> = ({ agent }) => {
   return (
-    <>
-      <WarningRounded
-        ref={anchorRef}
-        onMouseEnter={() => setIsOpen(true)}
-        onMouseLeave={() => setIsOpen(false)}
-        role="status"
-        aria-label="Timeout"
-        css={styles.timeoutWarning}
-      />
-      <HelpPopover
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
-        onClose={() => setIsOpen(false)}
-      >
+    <HelpTooltip>
+      <PopoverTrigger role="status" aria-label="Timeout">
+        <WarningRounded css={styles.timeoutWarning} />
+      </PopoverTrigger>
+      <HelpTooltipContent>
         <HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
         <HelpTooltipText>
           We noticed this agent is taking longer than expected to connect.{" "}
@@ -326,14 +246,12 @@ const TimeoutStatus: React.FC<{
           </Link>
           .
         </HelpTooltipText>
-      </HelpPopover>
-    </>
+      </HelpTooltipContent>
+    </HelpTooltip>
   );
 };
 
-export const AgentStatus: React.FC<{
-  agent: WorkspaceAgent;
-}> = ({ agent }) => {
+export const AgentStatus: FC<AgentStatusProps> = ({ agent }) => {
   return (
     <ChooseOne>
       <Cond condition={agent.status === "connected"}>
@@ -354,8 +272,8 @@ export const AgentStatus: React.FC<{
 
 const styles = {
   status: {
-    width: 8,
-    height: 8,
+    width: 6,
+    height: 6,
     borderRadius: "100%",
     flexShrink: 0,
   },
@@ -388,15 +306,15 @@ const styles = {
 
   timeoutWarning: (theme) => ({
     color: theme.palette.warning.light,
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     position: "relative",
   }),
 
   errorWarning: (theme) => ({
     color: theme.palette.error.main,
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     position: "relative",
   }),
 } satisfies Record<string, Interpolation<Theme>>;

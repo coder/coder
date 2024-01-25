@@ -183,12 +183,24 @@ export interface CreateFirstUserRequest {
   readonly username: string;
   readonly password: string;
   readonly trial: boolean;
+  readonly trial_info: CreateFirstUserTrialInfo;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserResponse {
   readonly user_id: string;
   readonly organization_id: string;
+}
+
+// From codersdk/users.go
+export interface CreateFirstUserTrialInfo {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly phone_number: string;
+  readonly job_title: string;
+  readonly company_name: string;
+  readonly country: string;
+  readonly developers: string;
 }
 
 // From codersdk/groups.go
@@ -644,6 +656,13 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2AppEndpoints {
+  readonly authorization: string;
+  readonly token: string;
+  readonly device_authorization: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig;
@@ -658,6 +677,28 @@ export interface OAuth2GithubConfig {
   readonly allow_signups: boolean;
   readonly allow_everyone: boolean;
   readonly enterprise_base_url: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderApp {
+  readonly id: string;
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
+  readonly endpoints: OAuth2AppEndpoints;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderAppSecret {
+  readonly id: string;
+  readonly last_used_at?: string;
+  readonly client_secret_truncated: string;
+}
+
+// From codersdk/oauth2.go
+export interface OAuth2ProviderAppSecretFull {
+  readonly id: string;
+  readonly client_secret_full: string;
 }
 
 // From codersdk/users.go
@@ -750,6 +791,13 @@ export interface PatchWorkspaceProxy {
   readonly regenerate_token: boolean;
 }
 
+// From codersdk/oauth2.go
+export interface PostOAuth2ProviderAppRequest {
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean;
@@ -781,6 +829,7 @@ export interface ProvisionerDaemon {
   readonly last_seen_at?: string;
   readonly name: string;
   readonly version: string;
+  readonly api_version: string;
   readonly provisioners: ProvisionerType[];
   readonly tags: Record<string, string>;
 }
@@ -821,6 +870,13 @@ export interface ProxyHealthReport {
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string;
+}
+
+// From codersdk/oauth2.go
+export interface PutOAuth2ProviderAppRequest {
+  readonly name: string;
+  readonly callback_url: string;
+  readonly icon: string;
 }
 
 // From codersdk/deployment.go
@@ -1229,6 +1285,7 @@ export interface UpdateTemplateMeta {
   readonly update_workspace_dormant_at: boolean;
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
+  readonly disable_everyone_group_access: boolean;
 }
 
 // From codersdk/users.go
@@ -1245,6 +1302,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string;
+  readonly name: string;
 }
 
 // From codersdk/users.go
@@ -1292,6 +1350,7 @@ export interface UploadResponse {
 export interface User {
   readonly id: string;
   readonly username: string;
+  readonly name: string;
   readonly email: string;
   readonly created_at: string;
   readonly last_seen_at: string;
@@ -1431,6 +1490,7 @@ export interface Workspace {
   readonly health: WorkspaceHealth;
   readonly automatic_updates: AutomaticUpdates;
   readonly allow_renames: boolean;
+  readonly favorite: boolean;
 }
 
 // From codersdk/workspaceagents.go
@@ -1776,21 +1836,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment =
-  | "deployment_health_page"
-  | "moons"
-  | "single_tailnet"
-  | "tailnet_pg_coordinator"
-  | "template_update_policies"
-  | "workspace_actions";
-export const Experiments: Experiment[] = [
-  "deployment_health_page",
-  "moons",
-  "single_tailnet",
-  "tailnet_pg_coordinator",
-  "template_update_policies",
-  "workspace_actions",
-];
+export type Experiment = "example";
+export const Experiments: Experiment[] = ["example"];
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1803,6 +1850,7 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
+  | "oauth2_provider"
   | "scim"
   | "template_rbac"
   | "user_limit"
@@ -1819,6 +1867,7 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
+  "oauth2_provider",
   "scim",
   "template_rbac",
   "user_limit",
@@ -1836,12 +1885,14 @@ export type HealthSection =
   | "AccessURL"
   | "DERP"
   | "Database"
+  | "ProvisionerDaemons"
   | "Websocket"
   | "WorkspaceProxy";
 export const HealthSections: HealthSection[] = [
   "AccessURL",
   "DERP",
   "Database",
+  "ProvisionerDaemons",
   "Websocket",
   "WorkspaceProxy",
 ];
@@ -2174,6 +2225,21 @@ export interface HealthcheckDatabaseReport {
   readonly error?: string;
 }
 
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReport {
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly items: HealthcheckProvisionerDaemonsReportItem[];
+}
+
+// From healthcheck/provisioner.go
+export interface HealthcheckProvisionerDaemonsReportItem {
+  readonly provisioner_daemon: ProvisionerDaemon;
+  readonly warnings: HealthMessage[];
+}
+
 // From healthcheck/healthcheck.go
 export interface HealthcheckReport {
   readonly time: string;
@@ -2185,6 +2251,7 @@ export interface HealthcheckReport {
   readonly websocket: HealthcheckWebsocketReport;
   readonly database: HealthcheckDatabaseReport;
   readonly workspace_proxy: HealthcheckWorkspaceProxyReport;
+  readonly provisioner_daemons: HealthcheckProvisionerDaemonsReport;
   readonly coder_version: string;
 }
 
@@ -2272,6 +2339,9 @@ export type HealthCode =
   | "EDB02"
   | "EDERP01"
   | "EDERP02"
+  | "EPD01"
+  | "EPD02"
+  | "EPD03"
   | "EUNKNOWN"
   | "EWP01"
   | "EWP02"
@@ -2289,6 +2359,9 @@ export const HealthCodes: HealthCode[] = [
   "EDB02",
   "EDERP01",
   "EDERP02",
+  "EPD01",
+  "EPD02",
+  "EPD03",
   "EUNKNOWN",
   "EWP01",
   "EWP02",

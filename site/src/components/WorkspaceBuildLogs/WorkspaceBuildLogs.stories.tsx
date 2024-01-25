@@ -1,9 +1,11 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { WorkspaceBuildLogs } from "./WorkspaceBuildLogs";
+import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "testHelpers/entities";
+import { WorkspaceBuildLogs } from "./WorkspaceBuildLogs";
 
 const meta: Meta<typeof WorkspaceBuildLogs> = {
   title: "components/WorkspaceBuildLogs",
+  parameters: { chromatic },
   component: WorkspaceBuildLogs,
 };
 

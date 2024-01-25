@@ -23,9 +23,11 @@ import * as Yup from "yup";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import Link from "@mui/material/Link";
 import {
   HorizontalForm,
@@ -335,7 +337,9 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           />
 
           <TextField
-            {...getFieldHelpers("description")}
+            {...getFieldHelpers("description", {
+              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+            })}
             disabled={isSubmitting}
             rows={5}
             multiline
@@ -343,12 +347,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             label="Description"
           />
 
-          <LazyIconField
+          <IconField
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label="Icon"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
@@ -362,10 +365,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         <FormFields>
           <Stack direction="row" css={styles.ttlFields}>
             <TextField
-              {...getFieldHelpers(
-                "default_ttl_hours",
-                <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />,
-              )}
+              {...getFieldHelpers("default_ttl_hours", {
+                helperText: (
+                  <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />
+                ),
+              })}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
@@ -376,12 +380,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
           <Stack direction="row" css={styles.ttlFields}>
             <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_days_of_week",
-                <AutostopRequirementDaysHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                />,
-              )}
+              {...getFieldHelpers("autostop_requirement_days_of_week", {
+                helperText: (
+                  <AutostopRequirementDaysHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                  />
+                ),
+              })}
               disabled={
                 isSubmitting ||
                 form.values.use_max_ttl ||
@@ -407,13 +412,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             </TextField>
 
             <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_weeks",
-                <AutostopRequirementWeeksHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                  weeks={form.values.autostop_requirement_weeks}
-                />,
-              )}
+              {...getFieldHelpers("autostop_requirement_weeks", {
+                helperText: (
+                  <AutostopRequirementWeeksHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                    weeks={form.values.autostop_requirement_weeks}
+                  />
+                ),
+              })}
               disabled={
                 isSubmitting ||
                 form.values.use_max_ttl ||
@@ -452,9 +458,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             </Stack>
 
             <TextField
-              {...getFieldHelpers(
-                "max_ttl_hours",
-                allowAdvancedScheduling ? (
+              {...getFieldHelpers("max_ttl_hours", {
+                helperText: allowAdvancedScheduling ? (
                   <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
                 ) : (
                   <>
@@ -462,7 +467,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     <Link href={docs("/enterprise")}>Learn more</Link>.
                   </>
                 ),
-              )}
+              })}
               disabled={
                 isSubmitting ||
                 !form.values.use_max_ttl ||
@@ -572,10 +577,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     </strong>
 
                     <HelpTooltip>
-                      <HelpTooltipText>
-                        If checked, users may be able to corrupt their
-                        workspace.
-                      </HelpTooltipText>
+                      <HelpTooltipTrigger size="small" />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          If checked, users may be able to corrupt their
+                          workspace.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
                     </HelpTooltip>
                   </Stack>
                   <span css={styles.optionHelperText}>
@@ -608,16 +616,21 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                     <strong>Allow everyone to use the template</strong>
 
                     <HelpTooltip>
-                      <HelpTooltipText>
-                        If unchecked, only users with the &apos;template
-                        admin&apos; and &apos;owner&apos; role can use this
-                        template until the permissions are updated. Navigate to{" "}
-                        <strong>
-                          Templates &gt; Select a template &gt; Settings &gt;
-                          Permissions
-                        </strong>{" "}
-                        to update permissions.
-                      </HelpTooltipText>
+                      <HelpTooltipTrigger size="small" />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          If unchecked, only users with the &apos;template
+                          admin&apos; and &apos;owner&apos; role can use this
+                          template until the permissions are updated. Navigate
+                          to{" "}
+                          <strong>
+                            Templates <MenuPath /> Select a template{" "}
+                            <MenuPath /> Settings <MenuPath />
+                            Permissions
+                          </strong>{" "}
+                          to update permissions.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
                     </HelpTooltip>
                   </Stack>
                   <span css={styles.optionHelperText}>
@@ -684,6 +697,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   );
 };
 
+const MenuPath = () => {
+  return <span aria-label="in">&gt;</span>;
+};
+
 const fillNameAndDisplayWithFilename = async (
   filename: string,
   form: ReturnType<typeof useFormik<CreateTemplateData>>,
@@ -715,8 +732,8 @@ const DefaultTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)} without
-      activity.
+      Workspaces will default to stopping after {ttl} {hours(ttl)}. This will be
+      extended by 1 hour after last activity in the workspace was detected.
     </span>
   );
 };

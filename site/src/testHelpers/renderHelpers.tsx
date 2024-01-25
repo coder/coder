@@ -7,9 +7,9 @@ import {
 import { type ReactNode, useState } from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
-import { ThemeProviders } from "contexts/ThemeProviders";
-import { DashboardLayout } from "components/Dashboard/DashboardLayout";
-import { RequireAuth } from "components/RequireAuth/RequireAuth";
+import { RequireAuth } from "contexts/auth/RequireAuth";
+import { ThemeProvider } from "contexts/ThemeProvider";
+import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import {
@@ -265,6 +265,6 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 
 export const renderComponent = (component: React.ReactElement) => {
   return tlRender(component, {
-    wrapper: ({ children }) => <ThemeProviders>{children}</ThemeProviders>,
+    wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
   });
 };

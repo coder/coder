@@ -8,10 +8,21 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type WorkspaceAgentScopeParams struct {
+	WorkspaceID uuid.UUID
+	OwnerID     uuid.UUID
+	TemplateID  uuid.UUID
+	VersionID   uuid.UUID
+}
+
 // WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
 // affect resources in the allow list. Only a scope is returned as the roles
 // should come from the workspace owner.
-func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
+func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
+	if params.WorkspaceID == uuid.Nil || params.OwnerID == uuid.Nil || params.TemplateID == uuid.Nil || params.VersionID == uuid.Nil {
+		panic("all uuids must be non-nil, this is a developer error")
+	}
+
 	allScope, err := ScopeAll.Expand()
 	if err != nil {
 		panic("failed to expand scope all, this should never happen")
@@ -23,10 +34,13 @@ func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
 		// and evolving.
 		Role: allScope.Role,
 		// This prevents the agent from being able to access any other resource.
+		// Include the list of IDs of anything that is required for the
+		// agent to function.
 		AllowIDList: []string{
-			workspaceID.String(),
-			ownerID.String(),
-			// TODO: Might want to include the template the workspace uses too?
+			params.WorkspaceID.String(),
+			params.TemplateID.String(),
+			params.VersionID.String(),
+			params.OwnerID.String(),
 		},
 	}
 }

@@ -1,25 +1,25 @@
-import {
+import { useCallback, type FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import type {
   CreateTemplateVersionRequest,
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { useCallback, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams } from "react-router-dom";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
-import { useTemplateSettings } from "../TemplateSettingsLayout";
-import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
   templateVersionVariables,
   updateActiveTemplateVersion,
 } from "api/queries/templates";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
+import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 export const TemplateVariablesPage: FC = () => {
   const { template: templateName } = useParams() as {

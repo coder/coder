@@ -9,16 +9,17 @@ import { type FC, useState } from "react";
 import { BlockPicker } from "react-color";
 import { useFormik } from "formik";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
-import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
+import colors from "theme/tailwindColors";
+import { Header } from "../Header";
+import { Fieldset } from "../Fieldset";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -29,11 +30,12 @@ export type AppearanceSettingsPageViewProps = {
   ) => void;
 };
 
+const fallbackBgColor = colors.neutral[500];
+
 export const AppearanceSettingsPageView: FC<
   AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, onSaveAppearance }) => {
   const theme = useTheme();
-  const fallbackBgColor = theme.colors.blue[7];
 
   const applicationNameForm = useFormik<{
     application_name: string;
@@ -108,7 +110,7 @@ export const AppearanceSettingsPageView: FC<
 
       <Fieldset
         title="Logo URL"
-        subtitle="Specify a custom URL for your logo to be displayed in the top left
+        subtitle="Specify a custom URL for your logo to be displayed on the sign in page and in the top left
           corner of the dashboard."
         validation={
           isEntitled
@@ -212,10 +214,10 @@ export const AppearanceSettingsPageView: FC<
             />
             <Stack spacing={0}>
               <TextField
-                {...serviceBannerFieldHelpers(
-                  "message",
-                  "Markdown bold, italics, and links are supported.",
-                )}
+                {...serviceBannerFieldHelpers("message", {
+                  helperText:
+                    "Markdown bold, italics, and links are supported.",
+                })}
                 fullWidth
                 label="Message"
                 multiline

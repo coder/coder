@@ -16,7 +16,7 @@ import {
   TemplateParametersSectionProps,
 } from "components/TemplateParameters/TemplateParameters";
 import { useClipboard } from "hooks/useClipboard";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
@@ -24,7 +24,7 @@ import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
 type ButtonValues = Record<string, string>;
 
-const TemplateEmbedPage = () => {
+const TemplateEmbedPage: FC = () => {
   const { template } = useTemplateLayoutContext();
   const { data: templateParameters } = useQuery({
     queryKey: ["template", template.id, "embed"],
@@ -46,10 +46,15 @@ const TemplateEmbedPage = () => {
   );
 };
 
-export const TemplateEmbedPageView: FC<{
+interface TemplateEmbedPageViewProps {
   template: Template;
   templateParameters?: TemplateVersionParameter[];
-}> = ({ template, templateParameters }) => {
+}
+
+export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
+  template,
+  templateParameters,
+}) => {
   const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
     undefined,
   );

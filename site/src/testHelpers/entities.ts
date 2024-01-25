@@ -6,7 +6,7 @@ import {
 import { FieldError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "contexts/AuthProvider/permissions";
+import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -285,6 +285,7 @@ export const MockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUserAdmin: TypesGen.User = {
@@ -299,6 +300,7 @@ export const MockUserAdmin: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -313,6 +315,7 @@ export const MockUser2: TypesGen.User = {
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
   theme_preference: "",
+  name: "Mock User The Second",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -327,6 +330,7 @@ export const SuspendedMockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -336,6 +340,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   provisioners: ["echo"],
   tags: { scope: "organization" },
   version: "v2.34.5",
+  api_version: "1.0",
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -345,6 +350,7 @@ export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
   provisioners: ["echo"],
   tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
   version: "v2.34.5",
+  api_version: "1.0",
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -353,7 +359,14 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
-  tags: {},
+  tags: {
+    scope: "organization",
+    owner: "",
+    wowzers: "whatatag",
+    isCapable: "false",
+    department: "engineering",
+    dreaming: "true",
+  },
   queue_position: 0,
   queue_size: 0,
 };
@@ -1007,6 +1020,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1085,6 +1099,26 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   ...MockFailedWorkspace,
   id: "test-outdated-workspace",
   outdated: true,
+};
+
+export const MockRunningOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-running-outdated-workspace",
+  outdated: true,
+};
+
+export const MockDormantWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-workspace",
+  dormant_at: new Date().toISOString(),
+};
+
+export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-outdated-workspace",
+  name: "Dormant-Workspace",
+  outdated: true,
+  dormant_at: new Date().toISOString(),
 };
 
 export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
@@ -1944,7 +1978,7 @@ type MockAPIOutput = {
 };
 
 export const mockApiError = ({
-  message,
+  message = "Something went wrong.",
   detail,
   validations,
 }: MockAPIInput): MockAPIOutput => ({
@@ -1952,9 +1986,9 @@ export const mockApiError = ({
   isAxiosError: true,
   response: {
     data: {
-      message: message ?? "Something went wrong.",
-      detail: detail ?? undefined,
-      validations: validations ?? undefined,
+      message,
+      detail,
+      validations,
     },
   },
 });
@@ -2045,7 +2079,7 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   }),
 };
 
-export const MockExperiments: TypesGen.Experiment[] = ["moons"];
+export const MockExperiments: TypesGen.Experiment[] = [];
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -2242,7 +2276,7 @@ export const MockTemplateExample: TypesGen.TemplateExample = {
   description: "Get started with Linux development on AWS ECS.",
   markdown:
     "\n# aws-ecs\n\nThis is a sample template for running a Coder workspace on ECS. It assumes there\nis a pre-existing ECS cluster with EC2-based compute to host the workspace.\n\n## Architecture\n\nThis workspace is built using the following AWS resources:\n\n- Task definition - the container definition, includes the image, command, volume(s)\n- ECS service - manages the task definition\n\n## code-server\n\n`code-server` is installed via the `startup_script` argument in the `coder_agent`\nresource block. The `coder_app` resource is defined to access `code-server` through\nthe dashboard UI over `localhost:13337`.\n",
-  icon: "/icon/aws.png",
+  icon: "/icon/aws.svg",
   tags: ["aws", "cloud"],
 };
 
@@ -2253,7 +2287,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
   description: "Get started with Linux development on AWS EC2.",
   markdown:
     '\n# aws-linux\n\nTo get started, run `coder templates init`. When prompted, select this template.\nFollow the on-screen instructions to proceed.\n\n## Authentication\n\nThis template assumes that coderd is run in an environment that is authenticated\nwith AWS. For example, run `aws configure import` to import credentials on the\nsystem and user running coderd.  For other ways to authenticate [consult the\nTerraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).\n\n## Required permissions / policy\n\nThe following sample policy allows Coder to create EC2 instances and modify\ninstances provisioned by Coder:\n\n```json\n{\n    "Version": "2012-10-17",\n    "Statement": [\n        {\n            "Sid": "VisualEditor0",\n            "Effect": "Allow",\n            "Action": [\n                "ec2:GetDefaultCreditSpecification",\n                "ec2:DescribeIamInstanceProfileAssociations",\n                "ec2:DescribeTags",\n                "ec2:CreateTags",\n                "ec2:RunInstances",\n                "ec2:DescribeInstanceCreditSpecifications",\n                "ec2:DescribeImages",\n                "ec2:ModifyDefaultCreditSpecification",\n                "ec2:DescribeVolumes"\n            ],\n            "Resource": "*"\n        },\n        {\n            "Sid": "CoderResources",\n            "Effect": "Allow",\n            "Action": [\n                "ec2:DescribeInstances",\n                "ec2:DescribeInstanceAttribute",\n                "ec2:UnmonitorInstances",\n                "ec2:TerminateInstances",\n                "ec2:StartInstances",\n                "ec2:StopInstances",\n                "ec2:DeleteTags",\n                "ec2:MonitorInstances",\n                "ec2:CreateTags",\n                "ec2:RunInstances",\n                "ec2:ModifyInstanceAttribute",\n                "ec2:ModifyInstanceCreditSpecification"\n            ],\n            "Resource": "arn:aws:ec2:*:*:instance/*",\n            "Condition": {\n                "StringEquals": {\n                    "aws:ResourceTag/Coder_Provisioned": "true"\n                }\n            }\n        }\n    ]\n}\n```\n\n## code-server\n\n`code-server` is installed via the `startup_script` argument in the `coder_agent`\nresource block. The `coder_app` resource is defined to access `code-server` through\nthe dashboard UI over `localhost:13337`.\n',
-  icon: "/icon/aws.png",
+  icon: "/icon/aws.svg",
   tags: ["aws", "cloud"],
 };
 
@@ -2931,7 +2965,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T19:15:56.606593Z",
           updated_at: "2023-12-05T14:13:36.647535Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "9d786ce0-55b1-4ace-8acc-a4672ff8d41f",
@@ -2954,7 +2988,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T20:34:11.114005Z",
           updated_at: "2023-12-05T14:13:45.941716Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "2e209786-73b1-4838-ba78-e01c9334450a",
@@ -2977,7 +3011,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-05-01T20:41:02.76448Z",
           updated_at: "2023-12-05T14:13:41.968568Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "c272e80c-0cce-49d6-9782-1b5cf90398e8",
@@ -3048,7 +3082,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:21:15.996267Z",
           updated_at: "2023-12-05T14:13:59.663174Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "72649dc9-03c7-46a8-bc95-96775e93ddc1",
@@ -3071,7 +3105,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:23:44.505529Z",
           updated_at: "2023-12-05T14:13:55.769058Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
         {
           id: "1f78398f-e5ae-4c38-aa89-30222181d443",
@@ -3094,12 +3128,97 @@ export const MockHealth: TypesGen.HealthcheckReport = {
           created_at: "2023-12-01T09:36:00.231252Z",
           updated_at: "2023-12-05T14:13:47.015031Z",
           deleted: false,
-          version: "v2.4.0-devel+5fad61102",
+          version: "v2.5.0-devel+5fad61102",
         },
       ],
     },
   },
-  coder_version: "v0.27.1-devel+c575292",
+  provisioner_daemons: {
+    severity: "ok",
+    warnings: [
+      {
+        message: "Something is wrong!",
+        code: "EUNKNOWN",
+      },
+      {
+        message: "This is also bad.",
+        code: "EPD01",
+      },
+    ],
+    dismissed: false,
+    items: [
+      {
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "ok",
+          version: "v2.3.4-devel+abcd1234",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+            tag_value: "value",
+            tag_true: "true",
+            tag_1: "1",
+            tag_yes: "yes",
+          },
+        },
+        warnings: [],
+      },
+      {
+        provisioner_daemon: {
+          id: "00000000-0000-0000-000000000000",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "user-scoped",
+          version: "v2.34-devel+abcd1234",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "12345678-1234-1234-1234-12345678abcd",
+            scope: "user",
+            tag_VALUE: "VALUE",
+            tag_TRUE: "TRUE",
+            tag_1: "1",
+            tag_YES: "YES",
+          },
+        },
+        warnings: [],
+      },
+      {
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "unhappy",
+          version: "v0.0.1",
+          api_version: "0.1",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+            tag_string: "value",
+            tag_false: "false",
+            tag_0: "0",
+            tag_no: "no",
+          },
+        },
+        warnings: [
+          {
+            message: "Something specific is wrong with this daemon.",
+            code: "EUNKNOWN",
+          },
+          {
+            message: "And now for something completely different.",
+            code: "EUNKNOWN",
+          },
+        ],
+      },
+    ],
+  },
+  coder_version: "v2.5.0-devel+5fad61102",
 };
 
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
@@ -3182,10 +3301,44 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
           created_at: "2023-11-23T15:37:25.513213Z",
           updated_at: "2023-11-23T18:09:19.734747Z",
           deleted: false,
-          version: "v2.4.0-devel+89bae7eff",
+          version: "v2.5.0-devel+89bae7eff",
         },
       ],
     },
+  },
+  provisioner_daemons: {
+    severity: "error",
+    error: "something went wrong",
+    warnings: [
+      {
+        message: "this is a message",
+        code: "EUNKNOWN",
+      },
+    ],
+    dismissed: false,
+    items: [
+      {
+        provisioner_daemon: {
+          id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          created_at: "2024-01-04T15:53:03.21563Z",
+          last_seen_at: "2024-01-04T16:05:03.967551Z",
+          name: "vvuurrkk-2",
+          version: "v2.6.0-devel+965ad5e96",
+          api_version: "1.0",
+          provisioners: ["echo", "terraform"],
+          tags: {
+            owner: "",
+            scope: "organization",
+          },
+        },
+        warnings: [
+          {
+            message: "this is a specific message for this thing",
+            code: "EUNKNOWN",
+          },
+        ],
+      },
+    ],
   },
 };
 
@@ -3212,3 +3365,30 @@ export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
   authenticated: true,
   validate_error: "",
 };
+
+export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
+  {
+    id: "1",
+    name: "foo",
+    callback_url: "http://localhost:3001",
+    icon: "/icon/github.svg",
+    endpoints: {
+      authorization: "http://localhost:3001/login/oauth2/authorize",
+      token: "http://localhost:3001/login/oauth2/token",
+      device_authorization: "",
+    },
+  },
+];
+
+export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
+  [
+    {
+      id: "1",
+      client_secret_truncated: "foo",
+    },
+    {
+      id: "1",
+      last_used_at: "2022-12-16T20:10:45.637452Z",
+      client_secret_truncated: "foo",
+    },
+  ];

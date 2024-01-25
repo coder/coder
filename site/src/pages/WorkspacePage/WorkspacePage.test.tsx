@@ -13,7 +13,6 @@ import {
   MockOutdatedWorkspace,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
-  MockBuilds,
   MockUser,
   MockDeploymentConfig,
   MockWorkspaceBuildDelete,
@@ -317,20 +316,8 @@ describe("WorkspacePage", () => {
     });
   });
 
-  it("shows the timeline build", async () => {
-    await renderWorkspacePage(MockWorkspace);
-    const table = await screen.findByTestId("builds-table");
-
-    // Wait for the results to be loaded
-    await waitFor(async () => {
-      const rows = table.querySelectorAll("tbody > tr");
-      // Added +1 because of the date row
-      expect(rows).toHaveLength(MockBuilds.length + 1);
-    });
-  });
-
   it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
-    window.localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
+    localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
     jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
       templateVersionRichParameters: [
         {

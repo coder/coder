@@ -1,12 +1,9 @@
 import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
-
-import { workspaceUpdatePolicy } from "utils/workspace";
+import { mustUpdateWorkspace } from "utils/workspace";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
-
 import {
-  ActionLoadingButton,
   CancelButton,
   DisabledButton,
   StartButton,
@@ -22,14 +19,14 @@ import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-
 import {
   MoreMenu,
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
-  ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -49,6 +46,7 @@ export interface WorkspaceActionsProps {
   children?: ReactNode;
   canChangeVersions: boolean;
   canRetryDebug: boolean;
+  isOwner: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -68,6 +66,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
   canRetryDebug,
+  isOwner,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
@@ -76,12 +75,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     workspace,
     canRetryDebug,
   );
+  const showCancel =
+    canCancel &&
+    (workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
-  const mustUpdate =
-    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
-    workspace.outdated;
-
-  const tooltipText = getTooltipText(workspace, mustUpdate);
+  const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
+  const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
@@ -124,10 +123,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         tooltipText={tooltipText}
       />
     ),
-    deleting: <ActionLoadingButton label="Deleting" />,
+    deleting: <DisabledButton label="Deleting" />,
     canceling: <DisabledButton label="Canceling..." />,
     deleted: <DisabledButton label="Deleted" />,
-    pending: <ActionLoadingButton label="Pending..." />,
+    pending: <DisabledButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
@@ -136,7 +135,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   return (
     <div
-      css={{ display: "flex", alignItems: "center", gap: 12 }}
+      css={{ display: "flex", alignItems: "center", gap: 8 }}
       data-testid="workspace-actions"
     >
       {canBeUpdated && (
@@ -149,17 +148,18 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <Fragment key={action}>{buttonMapping[action]}</Fragment>
           ))}
 
-      {canCancel && <CancelButton handleAction={handleCancel} />}
+      {showCancel && <CancelButton handleAction={handleCancel} />}
 
       <MoreMenu>
         <MoreMenuTrigger>
-          <ThreeDotsButton
+          <TopbarIconButton
             title="More options"
-            size="small"
             data-testid="workspace-options-button"
             aria-controls="workspace-options"
             disabled={!canAcceptJobs}
-          />
+          >
+            <MoreVertOutlined />
+          </TopbarIconButton>
         </MoreMenuTrigger>
 
         <MoreMenuContent id="workspace-options">
@@ -199,17 +199,25 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   );
 };
 
-function getTooltipText(workspace: Workspace, disabled: boolean): string {
-  if (!disabled) {
+function getTooltipText(
+  workspace: Workspace,
+  mustUpdate: boolean,
+  canChangeVersions: boolean,
+): string {
+  if (!mustUpdate && !canChangeVersions) {
     return "";
   }
 
+  if (!mustUpdate && canChangeVersions) {
+    return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
+  }
+
   if (workspace.template_require_active_version) {
-    return "This template requires automatic updates";
+    return "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.";
   }
 
   if (workspace.automatic_updates === "always") {
-    return "You have enabled automatic updates for this workspace";
+    return "Automatic updates are enabled for this workspace. Modify the update policy in workspace settings if you want to preserve the template version.";
   }
 
   return "";

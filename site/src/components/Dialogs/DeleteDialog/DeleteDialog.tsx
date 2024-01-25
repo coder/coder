@@ -1,13 +1,7 @@
-import {
-  type FC,
-  type FormEvent,
-  type PropsWithChildren,
-  useId,
-  useState,
-} from "react";
-
-import { useTheme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, type FormEvent, useId, useState } from "react";
+import { Stack } from "../../Stack/Stack";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 export interface DeleteDialogProps {
@@ -24,7 +18,7 @@ export interface DeleteDialogProps {
   confirmText?: string;
 }
 
-export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
+export const DeleteDialog: FC<DeleteDialogProps> = ({
   isOpen,
   onCancel,
   onConfirm,
@@ -39,7 +33,6 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   confirmText,
 }) => {
   const hookId = useId();
-  const theme = useTheme();
 
   const [userConfirmationText, setUserConfirmationText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -69,19 +62,17 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       confirmText={confirmText}
       description={
         <>
-          <p>
-            {verb ?? "Deleting"} this {entity} is irreversible!
-          </p>
+          <Stack spacing={1.5}>
+            <p>
+              {verb ?? "Deleting"} this {entity} is irreversible!
+            </p>
 
-          {Boolean(info) && (
-            <p css={{ color: theme.palette.warning.light }}>{info}</p>
-          )}
+            {Boolean(info) && <div css={styles.callout}>{info}</div>}
 
-          <p>Are you sure you want to proceed?</p>
-
-          <p>
-            Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.
-          </p>
+            <p>
+              Type <strong>{name}</strong> below to confirm.
+            </p>
+          </Stack>
 
           <form onSubmit={onSubmit}>
             <TextField
@@ -114,3 +105,13 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
     />
   );
 };
+
+const styles = {
+  callout: (theme) => ({
+    backgroundColor: theme.experimental.roles.danger.background,
+    border: `1px solid ${theme.experimental.roles.danger.outline}`,
+    borderRadius: theme.shape.borderRadius,
+    color: theme.experimental.roles.danger.text,
+    padding: "8px 16px",
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -1,7 +1,7 @@
 import { type FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useMe } from "hooks/useMe";
+import { useMe } from "contexts/auth/useMe";
 import { Loader } from "components/Loader/Loader";
 import {
   updateUserQuietHoursSchedule,

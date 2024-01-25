@@ -75,7 +75,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 			// If the template schedule fails to load, just default to bumping
 			// without the next transition and log it.
 			if err != nil {
-				a.Log.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+				a.Log.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 					slog.F("workspace_id", workspace.ID),
 					slog.F("template_id", workspace.TemplateID),
 					slog.Error(err),

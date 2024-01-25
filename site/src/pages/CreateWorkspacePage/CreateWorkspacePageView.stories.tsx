@@ -1,4 +1,5 @@
 import { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import {
   mockApiError,
   MockTemplate,
@@ -11,6 +12,7 @@ import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
   title: "pages/CreateWorkspacePage",
+  parameters: { chromatic },
   component: CreateWorkspacePageView,
   args: {
     defaultName: "",
@@ -87,7 +89,7 @@ export const Parameters: Story = {
   },
 };
 
-export const ExternalAuth: Story = {
+export const RequiresExternalAuth: Story = {
   args: {
     externalAuth: [
       {

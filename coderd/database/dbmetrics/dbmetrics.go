@@ -114,6 +114,13 @@ func (m metricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m metricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)
@@ -218,6 +225,20 @@ func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error
 	return licenseID, err
 }
 
+func (m metricsStore) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteOAuth2ProviderAppByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteOAuth2ProviderAppSecretByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
@@ -277,6 +298,13 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.FavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("FavoriteWorkspace").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -564,6 +592,34 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	url, err := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	return url, err
+}
+
+func (m metricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppSecretByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppSecretsByAppID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderApps(ctx)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderApps").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
@@ -1334,6 +1390,20 @@ func (m metricsStore) InsertMissingGroups(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m metricsStore) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOAuth2ProviderApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOAuth2ProviderApp").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) InsertOAuth2ProviderAppSecret(ctx context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOAuth2ProviderAppSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOAuth2ProviderAppSecret").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.InsertOrganization(ctx, arg)
@@ -1551,6 +1621,13 @@ func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database
 	return r0
 }
 
+func (m metricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnfavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
@@ -1591,6 +1668,27 @@ func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.Update
 	member, err := m.s.UpdateMemberRoles(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateMemberRoles").Observe(time.Since(start).Seconds())
 	return member, err
+}
+
+func (m metricsStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOAuth2ProviderAppByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateProvisionerDaemonLastSeenAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateProvisionerDaemonLastSeenAt").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {

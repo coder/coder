@@ -1,16 +1,16 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { pageTitle } from "utils/page";
-import { Stack } from "components/Stack/Stack";
-import { Loader } from "components/Loader/Loader";
 import { Outlet, useParams } from "react-router-dom";
-import { Margins } from "components/Margins/Margins";
-import { useOrganizationId } from "hooks/useOrganizationId";
+import { pageTitle } from "utils/page";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import type { AuthorizationResponse, Template } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { checkAuthorization } from "api/queries/authCheck";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
 import { Sidebar } from "./Sidebar";
 
 const TemplateSettings = createContext<
@@ -56,13 +56,7 @@ export const TemplateSettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack
-          css={{
-            padding: "48px 0",
-          }}
-          direction="row"
-          spacing={10}
-        >
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
           {templateQuery.isError || permissionsQuery.isError ? (
             <ErrorAlert error={templateQuery.error} />
           ) : (
@@ -74,11 +68,7 @@ export const TemplateSettingsLayout: FC = () => {
             >
               <Sidebar template={templateQuery.data} />
               <Suspense fallback={<Loader />}>
-                <main
-                  css={{
-                    width: "100%",
-                  }}
-                >
+                <main css={{ width: "100%" }}>
                   <Outlet />
                 </main>
               </Suspense>

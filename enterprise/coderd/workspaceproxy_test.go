@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -36,20 +37,13 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 		})
 
@@ -68,7 +62,7 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
 
 		// Ensure the primary region ID is constant.
 		regions2, err := client.Regions(ctx)
@@ -79,20 +73,13 @@ func TestRegions(t *testing.T) {
 	t.Run("WithProxies", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -107,11 +94,16 @@ func TestRegions(t *testing.T) {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		require.NoError(t, err, "get deployment ID")
 
+		// The default proxy is always called "primary".
+		primary, err := client.WorkspaceProxyByName(ctx, "primary")
+		require.NoError(t, err)
+
 		const proxyName = "hello"
 		_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
 			Name:        proxyName,
 			AppHostname: appHostname + ".proxy",
 		})
+		approxCreateTime := dbtime.Now()
 		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
 		require.NoError(t, err)
 
@@ -149,7 +141,7 @@ func TestRegions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, regions, 2)
 
-		// Region 0 is the primary	require.Len(t, regions, 1)
+		// Region 0 is the primary
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
 		require.Equal(t, regions[0].ID.String(), deploymentID)
 		require.Equal(t, "primary", regions[0].Name)
@@ -157,7 +149,12 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
+
+		// Ensure non-zero fields of the default proxy
+		require.NotZero(t, primary.Name)
+		require.NotZero(t, primary.CreatedAt)
+		require.NotZero(t, primary.UpdatedAt)
 
 		// Region 1 is the proxy.
 		require.NotEqual(t, uuid.Nil, regions[1].ID)
@@ -168,22 +165,20 @@ func TestRegions(t *testing.T) {
 		require.True(t, regions[1].Healthy)
 		require.Equal(t, proxy.Url, regions[1].PathAppURL)
 		require.Equal(t, proxy.WildcardHostname, regions[1].WildcardHostname)
+
+		// Unfortunately need to wait to assert createdAt/updatedAt
+		<-time.After(testutil.WaitShort / 10)
+		require.WithinDuration(t, approxCreateTime, proxy.CreatedAt, testutil.WaitShort/10)
+		require.WithinDuration(t, approxCreateTime, proxy.UpdatedAt, testutil.WaitShort/10)
 	})
 
 	t.Run("RequireAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
 			},
 		})
 
@@ -200,15 +195,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("CreateAndUpdate", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -251,15 +238,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -287,16 +266,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
@@ -635,16 +607,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
-
 	db, pubsub := dbtestutil.NewDB(t)
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
@@ -732,16 +697,9 @@ func TestIssueSignedAppToken(t *testing.T) {
 func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
-
 	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,

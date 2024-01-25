@@ -1,21 +1,21 @@
-import { FC, lazy, Suspense } from "react";
+import { type FC, lazy, Suspense } from "react";
 import {
   Route,
   Routes,
   BrowserRouter as Router,
   Navigate,
 } from "react-router-dom";
-import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
-import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./components/UsersLayout/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
@@ -120,6 +120,24 @@ const ExternalAuthSettingsPage = lazy(
       "./pages/DeploySettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
     ),
 );
+const OAuth2AppsSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
+    ),
+);
+const EditOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
+    ),
+);
+const CreateOAuth2AppPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
+    ),
+);
 const NetworkSettingsPage = lazy(
   () =>
     import(
@@ -213,6 +231,9 @@ const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
 const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
 const WorkspaceProxyHealthPage = lazy(
   () => import("./pages/HealthPage/WorkspaceProxyPage"),
+);
+const ProvisionerDaemonsHealthPage = lazy(
+  () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
 );
 
 export const AppRouter: FC = () => {
@@ -315,6 +336,16 @@ export const AppRouter: FC = () => {
                   path="external-auth"
                   element={<ExternalAuthSettingsPage />}
                 />
+
+                <Route path="oauth2-provider">
+                  <Route index element={<NotFoundPage />} />
+                  <Route path="apps">
+                    <Route index element={<OAuth2AppsSettingsPage />} />
+                    <Route path="add" element={<CreateOAuth2AppPage />} />
+                    <Route path=":appId" element={<EditOAuth2AppPage />} />
+                  </Route>
+                </Route>
+
                 <Route
                   path="workspace-proxies"
                   element={<WorkspaceProxyPage />}
@@ -339,7 +370,6 @@ export const AppRouter: FC = () => {
 
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
@@ -370,6 +400,10 @@ export const AppRouter: FC = () => {
                   path="workspace-proxy"
                   element={<WorkspaceProxyHealthPage />}
                 />
+                <Route
+                  path="provisioner-daemons"
+                  element={<ProvisionerDaemonsHealthPage />}
+                />
               </Route>
               {/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
@@ -378,6 +412,7 @@ export const AppRouter: FC = () => {
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
+            <Route path="/:username/:workspace" element={<WorkspacePage />} />
             <Route
               path="/templates/:template/versions/:version/edit"
               element={<TemplateVersionEditorPage />}

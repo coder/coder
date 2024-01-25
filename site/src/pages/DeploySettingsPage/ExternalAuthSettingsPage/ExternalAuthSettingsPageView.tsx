@@ -1,4 +1,5 @@
 import { css } from "@emotion/react";
+import { type FC } from "react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -8,16 +9,16 @@ import TableRow from "@mui/material/TableRow";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { EnterpriseBadge } from "components/Badges/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
+import { Header } from "../Header";
 import { docs } from "utils/docs";
 
 export type ExternalAuthSettingsPageViewProps = {
   config: DeploymentValues;
 };
 
-export const ExternalAuthSettingsPageView = ({
-  config,
-}: ExternalAuthSettingsPageViewProps): JSX.Element => {
+export const ExternalAuthSettingsPageView: FC<
+  ExternalAuthSettingsPageViewProps
+> = ({ config }) => {
   return (
     <>
       <Header

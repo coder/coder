@@ -30,18 +30,33 @@ func (r *RootCmd) start() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-
-			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceStart)
-			// It's possible for a workspace build to fail due to the template requiring starting
-			// workspaces with the active version.
-			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-				_, _ = fmt.Fprintln(inv.Stdout, "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
-				if err != nil {
-					return xerrors.Errorf("start workspace with active template version: %w", err)
+			var build codersdk.WorkspaceBuild
+			switch workspace.LatestBuild.Status {
+			case codersdk.WorkspaceStatusRunning:
+				_, _ = fmt.Fprintf(
+					inv.Stdout, "\nThe %s workspace is already running!\n",
+					cliui.Keyword(workspace.Name),
+				)
+				return nil
+			case codersdk.WorkspaceStatusStarting:
+				_, _ = fmt.Fprintf(
+					inv.Stdout, "\nThe %s workspace is already starting.\n",
+					cliui.Keyword(workspace.Name),
+				)
+				build = workspace.LatestBuild
+			default:
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceStart)
+				// It's possible for a workspace build to fail due to the template requiring starting
+				// workspaces with the active version.
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
+					_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
+					build, err = startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
+					if err != nil {
+						return xerrors.Errorf("start workspace with active template version: %w", err)
+					}
+				} else if err != nil {
+					return err
 				}
-			} else if err != nil {
-				return err
 			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
@@ -64,6 +79,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
+
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
@@ -110,6 +126,15 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 }
 
 func startWorkspace(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+	if workspace.DormantAt != nil {
+		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
+		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: false,
+		})
+		if err != nil {
+			return codersdk.WorkspaceBuild{}, xerrors.Errorf("activate workspace: %w", err)
+		}
+	}
 	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, action)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err

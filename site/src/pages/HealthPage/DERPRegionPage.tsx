@@ -1,29 +1,31 @@
+import Tooltip from "@mui/material/Tooltip";
+import CodeOutlined from "@mui/icons-material/CodeOutlined";
+import TagOutlined from "@mui/icons-material/TagOutlined";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
+import type {
+  HealthMessage,
+  HealthSeverity,
+  HealthcheckReport,
+} from "api/typesGenerated";
+import { getLatencyColor } from "utils/latency";
+import { Alert } from "components/Alert/Alert";
+import { pageTitle } from "utils/page";
 import {
   Header,
   HeaderTitle,
+  HealthMessageDocsLink,
   Main,
   BooleanPill,
   Pill,
   Logs,
   HealthyDot,
 } from "./Content";
-import {
-  HealthMessage,
-  HealthSeverity,
-  HealthcheckReport,
-} from "api/typesGenerated";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
-import TagOutlined from "@mui/icons-material/TagOutlined";
-import Tooltip from "@mui/material/Tooltip";
-import { useTheme } from "@mui/material/styles";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import { getLatencyColor } from "utils/latency";
-import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
 
-export const DERPRegionPage = () => {
+export const DERPRegionPage: FC = () => {
   const theme = useTheme();
   const healthStatus = useOutletContext<HealthcheckReport>();
   const params = useParams() as { regionId: string };
@@ -74,7 +76,11 @@ export const DERPRegionPage = () => {
       <Main>
         {warnings.map((warning: HealthMessage) => {
           return (
-            <Alert key={warning.code} severity="warning">
+            <Alert
+              actions={HealthMessageDocsLink(warning)}
+              key={warning.code}
+              severity="warning"
+            >
               {warning.message}
             </Alert>
           );

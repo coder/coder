@@ -35,10 +35,15 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
   return featuredExamples;
 };
 
-export const EmptyTemplates: FC<{
+interface EmptyTemplatesProps {
   canCreateTemplates: boolean;
   examples: TemplateExample[];
-}> = ({ canCreateTemplates, examples }) => {
+}
+
+export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+  canCreateTemplates,
+  examples,
+}) => {
   const featuredExamples = findFeaturedExamples(examples);
 
   if (canCreateTemplates) {

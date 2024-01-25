@@ -21,8 +21,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -47,6 +47,7 @@ const (
 // DeploymentOptions are the options for creating a *Deployment with a
 // DeploymentFactory.
 type DeploymentOptions struct {
+	PrimaryAppHost                       string
 	AppHost                              string
 	DisablePathApps                      bool
 	DisableSubdomainApps                 bool
@@ -71,6 +72,7 @@ type Deployment struct {
 	SDKClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
+	FlushStats     func()
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,
@@ -145,7 +147,7 @@ func (d *Details) PathAppURL(app App) *url.URL {
 
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *Details) SubdomainAppURL(app App) *url.URL {
-	appHost := httpapi.ApplicationURL{
+	appHost := appurl.ApplicationURL{
 		Prefix:        app.Prefix,
 		AppSlugOrPort: app.AppSlugOrPort,
 		AgentName:     app.AgentName,
@@ -369,7 +371,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
 		require.True(t, app.Subdomain)
 
-		appURL := httpapi.ApplicationURL{
+		appURL := appurl.ApplicationURL{
 			Prefix: "",
 			// findProtoApp is needed as the order of apps returned from PG database
 			// is not guaranteed.
@@ -398,7 +400,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		manifest, err := agentClient.Manifest(appHostCtx)
 		require.NoError(t, err)
 
-		appHost := httpapi.ApplicationURL{
+		appHost := appurl.ApplicationURL{
 			Prefix:        "",
 			AppSlugOrPort: "{{port}}",
 			AgentName:     proxyTestAgentName,
@@ -406,7 +408,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Username:      me.Username,
 		}
 		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
-		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
+		require.Equal(t, manifest.VSCodePortProxyURI, proxyURL)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

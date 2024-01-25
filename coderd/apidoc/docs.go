@@ -174,7 +174,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Applications Enterprise"
+                    "Enterprise"
                 ],
                 "summary": "Issue signed app token for reconnecting PTY",
                 "operationId": "issue-signed-app-token-for-reconnecting-pty",
@@ -1300,6 +1300,282 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/oauth2-provider/apps": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 applications.",
+                "operationId": "get-oauth2-applications",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create OAuth2 application.",
+                "operationId": "create-oauth2-application",
+                "parameters": [
+                    {
+                        "description": "The OAuth2 application to create.",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostOAuth2ProviderAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth2-provider/apps/{app}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 application.",
+                "operationId": "get-oauth2-application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update OAuth2 application.",
+                "operationId": "update-oauth2-application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update an OAuth2 application.",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PutOAuth2ProviderAppRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete OAuth2 application.",
+                "operationId": "delete-oauth2-application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/oauth2-provider/apps/{app}/secrets": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get OAuth2 application secrets.",
+                "operationId": "get-oauth2-application-secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecret"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create OAuth2 application secret.",
+                "operationId": "create-oauth2-application-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OAuth2ProviderAppSecretFull"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth2-provider/apps/{app}/secrets/{secretID}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete OAuth2 application secret.",
+                "operationId": "delete-oauth2-application-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "app",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Secret ID",
+                        "name": "secretID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -6331,7 +6607,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, is-dormant, last_used_after, last_used_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -6723,6 +6999,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/favorite": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Favorite workspace by ID.",
+                "operationId": "favorite-workspace-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Unfavorite workspace by ID.",
+                "operationId": "unfavorite-workspace-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "security": [
@@ -7000,6 +7332,9 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
+                "agent_name": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -7051,6 +7386,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                },
+                "workspace_name": {
                     "type": "string"
                 }
             }
@@ -7979,6 +8317,9 @@ const docTemplate = `{
                 "trial": {
                     "type": "boolean"
                 },
+                "trial_info": {
+                    "$ref": "#/definitions/codersdk.CreateFirstUserTrialInfo"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -7994,6 +8335,32 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.CreateFirstUserTrialInfo": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "developers": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "job_title": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
                 }
             }
         },
@@ -8750,7 +9117,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_access_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "type": "string"
                 },
                 "write_config": {
                     "type": "boolean"
@@ -8826,20 +9193,13 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "moons",
-                "workspace_actions",
-                "tailnet_pg_coordinator",
-                "single_tailnet",
-                "deployment_health_page",
-                "template_update_policies"
+                "example"
             ],
+            "x-enum-comments": {
+                "ExperimentExample": "This isn't used for anything."
+            },
             "x-enum-varnames": [
-                "ExperimentMoons",
-                "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
-                "ExperimentSingleTailnet",
-                "ExperimentDeploymentHealthPage",
-                "ExperimentTemplateUpdatePolicies"
+                "ExperimentExample"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9134,14 +9494,16 @@ const docTemplate = `{
                 "AccessURL",
                 "Websocket",
                 "Database",
-                "WorkspaceProxy"
+                "WorkspaceProxy",
+                "ProvisionerDaemons"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
                 "HealthSectionAccessURL",
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
-                "HealthSectionWorkspaceProxy"
+                "HealthSectionWorkspaceProxy",
+                "HealthSectionProvisionerDaemons"
             ]
         },
         "codersdk.HealthSettings": {
@@ -9253,7 +9615,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "icon": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "bug",
+                        "chat",
+                        "docs"
+                    ]
                 },
                 "name": {
                     "type": "string"
@@ -9377,6 +9744,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2AppEndpoints": {
+            "type": "object",
+            "properties": {
+                "authorization": {
+                    "type": "string"
+                },
+                "device_authorization": {
+                    "description": "DeviceAuth is optional.",
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -9414,6 +9796,59 @@ const docTemplate = `{
                 },
                 "enterprise_base_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderApp": {
+            "type": "object",
+            "properties": {
+                "callback_url": {
+                    "type": "string"
+                },
+                "endpoints": {
+                    "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OAuth2AppEndpoints"
+                        }
+                    ]
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderAppSecret": {
+            "type": "object",
+            "properties": {
+                "client_secret_truncated": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_used_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderAppSecretFull": {
+            "type": "object",
+            "properties": {
+                "client_secret_full": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -9657,6 +10092,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PostOAuth2ProviderAppRequest": {
+            "type": "object",
+            "required": [
+                "callback_url",
+                "name"
+            ],
+            "properties": {
+                "callback_url": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.PprofConfig": {
             "type": "object",
             "properties": {
@@ -9711,6 +10164,9 @@ const docTemplate = `{
         "codersdk.ProvisionerDaemon": {
             "type": "object",
             "properties": {
+                "api_version": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9933,6 +10389,24 @@ const docTemplate = `{
                 "deadline": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.PutOAuth2ProviderAppRequest": {
+            "type": "object",
+            "required": [
+                "callback_url",
+                "name"
+            ],
+            "properties": {
+                "callback_url": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -10710,6 +11184,9 @@ const docTemplate = `{
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -11116,6 +11593,9 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "name": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11213,6 +11693,9 @@ const docTemplate = `{
                 },
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_ids": {
                     "type": "array",
@@ -11498,6 +11981,9 @@ const docTemplate = `{
                     "description": "DormantAt being non-nil indicates a workspace that is dormant.\nA dormant workspace is no longer accessible must be activated.\nIt is subject to deletion if it breaches\nthe duration of the time_til_ field on its template.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "favorite": {
+                    "type": "boolean"
                 },
                 "health": {
                     "description": "Health shows the health of the workspace and information about\nwhat is causing an unhealthy status.",
@@ -12599,7 +13085,10 @@ const docTemplate = `{
                 "EACS03",
                 "EACS04",
                 "EDERP01",
-                "EDERP02"
+                "EDERP02",
+                "EPD01",
+                "EPD02",
+                "EPD03"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -12617,7 +13106,10 @@ const docTemplate = `{
                 "CodeAccessURLFetch",
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
-                "CodeDERPOneNodeUnhealthy"
+                "CodeDERPOneNodeUnhealthy",
+                "CodeProvisionerDaemonsNoProvisionerDaemons",
+                "CodeProvisionerDaemonVersionMismatch",
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
             ]
         },
         "health.Message": {
@@ -12734,6 +13226,46 @@ const docTemplate = `{
                 }
             }
         },
+        "healthcheck.ProvisionerDaemonsReport": {
+            "type": "object",
+            "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReportItem"
+                    }
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthcheck.ProvisionerDaemonsReportItem": {
+            "type": "object",
+            "properties": {
+                "provisioner_daemon": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
@@ -12760,6 +13292,9 @@ const docTemplate = `{
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"
+                },
+                "provisioner_daemons": {
+                    "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",

@@ -13,6 +13,8 @@
         # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
         formatter = pkgs.nixpkgs-fmt;
+        nodejs = pkgs.nodejs-18_x;
+        yarn = pkgs.yarn.override { inherit nodejs; };
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -47,10 +49,10 @@
           mockgen
           nfpm
           nodejs
-          nodePackages.pnpm
-          nodePackages.prettier
-          nodePackages.typescript
-          nodePackages.typescript-language-server
+          nodejs.pkgs.pnpm
+          nodejs.pkgs.prettier
+          nodejs.pkgs.typescript
+          nodejs.pkgs.typescript-language-server
           openssh
           openssl
           pango

@@ -4,6 +4,7 @@ package db2sdk
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -14,9 +15,9 @@ import (
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -120,6 +121,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
+		Name:            user.Name,
 		CreatedAt:       user.CreatedAt,
 		LastSeenAt:      user.LastSeenAt,
 		Username:        user.Username,
@@ -223,6 +225,33 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 		})
 	}
 	return options, nil
+}
+
+func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+	return codersdk.OAuth2ProviderApp{
+		ID:          dbApp.ID,
+		Name:        dbApp.Name,
+		CallbackURL: dbApp.CallbackURL,
+		Icon:        dbApp.Icon,
+		Endpoints: codersdk.OAuth2AppEndpoints{
+			Authorization: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/authorize",
+			}).String(),
+			Token: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/tokens",
+			}).String(),
+			// We do not currently support DeviceAuth.
+			DeviceAuth: "",
+		},
+	}
+}
+
+func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
+	apps := []codersdk.OAuth2ProviderApp{}
+	for _, dbApp := range dbApps {
+		apps = append(apps, OAuth2ProviderApp(accessURL, dbApp))
+	}
+	return apps
 }
 
 func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
@@ -372,7 +401,7 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 	if appSlug == "" {
 		appSlug = dbApp.DisplayName
 	}
-	return httpapi.ApplicationURL{
+	return appurl.ApplicationURL{
 		// We never generate URLs with a prefix. We only allow prefixes when
 		// parsing URLs from the hostname. Users that want this feature can
 		// write out their own URLs.
@@ -407,4 +436,20 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 		})
 	}
 	return apps
+}
+
+func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
+	result := codersdk.ProvisionerDaemon{
+		ID:         dbDaemon.ID,
+		CreatedAt:  dbDaemon.CreatedAt,
+		LastSeenAt: codersdk.NullTime{NullTime: dbDaemon.LastSeenAt},
+		Name:       dbDaemon.Name,
+		Tags:       dbDaemon.Tags,
+		Version:    dbDaemon.Version,
+		APIVersion: dbDaemon.APIVersion,
+	}
+	for _, provisionerType := range dbDaemon.Provisioners {
+		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
+	}
+	return result
 }

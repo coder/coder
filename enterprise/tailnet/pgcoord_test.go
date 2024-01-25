@@ -11,11 +11,11 @@ import (
 
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
@@ -600,6 +600,39 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	}
 }
 
+func TestPGCoordinator_Node_Empty(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	id := uuid.New()
+	mStore.EXPECT().GetTailnetPeers(gomock.Any(), id).Times(1).Return(nil, nil)
+
+	// extra calls we don't particularly care about for this test
+	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		AnyTimes().
+		Return(database.TailnetCoordinator{}, nil)
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	require.NoError(t, err)
+	defer func() {
+		err := uut.Close()
+		require.NoError(t, err)
+	}()
+
+	node := uut.Node(id)
+	require.Nil(t, node)
+}
+
 // TestPGCoordinator_BidirectionalTunnels tests when peers create tunnels to each other.  We don't
 // do this now, but it's schematically possible, so we should make sure it doesn't break anything.
 func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
@@ -781,56 +814,6 @@ func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expecte
 					return
 				}
 			}
-		}
-	}
-}
-
-func assertMultiAgentEventuallyHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
-	t.Helper()
-	for {
-		nodes, ok := ma.NextUpdate(ctx)
-		require.True(t, ok)
-		if len(nodes) != len(expected) {
-			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
-			continue
-		}
-
-		derps := make([]int, 0, len(nodes))
-		for _, n := range nodes {
-			derps = append(derps, n.PreferredDERP)
-		}
-		for _, e := range expected {
-			if !slices.Contains(derps, e) {
-				t.Logf("expected DERP %d to be in %v", e, derps)
-				continue
-			}
-			return
-		}
-	}
-}
-
-func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
-	t.Helper()
-	for {
-		nodes, ok := ma.NextUpdate(ctx)
-		if !ok {
-			return
-		}
-		if len(nodes) != len(expected) {
-			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
-			continue
-		}
-
-		derps := make([]int, 0, len(nodes))
-		for _, n := range nodes {
-			derps = append(derps, n.PreferredDERP)
-		}
-		for _, e := range expected {
-			if !slices.Contains(derps, e) {
-				t.Logf("expected DERP %d to be in %v", e, derps)
-				continue
-			}
-			return
 		}
 	}
 }

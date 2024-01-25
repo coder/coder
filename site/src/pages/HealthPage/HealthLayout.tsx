@@ -1,27 +1,26 @@
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Loader } from "components/Loader/Loader";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { createDayString } from "utils/createDayString";
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
-import ReplayIcon from "@mui/icons-material/Replay";
-import { health, refreshHealth } from "api/queries/debug";
-import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
-import { NavLink, Outlet } from "react-router-dom";
-import { css } from "@emotion/css";
-import kebabCase from "lodash/fp/kebabCase";
-import { Suspense } from "react";
-import { HealthIcon } from "./Content";
-import { HealthSeverity } from "api/typesGenerated";
+import ReplayIcon from "@mui/icons-material/Replay";
 import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { cx } from "@emotion/css";
+import { useTheme } from "@emotion/react";
+import { type FC, Suspense } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { NavLink, Outlet } from "react-router-dom";
+import kebabCase from "lodash/fp/kebabCase";
+import { health, refreshHealth } from "api/queries/debug";
+import type { HealthSeverity } from "api/typesGenerated";
+import { type ClassName, useClassName } from "hooks/useClassName";
+import { pageTitle } from "utils/page";
+import { createDayString } from "utils/createDayString";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { Loader } from "components/Loader/Loader";
+import { HealthIcon } from "./Content";
 
-export function HealthLayout() {
+export const HealthLayout: FC = () => {
   const theme = useTheme();
-  const dashboard = useDashboard();
   const queryClient = useQueryClient();
   const { data: healthStatus } = useQuery({
     ...health(),
@@ -35,11 +34,13 @@ export function HealthLayout() {
     access_url: "Access URL",
     websocket: "Websocket",
     database: "Database",
-    workspace_proxy: dashboard.experiments.includes("moons")
-      ? "Workspace Proxy"
-      : undefined,
+    workspace_proxy: "Workspace Proxy",
+    provisioner_daemons: "Provisioner Daemons",
   } as const;
   const visibleSections = filterVisibleSections(sections);
+
+  const link = useClassName(classNames.link, []);
+  const activeLink = useClassName(classNames.activeLink, []);
 
   return (
     <>
@@ -126,6 +127,7 @@ export function HealthLayout() {
                 <div css={{ display: "flex", flexDirection: "column" }}>
                   <span css={{ fontWeight: 500 }}>Last check</span>
                   <span
+                    data-chromatic="ignore"
                     css={{
                       color: theme.palette.text.secondary,
                       lineHeight: "150%",
@@ -138,6 +140,7 @@ export function HealthLayout() {
                 <div css={{ display: "flex", flexDirection: "column" }}>
                   <span css={{ fontWeight: 500 }}>Version</span>
                   <span
+                    data-chromatic="ignore"
                     css={{
                       color: theme.palette.text.secondary,
                       lineHeight: "150%",
@@ -163,31 +166,7 @@ export function HealthLayout() {
                         key={key}
                         to={`/health/${kebabCase(key)}`}
                         className={({ isActive }) =>
-                          css({
-                            background: isActive
-                              ? theme.palette.action.hover
-                              : "none",
-                            pointerEvents: isActive ? "none" : "auto",
-                            color: isActive
-                              ? theme.palette.text.primary
-                              : theme.palette.text.secondary,
-                            border: "none",
-                            fontSize: 14,
-                            width: "100%",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            textAlign: "left",
-                            height: 36,
-                            padding: "0 24px",
-                            cursor: "pointer",
-                            textDecoration: "none",
-
-                            "&:hover": {
-                              background: theme.palette.action.hover,
-                              color: theme.palette.text.primary,
-                            },
-                          })
+                          cx([link, isActive && activeLink])
                         }
                       >
                         <HealthIcon
@@ -222,7 +201,7 @@ export function HealthLayout() {
       )}
     </>
   );
-}
+};
 
 const filterVisibleSections = <T extends object>(sections: T) => {
   return Object.keys(sections).reduce(
@@ -241,3 +220,35 @@ const filterVisibleSections = <T extends object>(sections: T) => {
     {} as Partial<typeof sections>,
   );
 };
+
+const classNames = {
+  link: (css, theme) =>
+    css({
+      background: "none",
+      pointerEvents: "auto",
+      color: theme.palette.text.secondary,
+      border: "none",
+      fontSize: 14,
+      width: "100%",
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      textAlign: "left",
+      height: 36,
+      padding: "0 24px",
+      cursor: "pointer",
+      textDecoration: "none",
+
+      "&:hover": {
+        background: theme.palette.action.hover,
+        color: theme.palette.text.primary,
+      },
+    }),
+
+  activeLink: (css, theme) =>
+    css({
+      background: theme.palette.action.hover,
+      pointerEvents: "none",
+      color: theme.palette.text.primary,
+    }),
+} satisfies Record<string, ClassName>;

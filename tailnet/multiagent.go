@@ -8,13 +8,15 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 type MultiAgentConn interface {
-	UpdateSelf(node *Node) error
+	UpdateSelf(node *proto.Node) error
 	SubscribeAgent(agentID uuid.UUID) error
 	UnsubscribeAgent(agentID uuid.UUID) error
-	NextUpdate(ctx context.Context) ([]*Node, bool)
+	NextUpdate(ctx context.Context) (*proto.CoordinateResponse, bool)
 	AgentIsLegacy(agentID uuid.UUID) bool
 	Close() error
 	IsClosed() bool
@@ -26,16 +28,16 @@ type MultiAgent struct {
 	ID uuid.UUID
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
-	OnSubscribe       func(enq Queue, agent uuid.UUID) (*Node, error)
+	OnSubscribe       func(enq Queue, agent uuid.UUID) error
 	OnUnsubscribe     func(enq Queue, agent uuid.UUID) error
-	OnNodeUpdate      func(id uuid.UUID, node *Node) error
+	OnNodeUpdate      func(id uuid.UUID, node *proto.Node) error
 	OnRemove          func(enq Queue)
 
 	ctx       context.Context
 	ctxCancel func()
 	closed    bool
 
-	updates   chan []*Node
+	updates   chan *proto.CoordinateResponse
 	closeOnce sync.Once
 	start     int64
 	lastWrite int64
@@ -45,7 +47,7 @@ type MultiAgent struct {
 }
 
 func (m *MultiAgent) Init() *MultiAgent {
-	m.updates = make(chan []*Node, 128)
+	m.updates = make(chan *proto.CoordinateResponse, 128)
 	m.start = time.Now().Unix()
 	m.ctx, m.ctxCancel = context.WithCancel(context.Background())
 	return m
@@ -65,7 +67,7 @@ func (m *MultiAgent) AgentIsLegacy(agentID uuid.UUID) bool {
 
 var ErrMultiAgentClosed = xerrors.New("multiagent is closed")
 
-func (m *MultiAgent) UpdateSelf(node *Node) error {
+func (m *MultiAgent) UpdateSelf(node *proto.Node) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
@@ -82,13 +84,9 @@ func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) error {
 		return ErrMultiAgentClosed
 	}
 
-	node, err := m.OnSubscribe(m, agentID)
+	err := m.OnSubscribe(m, agentID)
 	if err != nil {
 		return err
-	}
-
-	if node != nil {
-		return m.enqueueLocked([]*Node{node})
 	}
 
 	return nil
@@ -104,17 +102,17 @@ func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) error {
 	return m.OnUnsubscribe(m, agentID)
 }
 
-func (m *MultiAgent) NextUpdate(ctx context.Context) ([]*Node, bool) {
+func (m *MultiAgent) NextUpdate(ctx context.Context) (*proto.CoordinateResponse, bool) {
 	select {
 	case <-ctx.Done():
 		return nil, false
 
-	case nodes, ok := <-m.updates:
-		return nodes, ok
+	case resp, ok := <-m.updates:
+		return resp, ok
 	}
 }
 
-func (m *MultiAgent) Enqueue(nodes []*Node) error {
+func (m *MultiAgent) Enqueue(resp *proto.CoordinateResponse) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -122,14 +120,14 @@ func (m *MultiAgent) Enqueue(nodes []*Node) error {
 		return nil
 	}
 
-	return m.enqueueLocked(nodes)
+	return m.enqueueLocked(resp)
 }
 
-func (m *MultiAgent) enqueueLocked(nodes []*Node) error {
+func (m *MultiAgent) enqueueLocked(resp *proto.CoordinateResponse) error {
 	atomic.StoreInt64(&m.lastWrite, time.Now().Unix())
 
 	select {
-	case m.updates <- nodes:
+	case m.updates <- resp:
 		return nil
 	default:
 		return ErrWouldBlock

@@ -11,7 +11,7 @@ import {
   iconValidator,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import {
   FormFields,
   FormSection,
@@ -22,11 +22,15 @@ import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+const MAX_DESCRIPTION_MESSAGE =
+  "Please enter a description that is no longer than 128 characters.";
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
@@ -34,7 +38,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     display_name: templateDisplayNameValidator("Display name"),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      "Please enter a description that is less than or equal to 128 characters.",
+      MAX_DESCRIPTION_MESSAGE,
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
@@ -50,7 +54,6 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
-  templatePoliciesEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -61,7 +64,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
-  templatePoliciesEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -77,6 +79,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         update_workspace_dormant_at: false,
         require_active_version: template.require_active_version,
         deprecation_message: template.deprecation_message,
+        disable_everyone_group_access: false,
       },
       validationSchema,
       onSubmit,
@@ -118,7 +121,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           />
 
           <TextField
-            {...getFieldHelpers("description")}
+            {...getFieldHelpers("description", {
+              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+            })}
             multiline
             disabled={isSubmitting}
             fullWidth
@@ -126,7 +131,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             rows={2}
           />
 
-          <LazyIconField
+          <IconField
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
@@ -161,9 +166,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 >
                   Allow users to cancel in-progress workspace jobs.
                   <HelpTooltip>
-                    <HelpTooltipText>
-                      If checked, users may be able to corrupt their workspace.
-                    </HelpTooltipText>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
+                      <HelpTooltipText>
+                        If checked, users may be able to corrupt their
+                        workspace.
+                      </HelpTooltipText>
+                    </HelpTooltipContent>
                   </HelpTooltip>
                 </Stack>
                 <span css={styles.optionHelperText}>
@@ -174,38 +183,39 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          {templatePoliciesEnabled && (
-            <label htmlFor="require_active_version">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="require_active_version"
-                  name="require_active_version"
-                  checked={form.values.require_active_version}
-                  onChange={form.handleChange}
-                />
+          <label htmlFor="require_active_version">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                id="require_active_version"
+                name="require_active_version"
+                checked={form.values.require_active_version}
+                onChange={form.handleChange}
+              />
 
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    Require workspaces automatically update when started.
-                    <HelpTooltip>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  css={styles.optionText}
+                >
+                  Require workspaces automatically update when started.
+                  <HelpTooltip>
+                    <HelpTooltipTrigger />
+                    <HelpTooltipContent>
                       <HelpTooltipText>
                         This setting is not enforced for template admins.
                       </HelpTooltipText>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Workspaces that are manually started or auto-started will
-                    use the active template version.
-                  </span>
+                    </HelpTooltipContent>
+                  </HelpTooltip>
                 </Stack>
+                <span css={styles.optionHelperText}>
+                  Workspaces that are manually started or auto-started will use
+                  the active template version.
+                </span>
               </Stack>
-            </label>
-          )}
+            </Stack>
+          </label>
         </Stack>
       </FormSection>
 

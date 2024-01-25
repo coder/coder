@@ -10,6 +10,7 @@ import { getAgentListeningPorts } from "api/api";
 import type {
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
+  WorkspaceAgentListeningPortsResponse,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
 import { type ClassName, useClassName } from "hooks/useClassName";
@@ -19,47 +20,65 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { AgentButton } from "components/Resources/AgentButton";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 export interface PortForwardButtonProps {
   host: string;
   username: string;
   workspaceName: string;
   agent: WorkspaceAgent;
+
+  /**
+   * Only for use in Storybook
+   */
+  storybook?: {
+    portsQueryData?: WorkspaceAgentListeningPortsResponse;
+  };
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent } = props;
+  const { agent, storybook } = props;
 
   const paper = useClassName(classNames.paper, []);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
     queryFn: () => getAgentListeningPorts(agent.id),
-    enabled: agent.status === "connected",
+    enabled: !storybook && agent.status === "connected",
     refetchInterval: 5_000,
   });
+
+  const data = storybook ? storybook.portsQueryData : portsQuery.data;
 
   return (
     <Popover>
       <PopoverTrigger>
-        <AgentButton disabled={!portsQuery.data}>
-          {DisplayAppNameMap["port_forwarding_helper"]}
-          {portsQuery.data ? (
-            <div css={styles.portCount}>{portsQuery.data.ports.length}</div>
-          ) : (
-            <CircularProgress size={10} css={{ marginLeft: 8 }} />
-          )}
-        </AgentButton>
+        <Button
+          disabled={!data}
+          size="small"
+          variant="text"
+          endIcon={<KeyboardArrowDown />}
+          css={{ fontSize: 13, padding: "8px 12px" }}
+          startIcon={
+            data ? (
+              <div>
+                <span css={styles.portCount}>{data.ports.length}</span>
+              </div>
+            ) : (
+              <CircularProgress size={10} />
+            )
+          }
+        >
+          Open ports
+        </Button>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
-        <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
+        <PortForwardPopoverView {...props} ports={data?.ports} />
       </PopoverContent>
     </Popover>
   );
@@ -204,8 +223,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.gray[11],
-    marginLeft: 8,
+    backgroundColor: theme.palette.action.selected,
   }),
 
   portLink: (theme) => ({

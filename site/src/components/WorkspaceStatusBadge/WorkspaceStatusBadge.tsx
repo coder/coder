@@ -9,7 +9,7 @@ import { type FC, type ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { DormantDeletionText } from "components/WorkspaceDeletion";
+import { DormantDeletionText } from "./DormantDeletionText";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { useClassName } from "hooks/useClassName";
 import { formatDistanceToNow } from "date-fns";
@@ -47,13 +47,27 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
           }
           placement="top"
         >
-          <div>
-            <Pill className={className} icon={icon} text={text} type={type} />
-          </div>
+          <Pill
+            role="status"
+            data-testid="build-status"
+            className={className}
+            icon={icon}
+            type={type}
+          >
+            {text}
+          </Pill>
         </FailureTooltip>
       </Cond>
       <Cond>
-        <Pill className={className} icon={icon} text={text} type={type} />
+        <Pill
+          role="status"
+          data-testid="build-status"
+          className={className}
+          icon={icon}
+          type={type}
+        >
+          {text}
+        </Pill>
       </Cond>
     </ChooseOne>
   );
@@ -69,7 +83,7 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
   className,
 }) => {
   if (!workspace.dormant_at) {
-    return <></>;
+    return null;
   }
 
   const formatDate = (dateStr: string): string => {
@@ -95,11 +109,13 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       }
     >
       <Pill
+        role="status"
         className={className}
         icon={<AutoDeleteIcon />}
-        text="Deletion Pending"
         type="error"
-      />
+      >
+        Deletion Pending
+      </Pill>
     </Tooltip>
   ) : (
     <Tooltip
@@ -113,11 +129,13 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       }
     >
       <Pill
+        role="status"
         className={className}
         icon={<RecyclingIcon />}
-        text="Dormant"
         type="warning"
-      />
+      >
+        Dormant
+      </Pill>
     </Tooltip>
   );
 };

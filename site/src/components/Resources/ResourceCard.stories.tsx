@@ -1,14 +1,12 @@
-import { action } from "@storybook/addon-actions";
 import {
   MockProxyLatencies,
-  MockWorkspace,
   MockWorkspaceResource,
 } from "testHelpers/entities";
-import { AgentRow } from "./AgentRow";
 import { ResourceCard } from "./ResourceCard";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import type { Meta, StoryObj } from "@storybook/react";
 import { type WorkspaceAgent } from "api/typesGenerated";
+import { AgentRowPreview } from "./AgentRowPreview";
 
 const meta: Meta<typeof ResourceCard> = {
   title: "components/Resources/ResourceCard",
@@ -93,15 +91,7 @@ function getAgentRow(agent: WorkspaceAgent): JSX.Element {
         },
       }}
     >
-      <AgentRow
-        showApps
-        key={agent.id}
-        agent={agent}
-        workspace={MockWorkspace}
-        serverVersion=""
-        serverAPIVersion=""
-        onUpdateAgent={action("updateAgent")}
-      />
+      <AgentRowPreview agent={agent} key={agent.id} />
     </ProxyContext.Provider>
   );
 }

@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -165,8 +166,18 @@ func TestProvision_Cancel(t *testing.T) {
 
 			// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
 			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
-			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+
+			// golang's standard OS library can sometimes leave the file descriptor open even after
+			// "Closing" the file (which can then lead to a "text file busy" error, so we bypass this
+			// and use syscall directly).
+			fd, err := syscall.Open(binPath, syscall.O_WRONLY|syscall.O_CREAT, 0o755)
 			require.NoError(t, err)
+			n, err := syscall.Write(fd, []byte(content))
+			require.NoError(t, err)
+			require.Equal(t, len(content), n)
+			err = syscall.Close(fd)
+			require.NoError(t, err)
+			t.Logf("wrote fake terraform script to %s", binPath)
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,

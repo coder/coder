@@ -9,9 +9,11 @@ import {
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import { healthyColor } from "./healthyColor";
+import { docs } from "utils/docs";
 import { css } from "@emotion/css";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import { HealthSeverity } from "api/typesGenerated";
+import { HealthMessage, HealthSeverity } from "api/typesGenerated";
+import Link from "@mui/material/Link";
 import { useTheme } from "@mui/material/styles";
 
 const CONTENT_PADDING = 36;
@@ -168,7 +170,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
         border: `1px solid ${theme.palette.divider}`,
         fontSize: 12,
         fontWeight: 500,
-        padding: "8px 16px 8px 8px",
+        padding: 8,
         gap: 8,
         cursor: "default",
       }}
@@ -180,11 +182,7 @@ export const Pill = forwardRef<HTMLDivElement, PillProps>((props, ref) => {
   );
 });
 
-type BooleanPillProps = Omit<
-  ComponentProps<typeof Pill>,
-  "children" | "icon" | "value"
-> & {
-  children: string;
+type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
   value: boolean;
 };
 
@@ -240,5 +238,17 @@ export const Logs = (props: LogsProps) => {
         </span>
       )}
     </div>
+  );
+};
+
+export const HealthMessageDocsLink = (msg: HealthMessage) => {
+  return (
+    <Link
+      href={docs(`/admin/healthcheck#${msg.code.toLocaleLowerCase()}`)}
+      target="_blank"
+      rel="noreferrer"
+    >
+      Docs for {msg.code}
+    </Link>
   );
 };

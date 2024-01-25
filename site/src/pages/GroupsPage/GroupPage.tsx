@@ -211,10 +211,12 @@ export const GroupPage: FC = () => {
   );
 };
 
-const AddGroupMember: React.FC<{
+interface AddGroupMemberProps {
   isLoading: boolean;
   onSubmit: (user: User, reset: () => void) => void;
-}> = ({ isLoading, onSubmit }) => {
+}
+
+const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const resetValues = () => {
@@ -254,12 +256,17 @@ const AddGroupMember: React.FC<{
   );
 };
 
-const GroupMemberRow = (props: {
+interface GroupMemberRowProps {
   member: User;
   group: Group;
   canUpdate: boolean;
+}
+
+const GroupMemberRow: FC<GroupMemberRowProps> = ({
+  member,
+  group,
+  canUpdate,
 }) => {
-  const { member, group, canUpdate } = props;
   const queryClient = useQueryClient();
   const removeMemberMutation = useMutation(removeMember(queryClient));
 
@@ -282,7 +289,7 @@ const GroupMemberRow = (props: {
         css={[styles.status, member.status === "suspended" && styles.suspended]}
       >
         <div>{member.status}</div>
-        <LastSeen value={member.last_seen_at} css={{ fontSize: 12 }} />
+        <LastSeen at={member.last_seen_at} css={{ fontSize: 12 }} />
       </TableCell>
       <TableCell width="1%">
         {canUpdate && (

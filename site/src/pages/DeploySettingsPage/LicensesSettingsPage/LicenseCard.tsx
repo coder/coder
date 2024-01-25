@@ -2,7 +2,7 @@ import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import dayjs from "dayjs";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { compareAsc } from "date-fns";
 import { type GetLicensesResponse } from "api/api";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -17,13 +17,13 @@ type LicenseCardProps = {
   isRemoving: boolean;
 };
 
-export const LicenseCard = ({
+export const LicenseCard: FC<LicenseCardProps> = ({
   license,
   userLimitActual,
   userLimitLimit,
   onRemove,
   isRemoving,
-}: LicenseCardProps) => {
+}) => {
   const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
     number | undefined
   >(undefined);
@@ -86,7 +86,9 @@ export const LicenseCard = ({
               new Date(license.claims.license_expires * 1000),
               new Date(),
             ) < 1 ? (
-              <Pill css={styles.expiredBadge} text="Expired" type="error" />
+              <Pill css={styles.expiredBadge} type="error">
+                Expired
+              </Pill>
             ) : (
               <span css={styles.secondaryMaincolor}>Valid Until</span>
             )}

@@ -1,65 +1,82 @@
-import { Pill } from "./Pill";
+import { Pill, PillSpinner } from "./Pill";
 import type { Meta, StoryObj } from "@storybook/react";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 
 const meta: Meta<typeof Pill> = {
   title: "components/Pill",
   component: Pill,
+  args: {
+    children: "Default",
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof Pill>;
 
-export const Default: Story = {
-  args: {
-    text: "Default",
-  },
-};
+export const Default: Story = {};
 
 export const Danger: Story = {
   args: {
-    text: "Danger",
+    children: "Danger",
     type: "danger",
   },
 };
 
 export const Error: Story = {
   args: {
-    text: "Error",
+    children: "Error",
     type: "error",
   },
 };
 
 export const Warning: Story = {
   args: {
-    text: "Warning",
+    children: "Warning",
     type: "warning",
   },
 };
 
 export const Notice: Story = {
   args: {
-    text: "Notice",
+    children: "Notice",
     type: "notice",
   },
 };
 
 export const Info: Story = {
   args: {
-    text: "Information",
+    children: "Information",
     type: "info",
   },
 };
 
 export const Success: Story = {
   args: {
-    text: "Success",
+    children: "Success",
     type: "success",
   },
 };
 
 export const Active: Story = {
   args: {
-    text: "Active",
+    children: "Active",
     type: "active",
+  },
+};
+
+export const WithIcon: Story = {
+  args: {
+    children: "Information",
+    type: "info",
+    icon: <InfoOutlined />,
+  },
+};
+
+export const WithSpinner: Story = {
+  args: {
+    icon: <PillSpinner />,
+  },
+  parameters: {
+    chromatic: { delay: 700 },
   },
 };

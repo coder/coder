@@ -31,6 +31,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./cli/external-auth.md)   | Manage external authentication                                                                        |
+| [<code>favorite</code>](./cli/favorite.md)             | Add a workspace to your favorites                                                                     |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
 | [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                                                         |
 | [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                        |
@@ -38,6 +39,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                     |
+| [<code>open</code>](./cli/open.md)                     | Open a workspace                                                                                      |
 | [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                                                      |
 | [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
 | [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                                                            |
@@ -56,6 +58,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                      |
 | [<code>templates</code>](./cli/templates.md)           | Manage templates                                                                                      |
 | [<code>tokens</code>](./cli/tokens.md)                 | Manage personal access tokens                                                                         |
+| [<code>unfavorite</code>](./cli/unfavorite.md)         | Remove a workspace from your favorites                                                                |
 | [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                          |
 | [<code>users</code>](./cli/users.md)                   | Manage users                                                                                          |
 | [<code>version</code>](./cli/version.md)               | Show coder version                                                                                    |

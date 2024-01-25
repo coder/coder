@@ -35,7 +35,7 @@ VALUES (
 	@last_seen_at,
 	@version,
 	@api_version
-) ON CONFLICT("name", lower((tags ->> 'owner'::text))) DO UPDATE SET
+) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = @provisioners,
 	tags = @tags,
 	last_seen_at = @last_seen_at,
@@ -45,3 +45,12 @@ WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ @tags :: jsonb
 RETURNING *;
+
+-- name: UpdateProvisionerDaemonLastSeenAt :exec
+UPDATE provisioner_daemons
+SET
+	last_seen_at = @last_seen_at
+WHERE
+	id = @id
+AND
+	last_seen_at <= @last_seen_at;
