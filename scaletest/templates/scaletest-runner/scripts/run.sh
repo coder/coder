@@ -13,15 +13,17 @@ log "Running scaletest..."
 set_status Running
 
 start_phase "Creating workspaces"
-coder exp scaletest create-workspaces \
-	--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
-	--template "${SCALETEST_PARAM_TEMPLATE}" \
-	--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
-	--timeout 5h \
-	--job-timeout 5h \
-	--no-cleanup \
-	--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
-show_json "${SCALETEST_RESULTS_DIR}/create-workspaces.json"
+if [[ ${SCALETEST_PARAM_SKIP_CREATE_WORKSPACES} == 0 ]]; then
+	coder exp scaletest create-workspaces \
+		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
+		--template "${SCALETEST_PARAM_TEMPLATE}" \
+		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
+		--timeout 5h \
+		--job-timeout 5h \
+		--no-cleanup \
+		--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
+	show_json "${SCALETEST_RESULTS_DIR}/create-workspaces.json"
+fi
 end_phase
 
 wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"

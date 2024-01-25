@@ -235,9 +235,18 @@ data "coder_parameter" "num_workspaces" {
   }
 }
 
+data "coder_parameter" "skip_create_workspaces" {
+  order       = 22
+  type        = "bool"
+  name        = "DEBUG: Skip creating workspaces"
+  default     = false
+  description = "Skip creating workspaces (for resuming failed scaletests or debugging)"
+  mutable     = true
+}
+
 
 data "coder_parameter" "load_scenarios" {
-  order       = 22
+  order       = 23
   name        = "Load Scenarios"
   type        = "list(string)"
   description = "The load scenarios to run."
@@ -252,7 +261,7 @@ data "coder_parameter" "load_scenarios" {
 }
 
 data "coder_parameter" "load_scenario_run_concurrently" {
-  order       = 23
+  order       = 24
   name        = "Run Load Scenarios Concurrently"
   type        = "bool"
   default     = false
@@ -261,7 +270,7 @@ data "coder_parameter" "load_scenario_run_concurrently" {
 }
 
 data "coder_parameter" "load_scenario_concurrency_staggering" {
-  order       = 23
+  order       = 25
   name        = "Load Scenario Concurrency Staggering"
   type        = "number"
   default     = 3
@@ -581,6 +590,7 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
     SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
+    SCALETEST_PARAM_SKIP_CREATE_WORKSPACES : data.coder_parameter.skip_create_workspaces.value ? "1" : "0",
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
     SCALETEST_PARAM_CLEANUP_PREPARE : data.coder_parameter.cleanup_prepare.value ? "1" : "0",
