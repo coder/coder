@@ -62,14 +62,18 @@ artifactory:
         scope: "applied-permissions/user"
 ```
 
-> Note
-> Replace `CODER_URL` with your Coder deployment URL, e.g., <coder.example.com>
+> Note Replace `CODER_URL` with your Coder deployment URL, e.g.,
+> <coder.example.com>
 
-2. Create a new Application Integration by going to <https://JFROG_URL/ui/admin/configuration/integrations/new> and select the Application Type as the integration you created in step 1.
+2. Create a new Application Integration by going to
+   <https://JFROG_URL/ui/admin/configuration/integrations/new> and select the
+   Application Type as the integration you created in step 1.
 
 ![JFrog Platform new integration](../images/guides/artifactory-integration/jfrog-oauth-app.png)
 
-3. Add a new [external authentication](https://coder.com/docs/v2/latest/admin/external-auth) to Coder by setting these env variables,
+3. Add a new
+   [external authentication](https://coder.com/docs/v2/latest/admin/external-auth)
+   to Coder by setting these env variables,
 
 ```env
 # JFrog Artifactory External Auth
@@ -83,10 +87,12 @@ CODER_EXTERNAL_AUTH_1_AUTH_URL="https://JFROG_URL/ui/authorization"
 CODER_EXTERNAL_AUTH_1_SCOPES="applied-permissions/user"
 ```
 
-> Note
-> Replace `JFROG_URL` with your JFrog Artifactory base URL, e.g., <example.jfrog.io>
+> Note Replace `JFROG_URL` with your JFrog Artifactory base URL, e.g.,
+> <example.jfrog.io>
 
-4. Create or edit a Coder template and use the [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to configure the integration.
+4. Create or edit a Coder template and use the
+   [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to
+   configure the integration.
 
 ```hcl
 module "jfrog" {
@@ -136,7 +142,8 @@ developers or stored in workspaces.
 </blockquote>
 
 The full example template uses Docker as the underlying compute. But, these
-concepts apply to any compute platform. Please check [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
+concepts apply to any compute platform. Please check
+[here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 
 ## Offline Deployments
 
