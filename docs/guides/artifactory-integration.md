@@ -30,8 +30,8 @@ The most straight-forward way to authenticate your template with Artifactory is
 by using our official Coder [modules](https://registry.coder.com). We publish
 two type of modules that automate the JFrog Artifactory and Coder integration.
 
-1. JFrog-OAuth:
-2. JFrog-Token:
+1. JFrog-OAuth
+2. JFrog-Token
 
 ### JFrog-OAuth
 
@@ -39,9 +39,54 @@ This module is usable by JFrog self-hosted (on-premises) Artifactory as it
 requires configuring a custom integration. This integration benefits from
 Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth)
 feature and allows each user to authenticate with Artifactory using an OAuth
-flow and issues user-scoped tokens to each user. For instructions on how to set
-this up, please see the details at:
-https://registry.coder.com/modules/jfrog-oauth
+flow and issues user-scoped tokens to each user.
+
+To set this up, follow these steps:
+
+1. Modify your Helm chart `values.yaml` for JFrog Artifactory to add,
+
+```yaml
+artifactory:
+  enabled: true
+  frontend:
+  extraEnvironmentVariables:
+    - name: JF_FRONTEND_FEATURETOGGLER_ACCESSINTEGRATION
+      value: "true"
+  access:
+  accessConfig:
+    integrations-enabled: true
+    integration-templates:
+      - id: "1"
+        name: "CODER"
+        redirect-uri: "https://CODER_URL/external-auth/jfrog/callback"
+        scope: "applied-permissions/user"
+```
+
+> Note
+> Replace `CODER_URL` with your Coder deployment URL, e.g., <coder.example.com>
+
+2. Create a new Application Integration by going to <https://JFROG_URL/ui/admin/configuration/integrations/new> and select the Application Type as the integration you created in step 1.
+
+![JFrog Platform new integration](../images/guides/artifactory-integration/jfrog-oauth-app.png)
+
+3. Add a new [external authentication](https://coder.com/docs/v2/latest/admin/external-auth) to Coder by setting these env variables,
+
+```env
+# JFrog Artifactory External Auth
+CODER_EXTERNAL_AUTH_1_ID="jfrog"
+CODER_EXTERNAL_AUTH_1_TYPE="jfrog"
+CODER_EXTERNAL_AUTH_1_CLIENT_ID="YYYYYYYYYYYYYYY"
+CODER_EXTERNAL_AUTH_1_CLIENT_SECRET="XXXXXXXXXXXXXXXXXXX"
+CODER_EXTERNAL_AUTH_1_DISPLAY_NAME="JFrog Artifactory"
+CODER_EXTERNAL_AUTH_1_DISPLAY_ICON="/icon/jfrog.svg"
+CODER_EXTERNAL_AUTH_1_AUTH_URL="https://JFROG_URL/ui/authorization"
+CODER_EXTERNAL_AUTH_1_SCOPES="applied-permissions/user"
+```
+
+> Note
+> Replace `JFROG_URL` with your JFrog Artifactory base URL, e.g., <example.jfrog.io>
+
+4. Create or edit a Coder template and use the [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to configure the integration.
 
 ```hcl
 module "jfrog" {
