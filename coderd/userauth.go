@@ -604,7 +604,18 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	// We intentionally omit the email here. Users should be found through the
+	// github uuid. If the id is nil, we should never link on the uuid 0.
+	// This would be a big problem, and should never happen.
+	if ghUser.GetID() == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Github user ID is missing.",
+		})
+		return
+	}
+
+	ghid := githubLinkedID(ghUser)
+	user, link, err := findLinkedUser(ctx, api.Database, ghid)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
