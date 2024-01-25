@@ -345,4 +345,45 @@ describe("templateInheritance", () => {
     );
     expect(ttlInput).toBeDisabled();
   });
+  it("disables secondary autostart fields if main feature switch is toggled off", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        initialValues={{
+          ...defaultFormProps.initialValues,
+          autostartEnabled: false,
+        }}
+      />,
+    );
+
+    const startTimeInput = await screen.findByLabelText("Start time");
+    expect(startTimeInput).toBeDisabled();
+
+    const timezoneInput = await screen.findByLabelText("Timezone");
+    // MUI's input is wrapped in a div so we look at the aria-attribute instead
+    expect(timezoneInput).toHaveAttribute("aria-disabled");
+
+    autoStartDays.forEach(async (label) => {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeDisabled();
+    });
+  });
+  it("disables secondary autostop fields if main feature switch is toggled off", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        initialValues={{
+          ...defaultFormProps.initialValues,
+          autostopEnabled: false,
+        }}
+      />,
+    );
+
+    const ttlInput = await screen.findByLabelText(
+      "Time until shutdown (hours)",
+    );
+    expect(ttlInput).toBeDisabled();
+  });
 });

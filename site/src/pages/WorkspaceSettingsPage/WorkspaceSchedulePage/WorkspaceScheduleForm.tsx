@@ -315,14 +315,26 @@ export const WorkspaceScheduleForm: FC<
           <Stack direction="row">
             <TextField
               {...formHelpers("startTime")}
-              disabled={isLoading || !allowTemplateAutoStart}
+              // disabled if template does not allow autostart
+              // or if primary feature is toggled off via the switch above
+              disabled={
+                isLoading ||
+                !allowTemplateAutoStart ||
+                !form.values.autostartEnabled
+              }
               label={Language.startTimeLabel}
               type="time"
               fullWidth
             />
             <TextField
               {...formHelpers("timezone")}
-              disabled={isLoading || !allowTemplateAutoStart}
+              // disabled if template does not allow autostart
+              // or if primary feature is toggled off via the switch above
+              disabled={
+                isLoading ||
+                !allowTemplateAutoStart ||
+                !form.values.autostartEnabled
+              }
               label={Language.timezoneLabel}
               select
               fullWidth
@@ -354,11 +366,13 @@ export const WorkspaceScheduleForm: FC<
                     <Checkbox
                       checked={checkbox.value}
                       // template admins can disable the autostart feature in general,
-                      // or they can disallow autostart on specific days of the week
+                      // or they can disallow autostart on specific days of the week.
+                      // also disabled if primary feature switch (above) is toggled off
                       disabled={
                         isLoading ||
                         !allowTemplateAutoStart ||
-                        !allowedTemplateAutoStartDays.includes(checkbox.name)
+                        !allowedTemplateAutoStartDays.includes(checkbox.name) ||
+                        !form.values.autostartEnabled
                       }
                       onChange={form.handleChange}
                       name={checkbox.name}
@@ -413,7 +427,13 @@ export const WorkspaceScheduleForm: FC<
               helperText: ttlShutdownAt(form.values.ttl),
               backendFieldName: "ttl_ms",
             })}
-            disabled={isLoading || !allowTemplateAutoStop}
+            // disabled if autostop disabled at template level or
+            // if autostop feature is toggled off via the switch above
+            disabled={
+              isLoading ||
+              !allowTemplateAutoStop ||
+              !form.values.autostopEnabled
+            }
             inputProps={{ min: 0, step: "any" }}
             label={Language.ttlLabel}
             type="number"
