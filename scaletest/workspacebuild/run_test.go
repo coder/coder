@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,5 +230,54 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "test error")
+	})
+
+	t.Run("RetryBuild", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
+				{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Error: "test error",
+						},
+					},
+				},
+			},
+		})
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
+			OrganizationID: user.OrganizationID,
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+			},
+			Retry: 1,
+		})
+
+		logs := bytes.NewBuffer(nil)
+		err := runner.Run(ctx, "1", logs)
+		logsStr := logs.String()
+		t.Log("Runner logs:\n\n" + logsStr)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "test error")
+		require.Equal(t, 1, strings.Count(logsStr, "Retrying build"))
+		require.Equal(t, 2*2, strings.Count(logsStr, "test error")) // once per error, once per logged sdk response.
 	})
 }
