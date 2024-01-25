@@ -1,4 +1,4 @@
-# Coder JFrog Integration
+# JFrog Artifactory Integration
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
