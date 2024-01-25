@@ -1,4 +1,4 @@
-import { Entitlements, Feature, FeatureName } from "api/typesGenerated";
+import type { Entitlements, Feature, FeatureName } from "api/typesGenerated";
 
 /**
  * @param hasLicense true if Enterprise edition
