@@ -2,12 +2,11 @@ package agentapi_test
 
 import (
 	"context"
-	"sync/atomic"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -56,7 +55,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			Health: database.WorkspaceAppHealthUnhealthy,
 		}).Return(nil)
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.AppsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -64,12 +63,12 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 				return nil
 			},
 		}
 
-		// Set both to healthy, only one should be updated in the DB.
+		// Set one to healthy, set another to unhealthy.
 		resp, err := api.BatchUpdateAppHealths(context.Background(), &agentproto.BatchUpdateAppHealthRequest{
 			Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
 				{
@@ -85,7 +84,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchUpdateAppHealthResponse{}, resp)
 
-		require.EqualValues(t, 1, atomic.LoadInt64(&publishCalled))
+		require.True(t, publishCalled)
 	})
 
 	t.Run("Unchanged", func(t *testing.T) {
@@ -94,7 +93,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.AppsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -102,7 +101,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 				return nil
 			},
 		}
@@ -124,7 +123,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchUpdateAppHealthResponse{}, resp)
 
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishCalled))
+		require.False(t, publishCalled)
 	})
 
 	t.Run("Empty", func(t *testing.T) {
@@ -133,7 +132,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		// No DB queries are made if there are no updates to process.
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.AppsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -141,7 +140,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 				return nil
 			},
 		}
@@ -153,7 +152,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchUpdateAppHealthResponse{}, resp)
 
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishCalled))
+		require.False(t, publishCalled)
 	})
 
 	t.Run("AppNoHealthcheck", func(t *testing.T) {

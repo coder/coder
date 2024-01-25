@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -89,7 +89,7 @@ func TestUpdateStates(t *testing.T) {
 				},
 			}
 			batcher                    = &statsBatcher{}
-			updateAgentMetricsFnCalled int64
+			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -129,7 +129,7 @@ func TestUpdateStates(t *testing.T) {
 			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
 			AgentStatsRefreshInterval: 10 * time.Second,
 			UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
-				atomic.AddInt64(&updateAgentMetricsFnCalled, 1)
+				updateAgentMetricsFnCalled = true
 				assert.Equal(t, prometheusmetrics.AgentMetricLabels{
 					Username:      user.Username,
 					WorkspaceName: workspace.Name,
@@ -179,6 +179,8 @@ func TestUpdateStates(t *testing.T) {
 		require.Equal(t, user.ID, batcher.lastUserID)
 		require.Equal(t, workspace.ID, batcher.lastWorkspaceID)
 		require.Equal(t, req.Stats, batcher.lastStats)
+
+		require.True(t, updateAgentMetricsFnCalled)
 	})
 
 	t.Run("ConnectionCountZero", func(t *testing.T) {
@@ -303,7 +305,7 @@ func TestUpdateStates(t *testing.T) {
 				},
 			}
 			batcher                    = &statsBatcher{}
-			updateAgentMetricsFnCalled int64
+			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -324,7 +326,7 @@ func TestUpdateStates(t *testing.T) {
 			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
 			AgentStatsRefreshInterval: 15 * time.Second,
 			UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
-				atomic.AddInt64(&updateAgentMetricsFnCalled, 1)
+				updateAgentMetricsFnCalled = true
 				assert.Equal(t, prometheusmetrics.AgentMetricLabels{
 					Username:      user.Username,
 					WorkspaceName: workspace.Name,
@@ -365,6 +367,8 @@ func TestUpdateStates(t *testing.T) {
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(15 * time.Second),
 		}, resp)
+
+		require.True(t, updateAgentMetricsFnCalled)
 	})
 }
 

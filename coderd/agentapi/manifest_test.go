@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
@@ -300,8 +300,10 @@ func TestGetManifest(t *testing.T) {
 
 		expected := &agentproto.Manifest{
 			AgentId:                  agent.ID[:],
+			AgentName:                agent.Name,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
 			Directory:                agent.Directory,
@@ -365,12 +367,14 @@ func TestGetManifest(t *testing.T) {
 
 		expected := &agentproto.Manifest{
 			AgentId:                  agent.ID[:],
+			AgentName:                agent.Name,
 			OwnerUsername:            owner.Username,
 			WorkspaceId:              workspace.ID[:],
+			WorkspaceName:            workspace.Name,
 			GitAuthConfigs:           2, // two "enhanced" external auth configs
 			EnvironmentVariables:     expectedEnvVars,
 			Directory:                agent.Directory,
-			VsCodePortProxyUri:       "https://example.com",
+			VsCodePortProxyUri:       "", // empty with no AppHost
 			MotdPath:                 agent.MOTDFile,
 			DisableDirectConnections: true,
 			DerpForceWebsockets:      true,
