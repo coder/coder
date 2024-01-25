@@ -1029,7 +1029,7 @@
         {
           "title": "JFrog Artifactory Integration",
           "description": "Integrate Coder with JFrog Artifactory",
-          "path": "./guides/coder-artifactory-integration.md"
+          "path": "./guides/artifactory-integration.md"
         },
         {
           "title": "Template ImagePullSecrets",
