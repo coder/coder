@@ -102,8 +102,7 @@ func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
 	numBeats := 3
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
 		t.Logf("heartbeat")
