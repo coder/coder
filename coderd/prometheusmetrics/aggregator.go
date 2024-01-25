@@ -2,6 +2,8 @@ package prometheusmetrics
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,7 +32,7 @@ const (
 )
 
 type MetricsAggregator struct {
-	queue []annotatedMetric
+	store map[string]annotatedMetric
 
 	log                    slog.Logger
 	metricsCleanupInterval time.Duration
@@ -62,6 +64,20 @@ type annotatedMetric struct {
 	templateName  string
 
 	expiryDate time.Time
+}
+
+func hashKey(req *updateRequest, m *agentproto.Stats_Metric) string {
+	var sbLabels strings.Builder
+	for i, label := range m.GetLabels() {
+		_, _ = sbLabels.WriteString(label.Name)
+		_ = sbLabels.WriteByte('=')
+		_, _ = sbLabels.WriteString(label.Value)
+
+		if i-1 != len(m.GetLabels()) {
+			_ = sbLabels.WriteByte(',')
+		}
+	}
+	return fmt.Sprintf("%s|%s|%s|%s|%s|%s", req.username, req.workspaceName, req.agentName, req.templateName, m.GetName(), sbLabels.String())
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
@@ -129,6 +145,8 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		log:                    logger.Named(loggerName),
 		metricsCleanupInterval: metricsCleanupInterval,
 
+		store: map[string]annotatedMetric{},
+
 		collectCh: make(chan (chan []prometheus.Metric), sizeCollectCh),
 		updateCh:  make(chan updateRequest, sizeUpdateCh),
 
@@ -152,32 +170,30 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				ma.log.Debug(ctx, "update metrics")
 
 				timer := prometheus.NewTimer(ma.updateHistogram)
-			UpdateLoop:
 				for _, m := range req.metrics {
-					for i, q := range ma.queue {
-						if q.is(req, m) {
-							ma.queue[i].Stats_Metric.Value = m.Value
-							ma.queue[i].expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
-							continue UpdateLoop
+					key := hashKey(&req, m)
+					if val, ok := ma.store[key]; ok {
+						val.Stats_Metric.Value = m.Value
+						val.expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
+						ma.store[key] = val
+					} else {
+						ma.store[key] = annotatedMetric{
+							Stats_Metric:  m,
+							username:      req.username,
+							workspaceName: req.workspaceName,
+							agentName:     req.agentName,
+							templateName:  req.templateName,
+							expiryDate:    req.timestamp.Add(ma.metricsCleanupInterval),
 						}
 					}
-
-					ma.queue = append(ma.queue, annotatedMetric{
-						Stats_Metric:  m,
-						username:      req.username,
-						workspaceName: req.workspaceName,
-						agentName:     req.agentName,
-						templateName:  req.templateName,
-						expiryDate:    req.timestamp.Add(ma.metricsCleanupInterval),
-					})
 				}
 
 				timer.ObserveDuration()
 			case outputCh := <-ma.collectCh:
 				ma.log.Debug(ctx, "collect metrics")
 
-				output := make([]prometheus.Metric, 0, len(ma.queue))
-				for _, m := range ma.queue {
+				output := make([]prometheus.Metric, 0, len(ma.store))
+				for _, m := range ma.store {
 					promMetric, err := m.asPrometheus()
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
@@ -191,25 +207,12 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				ma.log.Debug(ctx, "clean expired metrics")
 
 				timer := prometheus.NewTimer(ma.cleanupHistogram)
-
 				now := time.Now()
 
-				var hasExpiredMetrics bool
-				for _, m := range ma.queue {
-					if now.After(m.expiryDate) {
-						hasExpiredMetrics = true
-						break
+				for key, val := range ma.store {
+					if now.After(val.expiryDate) {
+						delete(ma.store, key)
 					}
-				}
-
-				if hasExpiredMetrics {
-					fresh := make([]annotatedMetric, 0, len(ma.queue))
-					for _, m := range ma.queue {
-						if m.expiryDate.After(now) {
-							fresh = append(fresh, m)
-						}
-					}
-					ma.queue = fresh
 				}
 
 				timer.ObserveDuration()

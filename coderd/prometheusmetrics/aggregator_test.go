@@ -3,6 +3,7 @@ package prometheusmetrics_test
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -80,7 +81,6 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	}
 	expected := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
-		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: -9, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "lizz", Value: "rizz"},
@@ -88,7 +88,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "workspace_name", Value: testWorkspaceName},
 			{Name: "template_name", Value: testTemplateName},
 		}},
-		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "foobar", Value: "Foobaz"},
@@ -97,6 +97,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "workspace_name", Value: testWorkspaceName},
 			{Name: "template_name", Value: testTemplateName},
 		}},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
 		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: commonLabels},
 	}
 
@@ -129,6 +130,39 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		t.Logf("expected %d metrics, got %d", len(expected), len(actual))
 		return false
 	}
+
+	prometheusMetricString := func(m prometheus.Metric) string {
+		var sb strings.Builder
+
+		desc := m.Desc()
+		_, _ = sb.WriteString(desc.String())
+		_ = sb.WriteByte('|')
+
+		var d dto.Metric
+		err := m.Write(&d)
+		require.NoError(t, err)
+		dtoLabels := asMetricAgentLabels(d.GetLabel())
+		sort.Slice(dtoLabels, func(i, j int) bool {
+			return dtoLabels[i].Name < dtoLabels[j].Name
+		})
+
+		for i, dtoLabel := range dtoLabels {
+			_, _ = sb.WriteString(dtoLabel.Name)
+			_ = sb.WriteByte('=')
+			_, _ = sb.WriteString(dtoLabel.Value)
+
+			if i-1 != len(dtoLabels) {
+				_ = sb.WriteByte(',')
+			}
+		}
+		return sb.String()
+	}
+
+	sort.Slice(actual, func(i, j int) bool {
+		m1 := prometheusMetricString(actual[i])
+		m2 := prometheusMetricString(actual[j])
+		return m1 < m2
+	})
 
 	for i, e := range expected {
 		desc := actual[i].Desc()
