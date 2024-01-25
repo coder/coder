@@ -68,7 +68,7 @@ const styles = {
     rowGap: 24,
     marginBottom: 24,
     fontSize: 14,
-    background: `linear-gradient(180deg, ${theme.palette.background.default} 0%, rgba(0, 0, 0, 0) 100%)`,
+    background: `linear-gradient(180deg, ${theme.palette.background.default} 25%, rgba(0, 0, 0, 0) 100%)`,
   }),
 
   item: () => ({

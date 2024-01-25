@@ -182,101 +182,97 @@ export const Workspace: FC<WorkspaceProps> = ({
         <HistorySidebar workspace={workspace} />
       )}
 
-      <div css={styles.content}>
-        <div css={styles.dotBackground}>
-          {selectedResource && (
-            <ResourceMetadata
-              resource={selectedResource}
-              css={{ margin: "-48px 0 24px -48px" }}
+      <div css={[styles.content, styles.dotsBackground]}>
+        {selectedResource && (
+          <ResourceMetadata
+            resource={selectedResource}
+            css={{ margin: "-32px -32px 0 -32px", marginBottom: 24 }}
+          />
+        )}
+        <div
+          css={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 24,
+            maxWidth: 24 * 50,
+            margin: "auto",
+          }}
+        >
+          {workspace.latest_build.status === "deleted" && (
+            <WorkspaceDeletedBanner
+              handleClick={() => navigate(`/templates`)}
             />
           )}
-          <div
-            css={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 24,
-              maxWidth: 24 * 50,
-              margin: "auto",
-            }}
-          >
-            {workspace.latest_build.status === "deleted" && (
-              <WorkspaceDeletedBanner
-                handleClick={() => navigate(`/templates`)}
-              />
-            )}
 
-            {workspace.latest_build.job.error && (
-              <Alert
-                severity="error"
-                actions={
-                  <Button
-                    onClick={
-                      canRetryDebugMode
-                        ? handleBuildRetryDebug
-                        : handleBuildRetry
-                    }
-                    variant="text"
-                    size="small"
-                  >
-                    Retry{canRetryDebugMode && " in debug mode"}
-                  </Button>
-                }
-              >
-                <AlertTitle>Workspace build failed</AlertTitle>
-                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-              </Alert>
-            )}
+          {workspace.latest_build.job.error && (
+            <Alert
+              severity="error"
+              actions={
+                <Button
+                  onClick={
+                    canRetryDebugMode ? handleBuildRetryDebug : handleBuildRetry
+                  }
+                  variant="text"
+                  size="small"
+                >
+                  Retry{canRetryDebugMode && " in debug mode"}
+                </Button>
+              }
+            >
+              <AlertTitle>Workspace build failed</AlertTitle>
+              <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+            </Alert>
+          )}
 
-            {transitionStats !== undefined && (
-              <WorkspaceBuildProgress
-                workspace={workspace}
-                transitionStats={transitionStats}
-              />
-            )}
+          {transitionStats !== undefined && (
+            <WorkspaceBuildProgress
+              workspace={workspace}
+              transitionStats={transitionStats}
+            />
+          )}
 
-            {buildLogs}
+          {buildLogs}
 
-            {selectedResource && (
-              <section
-                css={{ display: "flex", flexDirection: "column", gap: 24 }}
-              >
-                {selectedResource.agents?.map((agent) => (
-                  <AgentRow
-                    key={agent.id}
-                    agent={agent}
-                    workspace={workspace}
-                    sshPrefix={sshPrefix}
-                    showApps={permissions.updateWorkspace}
-                    showBuiltinApps={permissions.updateWorkspace}
-                    hideSSHButton={hideSSHButton}
-                    hideVSCodeDesktopButton={hideVSCodeDesktopButton}
-                    serverVersion={buildInfo?.version || ""}
-                    serverAPIVersion={buildInfo?.agent_api_version || ""}
-                    onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
-                  />
-                ))}
+          {selectedResource && (
+            <section
+              css={{ display: "flex", flexDirection: "column", gap: 24 }}
+            >
+              {selectedResource.agents?.map((agent) => (
+                <AgentRow
+                  key={agent.id}
+                  agent={agent}
+                  workspace={workspace}
+                  sshPrefix={sshPrefix}
+                  showApps={permissions.updateWorkspace}
+                  showBuiltinApps={permissions.updateWorkspace}
+                  hideSSHButton={hideSSHButton}
+                  hideVSCodeDesktopButton={hideVSCodeDesktopButton}
+                  serverVersion={buildInfo?.version || ""}
+                  serverAPIVersion={buildInfo?.agent_api_version || ""}
+                  onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
+                />
+              ))}
 
-                {(!selectedResource.agents ||
-                  selectedResource.agents?.length === 0) && (
-                  <div
-                    css={{
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      width: "100%",
-                      height: "100%",
-                    }}
-                  >
-                    <div>
-                      <h4 css={{ fontSize: 16, fontWeight: 500 }}>
-                        No agents are currently assigned to this resource.
-                      </h4>
-                    </div>
+              {(!selectedResource.agents ||
+                selectedResource.agents?.length === 0) && (
+                <div
+                  css={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    width: "100%",
+                    height: "100%",
+                  }}
+                >
+                  <div>
+                    <h4 css={{ fontSize: 16, fontWeight: 500 }}>
+                      No agents are currently assigned to this resource.
+                    </h4>
                   </div>
-                )}
-              </section>
-            )}
-          </div>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -289,15 +285,13 @@ const countAgents = (resource: TypesGen.WorkspaceResource) => {
 
 const styles = {
   content: {
-    padding: 24,
+    padding: 32,
     gridArea: "content",
     overflowY: "auto",
     position: "relative",
   },
 
-  dotBackground: (theme) => ({
-    minHeight: "100%",
-    padding: 23,
+  dotsBackground: (theme) => ({
     "--d": "1px",
     background: `
       radial-gradient(
@@ -305,10 +299,10 @@ const styles = {
           var(--d)
           var(--d),
 
-        ${theme.palette.text.secondary} calc(var(--d) - 1px),
+        ${theme.palette.dots} calc(var(--d) - 1px),
         ${theme.palette.background.default} var(--d)
       )
-      0 0 / 24px 24px
+      -2px -2px / 16px 16px
     `,
   }),
 
