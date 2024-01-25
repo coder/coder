@@ -40,6 +40,7 @@ type MetricsAggregator struct {
 	collectCh chan (chan []prometheus.Metric)
 	updateCh  chan updateRequest
 
+	storeSizeGauge   prometheus.Gauge
 	updateHistogram  prometheus.Histogram
 	cleanupHistogram prometheus.Histogram
 }
@@ -117,6 +118,17 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		metricsCleanupInterval = duration
 	}
 
+	storeSizeGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "prometheusmetrics",
+		Name:      "metrics_aggregator_store_size",
+		Help:      "The number of metrics stored in the aggregator",
+	})
+	err := registerer.Register(storeSizeGauge)
+	if err != nil {
+		return nil, err
+	}
+
 	updateHistogram := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -124,7 +136,7 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		Help:      "Histogram for duration of metrics aggregator update in seconds.",
 		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
 	})
-	err := registerer.Register(updateHistogram)
+	err = registerer.Register(updateHistogram)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +162,7 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		collectCh: make(chan (chan []prometheus.Metric), sizeCollectCh),
 		updateCh:  make(chan updateRequest, sizeUpdateCh),
 
+		storeSizeGauge:   storeSizeGauge,
 		updateHistogram:  updateHistogram,
 		cleanupHistogram: cleanupHistogram,
 	}, nil
@@ -187,8 +200,9 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 						}
 					}
 				}
-
 				timer.ObserveDuration()
+
+				ma.storeSizeGauge.Set(float64(len(ma.store)))
 			case outputCh := <-ma.collectCh:
 				ma.log.Debug(ctx, "collect metrics")
 
@@ -217,6 +231,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				timer.ObserveDuration()
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
+				ma.storeSizeGauge.Set(float64(len(ma.store)))
 
 			case <-ctx.Done():
 				ma.log.Debug(ctx, "metrics aggregator is stopped")
