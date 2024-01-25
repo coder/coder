@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -223,6 +225,82 @@ func TestLicensesDeleteReal(t *testing.T) {
 		assert.Equal(t, 404, coderError.StatusCode())
 		assert.Contains(t, "Unknown license ID", coderError.Message)
 	})
+}
+
+func TestLicensesFlake(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("flake test only works with postgres")
+	}
+
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true, EntitlementsUpdateInterval: testutil.IntervalFast})
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tick := time.NewTicker(testutil.IntervalFast)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				_, err := client.Licenses(ctx)
+				if ctx.Err() != nil {
+					// test is finished
+					return
+				}
+				assert.NoError(t, err)
+			}
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tick := time.NewTicker(testutil.IntervalFast)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				_, err := client.HasFirstUser(ctx)
+				if ctx.Err() != nil {
+					// test is finished
+					return
+				}
+				assert.NoError(t, err)
+			}
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var i int
+	SpamLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				t.Logf("Successfully added and deleted %d licenses", i)
+				cancel()
+				break SpamLoop
+			default:
+				resp, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+					License: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{AllFeatures: true}),
+				})
+				require.NoError(t, err)
+				<-time.After(testutil.IntervalMedium)
+				err = client.DeleteLicense(context.Background(), resp.ID)
+				require.NoError(t, err)
+				i++
+			}
+		}
+	}()
+	wg.Wait()
 }
 
 func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invocation {
