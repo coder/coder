@@ -1017,6 +1017,11 @@
       "icon_path": "./images/icons/notes.svg",
       "children": [
         {
+          "title": "Coder JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./guides/coder-artifactory-integration.md"
+        },
+        {
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
