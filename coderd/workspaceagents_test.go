@@ -1577,7 +1577,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			},
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
-					cfg.Type = codersdk.EnhancedExternalAuthProviderGitLab.String()
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 				}),
 			},
 		})
@@ -1623,8 +1623,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			ticks <- time.Now()
 		}
 		cancel()
-		// We expect only 1. One from the initial "Refresh" attempt, and the
-		// other should be skipped.
+		// We expect only 1
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
 		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")

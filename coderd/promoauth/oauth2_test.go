@@ -75,7 +75,7 @@ func TestInstrument(t *testing.T) {
 	require.Equal(t, count("TokenSource"), 1)
 
 	// Try a validate
-	valid, _, err := cfg.ValidateToken(ctx, refreshed)
+	valid, _, err := cfg.ValidateToken(ctx, refreshed.AccessToken)
 	require.NoError(t, err)
 	require.True(t, valid)
 	require.Equal(t, count("ValidateToken"), 1)

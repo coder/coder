@@ -57,7 +57,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	}
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
-		res.Authenticated, res.User, err = config.ValidateToken(ctx, link.OAuthToken())
+		res.Authenticated, res.User, err = config.ValidateToken(ctx, link.OAuthAccessToken)
 		return err
 	})
 	eg.Go(func() (err error) {
