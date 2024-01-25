@@ -129,6 +129,7 @@ type data struct {
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
+	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
@@ -1964,6 +1965,24 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 		}
 	}
 	return hungJobs, nil
+}
+
+func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.JfrogXrayScan{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			return scan, nil
+		}
+	}
+
+	return database.JfrogXrayScan{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
@@ -5007,6 +5026,32 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	q.groupMembers = append(q.groupMembers, database.GroupMember{
 		GroupID: arg.GroupID,
 		UserID:  arg.UserID,
+	})
+
+	return nil
+}
+
+func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			scan.Payload = arg.Payload
+			q.jfrogXRayScans[i] = scan
+			return nil
+		}
+	}
+
+	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		Payload:     arg.Payload,
 	})
 
 	return nil

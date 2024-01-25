@@ -2438,6 +2438,55 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
+const getJFrogXrayScanByWorkspaceAndAgentID = `-- name: GetJFrogXrayScanByWorkspaceAndAgentID :one
+SELECT
+	agent_id, workspace_id, payload
+FROM
+	jfrog_xray_scans
+WHERE
+	agent_id = $1
+AND
+	workspace_id = $2
+LIMIT
+	1
+`
+
+type GetJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error) {
+	row := q.db.QueryRowContext(ctx, getJFrogXrayScanByWorkspaceAndAgentID, arg.AgentID, arg.WorkspaceID)
+	var i JfrogXrayScan
+	err := row.Scan(&i.AgentID, &i.WorkspaceID, &i.Payload)
+	return i, err
+}
+
+const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
+INSERT INTO 
+	jfrog_xray_scans (
+		agent_id,
+		workspace_id,
+		payload
+	)
+VALUES 
+	($1, $2, $3)
+ON CONFLICT (agent_id, workspace_id)
+DO UPDATE SET payload = $3
+`
+
+type UpsertJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	Payload     json.RawMessage `db:"payload" json:"payload"`
+}
+
+func (q *sqlQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	_, err := q.db.ExecContext(ctx, upsertJFrogXrayScanByWorkspaceAndAgentID, arg.AgentID, arg.WorkspaceID, arg.Payload)
+	return err
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
