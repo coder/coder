@@ -5031,32 +5031,6 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, scan := range q.jfrogXRayScans {
-		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			scan.Payload = arg.Payload
-			q.jfrogXRayScans[i] = scan
-			return nil
-		}
-	}
-
-	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
-		WorkspaceID: arg.WorkspaceID,
-		AgentID:     arg.AgentID,
-		Payload:     arg.Payload,
-	})
-
-	return nil
-}
-
 func (q *FakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams,
 ) (database.License, error) {
@@ -7294,6 +7268,32 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	defer q.mutex.RUnlock()
 
 	q.healthSettings = []byte(data)
+	return nil
+}
+
+func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			scan.Payload = arg.Payload
+			q.jfrogXRayScans[i] = scan
+			return nil
+		}
+	}
+
+	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		Payload:     arg.Payload,
+	})
+
 	return nil
 }
 

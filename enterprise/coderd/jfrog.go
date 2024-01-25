@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -34,6 +35,11 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 		AgentID:     req.AgentID,
 		Payload:     payload,
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
