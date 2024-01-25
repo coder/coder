@@ -26,7 +26,7 @@ const (
 	loggerName = "prometheusmetrics"
 
 	sizeCollectCh = 10
-	sizeUpdateCh  = 1024
+	sizeUpdateCh  = 4096
 
 	defaultMetricsCleanupInterval = 2 * time.Minute
 )

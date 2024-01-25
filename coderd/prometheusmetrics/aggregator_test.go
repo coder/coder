@@ -131,36 +131,9 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		return false
 	}
 
-	prometheusMetricString := func(m prometheus.Metric) string {
-		var sb strings.Builder
-
-		desc := m.Desc()
-		_, _ = sb.WriteString(desc.String())
-		_ = sb.WriteByte('|')
-
-		var d dto.Metric
-		err := m.Write(&d)
-		require.NoError(t, err)
-		dtoLabels := asMetricAgentLabels(d.GetLabel())
-		sort.Slice(dtoLabels, func(i, j int) bool {
-			return dtoLabels[i].Name < dtoLabels[j].Name
-		})
-
-		for i, dtoLabel := range dtoLabels {
-			_, _ = sb.WriteString(dtoLabel.Name)
-			_ = sb.WriteByte('=')
-			_, _ = sb.WriteString(dtoLabel.Value)
-
-			if i-1 != len(dtoLabels) {
-				_ = sb.WriteByte(',')
-			}
-		}
-		return sb.String()
-	}
-
 	sort.Slice(actual, func(i, j int) bool {
-		m1 := prometheusMetricString(actual[i])
-		m2 := prometheusMetricString(actual[j])
+		m1 := prometheusMetricToString(t, actual[i])
+		m2 := prometheusMetricToString(t, actual[j])
 		return m1 < m2
 	})
 
@@ -188,6 +161,33 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		require.Equal(t, e.Labels, dtoLabels, d.String())
 	}
 	return true
+}
+
+func prometheusMetricToString(t *testing.T, m prometheus.Metric) string {
+	var sb strings.Builder
+
+	desc := m.Desc()
+	_, _ = sb.WriteString(desc.String())
+	_ = sb.WriteByte('|')
+
+	var d dto.Metric
+	err := m.Write(&d)
+	require.NoError(t, err)
+	dtoLabels := asMetricAgentLabels(d.GetLabel())
+	sort.Slice(dtoLabels, func(i, j int) bool {
+		return dtoLabels[i].Name < dtoLabels[j].Name
+	})
+
+	for i, dtoLabel := range dtoLabels {
+		_, _ = sb.WriteString(dtoLabel.Name)
+		_ = sb.WriteByte('=')
+		_, _ = sb.WriteString(dtoLabel.Value)
+
+		if i-1 != len(dtoLabels) {
+			_ = sb.WriteByte(',')
+		}
+	}
+	return sb.String()
 }
 
 func asMetricAgentLabels(dtoLabels []*dto.LabelPair) []*agentproto.Stats_Metric_Label {
