@@ -14,11 +14,7 @@ Use Coder and JFrog Artifactory together to secure your development environments
 without disturbing your developers' existing workflows.
 
 This guide will demonstrate how to use JFrog Artifactory as a package registry
-within a workspace. We'll use Docker as the underlying compute. But, these
-concepts apply to any compute platform.
-
-The full example template can be found
-[here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
+within a workspace.
 
 ## Requirements
 
@@ -93,6 +89,9 @@ module "jfrog" {
 The admin-level access token is used to provision user tokens and is never exposed to
 developers or stored in workspaces.
 </blockquote>
+
+The full example template uses Docker as the underlying compute. But, these
+concepts apply to any compute platform. Please check [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 
 ## Offline Deployments
 
