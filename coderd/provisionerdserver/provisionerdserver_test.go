@@ -104,7 +104,6 @@ func TestHeartbeat(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	heartbeatChan := make(chan struct{})
-	heartbeatDone := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
 		t.Logf("heartbeat")
 		select {
@@ -118,7 +117,6 @@ func TestHeartbeat(t *testing.T) {
 	//nolint:dogsled // ｡:ﾟ૮ ˶ˆ ﻌ ˆ˶ ა ﾟ:｡
 	_, _, _, _ = setup(t, false, &overrides{
 		ctx:               ctx,
-		heartbeatDone:     heartbeatDone,
 		heartbeatFn:       heartbeatFn,
 		heartbeatInterval: testutil.IntervalFast,
 	})
@@ -127,9 +125,17 @@ func TestHeartbeat(t *testing.T) {
 	require.True(t, ok, "first heartbeat not received")
 	_, ok = <-heartbeatChan
 	require.True(t, ok, "second heartbeat not received")
-	// Cancel the context. This should cause heartbeatDone to be closed.
 	cancel()
-	<-heartbeatDone
+	// Close the channel to ensure we don't receive any more heartbeats.
+	// The test will fail if we do.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("heartbeat received after cancel: %v", r)
+		}
+	}()
+
+	close(heartbeatChan)
+	<-time.After(testutil.IntervalMedium)
 }
 
 func TestAcquireJob(t *testing.T) {
@@ -1721,7 +1727,6 @@ type overrides struct {
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
-	heartbeatDone               chan struct{}
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -1745,9 +1750,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 	if ov.heartbeatInterval == 0 {
 		ov.heartbeatInterval = testutil.IntervalMedium
-	}
-	if ov.heartbeatDone == nil {
-		ov.heartbeatDone = make(chan struct{})
 	}
 	if ov.deploymentValues != nil {
 		deploymentValues = ov.deploymentValues
@@ -1813,7 +1815,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
-			HeartbeatDone:         ov.heartbeatDone,
 		},
 	)
 	require.NoError(t, err)
