@@ -477,19 +477,6 @@ func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAge
 	reqs, resps := c.Coordinate(ctx, id, id.String(), SingleTailnetTunnelAuth{})
 	m := (&MultiAgent{
 		ID: id,
-		AgentIsLegacyFunc: func(agentID uuid.UUID) bool {
-			if n := c.Node(agentID); n == nil {
-				// If we don't have the node at all assume it's legacy for
-				// safety.
-				return true
-			} else if len(n.Addresses) > 0 && n.Addresses[0].Addr() == legacyAgentIP {
-				// An agent is determined to be "legacy" if it's first IP is the
-				// legacy IP. Agents with only the legacy IP aren't compatible
-				// with single_tailnet and must be routed through wsconncache.
-				return true
-			}
-			return false
-		},
 		OnSubscribe: func(enq Queue, agent uuid.UUID) error {
 			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
 			return err
@@ -833,10 +820,6 @@ func ServeAgentV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, conn
 	logger.Debug(ctx, "ending agent connection")
 	return nil
 }
-
-// This is copied from codersdk because importing it here would cause an import
-// cycle. This is just temporary until wsconncache is phased out.
-var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
 
 // Close closes all of the open connections in the coordinator and stops the
 // coordinator from accepting new connections.

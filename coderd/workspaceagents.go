@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"sort"
 	"strconv"
@@ -859,81 +857,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	portsResponse.Ports = filteredPorts
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
-}
-
-// Deprecated: use api.tailnet.AgentConn instead.
-// See: https://github.com/coder/coder/issues/8218
-func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	derpMap := api.DERPMap()
-	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:             api.DERPMap(),
-		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		Logger:              api.Logger.Named("net.tailnet"),
-		BlockEndpoints:      api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create tailnet conn: %w", err)
-	}
-	ctx, cancel := context.WithCancel(api.ctx)
-	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-		if !region.EmbeddedRelay {
-			return nil
-		}
-		left, right := net.Pipe()
-		go func() {
-			defer left.Close()
-			defer right.Close()
-			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			api.DERPServer.Accept(ctx, right, brw, "internal")
-		}()
-		return left
-	})
-
-	clientID := uuid.New()
-	coordination := tailnet.NewInMemoryCoordination(ctx, api.Logger,
-		clientID, agentID,
-		*(api.TailnetCoordinator.Load()), conn)
-
-	// Check for updated DERP map every 5 seconds.
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			lastDERPMap := derpMap
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-				}
-
-				derpMap := api.DERPMap()
-				if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
-					conn.SetDERPMap(derpMap)
-					lastDERPMap = derpMap
-				}
-				ticker.Reset(5 * time.Second)
-			}
-		}
-	}()
-
-	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-		AgentID: agentID,
-		AgentIP: codersdk.WorkspaceAgentIP,
-		CloseFunc: func() error {
-			_ = coordination.Close()
-			cancel()
-			return nil
-		},
-	})
-	if !agentConn.AwaitReachable(ctx) {
-		_ = agentConn.Close()
-		cancel()
-		return nil, xerrors.Errorf("agent not reachable")
-	}
-	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent

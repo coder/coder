@@ -3,18 +3,15 @@ package wsproxysdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
-	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -475,20 +472,18 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	}
 
 	rma := remoteMultiAgentHandler{
-		sdk:              c,
-		logger:           logger,
-		protocol:         protocol,
-		cancel:           cancel,
-		legacyAgentCache: map[uuid.UUID]bool{},
+		sdk:      c,
+		logger:   logger,
+		protocol: protocol,
+		cancel:   cancel,
 	}
 
 	ma := (&agpl.MultiAgent{
-		ID:                uuid.New(),
-		AgentIsLegacyFunc: rma.AgentIsLegacy,
-		OnSubscribe:       rma.OnSubscribe,
-		OnUnsubscribe:     rma.OnUnsubscribe,
-		OnNodeUpdate:      rma.OnNodeUpdate,
-		OnRemove:          rma.OnRemove,
+		ID:            uuid.New(),
+		OnSubscribe:   rma.OnSubscribe,
+		OnUnsubscribe: rma.OnUnsubscribe,
+		OnNodeUpdate:  rma.OnNodeUpdate,
+		OnRemove:      rma.OnRemove,
 	}).Init()
 
 	go func() {
@@ -509,10 +504,6 @@ type remoteMultiAgentHandler struct {
 	protocol proto.DRPCTailnet_CoordinateClient
 	ma       *agpl.MultiAgent
 	cancel   func()
-
-	legacyMu           sync.RWMutex
-	legacyAgentCache   map[uuid.UUID]bool
-	legacySingleflight singleflight.Group[uuid.UUID, AgentIsLegacyResponse]
 }
 
 func (a *remoteMultiAgentHandler) respLoop() {
@@ -557,60 +548,4 @@ func (a *remoteMultiAgentHandler) OnRemove(_ agpl.Queue) {
 		a.logger.Warn(context.Background(), "failed to gracefully disconnect", slog.Error(err))
 	}
 	_ = a.protocol.CloseSend()
-}
-
-func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {
-	a.legacyMu.RLock()
-	if isLegacy, ok := a.legacyAgentCache[agentID]; ok {
-		a.legacyMu.RUnlock()
-		return isLegacy
-	}
-	a.legacyMu.RUnlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err, _ := a.legacySingleflight.Do(agentID, func() (AgentIsLegacyResponse, error) {
-		return a.sdk.AgentIsLegacy(ctx, agentID)
-	})
-	if err != nil {
-		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.F("agent_id", agentID), slog.Error(err))
-
-		// Assume that the agent is legacy since this failed, while less
-		// efficient it will always work.
-		return true
-	}
-	// Assume legacy since the agent didn't exist.
-	if !resp.Found {
-		return true
-	}
-
-	a.legacyMu.Lock()
-	a.legacyAgentCache[agentID] = resp.Legacy
-	a.legacyMu.Unlock()
-
-	return resp.Legacy
-}
-
-type AgentIsLegacyResponse struct {
-	Found  bool `json:"found"`
-	Legacy bool `json:"legacy"`
-}
-
-func (c *Client) AgentIsLegacy(ctx context.Context, agentID uuid.UUID) (AgentIsLegacyResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/workspaceagents/%s/legacy", agentID.String()),
-		nil,
-	)
-	if err != nil {
-		return AgentIsLegacyResponse{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return AgentIsLegacyResponse{}, codersdk.ReadBodyAsError(res)
-	}
-
-	var resp AgentIsLegacyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

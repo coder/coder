@@ -17,7 +17,6 @@ type MultiAgentConn interface {
 	SubscribeAgent(agentID uuid.UUID) error
 	UnsubscribeAgent(agentID uuid.UUID) error
 	NextUpdate(ctx context.Context) (*proto.CoordinateResponse, bool)
-	AgentIsLegacy(agentID uuid.UUID) bool
 	Close() error
 	IsClosed() bool
 }
@@ -27,11 +26,10 @@ type MultiAgent struct {
 
 	ID uuid.UUID
 
-	AgentIsLegacyFunc func(agentID uuid.UUID) bool
-	OnSubscribe       func(enq Queue, agent uuid.UUID) error
-	OnUnsubscribe     func(enq Queue, agent uuid.UUID) error
-	OnNodeUpdate      func(id uuid.UUID, node *proto.Node) error
-	OnRemove          func(enq Queue)
+	OnSubscribe   func(enq Queue, agent uuid.UUID) error
+	OnUnsubscribe func(enq Queue, agent uuid.UUID) error
+	OnNodeUpdate  func(id uuid.UUID, node *proto.Node) error
+	OnRemove      func(enq Queue)
 
 	ctx       context.Context
 	ctxCancel func()
@@ -59,10 +57,6 @@ func (*MultiAgent) Kind() QueueKind {
 
 func (m *MultiAgent) UniqueID() uuid.UUID {
 	return m.ID
-}
-
-func (m *MultiAgent) AgentIsLegacy(agentID uuid.UUID) bool {
-	return m.AgentIsLegacyFunc(agentID)
 }
 
 var ErrMultiAgentClosed = xerrors.New("multiagent is closed")
