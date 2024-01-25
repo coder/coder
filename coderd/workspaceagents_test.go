@@ -1624,7 +1624,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		}
 		cancel()
 		// We expect only 1. One from the initial "Refresh" attempt, and the
-		// other sshould be skipped.
+		// other should be skipped.
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
 		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")
