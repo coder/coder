@@ -17,7 +17,7 @@ resource "time_static" "start_time" {
   # the scaletest is restarted.
   triggers = {
     count : data.coder_workspace.me.start_count
-    id : data.coder_workspace.me.start_count > 0 ? data.coder_workspace.me.id : ""
+    token : data.coder_workspace.me.owner_session_token # Rely on this being re-generated every start.
   }
 }
 
