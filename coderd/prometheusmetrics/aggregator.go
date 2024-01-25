@@ -30,6 +30,8 @@ const (
 	defaultMetricsCleanupInterval = 2 * time.Minute
 )
 
+var MetricLabelValueEncoder = strings.NewReplacer("|", "\\|", ",", "\\,", "=", "\\=")
+
 type MetricsAggregator struct {
 	store map[metricKey]annotatedMetric
 
@@ -88,9 +90,13 @@ func (m1 metricKey) Equal(m2 metricKey) bool {
 func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
 	var sb strings.Builder
 	for _, label := range m.GetLabels() {
+		if label.Value == "" {
+			continue
+		}
+
 		_, _ = sb.WriteString(label.Name)
 		_ = sb.WriteByte('=')
-		_, _ = sb.WriteString(label.Value)
+		_, _ = sb.WriteString(MetricLabelValueEncoder.Replace(label.Value))
 		_ = sb.WriteByte(',')
 	}
 	labels := strings.TrimRight(sb.String(), ",")
@@ -209,6 +215,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				timer := prometheus.NewTimer(ma.updateHistogram)
 				for _, m := range req.metrics {
 					key := hashKey(&req, m)
+
 					if val, ok := ma.store[key]; ok {
 						val.Stats_Metric.Value = m.Value
 						val.expiryDate = req.timestamp.Add(ma.metricsCleanupInterval)
