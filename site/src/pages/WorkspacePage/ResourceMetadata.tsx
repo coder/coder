@@ -5,10 +5,10 @@ import {
   type HTMLAttributes,
   type PropsWithChildren,
 } from "react";
+import type { WorkspaceResource } from "api/typesGenerated";
 import { SensitiveValue } from "modules/resources/SensitiveValue";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import type { WorkspaceResource } from "api/typesGenerated";
 
 type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
   resource: WorkspaceResource;

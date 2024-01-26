@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type PropsWithChildren } from "react";
+import { type FC } from "react";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
@@ -24,7 +24,7 @@ export interface SSHButtonProps {
   sshPrefix?: string;
 }
 
-export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
+export const SSHButton: FC<SSHButtonProps> = ({
   workspaceName,
   agentName,
   isDefaultOpen = false,

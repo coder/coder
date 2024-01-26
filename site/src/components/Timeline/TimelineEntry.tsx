@@ -1,16 +1,14 @@
 import TableRow, { type TableRowProps } from "@mui/material/TableRow";
-import { type PropsWithChildren, forwardRef } from "react";
+import { forwardRef } from "react";
 
-type TimelineEntryProps = PropsWithChildren<
-  TableRowProps & {
-    clickable?: boolean;
-  }
->;
+interface TimelineEntryProps extends TableRowProps {
+  clickable?: boolean;
+}
 
-export const TimelineEntry = forwardRef(function TimelineEntry(
-  { children, clickable = true, ...props }: TimelineEntryProps,
-  ref?: React.ForwardedRef<HTMLTableRowElement>,
-) {
+export const TimelineEntry = forwardRef<
+  HTMLTableRowElement,
+  TimelineEntryProps
+>(function TimelineEntry({ children, clickable = true, ...props }, ref) {
   return (
     <TableRow
       ref={ref}
