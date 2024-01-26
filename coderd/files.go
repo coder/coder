@@ -1,6 +1,8 @@
 package coderd
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -40,7 +42,6 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	contentType := r.Header.Get("Content-Type")
-
 	switch contentType {
 	case tarMimeType, zipMimeType:
 	default:
@@ -59,6 +60,27 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	if contentType == zipMimeType {
+		zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Incomplete .zip archive file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		data, err = createTarFromZip(zipReader)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error processing .zip archive.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	hashBytes := sha256.Sum256(data)
 	hash := hex.EncodeToString(hashBytes[:])
 	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
@@ -77,11 +99,6 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
-	}
-
-	if contentType == zipMimeType {
-		// FIXME Repack to .tar format.
-		contentType = tarMimeType
 	}
 
 	id := uuid.New()
