@@ -2,21 +2,6 @@ import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
-import * as API from "api/api";
-import type {
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentLogSource,
-  WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
-import {
-  Line,
-  LogLine,
-  logLineHeight,
-} from "components/WorkspaceBuildLogs/Logs";
-import { useProxy } from "contexts/ProxyContext";
 import {
   type FC,
   useCallback,
@@ -28,15 +13,30 @@ import {
 } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { Stack } from "../Stack/Stack";
+import * as API from "api/api";
+import type {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentLogSource,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import {
+  Line,
+  LogLine,
+  logLineHeight,
+} from "components/WorkspaceBuildLogs/Logs";
+import { useProxy } from "contexts/ProxyContext";
+import { Stack } from "components/Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
+import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import { AgentStatus } from "./AgentStatus";
+import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're

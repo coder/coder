@@ -6,7 +6,7 @@ import { AgentMetadataView } from "./AgentMetadata";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AgentMetadataView> = {
-  title: "components/AgentMetadataView",
+  title: "modules/resources/AgentMetadataView",
   component: AgentMetadataView,
 };
 

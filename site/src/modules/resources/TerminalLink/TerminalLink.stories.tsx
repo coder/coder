@@ -3,7 +3,7 @@ import { TerminalLink } from "./TerminalLink";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TerminalLink> = {
-  title: "components/TerminalLink",
+  title: "modules/resources/TerminalLink",
   component: TerminalLink,
 };
 

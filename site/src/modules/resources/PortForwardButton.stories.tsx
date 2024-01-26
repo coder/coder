@@ -6,7 +6,7 @@ import {
 } from "testHelpers/entities";
 
 const meta: Meta<typeof PortForwardButton> = {
-  title: "components/PortForwardButton",
+  title: "modules/resources/PortForwardButton",
   component: PortForwardButton,
   args: {
     agent: MockWorkspaceAgent,

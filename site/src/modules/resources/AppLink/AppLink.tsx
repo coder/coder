@@ -7,9 +7,9 @@ import { useTheme } from "@emotion/react";
 import { getApiKey } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
-import { AgentButton } from "components/Resources/AgentButton";
 import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
+import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 

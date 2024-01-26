@@ -3,7 +3,7 @@ import { AgentRowPreview } from "./AgentRowPreview";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AgentRowPreview> = {
-  title: "components/AgentRowPreview",
+  title: "modules/resources/AgentRowPreview",
   component: AgentRowPreview,
   args: {
     agent: MockWorkspaceAgent,

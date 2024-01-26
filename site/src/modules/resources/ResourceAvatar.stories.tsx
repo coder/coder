@@ -3,7 +3,7 @@ import { ResourceAvatar } from "./ResourceAvatar";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof ResourceAvatar> = {
-  title: "components/ResourceAvatar",
+  title: "modules/resources/ResourceAvatar",
   component: ResourceAvatar,
 };
 

@@ -1,10 +1,10 @@
 import Link from "@mui/material/Link";
-import { AgentButton } from "components/Resources/AgentButton";
-import { FC } from "react";
-import * as TypesGen from "api/typesGenerated";
+import { type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { generateRandomString } from "utils/random";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { AgentButton } from "../AgentButton";
 
 export const Language = {
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
@@ -23,7 +23,7 @@ export interface TerminalLinkProps {
  * If no user name is provided "me" is used however it makes the link not
  * shareable.
  */
-export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
+export const TerminalLink: FC<TerminalLinkProps> = ({
   agentName,
   userName = "me",
   workspaceName,

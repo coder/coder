@@ -11,7 +11,7 @@ import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AppLink> = {
-  title: "components/AppLink",
+  title: "modules/resources/AppLink",
   component: AppLink,
   decorators: [
     (Story) => (

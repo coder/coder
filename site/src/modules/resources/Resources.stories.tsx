@@ -10,7 +10,7 @@ import { type WorkspaceAgent } from "api/typesGenerated";
 import { AgentRowPreview } from "./AgentRowPreview";
 
 const meta: Meta<typeof Resources> = {
-  title: "components/Resources/Resources",
+  title: "modules/resources/Resources",
   component: Resources,
   args: {
     resources: [MockWorkspaceResource],

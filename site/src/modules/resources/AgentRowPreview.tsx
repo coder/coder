@@ -1,12 +1,12 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { Stack } from "../Stack/Stack";
+import { Stack } from "components/Stack/Stack";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned

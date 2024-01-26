@@ -4,10 +4,10 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { type FC, useState, useRef } from "react";
 import { getApiKey } from "api/api";
-import { DisplayApp } from "api/typesGenerated";
+import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { AgentButton } from "components/Resources/AgentButton";
+import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export interface VSCodeDesktopButtonProps {
