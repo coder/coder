@@ -5,6 +5,7 @@ import {
   type HTMLProps,
   type PropsWithChildren,
   useContext,
+  ReactNode,
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
@@ -67,19 +68,20 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
   );
 };
 
-export const FormSection: FC<
-  PropsWithChildren & {
-    title: string | JSX.Element;
-    description: string | JSX.Element;
-    classes?: {
-      root?: string;
-      sectionInfo?: string;
-      infoTitle?: string;
-    };
-    alpha?: boolean;
-    deprecated?: boolean;
-  }
-> = ({
+interface FormSectionProps {
+  children?: ReactNode;
+  title: ReactNode;
+  description: ReactNode;
+  classes?: {
+    root?: string;
+    sectionInfo?: string;
+    infoTitle?: string;
+  };
+  alpha?: boolean;
+  deprecated?: boolean;
+}
+
+export const FormSection: FC<FormSectionProps> = ({
   children,
   title,
   description,
@@ -166,7 +168,7 @@ const styles = {
   },
 } satisfies Record<string, Interpolation<Theme>>;
 
-export const FormFooter = (props: Exclude<FormFooterProps, "styles">) => (
+export const FormFooter: FC<Exclude<FormFooterProps, "styles">> = (props) => (
   <BaseFormFooter {...props} styles={footerStyles} />
 );
 

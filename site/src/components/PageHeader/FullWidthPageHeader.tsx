@@ -1,9 +1,15 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import { type FC, type PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren, type ReactNode } from "react";
 
-export const FullWidthPageHeader: FC<
-  PropsWithChildren & { sticky?: boolean }
-> = ({ children, sticky = true }) => {
+interface FullWidthPageHeaderProps {
+  children?: ReactNode;
+  sticky?: boolean;
+}
+
+export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
+  children,
+  sticky = true,
+}) => {
   const theme = useTheme();
   return (
     <header

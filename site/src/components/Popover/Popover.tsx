@@ -40,7 +40,7 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
   undefined,
 );
 
-interface PopoverProps {
+export interface PopoverProps {
   children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
   mode?: TriggerMode;
   isDefaultOpen?: boolean;
@@ -112,7 +112,7 @@ export const PopoverTrigger = (
 
 type Horizontal = "left" | "right";
 
-type PopoverContentProps = Omit<
+export type PopoverContentProps = Omit<
   MuiPopoverProps,
   "open" | "onClose" | "anchorEl"
 > & {
