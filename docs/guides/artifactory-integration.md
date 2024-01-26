@@ -120,8 +120,14 @@ and self-hosted(on-premises) Artifactory instances.
 
 To set this up, follow these steps:
 
-1. Get a JFrog access token from your Artifactory instance. The token must be an [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token) with scope `applied-permissions/admin`.
-2. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token. It is recommended to store the token in a sensitive terraform variable to prevent it from being displayed in plain text in the terraform state.
+1. Get a JFrog access token from your Artifactory instance. The token must be an
+   [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token)
+   with scope `applied-permissions/admin`.
+2. Create or edit a Coder template and use the
+   [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to
+   configure the integration and pass the admin token. It is recommended to
+   store the token in a sensitive terraform variable to prevent it from being
+   displayed in plain text in the terraform state.
 
 ```hcl
 variable "artifactory_access_token" {
@@ -149,7 +155,10 @@ The admin-level access token is used to provision user tokens and is never expos
 developers or stored in workspaces.
 </blockquote>
 
-If you do not want to use the official modules, you can check example template that uses Docker as the underlying compute [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker). The same concepts apply to all compute types.
+If you do not want to use the official modules, you can check example template
+that uses Docker as the underlying compute
+[here](https://github.com/coder/coder/tree/main/examples/jfrog/docker). The same
+concepts apply to all compute types.
 
 ## Offline Deployments
 
