@@ -13,6 +13,7 @@ import type {
   UpdateUserAppearanceSettingsRequest,
   UsersRequest,
   User,
+  GenerateAPIKeyResponse,
 } from "api/typesGenerated";
 import { getAuthorizationKey } from "./authCheck";
 import { getMetadataAsJSON } from "utils/metadata";
@@ -133,6 +134,13 @@ export const me = (): UseQueryOptions<User> & {
     queryFn: API.getAuthenticatedUser,
   };
 };
+
+export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
+  return {
+    queryKey: [...meKey, "apiKey"],
+    queryFn: () => API.getApiKey(),
+  };
+}
 
 export const hasFirstUser = () => {
   return {
