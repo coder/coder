@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useEffectEvent } from "./hookPolyfills";
 
 type UseClipboardResult = Readonly<{
   isCopied: boolean;
@@ -10,37 +11,34 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
   // is an async operation
   const [clipboardText, setClipboardText] = useState("");
 
-  useEffect(() => {
-    console.log(clipboardText);
-  }, [clipboardText]);
+  // Copy events have a ClipboardEvent associated with them, but sadly, the
+  // event only gives you information about what caused the event, not the new
+  // data that's just been copied. Have to use same handler for all operations
+  const syncClipboardToState = useEffectEvent(async () => {
+    const result = await readFromClipboard();
+    setClipboardText((current) => (result.success ? result.value : current));
+  });
 
   useEffect(() => {
-    // Copy events have a ClipboardEvent associated with them, but sadly, the
-    // event only gives you information about what caused the event, not the new
-    // data that's just been copied. Have to use same handler for all operations
-    const copyClipboardToState = async () => {
-      const result = await readFromClipboard();
-      setClipboardText((current) => (result.success ? result.value : current));
-    };
-
     // Focus event handles case where user navigates to a different tab, copies
     // new text, and then comes back to Coder
-    window.addEventListener("focus", copyClipboardToState);
-    window.addEventListener("copy", copyClipboardToState);
-    void copyClipboardToState();
+    window.addEventListener("focus", syncClipboardToState);
+    window.addEventListener("copy", syncClipboardToState);
+    void syncClipboardToState();
 
     return () => {
-      window.removeEventListener("focus", copyClipboardToState);
-      window.removeEventListener("copy", copyClipboardToState);
+      window.removeEventListener("focus", syncClipboardToState);
+      window.removeEventListener("copy", syncClipboardToState);
     };
-  }, []);
+  }, [syncClipboardToState]);
 
   const copyToClipboard = useCallback(async () => {
     const result = await writeToClipboard(textToCopy);
-    if (!result.success) {
-      console.error(result.error);
+    if (result.success) {
+      void syncClipboardToState();
+      return;
     }
-  }, [textToCopy]);
+  }, [syncClipboardToState, textToCopy]);
 
   return {
     copyToClipboard,
@@ -59,13 +57,16 @@ type ResultWithData<T = unknown> = Readonly<
 
 type Result<T = unknown> = void extends T ? VoidResult : ResultWithData<T>;
 
-export async function readFromClipboard(): Promise<Result<string>> {
+async function readFromClipboard(): Promise<Result<string>> {
+  // This is mainly here for the sake of being exhaustive, but the main thing it
+  // helps with is suppressing error messages when Vite does HMR refreshes in
+  // dev mode
   if (!document.hasFocus()) {
     return {
       success: false,
       value: null,
       error: new Error(
-        "Security issue - clipboard read queued while tab was not active",
+        "Security error - clipboard read queued while tab was not active",
       ),
     };
   }
@@ -109,54 +110,42 @@ export async function readFromClipboard(): Promise<Result<string>> {
   }
 }
 
-export async function writeToClipboard(
-  textToCopy: string,
-): Promise<Result<void>> {
-  return {
-    success: true,
-    error: null,
-  };
+// Comments for this function mirror the ones for readFromClipboard
+async function writeToClipboard(textToCopy: string): Promise<Result<void>> {
+  if (!document.hasFocus()) {
+    return {
+      success: false,
+      error: new Error(
+        "Security error - clipboard read queued while tab was not active",
+      ),
+    };
+  }
 
-  // // Expected throw case: user's browser is old enough that it doesn't have
-  // // the navigator API
-  // let wrappedError: Error | null = null;
-  // try {
-  //   await window.navigator.clipboard.writeText(textToCopy);
-  //   return { success: true, error: null };
-  // } catch (err) {
-  //   wrappedError = err as Error;
-  // }
+  try {
+    if (typeof window?.navigator?.clipboard?.writeText === "function") {
+      await window.navigator.clipboard.writeText(textToCopy);
+      return { success: true, error: null };
+    }
 
-  // let copySuccessful = false;
-  // if (!copySuccessful) {
-  //   const wrappedErr = new Error(
-  //     "copyToClipboard: failed to copy text to clipboard",
-  //   );
+    const { isExecSupported } = simulateClipboard("write");
+    if (!isExecSupported) {
+      throw new Error(
+        "document.execCommand has been removed for the user's browser, but they do not have access to newer API",
+      );
+    }
 
-  //   if (err instanceof Error) {
-  //     wrappedErr.stack = err.stack;
-  //   }
+    return { success: true, error: null };
+  } catch (err) {
+    const flattenedError =
+      err instanceof Error
+        ? err
+        : new Error("Unknown error thrown while reading");
 
-  //   console.error(wrappedErr);
-  // }
-
-  // const previousFocusTarget = document.activeElement;
-  // const dummyInput = document.createElement("input");
-  // dummyInput.value = textToCopy;
-
-  // document.body.appendChild(dummyInput);
-  // dummyInput.focus();
-  // dummyInput.select();
-
-  // if (typeof document.execCommand !== "undefined") {
-  //   copySuccessful = document.execCommand("copy");
-  // }
-
-  // if (previousFocusTarget instanceof HTMLElement) {
-  //   previousFocusTarget.focus();
-  // }
-
-  // return copySuccessful;
+    return {
+      success: false,
+      error: flattenedError,
+    };
+  }
 }
 
 type SimulateClipboardResult = Readonly<{
