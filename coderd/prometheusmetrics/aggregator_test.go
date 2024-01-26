@@ -73,11 +73,12 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6},
 		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 15, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "foobar", Value: "Foo,ba=z"},
+			{Name: "halo", Value: "wor\\,d=1,e=\\,2"},
 			{Name: "hello", Value: "wo,,r=d"},
 		}},
 		{Name: "f_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "foobar", Value: "foobaz"},
 			{Name: "empty", Value: ""},
+			{Name: "foobar", Value: "foobaz"},
 		}},
 	}
 
@@ -128,6 +129,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 15, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "foobar", Value: "Foo,ba=z"},
+			{Name: "halo", Value: "wor\\,d=1,e=\\,2"},
 			{Name: "hello", Value: "wo,,r=d"},
 			{Name: "username", Value: testUsername},
 			{Name: "workspace_name", Value: testWorkspaceName},

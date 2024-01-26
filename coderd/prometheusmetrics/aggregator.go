@@ -30,7 +30,7 @@ const (
 	defaultMetricsCleanupInterval = 2 * time.Minute
 )
 
-var MetricLabelValueEncoder = strings.NewReplacer("|", "\\|", ",", "\\,", "=", "\\=")
+var MetricLabelValueEncoder = strings.NewReplacer("\\", "\\\\", "|", "\\|", ",", "\\,", "=", "\\=")
 
 type MetricsAggregator struct {
 	store map[metricKey]annotatedMetric
@@ -78,15 +78,6 @@ type metricKey struct {
 	labelsStr  string
 }
 
-func (m1 metricKey) Equal(m2 metricKey) bool {
-	return m1.metricName == m2.metricName &&
-		m1.labelsStr == m2.labelsStr &&
-		m1.username == m2.username &&
-		m1.workspaceName == m2.workspaceName &&
-		m1.agentName == m2.agentName &&
-		m1.templateName == m2.templateName
-}
-
 func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
 	var sb strings.Builder
 	for _, label := range m.GetLabels() {
@@ -112,15 +103,6 @@ func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
-
-func (am *annotatedMetric) is(req updateRequest, m *agentproto.Stats_Metric) bool {
-	return am.Name == m.Name &&
-		agentproto.LabelsEqual(am.Labels, m.Labels) &&
-		am.username == req.username &&
-		am.workspaceName == req.workspaceName &&
-		am.agentName == req.agentName &&
-		am.templateName == req.templateName
-}
 
 func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 	labels := make([]string, 0, len(agentMetricsLabels)+len(am.Labels))
