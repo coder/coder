@@ -80,7 +80,10 @@ export const WithError: Story = {
       name: "number_parameter",
       type: "number",
       description: "Numeric parameter",
+      default_value: "",
     }),
+    error: true,
+    helperText: "Number must be greater than 5",
   },
 };
 

@@ -217,7 +217,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             </FormFields>
           </FormSection>
 
-          {parameters && (
+          {parameters.length > 0 && (
             <FormSection
               title="Parameters"
               description="These are the settings used by your template. Please note that immutable parameters cannot be modified once the workspace is created."
