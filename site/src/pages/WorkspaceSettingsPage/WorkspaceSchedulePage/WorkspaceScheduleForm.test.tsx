@@ -3,8 +3,14 @@ import {
   ttlShutdownAt,
   validationSchema,
   WorkspaceScheduleFormValues,
+  WorkspaceScheduleForm,
 } from "./WorkspaceScheduleForm";
 import { timeZones } from "utils/timeZones";
+import * as API from "api/api";
+import { MockTemplate } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
+import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { screen } from "@testing-library/react";
 
 const valid: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -235,5 +241,141 @@ describe("ttlShutdownAt", () => {
     ],
   ])("%p", (_, ttlHours, expected) => {
     expect(ttlShutdownAt(ttlHours)).toEqual(expected);
+  });
+});
+
+const autoStartDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const defaultFormProps = {
+  submitScheduleError: "",
+  initialValues: {
+    ...defaultSchedule(),
+    autostartEnabled: true,
+    autostopEnabled: true,
+    ttl: 24,
+  },
+  isLoading: false,
+  defaultTTL: 24,
+  onCancel: () => null,
+  onSubmit: () => null,
+  allowedTemplateAutoStartDays: autoStartDayLabels,
+  allowTemplateAutoStart: true,
+  allowTemplateAutoStop: true,
+};
+
+describe("templateInheritance", () => {
+  it("disables the entire autostart feature appropriately", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        allowTemplateAutoStart={false}
+      />,
+    );
+
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    expect(autoStartToggle).toBeDisabled();
+
+    const startTimeInput = await screen.findByLabelText("Start time");
+    expect(startTimeInput).toBeDisabled();
+
+    const timezoneInput = await screen.findByLabelText("Timezone");
+    // MUI's input is wrapped in a div so we look at the aria-attribute instead
+    expect(timezoneInput).toHaveAttribute("aria-disabled");
+
+    for (const label of autoStartDayLabels) {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeDisabled();
+    }
+  });
+  it("disables the autostart days of the week appropriately", async () => {
+    const enabledDayLabels = ["Sat", "Sun"];
+
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        allowedTemplateAutoStartDays={["saturday", "sunday"]}
+      />,
+    );
+
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    expect(autoStartToggle).toBeEnabled();
+
+    const startTimeInput = await screen.findByLabelText("Start time");
+    expect(startTimeInput).toBeEnabled();
+
+    const timezoneInput = await screen.findByLabelText("Timezone");
+    // MUI's input is wrapped in a div so we look at the aria-attribute instead
+    expect(timezoneInput).not.toHaveAttribute("aria-disabled");
+
+    for (const label of enabledDayLabels) {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeEnabled();
+    }
+
+    for (const label of autoStartDayLabels.filter(
+      (day) => !enabledDayLabels.includes(day),
+    )) {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeDisabled();
+    }
+  });
+  it("disables the entire autostop feature appropriately", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        allowTemplateAutoStop={false}
+      />,
+    );
+
+    const autoStopToggle = await screen.findByLabelText("Enable Autostop");
+    expect(autoStopToggle).toBeDisabled();
+
+    const ttlInput = await screen.findByLabelText(
+      "Time until shutdown (hours)",
+    );
+    expect(ttlInput).toBeDisabled();
+  });
+  it("disables secondary autostart fields if main feature switch is toggled off", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        initialValues={{
+          ...defaultFormProps.initialValues,
+          autostartEnabled: false,
+        }}
+      />,
+    );
+
+    const startTimeInput = await screen.findByLabelText("Start time");
+    expect(startTimeInput).toBeDisabled();
+
+    const timezoneInput = await screen.findByLabelText("Timezone");
+    // MUI's input is wrapped in a div so we look at the aria-attribute instead
+    expect(timezoneInput).toHaveAttribute("aria-disabled");
+
+    autoStartDayLabels.forEach(async (label) => {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeDisabled();
+    });
+  });
+  it("disables secondary autostop fields if main feature switch is toggled off", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+    render(
+      <WorkspaceScheduleForm
+        {...defaultFormProps}
+        initialValues={{
+          ...defaultFormProps.initialValues,
+          autostopEnabled: false,
+        }}
+      />,
+    );
+
+    const ttlInput = await screen.findByLabelText(
+      "Time until shutdown (hours)",
+    );
+    expect(ttlInput).toBeDisabled();
   });
 });

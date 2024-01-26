@@ -32,6 +32,8 @@ import { timeZones } from "utils/timeZones";
 import Tooltip from "@mui/material/Tooltip";
 import { formatDuration, intervalToDuration } from "date-fns";
 import { DisabledBadge } from "components/Badges/Badges";
+import { TemplateAutostartRequirement } from "api/typesGenerated";
+import { PropsWithChildren } from "react";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -73,8 +75,9 @@ export interface WorkspaceScheduleFormProps {
   submitScheduleError?: unknown;
   initialValues: WorkspaceScheduleFormValues;
   isLoading: boolean;
-  enableAutoStop: boolean;
-  enableAutoStart: boolean;
+  allowedTemplateAutoStartDays: TemplateAutostartRequirement["days_of_week"];
+  allowTemplateAutoStop: boolean;
+  allowTemplateAutoStart: boolean;
   onCancel: () => void;
   onSubmit: (values: WorkspaceScheduleFormValues) => void;
   // for storybook
@@ -182,7 +185,7 @@ export const validationSchema = Yup.object({
 });
 
 export const WorkspaceScheduleForm: FC<
-  React.PropsWithChildren<WorkspaceScheduleFormProps>
+  PropsWithChildren<WorkspaceScheduleFormProps>
 > = ({
   submitScheduleError,
   initialValues,
@@ -191,8 +194,9 @@ export const WorkspaceScheduleForm: FC<
   onSubmit,
   initialTouched,
   defaultTTL,
-  enableAutoStop,
-  enableAutoStart,
+  allowedTemplateAutoStartDays,
+  allowTemplateAutoStop,
+  allowTemplateAutoStart,
 }) => {
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
@@ -207,11 +211,6 @@ export const WorkspaceScheduleForm: FC<
   );
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
-    {
-      value: form.values.sunday,
-      name: "sunday",
-      label: Language.daySundayLabel,
-    },
     {
       value: form.values.monday,
       name: "monday",
@@ -241,6 +240,11 @@ export const WorkspaceScheduleForm: FC<
       value: form.values.saturday,
       name: "saturday",
       label: Language.daySaturdayLabel,
+    },
+    {
+      value: form.values.sunday,
+      name: "sunday",
+      label: Language.daySundayLabel,
     },
   ];
 
@@ -288,7 +292,7 @@ export const WorkspaceScheduleForm: FC<
               Select the time and days of week on which you want the workspace
               starting automatically.
             </div>
-            {!enableAutoStart && (
+            {!allowTemplateAutoStart && (
               <Tooltip title="This option can be enabled in the template settings">
                 <DisabledBadge />
               </Tooltip>
@@ -300,7 +304,7 @@ export const WorkspaceScheduleForm: FC<
           <FormControlLabel
             control={
               <Switch
-                disabled={!enableAutoStart}
+                disabled={!allowTemplateAutoStart}
                 name="autostartEnabled"
                 checked={form.values.autostartEnabled}
                 onChange={handleToggleAutostart}
@@ -311,14 +315,26 @@ export const WorkspaceScheduleForm: FC<
           <Stack direction="row">
             <TextField
               {...formHelpers("startTime")}
-              disabled={isLoading || !form.values.autostartEnabled}
+              // disabled if template does not allow autostart
+              // or if primary feature is toggled off via the switch above
+              disabled={
+                isLoading ||
+                !allowTemplateAutoStart ||
+                !form.values.autostartEnabled
+              }
               label={Language.startTimeLabel}
               type="time"
               fullWidth
             />
             <TextField
               {...formHelpers("timezone")}
-              disabled={isLoading || !form.values.autostartEnabled}
+              // disabled if template does not allow autostart
+              // or if primary feature is toggled off via the switch above
+              disabled={
+                isLoading ||
+                !allowTemplateAutoStart ||
+                !form.values.autostartEnabled
+              }
               label={Language.timezoneLabel}
               select
               fullWidth
@@ -349,7 +365,15 @@ export const WorkspaceScheduleForm: FC<
                   control={
                     <Checkbox
                       checked={checkbox.value}
-                      disabled={isLoading || !form.values.autostartEnabled}
+                      // template admins can disable the autostart feature in general,
+                      // or they can disallow autostart on specific days of the week.
+                      // also disabled if primary feature switch (above) is toggled off
+                      disabled={
+                        isLoading ||
+                        !allowTemplateAutoStart ||
+                        !allowedTemplateAutoStartDays.includes(checkbox.name) ||
+                        !form.values.autostartEnabled
+                      }
                       onChange={form.handleChange}
                       name={checkbox.name}
                       size="small"
@@ -378,7 +402,7 @@ export const WorkspaceScheduleForm: FC<
               extended by 1 hour after last activity in the workspace was
               detected.
             </div>
-            {!enableAutoStop && (
+            {!allowTemplateAutoStop && (
               <Tooltip title="This option can be enabled in the template settings">
                 <DisabledBadge />
               </Tooltip>
@@ -393,7 +417,7 @@ export const WorkspaceScheduleForm: FC<
                 name="autostopEnabled"
                 checked={form.values.autostopEnabled}
                 onChange={handleToggleAutostop}
-                disabled={!enableAutoStop}
+                disabled={!allowTemplateAutoStop}
               />
             }
             label={Language.stopSwitch}
@@ -403,7 +427,13 @@ export const WorkspaceScheduleForm: FC<
               helperText: ttlShutdownAt(form.values.ttl),
               backendFieldName: "ttl_ms",
             })}
-            disabled={isLoading || !form.values.autostopEnabled}
+            // disabled if autostop disabled at template level or
+            // if autostop feature is toggled off via the switch above
+            disabled={
+              isLoading ||
+              !allowTemplateAutoStop ||
+              !form.values.autostopEnabled
+            }
             inputProps={{ min: 0, step: "any" }}
             label={Language.ttlLabel}
             type="number"
@@ -411,7 +441,14 @@ export const WorkspaceScheduleForm: FC<
           />
         </FormFields>
       </FormSection>
-      <FormFooter onCancel={onCancel} isLoading={isLoading} />
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isLoading}
+        submitDisabled={
+          (!allowTemplateAutoStart && !allowTemplateAutoStop) ||
+          (!form.values.autostartEnabled && !form.values.autostopEnabled)
+        }
+      />
     </HorizontalForm>
   );
 };
