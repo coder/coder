@@ -54,6 +54,7 @@ const muiTheme = createTheme({
     neutral: {
       main: tw.gray[50],
     },
+    dots: tw.gray[500],
   },
   typography: {
     fontFamily: BODY_FONT_FAMILY,

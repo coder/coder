@@ -3,6 +3,7 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
@@ -21,6 +22,15 @@ type LifecycleAPI struct {
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+
+	TimeNowFn func() time.Time // defaults to dbtime.Now()
+}
+
+func (a *LifecycleAPI) now() time.Time {
+	if a.TimeNowFn != nil {
+		return a.TimeNowFn()
+	}
+	return dbtime.Now()
 }
 
 func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
@@ -68,7 +78,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 
 	changedAt := req.Lifecycle.ChangedAt.AsTime()
 	if changedAt.IsZero() {
-		changedAt = dbtime.Now()
+		changedAt = a.now()
 		req.Lifecycle.ChangedAt = timestamppb.New(changedAt)
 	}
 	dbChangedAt := sql.NullTime{Time: changedAt, Valid: true}
@@ -78,8 +88,13 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	switch lifecycleState {
 	case database.WorkspaceAgentLifecycleStateStarting:
 		startedAt = dbChangedAt
-		readyAt.Valid = false // This agent is re-starting, so it's not ready yet.
+		// This agent is (re)starting, so it's not ready yet.
+		readyAt.Time = time.Time{}
+		readyAt.Valid = false
 	case database.WorkspaceAgentLifecycleStateReady, database.WorkspaceAgentLifecycleStateStartError:
+		if !startedAt.Valid {
+			startedAt = dbChangedAt
+		}
 		readyAt = dbChangedAt
 	}
 
@@ -97,9 +112,11 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
 	}
 
-	err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace update: %w", err)
+	if a.PublishWorkspaceUpdateFn != nil {
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
 	}
 
 	return req.Lifecycle, nil

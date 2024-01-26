@@ -17,7 +17,6 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -61,19 +60,17 @@ type Options struct {
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher                      *batchstats.Batcher
+	StatsBatcher                      StatsBatcher
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
-	AccessURL                       *url.URL
-	AppHostname                     string
-	AgentInactiveDisconnectTimeout  time.Duration
-	AgentFallbackTroubleshootingURL string
-	AgentStatsRefreshInterval       time.Duration
-	DisableDirectConnections        bool
-	DerpForceWebSockets             bool
-	DerpMapUpdateFrequency          time.Duration
-	ExternalAuthConfigs             []*externalauth.Config
+	AccessURL                 *url.URL
+	AppHostname               string
+	AgentStatsRefreshInterval time.Duration
+	DisableDirectConnections  bool
+	DerpForceWebSockets       bool
+	DerpMapUpdateFrequency    time.Duration
+	ExternalAuthConfigs       []*externalauth.Config
 
 	// Optional:
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
@@ -90,17 +87,14 @@ func New(opts Options) *API {
 	}
 
 	api.ManifestAPI = &ManifestAPI{
-		AccessURL:                       opts.AccessURL,
-		AppHostname:                     opts.AppHostname,
-		AgentInactiveDisconnectTimeout:  opts.AgentInactiveDisconnectTimeout,
-		AgentFallbackTroubleshootingURL: opts.AgentFallbackTroubleshootingURL,
-		ExternalAuthConfigs:             opts.ExternalAuthConfigs,
-		DisableDirectConnections:        opts.DisableDirectConnections,
-		DerpForceWebSockets:             opts.DerpForceWebSockets,
-		AgentFn:                         api.agent,
-		Database:                        opts.Database,
-		DerpMapFn:                       opts.DerpMapFn,
-		TailnetCoordinator:              opts.TailnetCoordinator,
+		AccessURL:                opts.AccessURL,
+		AppHostname:              opts.AppHostname,
+		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
+		DisableDirectConnections: opts.DisableDirectConnections,
+		DerpForceWebSockets:      opts.DerpForceWebSockets,
+		AgentFn:                  api.agent,
+		Database:                 opts.Database,
+		DerpMapFn:                opts.DerpMapFn,
 	}
 
 	api.ServiceBannerAPI = &ServiceBannerAPI{
@@ -214,20 +208,15 @@ func (a *API) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (
 		agent = &agnt
 	}
 
-	resource, err := a.opts.Database.GetWorkspaceResourceByID(ctx, agent.ResourceID)
+	getWorkspaceAgentByIDRow, err := a.opts.Database.GetWorkspaceByAgentID(ctx, agent.ID)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace agent resource by id %q: %w", agent.ResourceID, err)
-	}
-
-	build, err := a.opts.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace build by job id %q: %w", resource.JobID, err)
+		return uuid.Nil, xerrors.Errorf("get workspace by agent id %q: %w", agent.ID, err)
 	}
 
 	a.mu.Lock()
-	a.cachedWorkspaceID = build.WorkspaceID
+	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.Workspace.ID
 	a.mu.Unlock()
-	return build.WorkspaceID, nil
+	return getWorkspaceAgentByIDRow.Workspace.ID, nil
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {

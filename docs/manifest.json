@@ -89,11 +89,6 @@
           "icon_path": "./images/google-cloud.svg"
         },
         {
-          "title": "JFrog",
-          "description": "Integrate Coder with JFrog",
-          "path": "./platforms/jfrog.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Set up Coder on Kubernetes",
           "path": "./platforms/kubernetes/index.md",
@@ -1040,6 +1035,11 @@
           "title": "Google to AWS Federation",
           "description": "Federating a Google Cloud service account to AWS",
           "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./guides/artifactory-integration.md"
         },
         {
           "title": "Template ImagePullSecrets",
