@@ -1,4 +1,4 @@
-import { useRef, type FC } from "react";
+import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
@@ -18,7 +18,11 @@ export const CodeExample: FC<CodeExampleProps> = ({
   className,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const triggerButton = () => buttonRef.current?.click();
+  const triggerButton = (event: KeyboardEvent | MouseEvent) => {
+    if (event.target !== buttonRef.current) {
+      buttonRef.current?.click();
+    }
+  };
 
   return (
     /* eslint-disable-next-line jsx-a11y/no-static-element-interactions --
@@ -28,19 +32,15 @@ export const CodeExample: FC<CodeExampleProps> = ({
     <div
       css={styles.container}
       className={className}
-      onClick={(event) => {
-        if (event.target !== buttonRef.current) {
-          triggerButton();
-        }
-      }}
+      onClick={triggerButton}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
-          triggerButton();
+          triggerButton(event);
         }
       }}
       onKeyUp={(event) => {
         if (event.key === " ") {
-          triggerButton();
+          triggerButton(event);
         }
       }}
     >

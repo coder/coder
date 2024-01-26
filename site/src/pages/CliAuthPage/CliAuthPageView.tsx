@@ -43,7 +43,7 @@ const styles = {
     color: theme.palette.text.secondary,
     paddingBottom: 32,
     textAlign: "center",
-    lineHeight: "160%",
+    lineHeight: 1.6,
   }),
 
   backButton: {

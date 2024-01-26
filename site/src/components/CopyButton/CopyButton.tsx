@@ -2,7 +2,7 @@ import IconButton from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import Check from "@mui/icons-material/Check";
 import { css, type Interpolation, type Theme } from "@emotion/react";
-import { forwardRef, MouseEventHandler, type ReactNode } from "react";
+import { forwardRef, type MouseEventHandler, type ReactNode } from "react";
 import { useClipboard } from "hooks/useClipboard";
 import { FileCopyIcon } from "../Icons/FileCopyIcon";
 
