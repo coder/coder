@@ -1,12 +1,13 @@
 import cronstrue from "cronstrue";
-import dayjs, { Dayjs } from "dayjs";
+import cronParser from "cron-parser";
+import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { Template, Workspace } from "api/typesGenerated";
+import { type ReactNode } from "react";
+import type { Template, Workspace } from "api/typesGenerated";
 import { isWorkspaceOn } from "./workspace";
-import cronParser from "cron-parser";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -91,10 +92,17 @@ export const isShuttingDown = (
 export const autostopDisplay = (
   workspace: Workspace,
 ): {
-  message: string;
+  message: ReactNode;
   tooltip?: string;
 } => {
   const ttl = workspace.ttl_ms;
+
+  if (isWorkspaceOn(workspace) && true) {
+    return {
+      message: "Connected with SSH",
+      tooltip: "Workspace will not stop while there is an active connection",
+    };
+  }
 
   if (isWorkspaceOn(workspace) && workspace.latest_build.deadline) {
     // Workspace is on --> derive from latest_build.deadline. Note that the
@@ -111,7 +119,7 @@ export const autostopDisplay = (
     } else {
       const deadlineTz = deadline.tz(dayjs.tz.guess());
       return {
-        message: deadlineTz.fromNow(),
+        message: `Stop ${deadlineTz.fromNow()}`,
         tooltip: deadlineTz.format("MMMM D, YYYY h:mm A"),
       };
     }

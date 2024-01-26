@@ -245,13 +245,14 @@ const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
     return (
       <Tooltip title={display.tooltip}>
         <ScheduleSettingsLink
-          css={(theme) => ({
-            color: isShutdownSoon(workspace)
-              ? `${theme.palette.warning.light} !important`
-              : undefined,
-          })}
+          css={
+            isShutdownSoon(workspace) &&
+            ((theme) => ({
+              color: `${theme.palette.warning.light} !important`,
+            }))
+          }
         >
-          Stop {display.message}
+          {display.message}
         </ScheduleSettingsLink>
       </Tooltip>
     );
