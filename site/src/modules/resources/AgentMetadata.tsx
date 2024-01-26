@@ -213,7 +213,7 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 };
 
 // These are more or less copied from
-// site/src/components/Resources/ResourceCard.tsx
+// site/src/modules/resources/ResourceCard.tsx
 const styles = {
   root: {
     display: "flex",
