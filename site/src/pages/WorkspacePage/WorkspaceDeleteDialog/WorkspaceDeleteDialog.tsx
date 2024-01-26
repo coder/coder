@@ -182,9 +182,9 @@ const styles = {
     lineHeight: "18px",
 
     "& .option": {
-      color: theme.experimental.roles.danger.fill,
+      color: theme.experimental.roles.danger.fill.solid,
       "&.Mui-checked": {
-        color: theme.experimental.roles.danger.fill,
+        color: theme.experimental.roles.danger.fill.solid,
       },
     },
 
