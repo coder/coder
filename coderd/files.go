@@ -21,6 +21,7 @@ import (
 
 const (
 	tarMimeType = "application/x-tar"
+	zipMimeType = "application/zip"
 )
 
 // @Summary Upload file
@@ -30,7 +31,7 @@ const (
 // @Produce json
 // @Accept application/x-tar
 // @Tags Files
-// @Param Content-Type header string true "Content-Type must be `application/x-tar`" default(application/x-tar)
+// @Param Content-Type header string true "Content-Type must be `application/x-tar` or `application/zip`" default(application/x-tar)
 // @Param file formData file true "File to be uploaded"
 // @Success 201 {object} codersdk.UploadResponse
 // @Router /files [post]
@@ -41,7 +42,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
 	switch contentType {
-	case tarMimeType:
+	case tarMimeType, zipMimeType:
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
@@ -76,6 +77,11 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if contentType == zipMimeType {
+		// FIXME Repack to .tar format.
+		contentType = tarMimeType
 	}
 
 	id := uuid.New()
