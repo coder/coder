@@ -6,7 +6,7 @@ import type { ProvisionerJobLog } from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
+import { WatchAgentMetadataContext } from "modules/resources/AgentMetadata";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspacePermissions } from "./permissions";

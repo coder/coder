@@ -5,7 +5,7 @@ import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { AgentRow } from "components/Resources/AgentRow";
+import { AgentRow } from "modules/resources/AgentRow";
 import { useTab } from "hooks";
 import {
   ActiveTransition,

@@ -3,7 +3,7 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Stack } from "../Stack/Stack";
+import { Stack } from "components/Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
 
 const countAgents = (resource: WorkspaceResource) => {

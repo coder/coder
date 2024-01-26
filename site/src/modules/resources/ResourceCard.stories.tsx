@@ -9,7 +9,7 @@ import { type WorkspaceAgent } from "api/typesGenerated";
 import { AgentRowPreview } from "./AgentRowPreview";
 
 const meta: Meta<typeof ResourceCard> = {
-  title: "components/Resources/ResourceCard",
+  title: "modules/resources/ResourceCard",
   component: ResourceCard,
   args: {
     resource: MockWorkspaceResource,

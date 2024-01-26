@@ -1,8 +1,8 @@
-import { renderComponent } from "testHelpers/renderHelpers";
-import { ResourceCard } from "components/Resources/ResourceCard";
-import { MockWorkspaceResource } from "testHelpers/entities";
 import { screen } from "@testing-library/react";
-import { WorkspaceResourceMetadata } from "api/typesGenerated";
+import type { WorkspaceResourceMetadata } from "api/typesGenerated";
+import { MockWorkspaceResource } from "testHelpers/entities";
+import { renderComponent } from "testHelpers/renderHelpers";
+import { ResourceCard } from "./ResourceCard";
 
 describe("Resource Card", () => {
   it("renders daily cost and metadata tiles", async () => {

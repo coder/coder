@@ -3,7 +3,7 @@ import { VSCodeDesktopButton } from "./VSCodeDesktopButton";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof VSCodeDesktopButton> = {
-  title: "components/VSCodeDesktopButton",
+  title: "modules/resources/VSCodeDesktopButton",
   component: VSCodeDesktopButton,
 };
 

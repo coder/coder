@@ -6,7 +6,7 @@ import {
 } from "testHelpers/entities";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
-  title: "components/PortForwardPopoverView",
+  title: "modules/resources/PortForwardPopoverView",
   component: PortForwardPopoverView,
   decorators: [
     (Story) => (

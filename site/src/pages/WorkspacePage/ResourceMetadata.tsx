@@ -6,8 +6,8 @@ import {
   type PropsWithChildren,
 } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
+import { SensitiveValue } from "modules/resources/SensitiveValue";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import { SensitiveValue } from "components/Resources/SensitiveValue";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
 type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
@@ -76,9 +76,9 @@ const styles = {
     background: `linear-gradient(180deg, ${theme.palette.background.default} 25%, rgba(0, 0, 0, 0) 100%)`,
   }),
 
-  item: () => ({
+  item: {
     lineHeight: "1.5",
-  }),
+  },
 
   label: (theme) => ({
     fontSize: 13,
@@ -88,9 +88,9 @@ const styles = {
     whiteSpace: "nowrap",
   }),
 
-  value: () => ({
+  value: {
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-  }),
+  },
 } satisfies Record<string, Interpolation<Theme>>;

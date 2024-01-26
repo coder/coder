@@ -3,7 +3,7 @@ import { SSHButton } from "./SSHButton";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SSHButton> = {
-  title: "components/SSHButton",
+  title: "modules/resources/SSHButton",
   component: SSHButton,
 };
 

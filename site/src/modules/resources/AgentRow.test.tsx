@@ -7,7 +7,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 
-jest.mock("components/Resources/AgentMetadata", () => {
+jest.mock("modules/resources/AgentMetadata", () => {
   const AgentMetadata = () => <></>;
   return { AgentMetadata };
 });
