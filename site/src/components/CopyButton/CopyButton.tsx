@@ -2,7 +2,7 @@ import IconButton from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import Check from "@mui/icons-material/Check";
 import { css, type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
+import { forwardRef, MouseEventHandler, type ReactNode } from "react";
 import { useClipboard } from "hooks/useClipboard";
 import { FileCopyIcon } from "../Icons/FileCopyIcon";
 
@@ -13,6 +13,7 @@ interface CopyButtonProps {
   wrapperStyles?: Interpolation<Theme>;
   buttonStyles?: Interpolation<Theme>;
   tooltipTitle?: string;
+  onClick?: MouseEventHandler;
 }
 
 export const Language = {
@@ -23,36 +24,44 @@ export const Language = {
 /**
  * Copy button used inside the CodeBlock component internally
  */
-export const CopyButton: FC<CopyButtonProps> = ({
-  text,
-  ctaCopy,
-  wrapperStyles,
-  buttonStyles,
-  tooltipTitle = Language.tooltipTitle,
-}) => {
-  const { isCopied, copyToClipboard } = useClipboard(text);
+export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
+  (props, ref) => {
+    const {
+      text,
+      ctaCopy,
+      wrapperStyles,
+      buttonStyles,
+      onClick: outsideOnClick,
+      tooltipTitle = Language.tooltipTitle,
+    } = props;
+    const { isCopied, copyToClipboard } = useClipboard(text);
 
-  return (
-    <Tooltip title={tooltipTitle} placement="top">
-      <div css={[{ display: "flex" }, wrapperStyles]}>
-        <IconButton
-          css={[styles.button, buttonStyles]}
-          onClick={copyToClipboard}
-          size="small"
-          aria-label={Language.ariaLabel}
-          variant="text"
-        >
-          {isCopied ? (
-            <Check css={styles.copyIcon} />
-          ) : (
-            <FileCopyIcon css={styles.copyIcon} />
-          )}
-          {ctaCopy && <div css={{ marginLeft: 8 }}>{ctaCopy}</div>}
-        </IconButton>
-      </div>
-    </Tooltip>
-  );
-};
+    return (
+      <Tooltip title={tooltipTitle} placement="top">
+        <div css={[{ display: "flex" }, wrapperStyles]}>
+          <IconButton
+            ref={ref}
+            css={[styles.button, buttonStyles]}
+            size="small"
+            aria-label={Language.ariaLabel}
+            variant="text"
+            onClick={(event) => {
+              void copyToClipboard();
+              outsideOnClick?.(event);
+            }}
+          >
+            {isCopied ? (
+              <Check css={styles.copyIcon} />
+            ) : (
+              <FileCopyIcon css={styles.copyIcon} />
+            )}
+            {ctaCopy && <div css={{ marginLeft: 8 }}>{ctaCopy}</div>}
+          </IconButton>
+        </div>
+      </Tooltip>
+    );
+  },
+);
 
 const styles = {
   button: (theme) => css`
