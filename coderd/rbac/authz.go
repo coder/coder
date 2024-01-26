@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -653,10 +654,10 @@ type authCache struct {
 	authz Authorizer
 }
 
-// Cacher returns an Authorizer that can use a cache stored on a context
-// to short circuit duplicate calls to the Authorizer. This is useful when
-// multiple calls are made to the Authorizer for the same subject, action, and
-// object. The cache is on each `ctx` and is not shared between requests.
+// Cacher returns an Authorizer that can use a cache to short circuit duplicate
+// calls to the Authorizer. This is useful when multiple calls are made to the
+// Authorizer for the same subject, action, and object.
+// This is a GLOBAL cache shared between all requests.
 // If no cache is found on the context, the Authorizer is called as normal.
 //
 // Cacher is safe for multiple actors.
@@ -676,8 +677,12 @@ func (c *authCache) Authorize(ctx context.Context, subject Subject, action Actio
 	err, _, ok := c.cache.Get(authorizeCacheKey)
 	if !ok {
 		err = c.authz.Authorize(ctx, subject, action, object)
-		// In case there is a caching bug, bound the TTL to 1 minute.
-		c.cache.Set(authorizeCacheKey, err, time.Minute)
+		// If there is a transient error such as a context cancellation, do not
+		// cache it.
+		if !errors.Is(err, context.Canceled) {
+			// In case there is a caching bug, bound the TTL to 1 minute.
+			c.cache.Set(authorizeCacheKey, err, time.Minute)
+		}
 	}
 
 	return err
