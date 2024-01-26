@@ -693,7 +693,7 @@ const docTemplate = `{
             }
         },
         "/exp/jfrog/xray-scan": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "CoderSessionToken": []
@@ -728,6 +728,40 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Post JFrog XRay scan by workspace agent ID.",
+                "operationId": "post-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "description": "Post JFrog XRay scan request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }

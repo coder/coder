@@ -158,12 +158,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/exp/jfrog/xray-scan?workspace_id=string&agent_id=string \
+curl -X GET http://coder-server:8080/api/v2/exp/jfrog/xray-scan?workspace_id=string&agent_id=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /exp/jfrog/xray-scan`
+`GET /exp/jfrog/xray-scan`
 
 ### Parameters
 
@@ -192,6 +192,64 @@ curl -X POST http://coder-server:8080/api/v2/exp/jfrog/xray-scan?workspace_id=st
 | Status | Meaning                                                 | Description | Schema                                                     |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Post JFrog XRay scan by workspace agent ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/exp/jfrog/xray-scan \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /exp/jfrog/xray-scan`
+
+> Body parameter
+
+```json
+{
+  "agent_id": "string",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                       | Required | Description                  |
+| ------ | ---- | ---------------------------------------------------------- | -------- | ---------------------------- |
+| `body` | body | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) | true     | Post JFrog XRay scan request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

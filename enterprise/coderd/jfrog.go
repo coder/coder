@@ -68,7 +68,7 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace_id query string true "Workspace ID"
 // @Param agent_id query string true "Agent ID"
 // @Success 200 {object} codersdk.JFrogXrayScan
-// @Router /exp/jfrog/xray-scan [post]
+// @Router /exp/jfrog/xray-scan [get]
 func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
