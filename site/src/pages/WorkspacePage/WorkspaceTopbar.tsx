@@ -5,7 +5,6 @@ import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonOutline from "@mui/icons-material/PersonOutline";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
-import Star from "@mui/icons-material/Star";
 import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { useQuery } from "react-query";
@@ -64,6 +63,7 @@ export interface WorkspaceProps {
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
   latestVersion?: TypesGen.TemplateVersion;
+  handleToggleFavorite: () => void;
 }
 
 export const WorkspaceTopbar: FC<WorkspaceProps> = ({
@@ -76,6 +76,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   handleSettings,
   handleChangeVersion,
   handleDormantActivate,
+  handleToggleFavorite,
   workspace,
   isUpdating,
   isRestarting,
@@ -149,9 +150,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
               >
                 <TopbarAvatar src={workspace.template_icon} />
                 <span css={{ fontWeight: 500 }}>{workspace.name}</span>
-                {workspace.favorite && (
-                  <Star css={{width: 16, height: 16}}/>
-                )}
               </span>
             </PopoverTrigger>
 
@@ -282,6 +280,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           handleRetryDebug={handleBuildRetryDebug}
           handleChangeVersion={handleChangeVersion}
           handleDormantActivate={handleDormantActivate}
+          handleToggleFavorite={handleToggleFavorite}
           canRetryDebug={canRetryDebugMode}
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}

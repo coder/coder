@@ -265,3 +265,23 @@ const updateWorkspaceBuild = async (
     queryKey: workspaceBuildsKey(build.workspace_id),
   });
 };
+
+export const toggleFavorite = (
+  workspace: Workspace,
+  queryClient: QueryClient
+) => {
+  return {
+    mutationFn: () => {
+      if (workspace.favorite) {
+        return API.deleteFavoriteWorkspace(workspace.id);
+      } else {
+        return API.putFavoriteWorkspace(workspace.id);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: workspaceBuildsKey(workspace.id),
+      });
+    }
+  }
+}

@@ -151,8 +151,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             alignItems="center"
                           >
                             {workspace.name}
-                            {workspace.favorite &&  (
-                              <Star css={{width: 16, height: 16}}/>
+                            {workspace.favorite && (
+                              <Star css={{ width: 16, height: 16 }} />
                             )}
                             {workspace.outdated && (
                               <WorkspaceOutdatedTooltip
