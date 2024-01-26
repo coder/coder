@@ -59,7 +59,10 @@ export const WorkspaceSchedulePage: FC = () => {
     mutationFn: submitSchedule,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        workspaceByOwnerAndNameKey(params.username, params.workspace),
+        workspaceByOwnerAndNameKey(
+          params.username.replace(/^@/, ""),
+          params.workspace,
+        ),
       );
     },
   });
