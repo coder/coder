@@ -244,15 +244,7 @@ describe("ttlShutdownAt", () => {
   });
 });
 
-const autoStartDays = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
+const autoStartDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const defaultFormProps = {
   submitScheduleError: "",
   initialValues: {
@@ -265,7 +257,7 @@ const defaultFormProps = {
   defaultTTL: 24,
   onCancel: () => null,
   onSubmit: () => null,
-  allowedTemplateAutoStartDays: autoStartDays,
+  allowedTemplateAutoStartDays: autoStartDayLabels,
   allowTemplateAutoStart: true,
   allowTemplateAutoStop: true,
 };
@@ -290,19 +282,19 @@ describe("templateInheritance", () => {
     // MUI's input is wrapped in a div so we look at the aria-attribute instead
     expect(timezoneInput).toHaveAttribute("aria-disabled");
 
-    autoStartDays.forEach(async (label) => {
+    for (const label of autoStartDayLabels) {
       const checkbox = await screen.findByLabelText(label);
       expect(checkbox).toBeDisabled();
-    });
+    }
   });
   it("disables the autostart days of the week appropriately", async () => {
-    const enabledDays = ["saturday", "sunday"];
+    const enabledDayLabels = ["Sat", "Sun"];
 
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
     render(
       <WorkspaceScheduleForm
         {...defaultFormProps}
-        allowedTemplateAutoStartDays={enabledDays}
+        allowedTemplateAutoStartDays={["saturday", "sunday"]}
       />,
     );
 
@@ -316,17 +308,17 @@ describe("templateInheritance", () => {
     // MUI's input is wrapped in a div so we look at the aria-attribute instead
     expect(timezoneInput).not.toHaveAttribute("aria-disabled");
 
-    enabledDays.forEach(async (label) => {
+    for (const label of enabledDayLabels) {
       const checkbox = await screen.findByLabelText(label);
       expect(checkbox).toBeEnabled();
-    });
+    }
 
-    autoStartDays
-      .filter((day) => !enabledDays.includes(day))
-      .forEach(async (label) => {
-        const checkbox = await screen.findByLabelText(label);
-        expect(checkbox).toBeDisabled();
-      });
+    for (const label of autoStartDayLabels.filter(
+      (day) => !enabledDayLabels.includes(day),
+    )) {
+      const checkbox = await screen.findByLabelText(label);
+      expect(checkbox).toBeDisabled();
+    }
   });
   it("disables the entire autostop feature appropriately", async () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
@@ -364,7 +356,7 @@ describe("templateInheritance", () => {
     // MUI's input is wrapped in a div so we look at the aria-attribute instead
     expect(timezoneInput).toHaveAttribute("aria-disabled");
 
-    autoStartDays.forEach(async (label) => {
+    autoStartDayLabels.forEach(async (label) => {
       const checkbox = await screen.findByLabelText(label);
       expect(checkbox).toBeDisabled();
     });
