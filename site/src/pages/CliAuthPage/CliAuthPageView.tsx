@@ -21,11 +21,9 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
       <Welcome>Session token</Welcome>
 
       <p css={styles.instructions}>
-        Copy the session token below and{" "}
-        <strong css={{ whiteSpace: "nowrap" }}>
-          paste it in your terminal
-        </strong>
-        .
+        Copy the session token below and
+        <br />
+        <strong>paste it in your terminal</strong>.
       </p>
 
       <CodeExample code={sessionToken} secret />
@@ -43,7 +41,7 @@ const styles = {
   instructions: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.secondary,
-    marginBottom: 32,
+    paddingBottom: 32,
     textAlign: "center",
     lineHeight: "160%",
   }),
@@ -51,6 +49,6 @@ const styles = {
   backButton: {
     display: "flex",
     justifyContent: "flex-end",
-    paddingTop: 8,
+    paddingTop: 16,
   },
 } satisfies Record<string, Interpolation<Theme>>;
