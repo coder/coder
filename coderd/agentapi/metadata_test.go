@@ -30,7 +30,7 @@ type fakePublisher struct {
 
 var _ pubsub.Pubsub = &fakePublisher{}
 
-func (f *fakePublisher) Publish(channel string, message []byte) error {
+func (f *fakePublisher) Publish(_ string, message []byte) error {
 	f.publishes = append(f.publishes, message)
 	return nil
 }
