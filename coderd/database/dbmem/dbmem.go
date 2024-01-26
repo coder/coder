@@ -7288,6 +7288,7 @@ func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context
 		}
 	}
 
+	//nolint:gosimple
 	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
 		WorkspaceID: arg.WorkspaceID,
 		AgentID:     arg.AgentID,
