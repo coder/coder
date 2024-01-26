@@ -26,6 +26,9 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -87,7 +90,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
 	for _, daemon := range daemons {
-		apiDaemons = append(apiDaemons, convertProvisionerDaemon(daemon))
+		apiDaemons = append(apiDaemons, db2sdk.ProvisionerDaemon(daemon))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
 }
@@ -121,7 +124,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
 			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
+			tags = provisionersdk.MutateTags(uuid.Nil, tags)
 			return tags, true
 		}
 	}
@@ -191,7 +194,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	if !authorized {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
 		httpapi.Write(ctx, rw, http.StatusForbidden,
-			codersdk.Response{Message: "You aren't allowed to create provisioner daemons"})
+			codersdk.Response{
+				Message: fmt.Sprintf("You aren't allowed to create provisioner daemons with scope %q", tags[provisionersdk.TagScope]),
+			},
+		)
 		return
 	}
 	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
@@ -220,6 +226,42 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
+
+	authCtx := ctx
+	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+		//nolint:gocritic // PSK auth means no actor in request,
+		// so use system restricted.
+		authCtx = dbauthz.AsSystemRestricted(ctx)
+	}
+
+	versionHdrVal := r.Header.Get(codersdk.BuildVersionHeader)
+
+	apiVersion := "1.0"
+	if qv := r.URL.Query().Get("version"); qv != "" {
+		apiVersion = qv
+	}
+
+	// Create the daemon in the database.
+	now := dbtime.Now()
+	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
+		Name:         name,
+		Provisioners: provisioners,
+		Tags:         tags,
+		CreatedAt:    now,
+		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
+		Version:      versionHdrVal,
+		APIVersion:   apiVersion,
+	})
+	if err != nil {
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "create provisioner daemon", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating provisioner daemon.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
@@ -264,11 +306,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	mux := drpcmux.New()
 	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
+	srvCtx, srvCancel := context.WithCancel(ctx)
+	defer srvCancel()
 	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
-		api.ctx,
+		srvCtx,
 		api.AccessURL,
-		id,
+		daemon.ID,
 		logger,
 		provisioners,
 		tags,
@@ -308,27 +352,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		},
 	})
 	err = server.Serve(ctx, session)
+	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
-}
-
-func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
-	result := codersdk.ProvisionerDaemon{
-		ID:         daemon.ID,
-		CreatedAt:  daemon.CreatedAt,
-		LastSeenAt: codersdk.NullTime{NullTime: daemon.LastSeenAt},
-		Name:       daemon.Name,
-		Tags:       daemon.Tags,
-		Version:    daemon.Version,
-	}
-	for _, provisionerType := range daemon.Provisioners {
-		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
-	}
-	return result
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

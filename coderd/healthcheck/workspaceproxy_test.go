@@ -164,6 +164,15 @@ func TestWorkspaceProxies(t *testing.T) {
 			expectedSeverity:      health.SeverityWarning,
 			expectedWarningCode:   health.CodeProxyUpdate,
 		},
+		{
+			name: "Enabled/OneUnhealthyAndDeleted",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false, currentVersion, func(wp *codersdk.WorkspaceProxy) {
+				wp.Deleted = true
+			})),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   true,
+			expectedSeverity:  health.SeverityOK,
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,7 +245,7 @@ func (u *fakeWorkspaceProxyFetchUpdater) Update(ctx context.Context) error {
 }
 
 //nolint:revive // yes, this is a control flag, and that is OK in a unit test.
-func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.WorkspaceProxy {
+func fakeWorkspaceProxy(name string, healthy bool, version string, mutators ...func(*codersdk.WorkspaceProxy)) codersdk.WorkspaceProxy {
 	var status codersdk.WorkspaceProxyStatus
 	if !healthy {
 		status = codersdk.WorkspaceProxyStatus{
@@ -246,7 +255,7 @@ func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.Work
 			},
 		}
 	}
-	return codersdk.WorkspaceProxy{
+	wsp := codersdk.WorkspaceProxy{
 		Region: codersdk.Region{
 			Name:    name,
 			Healthy: healthy,
@@ -254,6 +263,10 @@ func fakeWorkspaceProxy(name string, healthy bool, version string) codersdk.Work
 		Version: version,
 		Status:  status,
 	}
+	for _, f := range mutators {
+		f(&wsp)
+	}
+	return wsp
 }
 
 func fakeFetchWorkspaceProxies(ps ...codersdk.WorkspaceProxy) func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {

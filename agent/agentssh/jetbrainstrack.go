@@ -1,6 +1,7 @@
 package agentssh
 
 import (
+	"context"
 	"strings"
 	"sync"
 
@@ -26,6 +27,7 @@ type localForwardChannelData struct {
 type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
 	jetbrainsCounter *atomic.Int64
+	logger           slog.Logger
 }
 
 func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
@@ -58,6 +60,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 	return &JetbrainsChannelWatcher{
 		NewChannel:       newChannel,
 		jetbrainsCounter: counter,
+		logger:           logger.With(slog.F("destination_port", d.DestPort)),
 	}
 }
 
@@ -67,11 +70,15 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		return c, r, err
 	}
 	w.jetbrainsCounter.Add(1)
+	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
+	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
 	return &ChannelOnClose{
 		Channel: c,
 		done: func() {
 			w.jetbrainsCounter.Add(-1)
+			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
+			w.logger.Debug(context.Background(), "JetBrains watcher channel closed")
 		},
 	}, r, err
 }

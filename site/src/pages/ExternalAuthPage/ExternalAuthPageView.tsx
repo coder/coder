@@ -33,7 +33,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   if (!externalAuth.authenticated) {
     return (
       <SignInLayout>
-        <Welcome message={`Authenticate with ${externalAuth.display_name}`} />
+        <Welcome>Authenticate with {externalAuth.display_name}</Welcome>
 
         {externalAuth.device && (
           <GitDeviceAuth
@@ -63,11 +63,12 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <Welcome
-        message={`You've authenticated with ${externalAuth.display_name}!`}
-      />
+      <Welcome>
+        You&apos;ve authenticated with {externalAuth.display_name}!
+      </Welcome>
+
       <p css={styles.text}>
-        {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋 `}
+        {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋`}
         {(!externalAuth.app_installable ||
           externalAuth.installations.length > 0) &&
           "You are now authenticated. Feel free to close this window!"}
@@ -137,10 +138,15 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   );
 };
 
-const GitDeviceAuth: FC<{
+interface GitDeviceAuthProps {
   externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
-}> = ({ externalAuthDevice, deviceExchangeError }) => {
+}
+
+const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
+  externalAuthDevice,
+  deviceExchangeError,
+}) => {
   let status = (
     <p css={styles.status}>
       <CircularProgress size={16} color="secondary" data-chromatic="ignore" />

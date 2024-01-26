@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
@@ -58,7 +59,7 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("X-Coder-Build-Version", "something")
+			w.Header().Set(codersdk.BuildVersionHeader, "something")
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("Not Found"))
 		}))

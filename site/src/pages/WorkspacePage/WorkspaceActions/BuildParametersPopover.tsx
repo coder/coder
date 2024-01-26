@@ -28,6 +28,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 
 interface BuildParametersPopoverProps {
   workspace: Workspace;
@@ -51,14 +52,14 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
   return (
     <Popover>
       <PopoverTrigger>
-        <Button
+        <TopbarButton
           data-testid="build-parameters-button"
           disabled={disabled}
           color="neutral"
-          css={{ paddingLeft: 0, paddingRight: 0 }}
+          css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
         >
-          <ExpandMoreOutlined css={{ fontSize: 16 }} />
-        </Button>
+          <ExpandMoreOutlined css={{ fontSize: 14 }} />
+        </TopbarButton>
       </PopoverTrigger>
       <PopoverContent
         horizontal="right"

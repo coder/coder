@@ -14,7 +14,7 @@ and is the only service that communicates with Postgres.
 
 It offers:
 
-- Dashboard
+- Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
 - Workspace Web Applications (e.g easily access code-server)
@@ -48,7 +48,7 @@ workspaces.
 
 ## Service Bundling
 
-While coderd and Postgres can be orchestrated independently,our default
+While coderd and Postgres can be orchestrated independently, our default
 installation paths bundle them all together into one system service. It's
 perfectly fine to run a production deployment this way, but there are certain
 situations that necessitate decomposition:

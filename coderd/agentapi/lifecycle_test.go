@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -64,7 +64,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			ReadyAt: sql.NullTime{Valid: false},
 		}).Return(nil)
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
@@ -75,7 +75,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 			},
 		}
 
@@ -84,7 +84,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
-		require.Equal(t, int64(1), atomic.LoadInt64(&publishCalled))
+		require.True(t, publishCalled)
 	})
 
 	t.Run("OKReadying", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		}).Return(nil)
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
@@ -161,7 +161,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 			},
 		}
 
@@ -170,7 +170,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
-		require.Equal(t, int64(1), atomic.LoadInt64(&publishCalled))
+		require.True(t, publishCalled)
 	})
 
 	t.Run("NoTimeSpecified", func(t *testing.T) {
@@ -260,19 +260,20 @@ func TestUpdateLifecycle(t *testing.T) {
 		}
 		for i, state := range states {
 			t.Log("state", state)
-			now := now.Add(time.Hour * time.Duration(i))
+			// Use a time after the last state change to ensure ordering.
+			stateNow := now.Add(time.Hour * time.Duration(i))
 			lifecycle := &agentproto.Lifecycle{
 				State:     state,
-				ChangedAt: timestamppb.New(now),
+				ChangedAt: timestamppb.New(stateNow),
 			}
 
 			expectedStartedAt := agent.StartedAt
 			expectedReadyAt := agent.ReadyAt
 			if state == agentproto.Lifecycle_STARTING {
-				expectedStartedAt = sql.NullTime{Valid: true, Time: now}
+				expectedStartedAt = sql.NullTime{Valid: true, Time: stateNow}
 			}
 			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_ERROR {
-				expectedReadyAt = sql.NullTime{Valid: true, Time: now}
+				expectedReadyAt = sql.NullTime{Valid: true, Time: stateNow}
 			}
 
 			dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -305,7 +306,7 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishCalled int64
+		publishCalled := false
 		api := &agentapi.LifecycleAPI{
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
@@ -316,7 +317,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled = true
 			},
 		}
 
@@ -326,7 +327,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unknown lifecycle state")
 		require.Nil(t, resp)
-		require.Equal(t, int64(0), atomic.LoadInt64(&publishCalled))
+		require.False(t, publishCalled)
 	})
 }
 

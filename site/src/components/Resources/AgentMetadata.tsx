@@ -24,18 +24,115 @@ type ItemStatus = "stale" | "valid" | "loading";
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
+export interface AgentMetadataViewProps {
+  metadata: WorkspaceAgentMetadata[];
+}
+
+export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
+  if (metadata.length === 0) {
+    return null;
+  }
+  return (
+    <section css={styles.root}>
+      {metadata.map((m) => (
+        <MetadataItem key={m.description.key} item={m} />
+      ))}
+    </section>
+  );
+};
+
+interface AgentMetadataProps {
+  agent: WorkspaceAgent;
+  storybookMetadata?: WorkspaceAgentMetadata[];
+}
+
+export const AgentMetadata: FC<AgentMetadataProps> = ({
+  agent,
+  storybookMetadata,
+}) => {
+  const [metadata, setMetadata] = useState<
+    WorkspaceAgentMetadata[] | undefined
+  >(undefined);
+  const watchAgentMetadata = useContext(WatchAgentMetadataContext);
+
+  useEffect(() => {
+    if (storybookMetadata !== undefined) {
+      setMetadata(storybookMetadata);
+      return;
+    }
+
+    let timeout: ReturnType<typeof setTimeout> | undefined = undefined;
+
+    const connect = (): (() => void) => {
+      const source = watchAgentMetadata(agent.id);
+
+      source.onerror = (e) => {
+        console.error("received error in watch stream", e);
+        setMetadata(undefined);
+        source.close();
+
+        timeout = setTimeout(() => {
+          connect();
+        }, 3000);
+      };
+
+      source.addEventListener("data", (e) => {
+        const data = JSON.parse(e.data);
+        setMetadata(data);
+      });
+      return () => {
+        if (timeout !== undefined) {
+          clearTimeout(timeout);
+        }
+        source.close();
+      };
+    };
+    return connect();
+  }, [agent.id, watchAgentMetadata, storybookMetadata]);
+
+  if (metadata === undefined) {
+    return (
+      <section css={styles.root}>
+        <AgentMetadataSkeleton />
+      </section>
+    );
+  }
+
+  return (
+    <AgentMetadataView
+      metadata={[...metadata].sort((a, b) =>
+        a.description.display_name.localeCompare(b.description.display_name),
+      )}
+    />
+  );
+};
+
+export const AgentMetadataSkeleton: FC = () => {
+  return (
+    <Stack alignItems="baseline" direction="row" spacing={6}>
+      <div css={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+
+      <div css={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+
+      <div css={styles.metadata}>
+        <Skeleton width={40} height={12} variant="text" />
+        <Skeleton width={65} height={14} variant="text" />
+      </div>
+    </Stack>
+  );
+};
+
 interface MetadataItemProps {
   item: WorkspaceAgentMetadata;
 }
 
 const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
-  if (item.result === undefined) {
-    throw new Error("Metadata item result is undefined");
-  }
-  if (item.description === undefined) {
-    throw new Error("Metadata item description is undefined");
-  }
-
   const staleThreshold = Math.max(
     item.description.interval + item.description.timeout * 2,
     // In case there is intense backpressure, we give a little bit of slack.
@@ -89,109 +186,6 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
   );
 };
 
-export interface AgentMetadataViewProps {
-  metadata: WorkspaceAgentMetadata[];
-}
-
-export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
-  if (metadata.length === 0) {
-    return <></>;
-  }
-  return (
-    <div css={styles.root}>
-      <Stack alignItems="baseline" direction="row" spacing={6}>
-        {metadata.map((m) => {
-          if (m.description === undefined) {
-            throw new Error("Metadata item description is undefined");
-          }
-          return <MetadataItem key={m.description.key} item={m} />;
-        })}
-      </Stack>
-    </div>
-  );
-};
-
-interface AgentMetadataProps {
-  agent: WorkspaceAgent;
-  storybookMetadata?: WorkspaceAgentMetadata[];
-}
-
-export const AgentMetadata: FC<AgentMetadataProps> = ({
-  agent,
-  storybookMetadata,
-}) => {
-  const [metadata, setMetadata] = useState<
-    WorkspaceAgentMetadata[] | undefined
-  >(undefined);
-  const watchAgentMetadata = useContext(WatchAgentMetadataContext);
-
-  useEffect(() => {
-    if (storybookMetadata !== undefined) {
-      setMetadata(storybookMetadata);
-      return;
-    }
-
-    let timeout: NodeJS.Timeout | undefined = undefined;
-
-    const connect = (): (() => void) => {
-      const source = watchAgentMetadata(agent.id);
-
-      source.onerror = (e) => {
-        console.error("received error in watch stream", e);
-        setMetadata(undefined);
-        source.close();
-
-        timeout = setTimeout(() => {
-          connect();
-        }, 3000);
-      };
-
-      source.addEventListener("data", (e) => {
-        const data = JSON.parse(e.data);
-        setMetadata(data);
-      });
-      return () => {
-        if (timeout !== undefined) {
-          clearTimeout(timeout);
-        }
-        source.close();
-      };
-    };
-    return connect();
-  }, [agent.id, watchAgentMetadata, storybookMetadata]);
-
-  if (metadata === undefined) {
-    return (
-      <div css={styles.root}>
-        <AgentMetadataSkeleton />
-      </div>
-    );
-  }
-
-  return <AgentMetadataView metadata={metadata} />;
-};
-
-export const AgentMetadataSkeleton: FC = () => {
-  return (
-    <Stack alignItems="baseline" direction="row" spacing={6}>
-      <div css={styles.metadata}>
-        <Skeleton width={40} height={12} variant="text" />
-        <Skeleton width={65} height={14} variant="text" />
-      </div>
-
-      <div css={styles.metadata}>
-        <Skeleton width={40} height={12} variant="text" />
-        <Skeleton width={65} height={14} variant="text" />
-      </div>
-
-      <div css={styles.metadata}>
-        <Skeleton width={40} height={12} variant="text" />
-        <Skeleton width={65} height={14} variant="text" />
-      </div>
-    </Stack>
-  );
-};
-
 const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
   children,
   ...attrs
@@ -221,25 +215,20 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const styles = {
-  root: (theme) => ({
-    padding: "20px 32px",
-    borderTop: `1px solid ${theme.palette.divider}`,
-    overflowX: "auto",
-    scrollPadding: "0 32px",
-  }),
+  root: {
+    display: "flex",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 32,
+    rowGap: 16,
+  },
 
   metadata: {
-    fontSize: 12,
-    lineHeight: "normal",
+    lineHeight: "1.6",
     display: "flex",
     flexDirection: "column",
-    gap: 4,
     overflow: "visible",
-
-    // Because of scrolling
-    "&:last-child": {
-      paddingRight: 32,
-    },
+    flexShrink: 0,
   },
 
   metadataLabel: (theme) => ({
@@ -247,7 +236,7 @@ const styles = {
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    fontWeight: 500,
+    fontSize: 13,
   }),
 
   metadataValue: {
@@ -259,7 +248,7 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    color: theme.palette.success.light,
+    color: theme.experimental.roles.success.outline,
   }),
 
   metadataValueError: (theme) => ({

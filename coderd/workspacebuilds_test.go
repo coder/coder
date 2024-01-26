@@ -51,9 +51,12 @@ func TestWorkspaceBuild(t *testing.T) {
 	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	// Create workspace will also start a build, so we need to wait for
 	// it to ensure all events are recorded.
-	require.Len(t, auditor.AuditLogs(), 2)
-	require.Equal(t, auditor.AuditLogs()[0].Ip.IPNet.IP.String(), "127.0.0.1")
-	require.Equal(t, auditor.AuditLogs()[1].Ip.IPNet.IP.String(), "127.0.0.1")
+	require.Eventually(t, func() bool {
+		logs := auditor.AuditLogs()
+		return len(logs) == 2 &&
+			assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1") &&
+			assert.Equal(t, logs[1].Ip.IPNet.IP.String(), "127.0.0.1")
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestWorkspaceBuildByBuildNumber(t *testing.T) {
@@ -969,8 +972,11 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		require.Len(t, auditor.AuditLogs(), 1)
-		require.Equal(t, auditor.AuditLogs()[0].Ip.IPNet.IP.String(), "127.0.0.1")
+		require.Eventually(t, func() bool {
+			logs := auditor.AuditLogs()
+			return len(logs) > 0 &&
+				assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1")
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
 	t.Run("IncrementBuildNumber", func(t *testing.T) {

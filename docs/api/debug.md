@@ -282,6 +282,40 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   },
   "failing_sections": ["DERP"],
   "healthy": true,
+  "provisioner_daemons": {
+    "dismissed": true,
+    "error": "string",
+    "items": [
+      {
+        "provisioner_daemon": {
+          "api_version": "string",
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "name": "string",
+          "provisioners": ["string"],
+          "tags": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "version": "string"
+        },
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
+      }
+    ],
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
   "severity": "ok",
   "time": "string",
   "websocket": {

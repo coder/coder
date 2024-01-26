@@ -7,16 +7,15 @@ on:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
-  # Uncomment these lines when testing with CI.
-  # pull_request:
-  #   paths:
-  #     - "dogfood/**"
-  #     - ".github/workflows/dogfood.yaml"
+  pull_request:
+    paths:
+      - "dogfood/**"
+      - ".github/workflows/dogfood.yaml"
   workflow_dispatch:
 
 jobs:
-  deploy_image:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+  build_image:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,27 +32,33 @@ jobs:
           tag=${tag//\//--}
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
+        if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: depot/build-push-action@v1
         with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
           context: "{{defaultContext}}:dogfood"
           pull: true
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
-          cache-from: type=registry,ref=codercom/oss-dogfood:latest
-          cache-to: type=inline
 
   deploy_template:
-    needs: deploy_image
+    needs: build_image
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -74,7 +79,7 @@ jobs:
 
       - name: "Push template"
         run: |
-          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE"
+          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE" --variable jfrog_url=${{ secrets.JFROG_URL }}
         env:
           # Consumed by Coder CLI
           CODER_URL: https://dev.coder.com

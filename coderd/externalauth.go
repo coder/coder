@@ -362,7 +362,6 @@ func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 				if err == nil && valid {
 					links[i] = newLink
 				}
-				break
 			}
 		}
 	}

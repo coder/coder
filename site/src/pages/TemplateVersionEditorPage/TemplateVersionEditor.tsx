@@ -1,4 +1,4 @@
-import Button, { type ButtonProps } from "@mui/material/Button";
+import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
@@ -12,7 +12,6 @@ import type {
 } from "api/typesGenerated";
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Avatar } from "components/Avatar/Avatar";
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
@@ -45,6 +44,17 @@ import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Loader } from "components/Loader/Loader";
+import {
+  Topbar,
+  TopbarAvatar,
+  TopbarButton,
+  TopbarData,
+  TopbarDivider,
+  TopbarIconButton,
+} from "components/FullPageLayout/Topbar";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -54,13 +64,13 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
-  disablePreview: boolean;
-  disableUpdate: boolean;
+  disablePreview?: boolean;
+  disableUpdate?: boolean;
   onPreview: (files: FileTree) => void;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
   onCancelPublish: () => void;
-  publishingError: unknown;
+  publishingError?: unknown;
   publishedVersion?: TemplateVersion;
   onCreateWorkspace: () => void;
   isAskingPublishParameters: boolean;
@@ -70,6 +80,8 @@ export interface TemplateVersionEditorProps {
   onSubmitMissingVariableValues: (values: VariableValue[]) => void;
   onCancelSubmitMissingVariableValues: () => void;
   defaultTab?: Tab;
+  provisionerTags: Record<string, string>;
+  onUpdateProvisionerTags: (tags: Record<string, string>) => void;
 }
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
@@ -106,6 +118,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
   defaultTab,
+  provisionerTags,
+  onUpdateProvisionerTags,
 }) => {
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
@@ -176,48 +190,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   return (
     <>
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <div
+        <Topbar
           css={{
-            height: 48,
-            borderBottom: `1px solid ${theme.palette.divider}`,
             display: "grid",
             gridTemplateColumns: "1fr 2fr 1fr",
-            alignItems: "center",
           }}
           data-testid="topbar"
         >
           <div>
             <Tooltip title="Back to the template">
-              <IconButton
+              <TopbarIconButton
                 component={RouterLink}
                 to={`/templates/${template.name}`}
-                size="small"
-                css={{
-                  padding: "0 16px",
-                  borderRadius: 0,
-                  height: 48,
-                }}
               >
-                <ArrowBackOutlined css={{ width: 20, height: 20 }} />
-              </IconButton>
+                <ArrowBackOutlined />
+              </TopbarIconButton>
             </Tooltip>
           </div>
 
-          <div
-            css={{
-              fontSize: 13,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Avatar
-              src={template.icon}
-              variant="square"
-              fitImage
-              css={{ width: 16, height: 16 }}
-            />
+          <TopbarData>
+            <TopbarAvatar src={template.icon} />
             <RouterLink
               to={`/templates/${template.name}`}
               css={{
@@ -231,11 +223,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             >
               {template.display_name || template.name}
             </RouterLink>
-            <span css={{ color: theme.palette.divider }}>/</span>
+            <TopbarDivider />
             <span css={{ color: theme.palette.text.secondary }}>
               {templateVersion.name}
             </span>
-          </div>
+          </TopbarData>
 
           <div
             css={{
@@ -250,20 +242,45 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               <TemplateVersionStatusBadge version={templateVersion} />
             )}
 
-            <TopbarButton
-              startIcon={
-                <PlayArrowOutlined
-                  css={{ color: theme.palette.success.light }}
-                />
-              }
-              title="Build template (Ctrl + Enter)"
-              disabled={disablePreview}
-              onClick={() => {
-                triggerPreview();
+            <ButtonGroup
+              variant="outlined"
+              css={{
+                // Workaround to make the border transitions smoothly on button groups
+                "& > button:hover + button": {
+                  borderLeft: "1px solid #FFF",
+                },
               }}
+              disabled={disablePreview}
             >
-              Build
-            </TopbarButton>
+              <TopbarButton
+                startIcon={
+                  <PlayArrowOutlined
+                    css={{ color: theme.palette.success.light }}
+                  />
+                }
+                title="Build template (Ctrl + Enter)"
+                disabled={disablePreview}
+                onClick={() => {
+                  triggerPreview();
+                }}
+              >
+                Build
+              </TopbarButton>
+              <ProvisionerTagsPopover
+                tags={provisionerTags}
+                onSubmit={({ key, value }) => {
+                  onUpdateProvisionerTags({
+                    ...provisionerTags,
+                    [key]: value,
+                  });
+                }}
+                onDelete={(key) => {
+                  const newTags = { ...provisionerTags };
+                  delete newTags[key];
+                  onUpdateProvisionerTags(newTags);
+                }}
+              />
+            </ButtonGroup>
 
             <TopbarButton
               variant="contained"
@@ -273,7 +290,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               Publish
             </TopbarButton>
           </div>
-        </div>
+        </Topbar>
 
         <div
           css={{
@@ -316,13 +333,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             </div>
           )}
 
-          <div
-            css={{
-              width: 240,
-              borderRight: `1px solid ${theme.palette.divider}`,
-              flexShrink: 0,
-            }}
-          >
+          <Sidebar>
             <div
               css={{
                 height: 42,
@@ -424,7 +435,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onRename={(file) => setRenameFileOpen(file)}
               activePath={activePath}
             />
-          </div>
+          </Sidebar>
 
           <div
             css={{
@@ -458,7 +469,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <div
               css={{
                 borderTop: `1px solid ${theme.palette.divider}`,
-
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
@@ -529,9 +539,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 ref={buildLogsRef}
                 css={{
                   display: selectedTab !== "logs" ? "none" : "flex",
+                  height: selectedTab ? 280 : 0,
                   flexDirection: "column",
                   overflowY: "auto",
-                  height: selectedTab ? 280 : 0,
                 }}
               >
                 {templateVersion.job.error && (
@@ -557,33 +567,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    css={{
-                      borderRadius: 0,
-                      border: 0,
-
-                      // Hack to update logs header and lines
-                      "& .logs-header": {
-                        border: 0,
-                        padding: "0 16px",
-                        fontFamily: MONOSPACE_FONT_FAMILY,
-
-                        "&:first-child": {
-                          paddingTop: 16,
-                        },
-
-                        "&:last-child": {
-                          paddingBottom: 16,
-                        },
-                      },
-
-                      "& .logs-line": {
-                        paddingLeft: 16,
-                      },
-
-                      "& .logs-container": {
-                        border: "0 !important",
-                      },
-                    }}
+                    css={styles.buildLogs}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -591,25 +575,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                css={{
-                  display: selectedTab !== "resources" ? "none" : undefined,
-                  overflowY: "auto",
-                  height: selectedTab ? 280 : 0,
-
-                  // Hack to access customize resource-card from here
-                  "& .resource-card": {
-                    borderLeft: 0,
-                    borderRight: 0,
-
-                    "&:first-child": {
-                      borderTop: 0,
-                    },
-
-                    "&:last-child": {
-                      borderBottom: 0,
-                    },
+                css={[
+                  {
+                    display: selectedTab !== "resources" ? "none" : undefined,
+                    height: selectedTab ? 280 : 0,
                   },
-                }}
+                  styles.resources,
+                ]}
               >
                 {resources && (
                   <TemplateResourcesTable
@@ -641,22 +613,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         missingVariables={missingVariables}
       />
     </>
-  );
-};
-
-const TopbarButton: FC<ButtonProps> = ({ children, ...buttonProps }) => {
-  return (
-    <Button
-      {...buttonProps}
-      css={{
-        height: 28,
-        fontSize: 13,
-        borderRadius: 4,
-        padding: "0 12px",
-      }}
-    >
-      {children}
-    </Button>
   );
 };
 
@@ -707,6 +663,7 @@ const styles = {
       color: theme.palette.text.disabled,
     },
   }),
+
   tabBar: (theme) => ({
     padding: "8px 16px",
     position: "sticky",
@@ -721,4 +678,50 @@ const styles = {
       borderTop: `1px solid ${theme.palette.divider}`,
     },
   }),
+
+  buildLogs: {
+    borderRadius: 0,
+    border: 0,
+
+    // Hack to update logs header and lines
+    "& .logs-header": {
+      border: 0,
+      padding: "0 16px",
+      fontFamily: MONOSPACE_FONT_FAMILY,
+
+      "&:first-child": {
+        paddingTop: 16,
+      },
+
+      "&:last-child": {
+        paddingBottom: 16,
+      },
+    },
+
+    "& .logs-line": {
+      paddingLeft: 16,
+    },
+
+    "& .logs-container": {
+      border: "0 !important",
+    },
+  },
+
+  resources: {
+    overflowY: "auto",
+
+    // Hack to access customize resource-card from here
+    "& .resource-card": {
+      borderLeft: 0,
+      borderRight: 0,
+
+      "&:first-child": {
+        borderTop: 0,
+      },
+
+      "&:last-child": {
+        borderBottom: 0,
+      },
+    },
+  },
 } satisfies Record<string, Interpolation<Theme>>;

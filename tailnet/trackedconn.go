@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
@@ -29,7 +30,7 @@ type TrackedConn struct {
 	cancel   func()
 	kind     QueueKind
 	conn     net.Conn
-	updates  chan []*Node
+	updates  chan *proto.CoordinateResponse
 	logger   slog.Logger
 	lastData []byte
 
@@ -55,7 +56,7 @@ func NewTrackedConn(ctx context.Context, cancel func(),
 	// coordinator mutex while queuing.  Node updates don't
 	// come quickly, so 512 should be plenty for all but
 	// the most pathological cases.
-	updates := make(chan []*Node, ResponseBufferSize)
+	updates := make(chan *proto.CoordinateResponse, ResponseBufferSize)
 	now := time.Now().Unix()
 	return &TrackedConn{
 		ctx:        ctx,
@@ -72,10 +73,10 @@ func NewTrackedConn(ctx context.Context, cancel func(),
 	}
 }
 
-func (t *TrackedConn) Enqueue(n []*Node) (err error) {
+func (t *TrackedConn) Enqueue(resp *proto.CoordinateResponse) (err error) {
 	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
 	select {
-	case t.updates <- n:
+	case t.updates <- resp:
 		return nil
 	default:
 		return ErrWouldBlock
@@ -124,7 +125,16 @@ func (t *TrackedConn) SendUpdates() {
 		case <-t.ctx.Done():
 			t.logger.Debug(t.ctx, "done sending updates")
 			return
-		case nodes := <-t.updates:
+		case resp := <-t.updates:
+			nodes, err := OnlyNodeUpdates(resp)
+			if err != nil {
+				t.logger.Critical(t.ctx, "unable to parse response", slog.Error(err))
+				return
+			}
+			if len(nodes) == 0 {
+				t.logger.Debug(t.ctx, "skipping response with no nodes")
+				continue
+			}
 			data, err := json.Marshal(nodes)
 			if err != nil {
 				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))

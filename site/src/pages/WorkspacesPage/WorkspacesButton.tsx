@@ -11,7 +11,6 @@ import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import { Loader } from "components/Loader/Loader";
 import { OverflowY } from "components/OverflowY/OverflowY";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
 import { SearchBox } from "./WorkspacesSearchBox";
 import {
@@ -19,6 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { SearchEmpty, searchStyles } from "components/Menu/Search";
 
 const ICON_SIZE = 18;
 
@@ -43,17 +43,15 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
   let emptyState: ReactNode = undefined;
   if (templates?.length === 0) {
     emptyState = (
-      <EmptyState
-        message="No templates yet"
-        cta={
-          <Link to="/templates" component={RouterLink}>
-            Create one now.
-          </Link>
-        }
-      />
+      <SearchEmpty>
+        No templates yet.{" "}
+        <Link to="/templates" component={RouterLink}>
+          Create one now.
+        </Link>
+      </SearchEmpty>
     );
   } else if (processed.length === 0) {
-    emptyState = <EmptyState message="No templates match your text" />;
+    emptyState = <SearchEmpty>No templates found</SearchEmpty>;
   }
 
   return (
@@ -63,7 +61,12 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
           {children}
         </Button>
       </PopoverTrigger>
-      <PopoverContent horizontal="right">
+      <PopoverContent
+        horizontal="right"
+        css={{
+          ".MuiPaper-root": searchStyles.content,
+        }}
+      >
         <SearchBox
           value={searchTerm}
           onValueChange={(newValue) => setSearchTerm(newValue)}

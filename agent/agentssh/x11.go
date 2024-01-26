@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,7 +142,7 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	}
 
 	// Open or create the Xauthority file
-	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
+	file, err := fs.OpenFile(xauthPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return xerrors.Errorf("failed to open Xauthority file: %w", err)
 	}
@@ -153,7 +154,105 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 		return xerrors.Errorf("failed to decode auth cookie: %w", err)
 	}
 
-	// Write Xauthority entry
+	// Read the Xauthority file and look for an existing entry for the host,
+	// display, and auth protocol. If an entry is found, overwrite the auth
+	// cookie (if it fits). Otherwise, mark the entry for deletion.
+	type deleteEntry struct {
+		start, end int
+	}
+	var deleteEntries []deleteEntry
+	pos := 0
+	updated := false
+	for {
+		entry, err := readXauthEntry(file)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return xerrors.Errorf("failed to read Xauthority entry: %w", err)
+		}
+
+		nextPos := pos + entry.Len()
+		cookieStartPos := nextPos - len(entry.authCookie)
+
+		if entry.family == 0x0100 && entry.address == host && entry.display == display && entry.authProtocol == authProtocol {
+			if !updated && len(entry.authCookie) == len(authCookieBytes) {
+				// Overwrite the auth cookie
+				_, err := file.WriteAt(authCookieBytes, int64(cookieStartPos))
+				if err != nil {
+					return xerrors.Errorf("failed to write auth cookie: %w", err)
+				}
+				updated = true
+			} else {
+				// Mark entry for deletion.
+				if len(deleteEntries) > 0 && deleteEntries[len(deleteEntries)-1].end == pos {
+					deleteEntries[len(deleteEntries)-1].end = nextPos
+				} else {
+					deleteEntries = append(deleteEntries, deleteEntry{
+						start: pos,
+						end:   nextPos,
+					})
+				}
+			}
+		}
+
+		pos = nextPos
+	}
+
+	// In case the magic cookie changed, or we've previously bloated the
+	// Xauthority file, we may have to delete entries.
+	if len(deleteEntries) > 0 {
+		// Read the entire file into memory. This is not ideal, but it's the
+		// simplest way to delete entries from the middle of the file. The
+		// Xauthority file is small, so this should be fine.
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return xerrors.Errorf("failed to seek Xauthority file: %w", err)
+		}
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return xerrors.Errorf("failed to read Xauthority file: %w", err)
+		}
+
+		// Delete the entries in reverse order.
+		for i := len(deleteEntries) - 1; i >= 0; i-- {
+			entry := deleteEntries[i]
+			// Safety check: ensure the entry is still there.
+			if entry.start > len(data) || entry.end > len(data) {
+				continue
+			}
+			data = append(data[:entry.start], data[entry.end:]...)
+		}
+
+		// Write the data back to the file.
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return xerrors.Errorf("failed to seek Xauthority file: %w", err)
+		}
+		_, err = file.Write(data)
+		if err != nil {
+			return xerrors.Errorf("failed to write Xauthority file: %w", err)
+		}
+
+		// Truncate the file.
+		err = file.Truncate(int64(len(data)))
+		if err != nil {
+			return xerrors.Errorf("failed to truncate Xauthority file: %w", err)
+		}
+	}
+
+	// Return if we've already updated the entry.
+	if updated {
+		return nil
+	}
+
+	// Ensure we're at the end (append).
+	_, err = file.Seek(0, io.SeekEnd)
+	if err != nil {
+		return xerrors.Errorf("failed to seek Xauthority file: %w", err)
+	}
+
+	// Append Xauthority entry.
 	family := uint16(0x0100) // FamilyLocal
 	err = binary.Write(file, binary.BigEndian, family)
 	if err != nil {
@@ -197,4 +296,97 @@ func addXauthEntry(ctx context.Context, fs afero.Fs, host string, display string
 	}
 
 	return nil
+}
+
+// xauthEntry is an representation of an Xauthority entry.
+//
+// The Xauthority file format is as follows:
+//
+// - 16-bit family
+// - 16-bit address length
+// - address
+// - 16-bit display length
+// - display
+// - 16-bit auth protocol length
+// - auth protocol
+// - 16-bit auth cookie length
+// - auth cookie
+type xauthEntry struct {
+	family       uint16
+	address      string
+	display      string
+	authProtocol string
+	authCookie   []byte
+}
+
+func (e xauthEntry) Len() int {
+	// 5 * uint16 = 10 bytes for the family/length fields.
+	return 2*5 + len(e.address) + len(e.display) + len(e.authProtocol) + len(e.authCookie)
+}
+
+func readXauthEntry(r io.Reader) (xauthEntry, error) {
+	var entry xauthEntry
+
+	// Read family
+	err := binary.Read(r, binary.BigEndian, &entry.family)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read family: %w", err)
+	}
+
+	// Read address
+	var addressLength uint16
+	err = binary.Read(r, binary.BigEndian, &addressLength)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read address length: %w", err)
+	}
+
+	addressBytes := make([]byte, addressLength)
+	_, err = r.Read(addressBytes)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read address: %w", err)
+	}
+	entry.address = string(addressBytes)
+
+	// Read display
+	var displayLength uint16
+	err = binary.Read(r, binary.BigEndian, &displayLength)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read display length: %w", err)
+	}
+
+	displayBytes := make([]byte, displayLength)
+	_, err = r.Read(displayBytes)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read display: %w", err)
+	}
+	entry.display = string(displayBytes)
+
+	// Read auth protocol
+	var authProtocolLength uint16
+	err = binary.Read(r, binary.BigEndian, &authProtocolLength)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read auth protocol length: %w", err)
+	}
+
+	authProtocolBytes := make([]byte, authProtocolLength)
+	_, err = r.Read(authProtocolBytes)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read auth protocol: %w", err)
+	}
+	entry.authProtocol = string(authProtocolBytes)
+
+	// Read auth cookie
+	var authCookieLength uint16
+	err = binary.Read(r, binary.BigEndian, &authCookieLength)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read auth cookie length: %w", err)
+	}
+
+	entry.authCookie = make([]byte, authCookieLength)
+	_, err = r.Read(entry.authCookie)
+	if err != nil {
+		return xauthEntry{}, xerrors.Errorf("failed to read auth cookie: %w", err)
+	}
+
+	return entry, nil
 }

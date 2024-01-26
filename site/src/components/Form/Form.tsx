@@ -120,13 +120,7 @@ export const FormSection: FC<
         }}
         className={classes.sectionInfo}
       >
-        <h2
-          css={[
-            styles.formSectionInfoTitle,
-            alpha && styles.formSectionInfoTitleAlpha,
-          ]}
-          className={classes.infoTitle}
-        >
+        <h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
           {title}
           {alpha && <AlphaBadge />}
           {deprecated && <DeprecatedBadge />}
@@ -141,7 +135,7 @@ export const FormSection: FC<
 
 export const FormFields: FC<PropsWithChildren> = ({ children }) => {
   return (
-    <Stack direction="column" spacing={2.5} css={styles.formSectionFields}>
+    <Stack direction="column" spacing={3} css={styles.formSectionFields}>
       {children}
     </Stack>
   );
@@ -154,14 +148,11 @@ const styles = {
     fontWeight: 400,
     margin: 0,
     marginBottom: 8,
-  }),
-
-  formSectionInfoTitleAlpha: {
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
+  }),
 
   formSectionInfoDescription: (theme) => ({
     fontSize: 14,

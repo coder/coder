@@ -33,7 +33,7 @@ OPTIONS:
           behavior as non-blocking.
           DEPRECATED: Use --wait instead.
 
-  -R, --remote-forward string, $CODER_SSH_REMOTE_FORWARD
+  -R, --remote-forward string-array, $CODER_SSH_REMOTE_FORWARD
           Enable remote port forwarding (remote_port:local_address:local_port).
 
       --stdio bool, $CODER_SSH_STDIO

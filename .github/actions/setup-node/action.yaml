@@ -17,7 +17,7 @@ runs:
     - name: Setup Node
       uses: buildjet/setup-node@v3
       with:
-        node-version: 18.17.0
+        node-version: 18.19.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "pnpm"
         cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml

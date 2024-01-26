@@ -13,8 +13,12 @@ export const AuditPaywall: FC = () => {
       description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you need an Enterprise license."
       cta={
         <Stack direction="row" alignItems="center">
-          <Link href={docs("/admin/upgrade")} target="_blank" rel="noreferrer">
-            <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+          <Link target="_blank" rel="noreferrer">
+            <Button
+              href={docs("/admin/upgrade")}
+              size="small"
+              startIcon={<ArrowRightAltOutlined />}
+            >
               See how to upgrade
             </Button>
           </Link>

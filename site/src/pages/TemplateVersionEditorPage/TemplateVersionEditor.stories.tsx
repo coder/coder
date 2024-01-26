@@ -1,3 +1,6 @@
+import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import {
   MockFailedProvisionerJob,
   MockRunningProvisionerJob,
@@ -14,18 +17,28 @@ import {
   MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-  title: "pages/TemplateVersionEditorPage",
+  title: "pages/TemplateVersionEditor",
+  parameters: {
+    chromatic,
+    layout: "fullscreen",
+  },
   component: TemplateVersionEditor,
   args: {
     template: MockTemplate,
     templateVersion: MockTemplateVersion,
     defaultFileTree: MockTemplateVersionFileTree,
-  },
-  parameters: {
-    layout: "fullscreen",
+    onPreview: action("onPreview"),
+    onPublish: action("onPublish"),
+    onConfirmPublish: action("onConfirmPublish"),
+    onCancelPublish: action("onCancelPublish"),
+    onCreateWorkspace: action("onCreateWorkspace"),
+    onSubmitMissingVariableValues: action("onSubmitMissingVariableValues"),
+    onCancelSubmitMissingVariableValues: action(
+      "onCancelSubmitMissingVariableValues",
+    ),
+    provisionerTags: { wibble: "wobble", wiggle: "woggle" },
   },
 };
 

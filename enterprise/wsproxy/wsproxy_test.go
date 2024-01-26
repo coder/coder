@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -34,7 +33,6 @@ func TestDERPOnly(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -82,7 +80,6 @@ func TestDERP(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -315,7 +312,6 @@ func TestDERPEndToEnd(t *testing.T) {
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
-		string(codersdk.ExperimentMoons),
 		"*",
 	}
 
@@ -434,7 +430,7 @@ resourceLoop:
 	require.False(t, p2p)
 }
 
-func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
+func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 	t.Parallel()
 
 	apptest.Run(t, false, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
@@ -443,14 +439,23 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
-			string(codersdk.ExperimentMoons),
 			"*",
 		}
 
+		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
+		flushStats := func() {
+			proxyStatsCollectorFlushDone := make(chan struct{}, 1)
+			proxyStatsCollectorFlushCh <- proxyStatsCollectorFlushDone
+			<-proxyStatsCollectorFlushDone
+		}
+
+		if opts.PrimaryAppHost == "" {
+			opts.PrimaryAppHost = "*.primary.test.coder.com"
+		}
 		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
-				AppHostname:              "*.primary.test.coder.com",
+				AppHostname:              opts.PrimaryAppHost,
 				IncludeProvisionerDaemon: true,
 				RealIPConfig: &httpmw.RealIPConfig{
 					TrustedOrigins: []*net.IPNet{{
@@ -481,6 +486,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 			Name:            "best-proxy",
 			AppHostname:     opts.AppHost,
 			DisablePathApps: opts.DisablePathApps,
+			FlushStats:      proxyStatsCollectorFlushCh,
 		})
 
 		return &apptest.Deployment{
@@ -488,63 +494,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 			SDKClient:      client,
 			FirstUser:      user,
 			PathAppBaseURL: proxyAPI.Options.AccessURL,
-		}
-	})
-}
-
-func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
-	t.Parallel()
-
-	apptest.Run(t, false, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
-		deploymentValues := coderdtest.DeploymentValues(t)
-		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
-		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
-		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
-		deploymentValues.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			string(codersdk.ExperimentSingleTailnet),
-			"*",
-		}
-
-		client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues:         deploymentValues,
-				AppHostname:              "*.primary.test.coder.com",
-				IncludeProvisionerDaemon: true,
-				RealIPConfig: &httpmw.RealIPConfig{
-					TrustedOrigins: []*net.IPNet{{
-						IP:   net.ParseIP("127.0.0.1"),
-						Mask: net.CIDRMask(8, 32),
-					}},
-					TrustedHeaders: []string{
-						"CF-Connecting-IP",
-					},
-				},
-				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
-				},
-			},
-		})
-
-		// Create the external proxy
-		if opts.DisableSubdomainApps {
-			opts.AppHost = ""
-		}
-		proxyAPI := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
-			Name:            "best-proxy",
-			Experiments:     coderd.ReadExperiments(api.Logger, deploymentValues.Experiments.Value()),
-			AppHostname:     opts.AppHost,
-			DisablePathApps: opts.DisablePathApps,
-		})
-
-		return &apptest.Deployment{
-			Options:        opts,
-			SDKClient:      client,
-			FirstUser:      user,
-			PathAppBaseURL: proxyAPI.Options.AccessURL,
+			FlushStats:     flushStats,
 		}
 	})
 }

@@ -216,7 +216,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
             )}
           </div>
 
-          {template.deprecated && <Pill text="Deprecated" type="warning" />}
+          {template.deprecated && <Pill type="warning">Deprecated</Pill>}
         </Stack>
       </PageHeader>
     </Margins>

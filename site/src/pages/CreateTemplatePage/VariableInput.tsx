@@ -11,9 +11,11 @@ const isBoolean = (variable: TemplateVersionVariable) => {
   return variable.type === "bool";
 };
 
-const VariableLabel: FC<{ variable: TemplateVersionVariable }> = ({
-  variable,
-}) => {
+interface VariableLabelProps {
+  variable: TemplateVersionVariable;
+}
+
+const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
   return (
     <label htmlFor={variable.name}>
       <span css={styles.labelName}>
@@ -53,7 +55,7 @@ export const VariableInput: FC<VariableInputProps> = ({
   );
 };
 
-const VariableField: React.FC<VariableInputProps> = ({
+const VariableField: FC<VariableInputProps> = ({
   disabled,
   onChange,
   variable,

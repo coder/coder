@@ -3,14 +3,14 @@ package agentapi_test
 import (
 	"context"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -42,8 +42,8 @@ func TestBatchCreateLogs(t *testing.T) {
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishWorkspaceUpdateCalled int64
-		var publishWorkspaceAgentLogsUpdateCalled int64
+		publishWorkspaceUpdateCalled := false
+		publishWorkspaceAgentLogsUpdateCalled := false
 		now := dbtime.Now()
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
@@ -55,14 +55,14 @@ func TestBatchCreateLogs(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+				publishWorkspaceAgentLogsUpdateCalled = true
 
 				// Check the message content, should be for -1 since the lowest
 				// log we inserted was 0.
-				require.Equal(t, agentsdk.LogsNotifyMessage{CreatedAfter: -1}, msg)
+				assert.Equal(t, agentsdk.LogsNotifyMessage{CreatedAfter: -1}, msg)
 			},
 			TimeNowFn: func() time.Time { return now },
 		}
@@ -137,8 +137,8 @@ func TestBatchCreateLogs(t *testing.T) {
 		resp, err := api.BatchCreateLogs(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
-		require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-		require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+		require.True(t, publishWorkspaceUpdateCalled)
+		require.True(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
 
 	t.Run("NoWorkspacePublishIfNotFirstLogs", func(t *testing.T) {
@@ -149,8 +149,8 @@ func TestBatchCreateLogs(t *testing.T) {
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishWorkspaceUpdateCalled int64
-		var publishWorkspaceAgentLogsUpdateCalled int64
+		publishWorkspaceUpdateCalled := false
+		publishWorkspaceAgentLogsUpdateCalled := false
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agentWithLogs, nil
@@ -161,10 +161,10 @@ func TestBatchCreateLogs(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+				publishWorkspaceAgentLogsUpdateCalled = true
 			},
 		}
 
@@ -187,8 +187,8 @@ func TestBatchCreateLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-		require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+		require.False(t, publishWorkspaceUpdateCalled)
+		require.True(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
 
 	t.Run("AlreadyOverflowed", func(t *testing.T) {
@@ -199,8 +199,8 @@ func TestBatchCreateLogs(t *testing.T) {
 		overflowedAgent := agent
 		overflowedAgent.LogsOverflowed = true
 
-		var publishWorkspaceUpdateCalled int64
-		var publishWorkspaceAgentLogsUpdateCalled int64
+		publishWorkspaceUpdateCalled := false
+		publishWorkspaceAgentLogsUpdateCalled := false
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return overflowedAgent, nil
@@ -211,10 +211,10 @@ func TestBatchCreateLogs(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+				publishWorkspaceAgentLogsUpdateCalled = true
 			},
 		}
 
@@ -225,8 +225,8 @@ func TestBatchCreateLogs(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "workspace agent logs overflowed")
 		require.Nil(t, resp)
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+		require.False(t, publishWorkspaceUpdateCalled)
+		require.False(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
 
 	t.Run("InvalidLogSourceID", func(t *testing.T) {
@@ -297,8 +297,8 @@ func TestBatchCreateLogs(t *testing.T) {
 
 			dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-			var publishWorkspaceUpdateCalled int64
-			var publishWorkspaceAgentLogsUpdateCalled int64
+			publishWorkspaceUpdateCalled := false
+			publishWorkspaceAgentLogsUpdateCalled := false
 			api := &agentapi.LogsAPI{
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
@@ -309,10 +309,10 @@ func TestBatchCreateLogs(t *testing.T) {
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
 				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-					atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+					publishWorkspaceUpdateCalled = true
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-					atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+					publishWorkspaceAgentLogsUpdateCalled = true
 				},
 				TimeNowFn: func() time.Time { return now },
 			}
@@ -334,8 +334,8 @@ func TestBatchCreateLogs(t *testing.T) {
 			resp, err := api.BatchCreateLogs(context.Background(), req)
 			require.NoError(t, err)
 			require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
-			require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-			require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+			require.True(t, publishWorkspaceUpdateCalled)
+			require.True(t, publishWorkspaceAgentLogsUpdateCalled)
 		})
 
 		t.Run("Exists", func(t *testing.T) {
@@ -343,8 +343,8 @@ func TestBatchCreateLogs(t *testing.T) {
 
 			dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-			var publishWorkspaceUpdateCalled int64
-			var publishWorkspaceAgentLogsUpdateCalled int64
+			publishWorkspaceUpdateCalled := false
+			publishWorkspaceAgentLogsUpdateCalled := false
 			api := &agentapi.LogsAPI{
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
@@ -355,10 +355,10 @@ func TestBatchCreateLogs(t *testing.T) {
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
 				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-					atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+					publishWorkspaceUpdateCalled = true
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-					atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+					publishWorkspaceAgentLogsUpdateCalled = true
 				},
 				TimeNowFn: func() time.Time { return now },
 			}
@@ -382,8 +382,8 @@ func TestBatchCreateLogs(t *testing.T) {
 			resp, err := api.BatchCreateLogs(context.Background(), req)
 			require.NoError(t, err)
 			require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
-			require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-			require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+			require.True(t, publishWorkspaceUpdateCalled)
+			require.True(t, publishWorkspaceAgentLogsUpdateCalled)
 		})
 	})
 
@@ -392,8 +392,8 @@ func TestBatchCreateLogs(t *testing.T) {
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishWorkspaceUpdateCalled int64
-		var publishWorkspaceAgentLogsUpdateCalled int64
+		publishWorkspaceUpdateCalled := false
+		publishWorkspaceAgentLogsUpdateCalled := false
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -404,10 +404,10 @@ func TestBatchCreateLogs(t *testing.T) {
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
 			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
-				atomic.AddInt64(&publishWorkspaceUpdateCalled, 1)
+				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
-				atomic.AddInt64(&publishWorkspaceAgentLogsUpdateCalled, 1)
+				publishWorkspaceAgentLogsUpdateCalled = true
 			},
 		}
 
@@ -437,7 +437,7 @@ func TestBatchCreateLogs(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Nil(t, resp)
-		require.EqualValues(t, 1, atomic.LoadInt64(&publishWorkspaceUpdateCalled))
-		require.EqualValues(t, 0, atomic.LoadInt64(&publishWorkspaceAgentLogsUpdateCalled))
+		require.True(t, publishWorkspaceUpdateCalled)
+		require.False(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
 }

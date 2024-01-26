@@ -1,32 +1,28 @@
 import Button, { type ButtonProps } from "@mui/material/Button";
-import { useTheme } from "@emotion/react";
 import { forwardRef } from "react";
 
 // eslint-disable-next-line react/display-name -- Name is inferred from variable name
 export const AgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
   (props, ref) => {
     const { children, ...buttonProps } = props;
-    const theme = useTheme();
 
     return (
       <Button
-        color="neutral"
         {...buttonProps}
+        color="neutral"
+        size="xlarge"
+        variant="contained"
         ref={ref}
-        css={{
-          backgroundColor: theme.palette.background.default,
-
-          "&:hover": {
-            backgroundColor: theme.palette.background.paper,
-          },
-
+        css={(theme) => ({
+          padding: "12px 20px",
+          color: theme.palette.text.primary,
           // Making them smaller since those icons don't have a padding around them
-          "& .MuiButton-startIcon": {
-            width: 12,
-            height: 12,
+          "& .MuiButton-startIcon, & .MuiButton-endIcon": {
+            width: 16,
+            height: 16,
             "& svg": { width: "100%", height: "100%" },
           },
-        }}
+        })}
       >
         {children}
       </Button>

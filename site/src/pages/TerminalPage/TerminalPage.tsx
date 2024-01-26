@@ -13,7 +13,6 @@ import "xterm/css/xterm.css";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
 import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
@@ -34,6 +33,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -67,7 +68,6 @@ const TerminalPage: FC = () => {
   const workspaceAgent = workspace.data
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
-  const dashboard = useDashboard();
   const selectedProxy = proxy.proxy;
   const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
@@ -110,7 +110,7 @@ const TerminalPage: FC = () => {
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        background: theme.colors.gray[16],
+        background: theme.palette.background.default,
       },
     });
     if (renderer === "webgl") {
@@ -191,7 +191,8 @@ const TerminalPage: FC = () => {
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
-        Language.workspaceAgentErrorMessagePrefix + "no agent found with ID",
+        Language.workspaceAgentErrorMessagePrefix +
+          "no agent found with ID, is the workspace started?",
       );
       return;
     }
@@ -295,7 +296,7 @@ const TerminalPage: FC = () => {
   ]);
 
   return (
-    <>
+    <ThemeOverride theme={themes.dark}>
       <Helmet>
         <title>
           {workspace.data
@@ -312,13 +313,11 @@ const TerminalPage: FC = () => {
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
         {terminalState === "disconnected" && <DisconnectedAlert />}
         <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
-        {dashboard.experiments.includes("moons") &&
-          selectedProxy &&
-          latency && (
-            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
-          )}
+        {selectedProxy && latency && (
+          <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+        )}
       </div>
-    </>
+    </ThemeOverride>
   );
 };
 

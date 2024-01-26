@@ -918,6 +918,16 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 
 Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
 
+### --support-links
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>struct[[]codersdk.LinkConfig]</code> |
+| Environment | <code>$CODER_SUPPORT_LINKS</code>          |
+| YAML        | <code>supportLinks</code>                  |
+
+Support links to display in the top right drop down menu.
+
 ### --tls-address
 
 |             |                                     |
@@ -1088,7 +1098,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
-| Type        | <code>url</code>                          |
+| Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
 | YAML        | <code>networking.wildcardAccessURL</code> |
 

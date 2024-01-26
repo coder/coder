@@ -1,9 +1,11 @@
+import type { Meta } from "@storybook/react";
 import { useQueryClient } from "react-query";
 import {
   reactRouterParameters,
   reactRouterOutlet,
   RouteDefinition,
 } from "storybook-addon-react-router-v6";
+import { chromatic } from "testHelpers/chromatic";
 import {
   MockBuildInfo,
   MockEntitlements,
@@ -11,9 +13,8 @@ import {
   MockHealth,
   MockHealthSettings,
 } from "testHelpers/entities";
-import { Meta } from "@storybook/react";
 import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
-import { DashboardProvider } from "components/Dashboard/DashboardProvider";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { HealthLayout } from "./HealthLayout";
 
 type MetaOptions = {
@@ -24,8 +25,9 @@ type MetaOptions = {
 
 export const generateMeta = ({ element, path, params }: MetaOptions): Meta => {
   return {
-    render: HealthLayout,
+    component: HealthLayout,
     parameters: {
+      chromatic,
       layout: "fullscreen",
       reactRouter: reactRouterParameters({
         location: { pathParams: params },

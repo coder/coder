@@ -46,6 +46,7 @@ type MinimalUser struct {
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
+	Name       string    `json:"name"`
 	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
@@ -63,11 +64,38 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// @typescript-ignore LicensorTrialRequest
+type LicensorTrialRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
 type CreateFirstUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
-	Trial    bool   `json:"trial"`
+	Email     string                   `json:"email" validate:"required,email"`
+	Username  string                   `json:"username" validate:"required,username"`
+	Password  string                   `json:"password" validate:"required"`
+	Trial     bool                     `json:"trial"`
+	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+}
+
+type CreateFirstUserTrialInfo struct {
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -91,6 +119,7 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
@@ -203,7 +232,7 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	if res.StatusCode == http.StatusNotFound {
 		// ensure we are talking to coder and not
 		// some other service that returns 404
-		v := res.Header.Get("X-Coder-Build-Version")
+		v := res.Header.Get(BuildVersionHeader)
 		if v == "" {
 			return false, xerrors.Errorf("missing build version header, not a coder instance")
 		}

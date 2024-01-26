@@ -2,14 +2,15 @@ package tailnet_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"github.com/google/uuid"
 
@@ -23,70 +24,6 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func TestValidateVersion(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name      string
-		version   string
-		supported bool
-	}{
-		{
-			name:      "Current",
-			version:   fmt.Sprintf("%d.%d", tailnet.CurrentMajor, tailnet.CurrentMinor),
-			supported: true,
-		},
-		{
-			name:    "TooNewMinor",
-			version: fmt.Sprintf("%d.%d", tailnet.CurrentMajor, tailnet.CurrentMinor+1),
-		},
-		{
-			name:    "TooNewMajor",
-			version: fmt.Sprintf("%d.%d", tailnet.CurrentMajor+1, tailnet.CurrentMinor),
-		},
-		{
-			name:      "1.0",
-			version:   "1.0",
-			supported: true,
-		},
-		{
-			name:      "2.0",
-			version:   "2.0",
-			supported: true,
-		},
-		{
-			name:    "Malformed0",
-			version: "cats",
-		},
-		{
-			name:    "Malformed1",
-			version: "cats.dogs",
-		},
-		{
-			name:    "Malformed2",
-			version: "1.0.1",
-		},
-		{
-			name:    "Malformed3",
-			version: "11",
-		},
-		{
-			name:    "TooOld",
-			version: "0.8",
-		},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			err := tailnet.ValidateVersion(tc.version)
-			if tc.supported {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-			}
-		})
-	}
-}
-
 func TestClientService_ServeClient_V2(t *testing.T) {
 	t.Parallel()
 	fCoord := newFakeCoordinator()
@@ -94,7 +31,11 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	uut, err := tailnet.NewClientService(logger, &coordPtr)
+	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{999: {RegionCode: "test"}}}
+	uut, err := tailnet.NewClientService(
+		logger, &coordPtr,
+		time.Millisecond, func() *tailcfg.DERPMap { return derpMap },
+	)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -112,7 +53,9 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 
 	client, err := tailnet.NewDRPCClient(c)
 	require.NoError(t, err)
-	stream, err := client.CoordinateTailnet(ctx)
+
+	// Coordinate
+	stream, err := client.Coordinate(ctx)
 	require.NoError(t, err)
 	defer stream.Close()
 
@@ -145,11 +88,21 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	err = stream.Close()
 	require.NoError(t, err)
 
-	// stream ^^ is just one RPC; we need to close the Conn to end the session.
+	// DERP Map
+	dms, err := client.StreamDERPMaps(ctx, &proto.StreamDERPMapsRequest{})
+	require.NoError(t, err)
+
+	gotDermMap, err := dms.Recv()
+	require.NoError(t, err)
+	require.Equal(t, "test", gotDermMap.GetRegions()[999].GetRegionCode())
+	err = dms.Close()
+	require.NoError(t, err)
+
+	// RPCs closed; we need to close the Conn to end the session.
 	err = c.Close()
 	require.NoError(t, err)
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
-	require.ErrorIs(t, err, io.EOF)
+	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
 }
 
 func TestClientService_ServeClient_V1(t *testing.T) {
@@ -159,7 +112,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	uut, err := tailnet.NewClientService(logger, &coordPtr)
+	uut, err := tailnet.NewClientService(logger, &coordPtr, 0, nil)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)

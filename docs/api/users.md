@@ -37,6 +37,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -105,6 +106,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -226,6 +228,15 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
   "email": "string",
   "password": "string",
   "trial": true,
+  "trial_info": {
+    "company_name": "string",
+    "country": "string",
+    "developers": "string",
+    "first_name": "string",
+    "job_title": "string",
+    "last_name": "string",
+    "phone_number": "string"
+  },
   "username": "string"
 }
 ```
@@ -364,6 +375,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -416,6 +428,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -478,6 +491,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1050,6 +1064,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 
 ```json
 {
+  "name": "string",
   "username": "string"
 }
 ```
@@ -1073,6 +1088,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1125,6 +1141,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1187,6 +1204,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1239,6 +1257,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1291,6 +1310,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {

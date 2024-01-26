@@ -19,9 +19,9 @@ import (
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -751,7 +751,7 @@ func Test_ResolveRequest(t *testing.T) {
 		redirectURI, err := url.Parse(redirectURIStr)
 		require.NoError(t, err)
 
-		appHost := httpapi.ApplicationURL{
+		appHost := appurl.ApplicationURL{
 			Prefix:        "",
 			AppSlugOrPort: req.AppSlugOrPort,
 			AgentName:     req.AgentNameOrID,

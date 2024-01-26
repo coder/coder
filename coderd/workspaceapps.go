@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -31,13 +31,8 @@ import (
 // @Router /applications/host [get]
 // @Deprecated use api/v2/regions and see the primary proxy.
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
-	host := api.AppHostname
-	if host != "" && api.AccessURL.Port() != "" {
-		host += fmt.Sprintf(":%s", api.AccessURL.Port())
-	}
-
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
-		Host: host,
+		Host: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),
 	})
 }
 
@@ -112,12 +107,12 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:           apiKey.UserID,
-		LoginType:        database.LoginTypePassword,
-		DeploymentValues: api.DeploymentValues,
-		ExpiresAt:        exp,
-		LifetimeSeconds:  lifetimeSeconds,
-		Scope:            database.APIKeyScopeApplicationConnect,
+		UserID:          apiKey.UserID,
+		LoginType:       database.LoginTypePassword,
+		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		ExpiresAt:       exp,
+		LifetimeSeconds: lifetimeSeconds,
+		Scope:           database.APIKeyScopeApplicationConnect,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -169,7 +164,7 @@ func (api *API) ValidWorkspaceAppHostname(ctx context.Context, host string, opts
 	}
 
 	if opts.AllowPrimaryWildcard && api.AppHostnameRegex != nil {
-		_, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
+		_, ok := appurl.ExecuteHostnamePattern(api.AppHostnameRegex, host)
 		if ok {
 			// Force the redirect URI to have the same scheme as the access URL
 			// for security purposes.

@@ -5,6 +5,7 @@ import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "../Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
+import { useTheme } from "@mui/material/styles";
 
 const countAgents = (resource: WorkspaceResource) => {
   return resource.agents ? resource.agents.length : 0;
@@ -19,6 +20,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
   agentRow,
 }) => {
+  const theme = useTheme();
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
     useState(false);
   const displayResources = shouldDisplayHideResources
@@ -30,7 +32,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   const hasHideResources = resources.some((r) => r.hide);
 
   return (
-    <Stack direction="column" spacing={0}>
+    <Stack
+      direction="column"
+      spacing={0}
+      css={{ background: theme.palette.background.default }}
+    >
       {displayResources.map((resource) => (
         <ResourceCard
           key={resource.id}

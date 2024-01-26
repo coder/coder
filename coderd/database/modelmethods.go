@@ -373,6 +373,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			DormantAt:         r.DormantAt,
 			DeletingAt:        r.DeletingAt,
 			AutomaticUpdates:  r.AutomaticUpdates,
+			Favorite:          r.Favorite,
 		}
 	}
 

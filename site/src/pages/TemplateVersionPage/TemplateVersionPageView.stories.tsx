@@ -38,7 +38,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
     "some.tpl": `{{.Name}}`,
     "some.sh": `echo "Hello world"`,
   },
-  previousFiles: undefined,
+  baseFiles: undefined,
   error: undefined,
 };
 

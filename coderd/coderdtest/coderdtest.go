@@ -62,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -71,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -107,7 +107,7 @@ type Options struct {
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	ExternalAuthConfigs   []*externalauth.Config
-	TrialGenerator        func(context.Context, string) error
+	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
@@ -145,6 +145,7 @@ type Options struct {
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
+	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -371,7 +372,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
 		var err error
-		appHostnameRegex, err = httpapi.CompileHostnamePattern(options.AppHostname)
+		appHostnameRegex, err = appurl.CompileHostnamePattern(options.AppHostname)
 		require.NoError(t, err)
 	}
 
@@ -451,6 +452,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			StatsBatcher:                       options.StatsBatcher,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
+			NewTicker:                          options.NewTicker,
 		}
 }
 
@@ -532,8 +534,8 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, t.Name())
+	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, "test")
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,

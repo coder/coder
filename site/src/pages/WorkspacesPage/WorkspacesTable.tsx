@@ -17,7 +17,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
@@ -146,7 +146,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                         title={
                           <Stack
                             direction="row"
-                            spacing={0}
+                            spacing={0.5}
                             alignItems="center"
                           >
                             {workspace.name}
@@ -165,7 +165,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                         }
                         subtitle={workspace.owner_name}
                         avatar={
-                          <Avatar
+                          <ExternalAvatar
                             src={workspace.template_icon}
                             variant={
                               workspace.template_icon ? "square" : undefined
@@ -173,7 +173,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             fitImage={Boolean(workspace.template_icon)}
                           >
                             {workspace.name}
-                          </Avatar>
+                          </ExternalAvatar>
                         }
                       />
                     </div>
@@ -195,7 +195,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                       {workspace.latest_build.status === "running" &&
                         !workspace.health.healthy && (
                           <InfoTooltip
-                            type="warning"
+                            type="notice"
                             title="Workspace is unhealthy"
                             message="Your workspace is running but some agents are unhealthy."
                           />

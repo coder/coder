@@ -28,7 +28,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
   },
   "support_links": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -188,6 +188,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -251,6 +252,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -329,6 +331,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -430,6 +433,376 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OAuth2 applications.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2-provider/apps`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "callback_url": "string",
+    "endpoints": {
+      "authorization": "string",
+      "device_authorization": "string",
+      "token": "string"
+    },
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
+
+<h3 id="get-oauth2-applications.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
+| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
+| `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
+| `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2-provider/apps`
+
+> Body parameter
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                     | Required | Description                       |
+| ------ | ---- | ---------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| `body` | body | [codersdk.PostOAuth2ProviderAppRequest](schemas.md#codersdkpostoauth2providerapprequest) | true     | The OAuth2 application to create. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2-provider/apps/{app}`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /oauth2-provider/apps/{app}`
+
+> Body parameter
+
+```json
+{
+  "callback_url": "string",
+  "icon": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description                   |
+| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ----------------------------- |
+| `app`  | path | string                                                                                 | true     | App ID                        |
+| `body` | body | [codersdk.PutOAuth2ProviderAppRequest](schemas.md#codersdkputoauth2providerapprequest) | true     | Update an OAuth2 application. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete OAuth2 application.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /oauth2-provider/apps/{app}`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get OAuth2 application secrets.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2-provider/apps/{app}/secrets`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "client_secret_truncated": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_used_at": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderAppSecret](schemas.md#codersdkoauth2providerappsecret) |
+
+<h3 id="get-oauth2-application-secrets.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                        | Type         | Required | Restrictions | Description |
+| --------------------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`              | array        | false    |              |             |
+| `» client_secret_truncated` | string       | false    |              |             |
+| `» id`                      | string(uuid) | false    |              |             |
+| `» last_used_at`            | string       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create OAuth2 application secret.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2-provider/apps/{app}/secrets`
+
+### Parameters
+
+| Name  | In   | Type   | Required | Description |
+| ----- | ---- | ------ | -------- | ----------- |
+| `app` | path | string | true     | App ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "client_secret_full": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderAppSecretFull](schemas.md#codersdkoauth2providerappsecretfull) |
+
+<h3 id="create-oauth2-application-secret.-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type         | Required | Restrictions | Description |
+| ---------------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`         | array        | false    |              |             |
+| `» client_secret_full` | string       | false    |              |             |
+| `» id`                 | string(uuid) | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete OAuth2 application secret.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets/{secretID} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /oauth2-provider/apps/{app}/secrets/{secretID}`
+
+### Parameters
+
+| Name       | In   | Type   | Required | Description |
+| ---------- | ---- | ------ | -------- | ----------- |
+| `app`      | path | string | true     | App ID      |
+| `secretID` | path | string | true     | Secret ID   |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples
@@ -467,6 +840,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -510,6 +884,7 @@ Status Code **200**
 | `»» id`               | string(uuid)                                           | true     |              |             |
 | `»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»» name`             | string                                                 | false    |              |             |
 | `»» organization_ids` | array                                                  | false    |              |             |
 | `»» roles`            | array                                                  | false    |              |             |
 | `»»» display_name`    | string                                                 | false    |              |             |
@@ -588,6 +963,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -652,6 +1028,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -705,6 +1082,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 ```json
 [
   {
+    "api_version": "string",
     "created_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
@@ -732,6 +1110,7 @@ Status Code **200**
 | Name                | Type              | Required | Restrictions | Description |
 | ------------------- | ----------------- | -------- | ------------ | ----------- |
 | `[array item]`      | array             | false    |              |             |
+| `» api_version`     | string            | false    |              |             |
 | `» created_at`      | string(date-time) | false    |              |             |
 | `» id`              | string(uuid)      | false    |              |             |
 | `» last_seen_at`    | string(date-time) | false    |              |             |
@@ -1013,6 +1392,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1066,6 +1446,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
+    "name": "string",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "role": "admin",
     "roles": [
@@ -1100,6 +1481,7 @@ Status Code **200**
 | `» id`               | string(uuid)                                             | true     |              |             |
 | `» last_seen_at`     | string(date-time)                                        | false    |              |             |
 | `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |             |
+| `» name`             | string                                                   | false    |              |             |
 | `» organization_ids` | array                                                    | false    |              |             |
 | `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |             |
 | `» roles`            | array                                                    | false    |              |             |
@@ -1226,6 +1608,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
+            "name": "string",
             "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
             "roles": [
               {
@@ -1252,6 +1635,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1292,6 +1676,7 @@ Status Code **200**
 | `»»» id`               | string(uuid)                                           | true     |              |             |
 | `»»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»»» name`             | string                                                 | false    |              |             |
 | `»»» organization_ids` | array                                                  | false    |              |             |
 | `»»» roles`            | array                                                  | false    |              |             |
 | `»»»» display_name`    | string                                                 | false    |              |             |

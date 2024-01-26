@@ -28,7 +28,7 @@ declare module "@emoji-mart/react" {
     | { unified: undefined; src: string }
     | { unified: string; src: undefined };
 
-  const EmojiPicker: React.FC<{
+  export interface EmojiMartProps {
     set: "native" | "apple" | "facebook" | "google" | "twitter";
     theme: "dark" | "light";
     data: unknown;
@@ -36,7 +36,9 @@ declare module "@emoji-mart/react" {
     emojiButtonSize?: number;
     emojiSize?: number;
     onEmojiSelect: (emoji: EmojiData) => void;
-  }>;
+  }
 
-  export default EmojiPicker;
+  const EmojiMart: React.FC<EmojiMartProps>;
+
+  export default EmojiMart;
 }

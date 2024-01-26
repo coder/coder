@@ -9,6 +9,7 @@ import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -106,7 +107,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
       <Stack direction="row" alignItems="center">
         {parameter.icon && (
           <span css={styles.labelIconWrapper}>
-            <img
+            <ExternalImage
               css={styles.labelIcon}
               alt="Parameter icon"
               src={parameter.icon}
@@ -160,7 +161,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   );
 };
 
-const RichParameterField: React.FC<RichParameterInputProps> = ({
+const RichParameterField: FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
@@ -213,7 +214,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             label={
               <Stack direction="row" alignItems="center">
                 {option.icon && (
-                  <img
+                  <ExternalImage
                     css={styles.optionIcon}
                     src={option.icon}
                     alt="Parameter icon"

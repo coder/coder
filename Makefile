@@ -475,7 +475,10 @@ gen: \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
 	site/src/theme/icons.json \
-	examples/examples.gen.json
+	examples/examples.gen.json \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/multiagentmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -502,6 +505,9 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
+		tailnet/tailnettest/coordinatormock.go \
+		tailnet/tailnettest/coordinateemock.go \
+		tailnet/tailnettest/multiagentmock.go \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -528,6 +534,9 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
+	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
 	protoc \
@@ -707,6 +716,27 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
+
+# sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
+# dependency for any sqlc-cloud related targets.
+sqlc-cloud-is-setup:
+	if [[ "$(SQLC_AUTH_TOKEN)" == "" ]]; then
+		echo "ERROR: 'SQLC_AUTH_TOKEN' must be set to auth with sqlc cloud before running verify." 1>&2
+		exit 1
+	fi
+.PHONY: sqlc-cloud-is-setup
+
+sqlc-push: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc push"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
+.PHONY: sqlc-push
+
+sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc verify"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
+.PHONY: sqlc-verify
 
 sqlc-vet: test-postgres-docker
 	echo "--- sqlc vet"

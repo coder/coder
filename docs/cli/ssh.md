@@ -71,7 +71,7 @@ Enter workspace immediately after the agent has connected. This is the default i
 
 |             |                                        |
 | ----------- | -------------------------------------- |
-| Type        | <code>string</code>                    |
+| Type        | <code>string-array</code>              |
 | Environment | <code>$CODER_SSH_REMOTE_FORWARD</code> |
 
 Enable remote port forwarding (remote_port:local_address:local_port).
@@ -87,11 +87,11 @@ Specifies whether to emit SSH output over stdin/stdout.
 
 ### --wait
 
-|             |                              |
-| ----------- | ---------------------------- | --- | ------------ |
-| Type        | <code>enum[yes               | no  | auto]</code> |
-| Environment | <code>$CODER_SSH_WAIT</code> |
-| Default     | <code>auto</code>            |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>enum[yes\|no\|auto]</code> |
+| Environment | <code>$CODER_SSH_WAIT</code>     |
+| Default     | <code>auto</code>                |
 
 Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 

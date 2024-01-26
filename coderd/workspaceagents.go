@@ -12,11 +12,9 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,10 +39,10 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Get workspace agent by ID
@@ -220,8 +218,10 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  agentID,
+		AgentName:                manifest.AgentName,
 		OwnerName:                manifest.OwnerUsername,
 		WorkspaceID:              workspaceID,
+		WorkspaceName:            manifest.WorkspaceName,
 		Apps:                     apps,
 		Scripts:                  scripts,
 		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
@@ -855,8 +855,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // Deprecated: use api.tailnet.AgentConn instead.
 // See: https://github.com/coder/coder/issues/8218
 func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	clientConn, serverConn := net.Pipe()
-
 	derpMap := api.DERPMap()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -866,8 +864,6 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		BlockEndpoints:      api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 	ctx, cancel := context.WithCancel(api.ctx)
@@ -885,10 +881,10 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		return left
 	})
 
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-		return conn.UpdateNodes(nodes, true)
-	})
-	conn.SetNodeCallback(sendNodes)
+	clientID := uuid.New()
+	coordination := tailnet.NewInMemoryCoordination(ctx, api.Logger,
+		clientID, agentID,
+		*(api.TailnetCoordinator.Load()), conn)
 
 	// Check for updated DERP map every 5 seconds.
 	go func() {
@@ -905,7 +901,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 				}
 
 				derpMap := api.DERPMap()
-				if lastDERPMap == nil || tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+				if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
 					conn.SetDERPMap(derpMap)
 					lastDERPMap = derpMap
 				}
@@ -918,27 +914,13 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		AgentID: agentID,
 		AgentIP: codersdk.WorkspaceAgentIP,
 		CloseFunc: func() error {
+			_ = coordination.Close()
 			cancel()
-			_ = clientConn.Close()
-			_ = serverConn.Close()
 			return nil
 		},
 	})
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			// Sometimes, we get benign closed pipe errors when the server is
-			// shutting down.
-			if api.ctx.Err() == nil {
-				api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
-			}
-			_ = agentConn.Close()
-		}
-	}()
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
-		_ = serverConn.Close()
-		_ = clientConn.Close()
 		cancel()
 		return nil, xerrors.Errorf("agent not reachable")
 	}
@@ -1081,21 +1063,10 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace build job.",
-			Detail:  err.Error(),
-		})
+	// Ensure the resource is still valid!
+	// We only accept agents for resources on the latest build.
+	build, ok := ensureLatestBuild(ctx, api.Database, api.Logger, rw, workspaceAgent)
+	if !ok {
 		return
 	}
 
@@ -1117,32 +1088,6 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	ensureLatestBuild := func() error {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
-		if err != nil {
-			return err
-		}
-		if build.ID != latestBuild.ID {
-			return xerrors.New("build is outdated")
-		}
-		return nil
-	}
-
-	err = ensureLatestBuild()
-	if err != nil {
-		api.Logger.Debug(ctx, "agent tried to connect from non-latest build",
-			slog.F("resource", resource),
-			slog.F("agent", workspaceAgent),
-		)
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Agent trying to connect from non-latest build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1155,109 +1100,10 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
-	// because we want to log the agent's last ping time.
-	var lastPing atomic.Pointer[time.Time]
-	lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
-
-	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
-		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
-		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
-		defer t.Stop()
-
-		for {
-			select {
-			case <-t.C:
-			case <-ctx.Done():
-				return
-			}
-
-			// We don't need a context that times out here because the ping will
-			// eventually go through. If the context times out, then other
-			// websocket read operations will receive an error, obfuscating the
-			// actual problem.
-			err := conn.Ping(ctx)
-			if err != nil {
-				return
-			}
-			lastPing.Store(ptr.Ref(time.Now()))
-		}
-	})
-
-	firstConnectedAt := workspaceAgent.FirstConnectedAt
-	if !firstConnectedAt.Valid {
-		firstConnectedAt = sql.NullTime{
-			Time:  dbtime.Now(),
-			Valid: true,
-		}
-	}
-	lastConnectedAt := sql.NullTime{
-		Time:  dbtime.Now(),
-		Valid: true,
-	}
-	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func(ctx context.Context) error {
-		//nolint:gocritic // We only update ourself.
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               workspaceAgent.ID,
-			FirstConnectedAt: firstConnectedAt,
-			LastConnectedAt:  lastConnectedAt,
-			DisconnectedAt:   disconnectedAt,
-			UpdatedAt:        dbtime.Now(),
-			LastConnectedReplicaID: uuid.NullUUID{
-				UUID:  api.ID,
-				Valid: true,
-			},
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	defer func() {
-		// If connection closed then context will be canceled, try to
-		// ensure our final update is sent. By waiting at most the agent
-		// inactive disconnect timeout we ensure that we don't block but
-		// also guarantee that the agent will be considered disconnected
-		// by normal status check.
-		//
-		// Use a system context as the agent has disconnected and that token
-		// may no longer be valid.
-		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
-		defer cancel()
-
-		// Only update timestamp if the disconnect is new.
-		if !disconnectedAt.Valid {
-			disconnectedAt = sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			}
-		}
-		err := updateConnectionTimes(ctx)
-		if err != nil {
-			// This is a bug with unit tests that cancel the app context and
-			// cause this error log to be generated. We should fix the unit tests
-			// as this is a valid log.
-			//
-			// The pq error occurs when the server is shutting down.
-			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
-				api.Logger.Error(ctx, "failed to update agent disconnect time",
-					slog.Error(err),
-					slog.F("workspace_id", build.WorkspaceID),
-				)
-			}
-		}
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-	}()
-
-	err = updateConnectionTimes(ctx)
-	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, err.Error())
-		return
-	}
-	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+	closeCtx, closeCtxCancel := context.WithCancel(ctx)
+	defer closeCtxCancel()
+	monitor := api.startAgentWebsocketMonitor(closeCtx, workspaceAgent, build, conn)
+	defer monitor.close()
 
 	api.Logger.Debug(ctx, "accepting agent",
 		slog.F("owner", owner.Username),
@@ -1268,61 +1114,13 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
-	closeChan := make(chan struct{})
-	go func() {
-		defer close(closeChan)
-		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
-			fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
-		)
-		if err != nil {
-			api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
-			_ = conn.Close(websocket.StatusInternalError, err.Error())
-			return
-		}
-	}()
-	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-closeChan:
-			return
-		case <-ticker.C:
-		}
-
-		lastPing := *lastPing.Load()
-
-		var connectionStatusChanged bool
-		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
-			if !disconnectedAt.Valid {
-				connectionStatusChanged = true
-				disconnectedAt = sql.NullTime{
-					Time:  dbtime.Now(),
-					Valid: true,
-				}
-			}
-		} else {
-			connectionStatusChanged = disconnectedAt.Valid
-			// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
-			disconnectedAt = sql.NullTime{}
-			lastConnectedAt = sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			}
-		}
-		err = updateConnectionTimes(ctx)
-		if err != nil {
-			_ = conn.Close(websocket.StatusGoingAway, err.Error())
-			return
-		}
-		if connectionStatusChanged {
-			api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-		}
-		err := ensureLatestBuild()
-		if err != nil {
-			// Disconnect agents that are no longer valid.
-			_ = conn.Close(websocket.StatusGoingAway, "")
-			return
-		}
+	err = (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
+		fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+	)
+	if err != nil {
+		api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		return
 	}
 }
 
@@ -1362,7 +1160,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if qv != "" {
 		version = qv
 	}
-	if err := tailnet.ValidateVersion(version); err != nil {
+	if err := proto.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unknown or unsupported API version",
 			Validations: []codersdk.ValidationError{
@@ -1485,7 +1283,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
 			// If the template schedule fails to load, just default to bumping without the next transition and log it.
 			if err != nil {
-				api.Logger.Warn(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+				api.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 					slog.F("workspace_id", workspace.ID),
 					slog.F("template_id", workspace.TemplateID),
 					slog.Error(err),
@@ -2233,13 +2031,14 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	if listen {
 		// Since we're ticking frequently and this sign-in operation is rare,
 		// we are OK with polling to avoid the complexity of pubsub.
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
+		ticker, done := api.NewTicker(time.Second)
+		defer done()
+		var previousToken database.ExternalAuthLink
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticker:
 			}
 			externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: externalAuthConfig.ID,
@@ -2263,6 +2062,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
+
+			// Only attempt to revalidate an oauth token if it has actually changed.
+			// No point in trying to validate the same token over and over again.
+			if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
+				previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
+				previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
+				continue
+			}
+
 			valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to validate external auth token",
@@ -2271,6 +2079,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 					slog.Error(err),
 				)
 			}
+			previousToken = externalAuthLink
 			if !valid {
 				continue
 			}

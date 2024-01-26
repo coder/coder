@@ -23,10 +23,11 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
 )
@@ -121,7 +122,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			go cli.DumpHandler(ctx)
 
 			cli.PrintLogo(inv, "Coder Workspace Proxy")
-			logger, logCloser, err := cli.BuildLogger(inv, cfg)
+			logger, logCloser, err := clilog.New(clilog.FromDeploymentValues(cfg)).Build(inv)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -207,7 +208,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			var appHostnameRegex *regexp.Regexp
 			appHostname := cfg.WildcardAccessURL.String()
 			if appHostname != "" {
-				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
+				appHostnameRegex, err = appurl.CompileHostnamePattern(appHostname)
 				if err != nil {
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}

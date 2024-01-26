@@ -3,7 +3,7 @@ import { Group } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Loader } from "components/Loader/Loader";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { useFormik } from "formik";
 import { FC } from "react";
@@ -28,13 +28,21 @@ const validationSchema = Yup.object({
   quota_allowance: Yup.number().required().min(0).integer(),
 });
 
-const UpdateGroupForm: FC<{
+interface UpdateGroupFormProps {
   group: Group;
   errors: unknown;
   onSubmit: (data: FormData) => void;
   onCancel: () => void;
   isLoading: boolean;
-}> = ({ group, errors, onSubmit, onCancel, isLoading }) => {
+}
+
+const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
+  group,
+  errors,
+  onSubmit,
+  onCancel,
+  isLoading,
+}) => {
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
@@ -65,10 +73,9 @@ const UpdateGroupForm: FC<{
           ) : (
             <>
               <TextField
-                {...getFieldHelpers(
-                  "display_name",
-                  "Optional: keep empty to default to the name.",
-                )}
+                {...getFieldHelpers("display_name", {
+                  helperText: "Optional: keep empty to default to the name.",
+                })}
                 onChange={onChangeTrimmed(form)}
                 autoComplete="display_name"
                 autoFocus
@@ -76,7 +83,7 @@ const UpdateGroupForm: FC<{
                 label="Display Name"
                 disabled={isEveryoneGroup(group)}
               />
-              <LazyIconField
+              <IconField
                 {...getFieldHelpers("avatar_url")}
                 onChange={onChangeTrimmed(form)}
                 fullWidth
@@ -86,11 +93,10 @@ const UpdateGroupForm: FC<{
             </>
           )}
           <TextField
-            {...getFieldHelpers(
-              "quota_allowance",
-              `This group gives ${form.values.quota_allowance} quota credits to each
+            {...getFieldHelpers("quota_allowance", {
+              helperText: `This group gives ${form.values.quota_allowance} quota credits to each
             of its members.`,
-            )}
+            })}
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth

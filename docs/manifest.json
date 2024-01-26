@@ -22,29 +22,9 @@
       "icon_path": "./images/icons/download.svg",
       "children": [
         {
-          "title": "Install script",
-          "description": "One-line install script for macOS and Linux",
-          "path": "./install/install.sh.md"
-        },
-        {
-          "title": "System packages",
-          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine",
-          "path": "./install/packages.md"
-        },
-        {
-          "title": "macOS",
-          "description": "Install Coder using our Homebrew tap",
-          "path": "./install/macos.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"
-        },
-        {
-          "title": "OpenShift",
-          "description": "Install Coder on OpenShift",
-          "path": "./install/openshift.md"
         },
         {
           "title": "Docker",
@@ -52,14 +32,9 @@
           "path": "./install/docker.md"
         },
         {
-          "title": "Windows",
-          "description": "Install Coder on Windows",
-          "path": "./install/windows.md"
-        },
-        {
-          "title": "Standalone binaries",
-          "description": "Download binaries for macOS, Windows, and Linux",
-          "path": "./install/binary.md"
+          "title": "OpenShift",
+          "description": "Install Coder on OpenShift",
+          "path": "./install/openshift.md"
         },
         {
           "title": "Offline deployments",
@@ -75,6 +50,11 @@
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
+        },
+        {
+          "title": "1-click install",
+          "description": "Install Coder on a cloud provider with a single click",
+          "path": "./install/1-click.md"
         }
       ]
     },
@@ -224,6 +204,11 @@
               "title": "Permissions",
               "description": "Configure who can access a template",
               "path": "./templates/permissions.md"
+            },
+            {
+              "title": "Workspace Scheduling",
+              "description": "Configure when workspaces start, stop, and delete",
+              "path": "./templates/schedule.md"
             }
           ]
         },
@@ -255,6 +240,11 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
+        },
+        {
+          "title": "Workspace Scheduling",
+          "description": "Set workspace scheduling policies",
+          "path": "./templates/schedule.md"
         },
         {
           "title": "Icons",
@@ -517,10 +507,6 @@
           "path": "./api/applications.md"
         },
         {
-          "title": "Applications Enterprise",
-          "path": "./api/applications enterprise.md"
-        },
-        {
           "title": "Audit",
           "path": "./api/audit.md"
         },
@@ -632,6 +618,11 @@
           "path": "cli/external-auth_access-token.md"
         },
         {
+          "title": "favorite",
+          "description": "Add a workspace to your favorites",
+          "path": "cli/favorite.md"
+        },
+        {
           "title": "features",
           "description": "List Enterprise features",
           "path": "cli/features.md"
@@ -704,6 +695,16 @@
           "title": "netcheck",
           "description": "Print network debug information for DERP and STUN",
           "path": "cli/netcheck.md"
+        },
+        {
+          "title": "open",
+          "description": "Open a workspace",
+          "path": "cli/open.md"
+        },
+        {
+          "title": "open vscode",
+          "description": "Open a workspace in VS Code Desktop",
+          "path": "cli/open_vscode.md"
         },
         {
           "title": "ping",
@@ -882,7 +883,7 @@
         },
         {
           "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
+          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
         },
         {
@@ -912,7 +913,7 @@
         },
         {
           "title": "templates push",
-          "description": "Push a new template version from the current directory or as specified by flag",
+          "description": "Create or update a template from the current directory or as specified by flag",
           "path": "cli/templates_push.md"
         },
         {
@@ -954,6 +955,11 @@
           "title": "tokens remove",
           "description": "Delete a token",
           "path": "cli/tokens_remove.md"
+        },
+        {
+          "title": "unfavorite",
+          "description": "Remove a workspace from your favorites",
+          "path": "cli/unfavorite.md"
         },
         {
           "title": "update",
@@ -1029,6 +1035,16 @@
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./guides/image-pull-secret.md"
         }
       ]
     }

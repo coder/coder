@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0) && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -68,12 +68,12 @@ RUN mkdir --parents "$GOPATH" && \
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
 	# nfpm is used with `make build` to make release packages
-	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0 && \
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install github.com/golang/mock/mockgen@v1.6.0
+	go install go.uber.org/mock/mockgen@v0.4.0
 
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp
@@ -199,14 +199,13 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 # Install frontend utilities
 RUN apt-get update && \
 	# Node.js (from nodesource) and Yarn (from yarnpkg)
-	curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &&\
 	apt-get install --yes --quiet \
 	nodejs yarn \
 	# Install browsers for e2e testing
 	google-chrome-stable microsoft-edge-beta && \
 	# Pre-install system dependencies that Playwright needs. npx doesn't work here
 	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.36.2 pnpm@^8 && playwright install-deps && \
+	npm i -g playwright@1.36.2 pnpm@^8 corepack && playwright install-deps && \
 	npm cache clean --force
 
 # Ensure PostgreSQL binaries are in the users $PATH.

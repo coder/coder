@@ -25,13 +25,13 @@ import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { ChangeEvent, FC } from "react";
+import { type ChangeEvent, type FC } from "react";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
-import { Pill } from "components/Pill/Pill";
 import Tooltip from "@mui/material/Tooltip";
 import { formatDuration, intervalToDuration } from "date-fns";
+import { DisabledBadge } from "components/Badges/Badges";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -290,7 +290,7 @@ export const WorkspaceScheduleForm: FC<
             </div>
             {!enableAutoStart && (
               <Tooltip title="This option can be enabled in the template settings">
-                <Pill text="Disabled" />
+                <DisabledBadge />
               </Tooltip>
             )}
           </>
@@ -373,12 +373,14 @@ export const WorkspaceScheduleForm: FC<
         description={
           <>
             <div css={{ marginBottom: 16 }}>
-              Set how many hours should elapse after you log off before the
-              workspace automatically shuts down.
+              Set how many hours should elapse after the workspace started
+              before the workspace automatically shuts down. This will be
+              extended by 1 hour after last activity in the workspace was
+              detected.
             </div>
             {!enableAutoStop && (
               <Tooltip title="This option can be enabled in the template settings">
-                <Pill text="Disabled" />
+                <DisabledBadge />
               </Tooltip>
             )}
           </>
@@ -397,7 +399,10 @@ export const WorkspaceScheduleForm: FC<
             label={Language.stopSwitch}
           />
           <TextField
-            {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
+            {...formHelpers("ttl", {
+              helperText: ttlShutdownAt(form.values.ttl),
+              backendFieldName: "ttl_ms",
+            })}
             disabled={isLoading || !form.values.autostopEnabled}
             inputProps={{ min: 0, step: "any" }}
             label={Language.ttlLabel}

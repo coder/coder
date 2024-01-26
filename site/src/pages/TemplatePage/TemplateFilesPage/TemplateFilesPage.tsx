@@ -1,18 +1,30 @@
-import { Loader } from "components/Loader/Loader";
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { previousTemplateVersion, templateFiles } from "api/queries/templates";
+import { Loader } from "components/Loader/Loader";
+import {
+  TemplateFiles,
+  useFileTab,
+} from "components/TemplateFiles/TemplateFiles";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { getTemplatePageTitle } from "../utils";
-import { useFileTab, useTemplateFiles } from "components/TemplateFiles/hooks";
 
 const TemplateFilesPage: FC = () => {
+  const orgId = useOrganizationId();
   const { template, activeVersion } = useTemplateLayoutContext();
-  const { data: templateFiles } = useTemplateFiles(
-    template.name,
-    activeVersion,
+  const { data: currentFiles } = useQuery(
+    templateFiles(activeVersion.job.file_id),
   );
-  const tab = useFileTab(templateFiles?.currentFiles);
+  const { data: previousTemplate } = useQuery(
+    previousTemplateVersion(orgId, template.name, activeVersion.name),
+  );
+  const { data: previousFiles } = useQuery({
+    ...templateFiles(previousTemplate?.job.file_id ?? ""),
+    enabled: Boolean(previousTemplate),
+  });
+  const tab = useFileTab(currentFiles);
 
   return (
     <>
@@ -20,10 +32,10 @@ const TemplateFilesPage: FC = () => {
         <title>{getTemplatePageTitle("Source Code", template)}</title>
       </Helmet>
 
-      {templateFiles && tab.isLoaded ? (
+      {previousFiles && currentFiles && tab.isLoaded ? (
         <TemplateFiles
-          currentFiles={templateFiles.currentFiles}
-          previousFiles={templateFiles.previousFiles}
+          currentFiles={currentFiles}
+          baseFiles={previousFiles}
           tab={tab}
         />
       ) : (
