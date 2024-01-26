@@ -10,6 +10,8 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Pill } from "components/Pill/Pill";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -45,11 +47,6 @@ const styles = {
     ".small &": {
       fontSize: 14,
     },
-  }),
-  immutableLabel: (theme) => ({
-    fontSize: 14,
-    color: theme.experimental.roles.warning.fill,
-    fontWeight: 500,
   }),
   optionalLabel: (theme) => ({
     fontSize: 14,
@@ -127,7 +124,9 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
       )}
       {!parameter.mutable && (
         <Tooltip title="This value cannot be modified after the workspace has been created.">
-          <span css={styles.immutableLabel}>Immutable*</span>
+          <Pill type="warning" icon={<ErrorOutline />}>
+            Immutable
+          </Pill>
         </Tooltip>
       )}
     </span>
