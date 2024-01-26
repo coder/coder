@@ -212,11 +212,6 @@ export const WorkspaceScheduleForm: FC<
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     {
-      value: form.values.sunday,
-      name: "sunday",
-      label: Language.daySundayLabel,
-    },
-    {
       value: form.values.monday,
       name: "monday",
       label: Language.dayMondayLabel,
@@ -245,6 +240,11 @@ export const WorkspaceScheduleForm: FC<
       value: form.values.saturday,
       name: "saturday",
       label: Language.daySaturdayLabel,
+    },
+    {
+      value: form.values.sunday,
+      name: "sunday",
+      label: Language.daySundayLabel,
     },
   ];
 
@@ -441,7 +441,14 @@ export const WorkspaceScheduleForm: FC<
           />
         </FormFields>
       </FormSection>
-      <FormFooter onCancel={onCancel} isLoading={isLoading} />
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isLoading}
+        submitDisabled={
+          (!allowTemplateAutoStart && !allowTemplateAutoStop) ||
+          (!form.values.autostartEnabled && !form.values.autostopEnabled)
+        }
+      />
     </HorizontalForm>
   );
 };
