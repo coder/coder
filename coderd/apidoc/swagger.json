@@ -632,6 +632,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Post JFrog XRay scan by workspace agent ID.",
@@ -8678,7 +8679,8 @@
       "type": "object",
       "properties": {
         "agent_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "critical": {
           "type": "integer"
@@ -8693,7 +8695,8 @@
           "type": "string"
         },
         "workspace_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         }
       }
     },

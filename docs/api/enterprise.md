@@ -178,12 +178,12 @@ curl -X GET http://coder-server:8080/api/v2/exp/jfrog/xray-scan?workspace_id=str
 
 ```json
 {
-  "agent_id": "string",
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "critical": 0,
   "high": 0,
   "medium": 0,
   "results_url": "string",
-  "workspace_id": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -213,12 +213,12 @@ curl -X POST http://coder-server:8080/api/v2/exp/jfrog/xray-scan \
 
 ```json
 {
-  "agent_id": "string",
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "critical": 0,
   "high": 0,
   "medium": 0,
   "results_url": "string",
-  "workspace_id": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 

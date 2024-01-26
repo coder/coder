@@ -10,8 +10,8 @@ import (
 )
 
 type JFrogXrayScan struct {
-	WorkspaceID uuid.UUID `json:"workspace_id"`
-	AgentID     uuid.UUID `json:"agent_id"`
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
+	AgentID     uuid.UUID `json:"agent_id" format:"uuid"`
 	Critical    int       `json:"critical"`
 	High        int       `json:"high"`
 	Medium      int       `json:"medium"`

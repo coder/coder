@@ -738,6 +738,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -9660,7 +9663,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agent_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "critical": {
                     "type": "integer"
@@ -9675,7 +9679,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

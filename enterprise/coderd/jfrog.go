@@ -19,6 +19,7 @@ import (
 // @Summary Post JFrog XRay scan by workspace agent ID.
 // @ID post-jfrog-xray-scan-by-workspace-agent-id
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param request body codersdk.JFrogXrayScan true "Post JFrog XRay scan request"
