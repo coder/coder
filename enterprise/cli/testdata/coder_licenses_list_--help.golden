@@ -8,7 +8,7 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column string-array (default: UUID,Expires At,Uploaded At,Features)
+  -c, --column string-array (default: ID,UUID,Expires At,Uploaded At,Features)
           Columns to display in table output. Available columns: id, uuid,
           uploaded at, features, expires at, trial.
 
