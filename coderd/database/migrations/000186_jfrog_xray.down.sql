@@ -1,1 +1,2 @@
+ALTER TABLE jfrog_xray_scans DROP CONSTRAINT jfrog_xray_scans_workspace_id_agent_id;
 DROP TABLE jfrog_xray_scans;
