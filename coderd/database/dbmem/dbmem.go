@@ -1967,7 +1967,7 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.JfrogXrayScan{}, err
@@ -7271,7 +7271,7 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	return nil
 }
 
-func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
