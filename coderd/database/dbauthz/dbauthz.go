@@ -1106,7 +1106,7 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	if _, err := fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, arg.WorkspaceID); err != nil {
-		return database.JfrogXrayScan{}, nil
+		return database.JfrogXrayScan{}, err
 	}
 	return q.db.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
 }
