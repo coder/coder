@@ -116,16 +116,24 @@ This module makes use of the
 [Artifactory terraform provider](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs)
 and an admin-scoped token to create user-scoped tokens for each user by matching
 their Coder email or username with Artifactory. This can be used for both SaaS
-and self-hosted(on-premises) Artifactory instances. For Instructions on how to
-configure this, please see the details at:
-https://registry.coder.com/modules/jfrog-token
+and self-hosted(on-premises) Artifactory instances.
+
+To set this up, follow these steps:
+
+1. Get a JFrog access token from your Artifactory instance. The token must be an [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token) with scope `applied-permissions/admin`.
+2. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token. It is recommended to store the token in a sensitive terraform variable to prevent it from being displayed in plain text in the terraform state.
 
 ```hcl
+variable "artifactory_access_token" {
+  type      = string
+  sensitive = true
+}
+
 module "jfrog" {
   source = "registry.coder.com/modules/jfrog-token/coder"
   version = "1.0.0"
   agent_id = coder_agent.example.id
-  jfrog_url = "https://XXXX.jfrog.io"
+  jfrog_url = "https://example.jfrog.io"
   configure_code_server = true # this depends on the code-server
   artifactory_access_token = var.artifactory_access_token
   package_managers = {
@@ -141,9 +149,7 @@ The admin-level access token is used to provision user tokens and is never expos
 developers or stored in workspaces.
 </blockquote>
 
-The full example template uses Docker as the underlying compute. But, these
-concepts apply to any compute platform. Please check
-[here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
+If you do not want to use the official modules, you can check example template that uses Docker as the underlying compute [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker). The same concepts apply to all compute types.
 
 ## Offline Deployments
 
