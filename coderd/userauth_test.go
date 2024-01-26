@@ -207,6 +207,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
@@ -392,6 +393,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
@@ -444,6 +446,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -496,6 +499,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -534,6 +538,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -576,6 +581,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
