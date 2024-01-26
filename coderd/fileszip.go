@@ -4,8 +4,11 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"errors"
 	"io"
 )
+
+const zipCopyBufferSize = 4096
 
 func createTarFromZip(zipReader *zip.Reader) ([]byte, error) {
 	var tarBuffer bytes.Buffer
@@ -40,9 +43,14 @@ func processFileInZipArchive(zipFile *zip.File, tarWriter *tar.Writer) error {
 		return err
 	}
 
-	_, err = io.Copy(tarWriter, zipFileReader)
-	if err != nil {
-		return err
+	for {
+		_, err := io.CopyN(tarWriter, zipFileReader, zipCopyBufferSize)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return err
+		}
 	}
 	return nil
 }
