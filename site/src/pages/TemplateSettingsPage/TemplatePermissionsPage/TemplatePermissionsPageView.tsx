@@ -181,7 +181,7 @@ export interface TemplatePermissionsPageViewProps {
 }
 
 export const TemplatePermissionsPageView: FC<
-  React.PropsWithChildren<TemplatePermissionsPageViewProps>
+  TemplatePermissionsPageViewProps
 > = ({
   templateACL,
   canUpdatePermissions,

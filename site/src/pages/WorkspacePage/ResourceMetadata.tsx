@@ -1,9 +1,14 @@
+import { type Interpolation, type Theme } from "@emotion/react";
+import {
+  Children,
+  type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
+} from "react";
+import type { WorkspaceResource } from "api/typesGenerated";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { SensitiveValue } from "components/Resources/SensitiveValue";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { WorkspaceResource } from "api/typesGenerated";
-import { Children, FC, HTMLAttributes, PropsWithChildren } from "react";
-import { Interpolation, Theme } from "@emotion/react";
 
 type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
   resource: WorkspaceResource;
@@ -49,7 +54,7 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
   );
 };
 
-const MetaValue = ({ children }: PropsWithChildren) => {
+const MetaValue: FC<PropsWithChildren> = ({ children }) => {
   const childrenArray = Children.toArray(children);
   if (childrenArray.every((child) => typeof child === "string")) {
     return (

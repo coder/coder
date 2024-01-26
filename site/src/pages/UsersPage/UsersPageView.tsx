@@ -1,13 +1,12 @@
 import { type ComponentProps, type FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { type GroupsByUserId } from "api/queries/groups";
-
-import { UsersTable } from "./UsersTable/UsersTable";
-import { UsersFilter } from "./UsersFilter";
 import {
   PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
+import { UsersTable } from "./UsersTable/UsersTable";
+import { UsersFilter } from "./UsersFilter";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
@@ -35,7 +34,7 @@ export interface UsersPageViewProps {
   usersQuery: PaginationResult;
 }
 
-export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
+export const UsersPageView: FC<UsersPageViewProps> = ({
   users,
   roles,
   onSuspendUser,

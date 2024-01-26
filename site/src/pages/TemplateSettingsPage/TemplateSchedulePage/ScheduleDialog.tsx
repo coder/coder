@@ -1,5 +1,5 @@
 import DialogActions from "@mui/material/DialogActions";
-import { type FC, type PropsWithChildren } from "react";
+import { type FC } from "react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import { Stack } from "@mui/system";
@@ -18,7 +18,7 @@ export interface ScheduleDialogProps extends ConfirmDialogProps {
   readonly deletionValueChanged: boolean;
 }
 
-export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
+export const ScheduleDialog: FC<ScheduleDialogProps> = ({
   cancelText,
   confirmLoading,
   disabled = false,

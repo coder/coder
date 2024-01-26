@@ -1,11 +1,10 @@
-import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "../Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
-import { useTheme } from "@mui/material/styles";
 
 const countAgents = (resource: WorkspaceResource) => {
   return resource.agents ? resource.agents.length : 0;
@@ -16,10 +15,7 @@ interface ResourcesProps {
   agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element;
 }
 
-export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
-  resources,
-  agentRow,
-}) => {
+export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
   const theme = useTheme();
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
     useState(false);

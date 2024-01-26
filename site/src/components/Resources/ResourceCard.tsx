@@ -76,7 +76,7 @@ export interface ResourceCardProps {
   agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
-const p = ({ children }: PropsWithChildren) => {
+const p: FC<PropsWithChildren> = ({ children }) => {
   const childrens = Children.toArray(children);
   if (childrens.every((child) => typeof child === "string")) {
     return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
