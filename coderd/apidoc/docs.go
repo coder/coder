@@ -692,6 +692,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/exp/jfrog/xray-scan": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get JFrog XRay scan by workspace agent ID.",
+                "operationId": "get-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspace_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                }
+            }
+        },
         "/experiments": {
             "get": {
                 "security": [
@@ -9577,6 +9618,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "signed_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.JFrogXrayScan": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "critical": {
+                    "type": "integer"
+                },
+                "high": {
+                    "type": "integer"
+                },
+                "medium": {
+                    "type": "integer"
+                },
+                "results_url": {
+                    "type": "string"
+                },
+                "workspace_id": {
                     "type": "string"
                 }
             }

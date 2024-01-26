@@ -14,10 +14,18 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Post workspace agent results for a JFrog XRay scan.
+//
+// @Summary Post JFrog XRay scan by workspace agent ID.
+// @ID post-jfrog-xray-scan-by-workspace-agent-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.JFrogXrayScan true "Post JFrog XRay scan request"
+// @Success 200 {object} codersdk.Response
+// @Router /exp/jfrog/xray-scan [post]
 func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	var req codersdk.JFrogXrayScan
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -50,6 +58,17 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Get workspace agent results for a JFrog XRay scan.
+//
+// @Summary Get JFrog XRay scan by workspace agent ID.
+// @ID get-jfrog-xray-scan-by-workspace-agent-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspace_id query string true "Workspace ID"
+// @Param agent_id query string true "Agent ID"
+// @Success 200 {object} codersdk.JFrogXrayScan
+// @Router /exp/jfrog/xray-scan [post]
 func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()

@@ -152,6 +152,49 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get JFrog XRay scan by workspace agent ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/exp/jfrog/xray-scan?workspace_id=string&agent_id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /exp/jfrog/xray-scan`
+
+### Parameters
+
+| Name           | In    | Type   | Required | Description  |
+| -------------- | ----- | ------ | -------- | ------------ |
+| `workspace_id` | query | string | true     | Workspace ID |
+| `agent_id`     | query | string | true     | Agent ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "string",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group by ID
 
 ### Code samples

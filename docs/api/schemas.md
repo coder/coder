@@ -3339,6 +3339,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `signed_token` | string | false    |              |             |
 
+## codersdk.JFrogXrayScan
+
+```json
+{
+  "agent_id": "string",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `agent_id`     | string  | false    |              |             |
+| `critical`     | integer | false    |              |             |
+| `high`         | integer | false    |              |             |
+| `medium`       | integer | false    |              |             |
+| `results_url`  | string  | false    |              |             |
+| `workspace_id` | string  | false    |              |             |
+
 ## codersdk.JobErrorCode
 
 ```json
