@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,18 +24,16 @@ import (
 )
 
 type ManifestAPI struct {
-	AccessURL                       *url.URL
-	AppHostname                     string
-	AgentInactiveDisconnectTimeout  time.Duration
-	AgentFallbackTroubleshootingURL string
-	ExternalAuthConfigs             []*externalauth.Config
-	DisableDirectConnections        bool
-	DerpForceWebSockets             bool
+	AccessURL                *url.URL
+	AppHostname              string
+	ExternalAuthConfigs      []*externalauth.Config
+	DisableDirectConnections bool
+	DerpForceWebSockets      bool
 
-	AgentFn            func(context.Context) (database.WorkspaceAgent, error)
-	Database           database.Store
-	DerpMapFn          func() *tailcfg.DERPMap
-	TailnetCoordinator *atomic.Pointer[tailnet.Coordinator]
+	AgentFn       func(context.Context) (database.WorkspaceAgent, error)
+	WorkspaceIDFn func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
+	Database      database.Store
+	DerpMapFn     func() *tailcfg.DERPMap
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -44,21 +41,15 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, err
 	}
-
-	apiAgent, err := db2sdk.WorkspaceAgent(
-		a.DerpMapFn(), *a.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, a.AgentInactiveDisconnectTimeout,
-		a.AgentFallbackTroubleshootingURL,
-	)
+	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
 	if err != nil {
-		return nil, xerrors.Errorf("converting workspace agent: %w", err)
+		return nil, err
 	}
 
 	var (
 		dbApps    []database.WorkspaceApp
 		scripts   []database.WorkspaceAgentScript
 		metadata  []database.WorkspaceAgentMetadatum
-		resource  database.WorkspaceResource
-		build     database.WorkspaceBuild
 		workspace database.Workspace
 		owner     database.User
 	)
@@ -79,20 +70,12 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	eg.Go(func() (err error) {
 		metadata, err = a.Database.GetWorkspaceAgentMetadata(ctx, database.GetWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: workspaceAgent.ID,
-			Keys:             nil,
+			Keys:             nil, // all
 		})
 		return err
 	})
 	eg.Go(func() (err error) {
-		resource, err = a.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-		if err != nil {
-			return xerrors.Errorf("getting resource by id: %w", err)
-		}
-		build, err = a.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			return xerrors.Errorf("getting workspace build by job id: %w", err)
-		}
-		workspace, err = a.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+		workspace, err = a.Database.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("getting workspace by id: %w", err)
 		}
@@ -116,6 +99,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 
 	vscodeProxyURI := vscodeProxyURI(appSlug, a.AccessURL, a.AppHostname)
 
+	envs, err := db2sdk.WorkspaceAgentEnvironment(workspaceAgent)
+	if err != nil {
+		return nil, err
+	}
+
 	var gitAuthConfigs uint32
 	for _, cfg := range a.ExternalAuthConfigs {
 		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
@@ -135,8 +123,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		WorkspaceId:              workspace.ID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
-		EnvironmentVariables:     apiAgent.EnvironmentVariables,
-		Directory:                apiAgent.Directory,
+		EnvironmentVariables:     envs,
+		Directory:                workspaceAgent.Directory,
 		VsCodePortProxyUri:       vscodeProxyURI,
 		MotdPath:                 workspaceAgent.MOTDFile,
 		DisableDirectConnections: a.DisableDirectConnections,
