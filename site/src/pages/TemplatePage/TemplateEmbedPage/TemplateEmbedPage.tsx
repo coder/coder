@@ -10,17 +10,13 @@ import { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
-  ImmutableTemplateParametersSection,
-  MutableTemplateParametersSection,
-  TemplateParametersSectionProps,
-} from "components/TemplateParameters/TemplateParameters";
 import { useClipboard } from "hooks/useClipboard";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 
 type ButtonValues = Record<string, string>;
 
@@ -64,22 +60,6 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
   const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
   const clipboard = useClipboard(buttonMkdCode);
-  const getInputProps: TemplateParametersSectionProps["getInputProps"] = (
-    parameter,
-  ) => {
-    if (!buttonValues) {
-      throw new Error("buttonValues is undefined");
-    }
-    return {
-      value: buttonValues[`param.${parameter.name}`] ?? "",
-      onChange: (value) => {
-        setButtonValues((buttonValues) => ({
-          ...buttonValues,
-          [`param.${parameter.name}`]: value,
-        }));
-      },
-    };
-  };
 
   // template parameters is async so we need to initialize the values after it
   // is loaded
@@ -135,16 +115,28 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
               </FormSection>
 
               {templateParameters.length > 0 && (
-                <>
-                  <MutableTemplateParametersSection
-                    templateParameters={templateParameters}
-                    getInputProps={getInputProps}
-                  />
-                  <ImmutableTemplateParametersSection
-                    templateParameters={templateParameters}
-                    getInputProps={getInputProps}
-                  />
-                </>
+                <div
+                  css={{ display: "flex", flexDirection: "column", gap: 36 }}
+                >
+                  {templateParameters.map((parameter) => {
+                    const parameterValue =
+                      buttonValues[`param.${parameter.name}`] ?? "";
+
+                    return (
+                      <RichParameterInput
+                        value={parameterValue}
+                        onChange={async (value) => {
+                          setButtonValues((buttonValues) => ({
+                            ...buttonValues,
+                            [`param.${parameter.name}`]: value,
+                          }));
+                        }}
+                        key={parameter.name}
+                        parameter={parameter}
+                      />
+                    );
+                  })}
+                </div>
               )}
             </VerticalForm>
           </div>
