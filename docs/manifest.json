@@ -1045,6 +1045,11 @@
           "title": "Template ImagePullSecrets",
           "description": "Creating ImagePullSecrets for private registries",
           "path": "./guides/image-pull-secret.md"
+        },
+        {
+          "title": "Azure Federation",
+          "description": "Federating Coder to Azure",
+          "path": "./guides/azure-federation.md"
         }
       ]
     }
