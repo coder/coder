@@ -102,7 +102,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	err = c.Close()
 	require.NoError(t, err)
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
-	require.ErrorIs(t, err, io.EOF)
+	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
 }
 
 func TestClientService_ServeClient_V1(t *testing.T) {

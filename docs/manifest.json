@@ -89,11 +89,6 @@
           "icon_path": "./images/google-cloud.svg"
         },
         {
-          "title": "JFrog",
-          "description": "Integrate Coder with JFrog",
-          "path": "./platforms/jfrog.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Set up Coder on Kubernetes",
           "path": "./platforms/kubernetes/index.md",
@@ -618,6 +613,11 @@
           "path": "cli/external-auth_access-token.md"
         },
         {
+          "title": "favorite",
+          "description": "Add a workspace to your favorites",
+          "path": "cli/favorite.md"
+        },
+        {
           "title": "features",
           "description": "List Enterprise features",
           "path": "cli/features.md"
@@ -952,6 +952,11 @@
           "path": "cli/tokens_remove.md"
         },
         {
+          "title": "unfavorite",
+          "description": "Remove a workspace from your favorites",
+          "path": "cli/unfavorite.md"
+        },
+        {
           "title": "update",
           "description": "Will update and start a given workspace if it is out of date",
           "path": "cli/update.md"
@@ -1030,6 +1035,11 @@
           "title": "Google to AWS Federation",
           "description": "Federating a Google Cloud service account to AWS",
           "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./guides/artifactory-integration.md"
         },
         {
           "title": "Template ImagePullSecrets",

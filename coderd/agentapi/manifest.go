@@ -150,12 +150,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {
+	// Proxying by port only works for subdomains. If subdomain support is not
+	// available, return an empty string.
+	if appHost == "" {
+		return ""
+	}
+
 	// This will handle the ports from the accessURL or appHost.
 	appHost = appurl.SubdomainAppHost(appHost, accessURL)
-	// If there is no appHost, then we want to use the access url as the proxy uri.
-	if appHost == "" {
-		appHost = accessURL.Host
-	}
 	// Return the url with a scheme and any wildcards replaced with the app slug.
 	return accessURL.Scheme + "://" + strings.ReplaceAll(appHost, "*", app.String())
 }

@@ -26,6 +26,7 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
+import { mustUpdateWorkspace } from "utils/workspace";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -59,6 +60,7 @@ export interface WorkspacesPageViewProps {
   templatesFetchStatus: TemplateQuery["status"];
   templates: TemplateQuery["data"];
   canCreateTemplate: boolean;
+  canChangeVersions: boolean;
 }
 
 export const WorkspacesPageView = ({
@@ -81,6 +83,7 @@ export const WorkspacesPageView = ({
   templates,
   templatesFetchStatus,
   canCreateTemplate,
+  canChangeVersions,
 }: WorkspacesPageViewProps) => {
   return (
     <Margins>
@@ -136,7 +139,9 @@ export const WorkspacesPageView = ({
                   onClick={onStartAll}
                   disabled={
                     !checkedWorkspaces?.every(
-                      (w) => w.latest_build.status === "stopped",
+                      (w) =>
+                        w.latest_build.status === "stopped" &&
+                        !mustUpdateWorkspace(w, canChangeVersions),
                     )
                   }
                 >

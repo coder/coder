@@ -1,28 +1,21 @@
-import { useEffect, useState, FC, PropsWithChildren } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { getApiKey } from "api/api";
 import { pageTitle } from "utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
 
-export const CliAuthenticationPage: FC<PropsWithChildren<unknown>> = () => {
-  const [apiKey, setApiKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    getApiKey()
-      .then(({ key }) => {
-        setApiKey(key);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }, []);
+export const CliAuthenticationPage: FC = () => {
+  const { data } = useQuery({
+    queryFn: () => getApiKey(),
+  });
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("CLI Auth")}</title>
       </Helmet>
-      <CliAuthPageView sessionToken={apiKey} />
+      <CliAuthPageView sessionToken={data?.key} />
     </>
   );
 };

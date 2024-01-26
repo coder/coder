@@ -53,6 +53,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -264,6 +265,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -478,6 +480,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
       "dormant_at": "2019-08-24T14:15:22Z",
+      "favorite": true,
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false
@@ -686,6 +689,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -1013,6 +1017,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -1242,6 +1247,58 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Favorite workspace by ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspaces/{workspace}/favorite`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Unfavorite workspace by ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaces/{workspace}/favorite`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

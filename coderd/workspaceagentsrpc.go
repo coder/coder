@@ -16,6 +16,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -36,6 +37,23 @@ import (
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	version := r.URL.Query().Get("version")
+	if version == "" {
+		// The initial version on this HTTP endpoint was 2.0, so assume this version if unspecified.
+		// Coder v2.7.1 (not to be confused with the Agent API version) calls this endpoint without
+		// a version parameter and wants Agent API version 2.0.
+		version = "2.0"
+	}
+	if err := proto.CurrentVersion.Validate(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)

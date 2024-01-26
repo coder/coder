@@ -460,7 +460,7 @@ func TestRemoteCoordination(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, tailnet.CurrentVersion.String(), sC, clientID, agentID)
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
 		serveErr <- err
 	}()
 

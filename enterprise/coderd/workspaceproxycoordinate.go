@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
-	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Agent is legacy
@@ -59,7 +59,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 	if qv != "" {
 		version = qv
 	}
-	if err := agpl.CurrentVersion.Validate(version); err != nil {
+	if err := proto.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unknown or unsupported API version",
 			Validations: []codersdk.ValidationError{

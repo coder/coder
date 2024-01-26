@@ -95,6 +95,7 @@ func NewServerTailnet(
 		logger:               logger,
 		tracer:               traceProvider.Tracer(tracing.TracerName),
 		conn:                 conn,
+		coordinatee:          conn,
 		getMultiAgent:        getMultiAgent,
 		cache:                cache,
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
@@ -102,7 +103,14 @@ func NewServerTailnet(
 		transport:            tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
-	tn.transport.MaxIdleConnsPerHost = 10
+
+	// Bugfix: for some reason all calls to tn.dialContext come from
+	// "localhost", causing connections to be cached and requests to go to the
+	// wrong workspaces. This disables keepalives for now until the root cause
+	// can be found.
+	tn.transport.MaxIdleConnsPerHost = -1
+	tn.transport.DisableKeepAlives = true
+
 	tn.transport.MaxIdleConns = 0
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
@@ -224,13 +232,14 @@ func (s *ServerTailnet) watchAgentUpdates() {
 		if !ok {
 			if conn.IsClosed() && s.ctx.Err() == nil {
 				s.logger.Warn(s.ctx, "multiagent closed, reinitializing")
+				s.coordinatee.SetAllPeersLost()
 				s.reinitCoordinator()
 				continue
 			}
 			return
 		}
 
-		err := s.conn.UpdatePeers(resp.GetPeerUpdates())
+		err := s.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			if xerrors.Is(err, tailnet.ErrConnClosed) {
 				s.logger.Warn(context.Background(), "tailnet conn closed, exiting watchAgentUpdates", slog.Error(err))
@@ -280,9 +289,14 @@ type ServerTailnet struct {
 	cancel               func()
 	derpMapUpdaterClosed chan struct{}
 
-	logger        slog.Logger
-	tracer        trace.Tracer
-	conn          *tailnet.Conn
+	logger slog.Logger
+	tracer trace.Tracer
+
+	// in prod, these are the same, but coordinatee is a subset of Conn's
+	// methods which makes some tests easier.
+	conn        *tailnet.Conn
+	coordinatee tailnet.Coordinatee
+
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
 	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
 	cache         *wsconncache.Cache

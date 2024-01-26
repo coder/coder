@@ -198,7 +198,7 @@ type workspaceQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
@@ -225,6 +225,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
+		arg.UsingActive,
+		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -250,6 +252,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.DormantAt,
 			&i.DeletingAt,
 			&i.AutomaticUpdates,
+			&i.Favorite,
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,

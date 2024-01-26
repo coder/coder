@@ -22,6 +22,7 @@ SUBCOMMANDS:
     dotfiles          Personalize your workspace by applying a canonical
                       dotfiles repository
     external-auth     Manage external authentication
+    favorite          Add a workspace to your favorites
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
@@ -47,6 +48,7 @@ SUBCOMMANDS:
     stop              Stop a workspace
     templates         Manage templates
     tokens            Manage personal access tokens
+    unfavorite        Remove a workspace from your favorites
     update            Will update and start a given workspace if it is out of
                       date
     users             Manage users

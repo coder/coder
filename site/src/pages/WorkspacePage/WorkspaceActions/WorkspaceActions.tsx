@@ -1,7 +1,7 @@
 import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
-import { workspaceUpdatePolicy } from "utils/workspace";
+import { mustUpdateWorkspace } from "utils/workspace";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import {
   CancelButton,
@@ -79,10 +79,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canCancel &&
     (workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
-  const mustUpdate =
-    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
-    workspace.outdated;
-
+  const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
   const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
