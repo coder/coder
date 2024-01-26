@@ -30,7 +30,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
   buttonStyles,
   tooltipTitle = Language.tooltipTitle,
 }) => {
-  const { isCopied, copy: copyToClipboard } = useClipboard(text);
+  const { isCopied, copyToClipboard } = useClipboard(text);
 
   return (
     <Tooltip title={tooltipTitle} placement="top">

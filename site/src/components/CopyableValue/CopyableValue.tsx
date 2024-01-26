@@ -16,8 +16,8 @@ export const CopyableValue: FC<CopyableValueProps> = ({
   children,
   ...attrs
 }) => {
-  const { isCopied, copy } = useClipboard(value);
-  const clickableProps = useClickable<HTMLSpanElement>(copy);
+  const { isCopied, copyToClipboard } = useClipboard(value);
+  const clickableProps = useClickable<HTMLSpanElement>(copyToClipboard);
 
   return (
     <Tooltip
