@@ -184,7 +184,7 @@ func requireGetServiceBanner(ctx context.Context, t *testing.T, client *agentsdk
 	aAPI := proto.NewDRPCAgentClient(cc)
 	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
 	require.NoError(t, err)
-	return proto.SDKServiceBannerFromProto(sbp)
+	return agentsdk.ServiceBannerFromProto(sbp)
 }
 
 func TestCustomSupportLinks(t *testing.T) {

@@ -277,7 +277,7 @@ func (f *FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceB
 	if err != nil {
 		return nil, err
 	}
-	return agentproto.ServiceBannerFromSDK(sb), nil
+	return agentsdk.ProtoFromServiceBanner(sb), nil
 }
 
 func (*FakeAgentAPI) UpdateStats(context.Context, *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {

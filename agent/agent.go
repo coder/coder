@@ -677,7 +677,7 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgent
 				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
 				return err
 			}
-			serviceBanner := proto.SDKServiceBannerFromProto(sbp)
+			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
 			a.serviceBanner.Store(&serviceBanner)
 		}
 	}
@@ -710,7 +710,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch service banner: %w", err)
 	}
-	serviceBanner := proto.SDKServiceBannerFromProto(sbp)
+	serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
 	a.serviceBanner.Store(&serviceBanner)
 
 	manifest, err := a.client.Manifest(ctx)
