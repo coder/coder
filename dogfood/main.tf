@@ -31,17 +31,18 @@ locals {
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_dir       = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  repo_base_dir  = replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_dir       = "${replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")}/coder"
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   registry_name  = "codercom/oss-dogfood"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
-data "coder_parameter" "repo_dir" {
+data "coder_parameter" "repo_base_dir" {
   type        = "string"
-  name        = "Coder Repository Directory"
-  default     = "~/coder"
-  description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into it 🪄."
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into `coder` subdirectory in it 🪄."
   mutable     = true
 }
 
@@ -102,7 +103,7 @@ module "git-clone" {
   version  = "1.0.1"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
-  path     = local.repo_dir
+  path     = local.repo_base_dir
 }
 
 module "personalize" {
@@ -165,7 +166,7 @@ module "jfrog" {
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
-  dir  = data.coder_parameter.repo_dir.value
+  dir  = local.repo_dir
   env = {
     GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
