@@ -2,6 +2,8 @@ package prometheusmetrics
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -79,26 +81,21 @@ type metricKey struct {
 }
 
 func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
-	var sb strings.Builder
+	labelPairs := make(sort.StringSlice, 0, len(m.GetLabels()))
 	for _, label := range m.GetLabels() {
 		if label.Value == "" {
 			continue
 		}
-
-		_, _ = sb.WriteString(label.Name)
-		_ = sb.WriteByte('=')
-		_, _ = sb.WriteString(MetricLabelValueEncoder.Replace(label.Value))
-		_ = sb.WriteByte(',')
+		labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", label.Name, MetricLabelValueEncoder.Replace(label.Value)))
 	}
-	labels := strings.TrimRight(sb.String(), ",")
-
+	labelPairs.Sort()
 	return metricKey{
 		username:      req.username,
 		workspaceName: req.workspaceName,
 		agentName:     req.agentName,
 		templateName:  req.templateName,
 		metricName:    m.Name,
-		labelsStr:     labels,
+		labelsStr:     strings.Join(labelPairs, ","),
 	}
 }
 
