@@ -267,7 +267,9 @@ func TestUserOAuth2Github(t *testing.T) {
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{}, nil
+					return &github.User{
+						ID: github.Int64(100),
+					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
@@ -298,7 +300,9 @@ func TestUserOAuth2Github(t *testing.T) {
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{}, nil
+					return &github.User{
+						ID: github.Int64(100),
+					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
