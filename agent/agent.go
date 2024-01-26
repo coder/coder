@@ -88,7 +88,6 @@ type Options struct {
 }
 
 type Client interface {
-	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (drpc.Conn, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
@@ -96,6 +95,7 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
+	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
 
 type Agent interface {
@@ -713,15 +713,20 @@ func (a *agent) run(ctx context.Context) error {
 	serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
 	a.serviceBanner.Store(&serviceBanner)
 
-	manifest, err := a.client.Manifest(ctx)
+	mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
-
+	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+	manifest, err := agentsdk.ManifestFromProto(mp)
+	if err != nil {
+		a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
+		return xerrors.Errorf("convert manifest: %w", err)
+	}
 	if manifest.AgentID == uuid.Nil {
 		return xerrors.New("nil agentID returned by manifest")
 	}
+	a.client.RewriteDERPMap(manifest.DERPMap)
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
@@ -1124,6 +1129,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, networ
 			return xerrors.Errorf("recv DERPMap error: %w", err)
 		}
 		dm := tailnet.DERPMapFromProto(dmp)
+		a.client.RewriteDERPMap(dm)
 		network.SetDERPMap(dm)
 	}
 }

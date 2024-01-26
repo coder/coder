@@ -2043,6 +2043,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if metadata.WorkspaceName == "" {
 		metadata.WorkspaceName = "test-workspace"
 	}
+	if metadata.WorkspaceID == uuid.Nil {
+		metadata.WorkspaceID = uuid.New()
+	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()

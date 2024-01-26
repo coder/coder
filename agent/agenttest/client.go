@@ -49,7 +49,9 @@ func NewClient(t testing.TB,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	require.NoError(t, err)
-	fakeAAPI := NewFakeAgentAPI(t, logger)
+	mp, err := agentsdk.ProtoFromManifest(manifest)
+	require.NoError(t, err)
+	fakeAAPI := NewFakeAgentAPI(t, logger, mp)
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
@@ -64,7 +66,6 @@ func NewClient(t testing.TB,
 		t:              t,
 		logger:         logger.Named("client"),
 		agentID:        agentID,
-		manifest:       manifest,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
 		server:         server,
@@ -77,7 +78,6 @@ type Client struct {
 	t                  testing.TB
 	logger             slog.Logger
 	agentID            uuid.UUID
-	manifest           agentsdk.Manifest
 	metadata           map[string]agentsdk.Metadata
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
@@ -94,12 +94,10 @@ type Client struct {
 	derpMapOnce     sync.Once
 }
 
+func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}
+
 func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
-}
-
-func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
-	return c.manifest, nil
 }
 
 func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
@@ -252,12 +250,13 @@ type FakeAgentAPI struct {
 	t      testing.TB
 	logger slog.Logger
 
+	manifest *agentproto.Manifest
+
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
 
-func (*FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	return f.manifest, nil
 }
 
 func (f *FakeAgentAPI) SetServiceBannerFunc(fn func() (codersdk.ServiceBannerConfig, error)) {
@@ -310,9 +309,10 @@ func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLog
 	panic("implement me")
 }
 
-func NewFakeAgentAPI(t testing.TB, logger slog.Logger) *FakeAgentAPI {
+func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest) *FakeAgentAPI {
 	return &FakeAgentAPI{
-		t:      t,
-		logger: logger.Named("FakeAgentAPI"),
+		t:        t,
+		logger:   logger.Named("FakeAgentAPI"),
+		manifest: manifest,
 	}
 }
