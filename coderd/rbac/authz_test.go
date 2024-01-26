@@ -7,10 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type benchmarkCase struct {
@@ -349,6 +351,47 @@ func TestCacher(t *testing.T) {
 		// Yields only 1 call to the wrapped Authorizer for that subject
 		rec.AssertActor(t, subj, rec.Pair(action, obj))
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
+	})
+
+	t.Run("DontCacheTransientErrors", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx           = testutil.Context(t, testutil.WaitShort)
+			authOut       = make(chan error, 1) // buffered to not block
+			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+				// Just return what you're told.
+				return testutil.RequireRecvCtx(ctx, t, authOut)
+			}
+			ma                = &rbac.MockAuthorizer{AuthorizeFunc: authorizeFunc}
+			rec               = &coderdtest.RecordingAuthorizer{Wrapped: ma}
+			authz             = rbac.Cacher(rec)
+			subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
+		)
+
+		// First call will result in a transient error. This should not be cached.
+		testutil.RequireSendCtx(ctx, t, authOut, context.Canceled)
+		err := authz.Authorize(ctx, subj, action, obj)
+		assert.ErrorIs(t, err, context.Canceled)
+
+		// A subsequent call should still hit the authorizer.
+		testutil.RequireSendCtx(ctx, t, authOut, nil)
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.NoError(t, err)
+		// This should be cached and not hit the wrapped authorizer again.
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.NoError(t, err)
+
+		// Let's change the subject.
+		subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
+
+		// A third will be a legit error
+		testutil.RequireSendCtx(ctx, t, authOut, assert.AnError)
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.EqualError(t, err, assert.AnError.Error())
+		// This should be cached and not hit the wrapped authorizer again.
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.EqualError(t, err, assert.AnError.Error())
 	})
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
