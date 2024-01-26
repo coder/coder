@@ -509,6 +509,7 @@ const styles = {
     border: `1px solid ${theme.palette.text.secondary}`,
     backgroundColor: theme.palette.background.default,
     borderRadius: 8,
+    boxShadow: theme.shadows[3],
   }),
 
   "agentRow-connected": (theme) => ({
@@ -562,14 +563,13 @@ const styles = {
   }),
 
   header: (theme) => ({
-    padding: "12px 24px",
+    padding: "16px 16px 0 32px",
     display: "flex",
     gap: 24,
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
     lineHeight: "1.5",
-    borderBottom: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
@@ -581,7 +581,7 @@ const styles = {
     alignItems: "center",
     gap: 24,
     color: theme.palette.text.secondary,
-    fontSize: 13,
+    fontSize: 14,
   }),
 
   agentNameAndInfo: (theme) => ({
@@ -596,7 +596,7 @@ const styles = {
   }),
 
   content: {
-    padding: "32px 24px",
+    padding: 32,
     display: "flex",
     flexDirection: "column",
     gap: 32,
@@ -637,7 +637,7 @@ const styles = {
   agentNameAndStatus: (theme) => ({
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
@@ -652,7 +652,7 @@ const styles = {
     fontWeight: 600,
     flexShrink: 0,
     width: "fit-content",
-    fontSize: 14,
+    fontSize: 16,
     color: theme.palette.text.primary,
 
     [theme.breakpoints.down("md")]: {
@@ -682,7 +682,7 @@ const styles = {
     background: "transparent",
     border: 0,
     fontFamily: "inherit",
-    padding: "12px 24px",
+    padding: "16px 32px",
     color: theme.palette.text.secondary,
     cursor: "pointer",
     display: "flex",
