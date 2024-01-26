@@ -26,8 +26,7 @@ func TestBatchCreateLogs(t *testing.T) {
 	t.Parallel()
 
 	var (
-		workspaceID = uuid.New()
-		agent       = database.WorkspaceAgent{
+		agent = database.WorkspaceAgent{
 			ID: uuid.New(),
 		}
 		logSource = database.WorkspaceAgentLogSource{
@@ -45,17 +44,19 @@ func TestBatchCreateLogs(t *testing.T) {
 		publishWorkspaceUpdateCalled := false
 		publishWorkspaceAgentLogsUpdateCalled := false
 		now := dbtime.Now()
+		workspaceID := uuid.New()
 		api := &agentapi.LogsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
+			WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
 				return workspaceID, nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+			PublishWorkspaceUpdateFn: func(_ context.Context, id uuid.UUID) {
 				publishWorkspaceUpdateCalled = true
+				assert.Equal(t, workspaceID, id)
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
 				publishWorkspaceAgentLogsUpdateCalled = true
@@ -155,12 +156,12 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agentWithLogs, nil
 			},
-			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
+			WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+				return uuid.New(), nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+			PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {
 				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
@@ -205,12 +206,12 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return overflowedAgent, nil
 			},
-			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
+			WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+				return uuid.New(), nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+			PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {
 				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
@@ -238,8 +239,8 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
+			WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+				return uuid.New(), nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
@@ -303,12 +304,12 @@ func TestBatchCreateLogs(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
-				WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-					return workspaceID, nil
+				WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+					return uuid.New(), nil
 				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+				PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {
 					publishWorkspaceUpdateCalled = true
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
@@ -349,12 +350,12 @@ func TestBatchCreateLogs(t *testing.T) {
 				AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 					return agent, nil
 				},
-				WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-					return workspaceID, nil
+				WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+					return uuid.New(), nil
 				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+				PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {
 					publishWorkspaceUpdateCalled = true
 				},
 				PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
@@ -398,12 +399,12 @@ func TestBatchCreateLogs(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
+			WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+				return uuid.New(), nil
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(context.Context, uuid.UUID) {
+			PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {
 				publishWorkspaceUpdateCalled = true
 			},
 			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
