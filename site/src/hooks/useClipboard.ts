@@ -48,16 +48,16 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
   };
 };
 
-type Result<T = unknown> = Readonly<
-  | {
-      success: false;
-      value: null;
-      error: Error;
-    }
-  | (void extends T
-      ? { success: true; error: null }
-      : { success: true; value: T; error: null })
+type VoidResult = Readonly<
+  { success: true; error: null } | { success: false; error: Error }
 >;
+
+type ResultWithData<T = unknown> = Readonly<
+  | { success: true; value: T; error: null }
+  | { success: false; value: null; error: Error }
+>;
+
+type Result<T = unknown> = void extends T ? VoidResult : ResultWithData<T>;
 
 export async function readFromClipboard(): Promise<Result<string>> {
   if (!document.hasFocus()) {
@@ -81,33 +81,21 @@ export async function readFromClipboard(): Promise<Result<string>> {
       };
     }
 
-    // Yes, this is the "proper" way to do things with the old API - very hokey
-    const previousFocusTarget = document.activeElement;
-    const dummyInput = document.createElement("input");
-    dummyInput.setAttribute("hidden", "true");
-    document.body.appendChild(dummyInput);
-    dummyInput.focus();
-
-    const success = document.execCommand("paste");
-    if (!success) {
-      throw new Error("Failed to simulate clipboard with ");
-    }
-
-    const newText = dummyInput.value;
-    document.body.removeChild(dummyInput);
-
-    if (previousFocusTarget instanceof HTMLElement) {
-      previousFocusTarget.focus();
+    const { isExecSupported, value } = simulateClipboard("read");
+    if (!isExecSupported) {
+      throw new Error(
+        "document.execCommand has been removed for the user's browser, but they do not have access to newer API",
+      );
     }
 
     return {
       success: true,
-      value: newText,
+      value: value,
       error: null,
     };
   } catch (err) {
-    // Only expected error at this point is the user not granting the webpage
-    // permission to access the clipboard
+    // Only expected error not covered by function logic is the user not
+    // granting the webpage permission to access the clipboard
     const flattenedError =
       err instanceof Error
         ? err
@@ -169,4 +157,33 @@ export async function writeToClipboard(
   // }
 
   // return copySuccessful;
+}
+
+type SimulateClipboardResult = Readonly<{
+  isExecSupported: boolean;
+  value: string;
+}>;
+
+function simulateClipboard(
+  operation: "read" | "write",
+): SimulateClipboardResult {
+  // Absolutely cartoonish logic, but it's how you do things with the exec API
+  const previousFocusTarget = document.activeElement;
+  const dummyInput = document.createElement("input");
+  dummyInput.style.visibility = "hidden";
+  document.body.appendChild(dummyInput);
+  dummyInput.focus();
+
+  // Confusingly, you want to call the method opposite of what you want to do to
+  // interact with the exec method
+  const command = operation === "read" ? "paste" : "copy";
+  const isExecSupported = document.execCommand(command);
+  const value = dummyInput.value;
+  dummyInput.remove();
+
+  if (previousFocusTarget instanceof HTMLElement) {
+    previousFocusTarget.focus();
+  }
+
+  return { isExecSupported, value };
 }
