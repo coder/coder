@@ -103,7 +103,7 @@ module "git-clone" {
   version  = "1.0.2"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
-  path     = local.repo_base_dir
+  base_dir = local.repo_base_dir
 }
 
 module "personalize" {
