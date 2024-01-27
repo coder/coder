@@ -22,7 +22,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 
       <p css={styles.instructions}>
         Copy the session token below and
-        <strong css={{ display: "block" }}>paste it in your terminal</strong>.
+        <strong css={{ display: "block" }}>paste it in your terminal.</strong>
       </p>
 
       <CodeExample code={sessionToken} secret />
