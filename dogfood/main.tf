@@ -42,7 +42,7 @@ data "coder_parameter" "repo_base_dir" {
   type        = "string"
   name        = "Coder Repository Base Directory"
   default     = "~"
-  description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into `coder` subdirectory in it 🪄."
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into `[base directory]/coder` 🪄."
   mutable     = true
 }
 
