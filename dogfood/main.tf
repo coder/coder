@@ -31,17 +31,18 @@ locals {
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_dir       = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  repo_base_dir  = replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_dir       = module.git-clone.repo_dir
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   registry_name  = "codercom/oss-dogfood"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
-data "coder_parameter" "repo_dir" {
+data "coder_parameter" "repo_base_dir" {
   type        = "string"
-  name        = "Coder Repository Directory"
-  default     = "~/coder"
-  description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into it 🪄."
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
   mutable     = true
 }
 
@@ -86,41 +87,41 @@ data "coder_workspace" "me" {}
 
 module "slackme" {
   source           = "registry.coder.com/modules/slackme/coder"
-  version          = "1.0.1"
+  version          = "1.0.2"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
   source   = "registry.coder.com/modules/dotfiles/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
-  path     = local.repo_dir
+  path     = local.repo_base_dir
 }
 
 module "personalize" {
   source   = "registry.coder.com/modules/personalize/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.1"
+  version        = "1.0.2"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -130,26 +131,26 @@ module "jetbrains_gateway" {
 
 module "vscode-desktop" {
   source   = "registry.coder.com/modules/vscode-desktop/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "filebrowser" {
   source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "coder-login" {
   source   = "registry.coder.com/modules/coder-login/coder"
-  version  = "1.0.1"
+  version  = "1.0.2"
   agent_id = coder_agent.dev.id
 }
 
 module "jfrog" {
   source                = "registry.coder.com/modules/jfrog-oauth/coder"
-  version               = "1.0.1"
+  version               = "1.0.2"
   agent_id              = coder_agent.dev.id
   jfrog_url             = var.jfrog_url
   configure_code_server = true
@@ -165,7 +166,7 @@ module "jfrog" {
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
-  dir  = data.coder_parameter.repo_dir.value
+  dir  = local.repo_dir
   env = {
     GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
