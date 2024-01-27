@@ -50,7 +50,7 @@ async function prepareInitialClipboardValue(clipboardText: string) {
 }
 
 describe(useClipboard.name, () => {
-  describe("copyToClipboard", () => {
+  describe(".copyToClipboard", () => {
     it("Injects a new value into the clipboard when called", async () => {
       await prepareInitialClipboardValue("blah");
     });
@@ -65,11 +65,23 @@ describe(useClipboard.name, () => {
 
       await result.current.copyToClipboard();
       await waitFor(() => expect(result.current.isCopied).toBe(true));
-      expect(result.current.isCopied).toBe(true);
+    });
+
+    it("Maintains a stable reference as long as text doesn't change", async () => {
+      const text1 = "blah";
+      const text2 = "nah";
+      const { result, rerender } = await prepareInitialClipboardValue(text1);
+      const originalFunction = result.current.copyToClipboard;
+
+      rerender({ text: text1 });
+      expect(result.current.copyToClipboard).toBe(originalFunction);
+
+      rerender({ text: text2 });
+      expect(result.current.copyToClipboard).not.toBe(originalFunction);
     });
   });
 
-  describe("isCopied property", () => {
+  describe(".isCopied", () => {
     it("Does not change its value if the clipboard never changes", async () => {
       const { result } = await prepareInitialClipboardValue("blah");
       for (let i = 1; i <= 10; i++) {
@@ -81,7 +93,7 @@ describe(useClipboard.name, () => {
       await jest.advanceTimersByTimeAsync(100_000);
     });
 
-    it.skip("Listens to the user copying different text while in the same tab", async () => {
+    it("Listens to the user copying different text while in the same tab", async () => {
       expect.hasAssertions();
     });
 
