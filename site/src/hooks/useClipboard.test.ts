@@ -1,9 +1,4 @@
-import {
-  createEvent,
-  fireEvent,
-  renderHook,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { useClipboard } from "./useClipboard";
 
 /**
@@ -99,15 +94,13 @@ describe(useClipboard.name, () => {
       await jest.advanceTimersByTimeAsync(100_000);
     });
 
-    it.skip("Listens to the user copying different text while in the same tab", async () => {
+    it("Listens to the user copying different text while in the same tab", async () => {
       const { result } = await prepareInitialClipboardValue(text1);
-      const copyEvent = createEvent.copy(window, {
-        clipboardData: {
-          getData: () => text2,
-        },
-      });
 
-      fireEvent(window, copyEvent);
+      // Very hokey, but ClipboardEvents don't exist in testing environments
+      mockClipboardValue = text2;
+      fireEvent(window, new Event("copy"));
+
       await waitFor(() => expect(result.current.isCopied).toBe(false));
     });
 
