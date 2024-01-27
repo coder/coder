@@ -87,7 +87,7 @@ jobs:
         run: |
           curl -fsSL "https://dev.coder.com/bin/coder-linux-amd64" -o "./coder"
           chmod +x "./coder"
-          
+
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
         run: |
