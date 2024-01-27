@@ -408,6 +408,9 @@ jobs:
     if: ${{ !inputs.dry_run }}
 
     steps:
+      - name: Sync fork
+        run: gh repo sync cdrci/winget-pkgs -b master
+        
       - name: Checkout
         uses: actions/checkout@v4
         with:
