@@ -410,6 +410,8 @@ jobs:
     steps:
       - name: Sync fork
         run: gh repo sync cdrci/winget-pkgs -b master
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_GH_TOKEN }}
         
       - name: Checkout
         uses: actions/checkout@v4
