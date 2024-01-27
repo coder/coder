@@ -163,8 +163,8 @@ function simulateClipboard(
   document.body.appendChild(dummyInput);
   dummyInput.focus();
 
-  // Confusingly, you want to call the method opposite of what you want to do to
-  // interact with the exec method
+  // Confusingly, you want to use the command opposite of what you actually want
+  // to do to interact with the execCommand method
   const command = operation === "read" ? "paste" : "copy";
   const isExecSupported = document.execCommand(command);
   const value = dummyInput.value;
