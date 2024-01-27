@@ -1,4 +1,9 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import {
+  createEvent,
+  fireEvent,
+  renderHook,
+  waitFor,
+} from "@testing-library/react";
 import { useClipboard } from "./useClipboard";
 
 /**
@@ -9,26 +14,29 @@ import { useClipboard } from "./useClipboard";
  * The bad news is that not using userEvent.setup means that you have to test
  * all events through fireEvent instead of userEvent
  *
- * @todo Figure out how to swap userEvent in.
+ * @todo Figure out how to swap userEvent in, just to help make sure that the
+ * tests mirror actual user flows more closely.
  */
 let mockClipboardValue = "";
+const mockClipboard: Partial<Clipboard> = {
+  readText: async () => mockClipboardValue,
+  writeText: async (newText) => {
+    mockClipboardValue = newText;
+  },
+};
 
 beforeAll(() => {
   const originalNavigator = window.navigator;
   jest.spyOn(window, "navigator", "get").mockImplementation(() => {
-    return {
-      ...originalNavigator,
-      clipboard: {
-        readText: async () => mockClipboardValue,
-        writeText: async (newText) => {
-          mockClipboardValue = newText;
-        },
-      } as typeof window.navigator.clipboard,
-    };
+    return { ...originalNavigator, clipboard: mockClipboard as Clipboard };
   });
 
   jest.spyOn(document, "hasFocus").mockImplementation(() => true);
   jest.useFakeTimers();
+});
+
+afterEach(() => {
+  mockClipboardValue = "";
 });
 
 afterAll(() => {
@@ -49,17 +57,17 @@ async function prepareInitialClipboardValue(clipboardText: string) {
   return rendered;
 }
 
+const text1 = "blah";
+const text2 = "nah";
+
 describe(useClipboard.name, () => {
   describe(".copyToClipboard", () => {
     it("Injects a new value into the clipboard when called", async () => {
-      await prepareInitialClipboardValue("blah");
+      await prepareInitialClipboardValue(text1);
     });
 
     it("Injects the most recent value the hook rendered with", async () => {
-      const text1 = "blah";
-      const text2 = "nah";
       const { result, rerender } = await prepareInitialClipboardValue(text1);
-
       rerender({ text: text2 });
       await waitFor(() => expect(result.current.isCopied).toBe(false));
 
@@ -68,8 +76,6 @@ describe(useClipboard.name, () => {
     });
 
     it("Maintains a stable reference as long as text doesn't change", async () => {
-      const text1 = "blah";
-      const text2 = "nah";
       const { result, rerender } = await prepareInitialClipboardValue(text1);
       const originalFunction = result.current.copyToClipboard;
 
@@ -83,7 +89,7 @@ describe(useClipboard.name, () => {
 
   describe(".isCopied", () => {
     it("Does not change its value if the clipboard never changes", async () => {
-      const { result } = await prepareInitialClipboardValue("blah");
+      const { result } = await prepareInitialClipboardValue(text1);
       for (let i = 1; i <= 10; i++) {
         setTimeout(() => {
           expect(result.current.isCopied).toBe(true);
@@ -94,11 +100,27 @@ describe(useClipboard.name, () => {
     });
 
     it.skip("Listens to the user copying different text while in the same tab", async () => {
-      expect.hasAssertions();
+      const { result } = await prepareInitialClipboardValue(text1);
+      const copyEvent = createEvent.copy(window, {
+        clipboardData: {
+          getData: () => text2,
+        },
+      });
+
+      fireEvent(window, copyEvent);
+      await waitFor(() => expect(result.current.isCopied).toBe(false));
     });
 
-    it.skip("Re-syncs state when user navigates to a different tab and comes back", async () => {
-      expect.hasAssertions();
+    it("Re-syncs state when user navigates to a different tab and comes back", async () => {
+      const { result, rerender } = await prepareInitialClipboardValue(text1);
+      rerender({ text: text2 });
+      await waitFor(() => expect(result.current.isCopied).toBe(false));
+
+      fireEvent(window, new FocusEvent("blur"));
+      mockClipboardValue = text2;
+
+      fireEvent(window, new FocusEvent("focus"));
+      await waitFor(() => expect(result.current.isCopied).toBe(true));
     });
   });
 });
