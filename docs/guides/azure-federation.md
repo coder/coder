@@ -10,10 +10,10 @@ January 26, 2024
 
 ---
 
-This guide will walkthrough how to authenticate Coder's Terraform runner to
-Microsoft Azure, using a Service Principal with a client certificate. You can
-use this guide for authenticating Coder to Azure, regardless of where Coder is
-run, either on-premise or in a non-Azure cloud. This method is one of several
+This guide will walkthrough how to authenticate a Coder Provisioner to Microsoft
+Azure, using a Service Principal with a client certificate. You can use this
+guide for authenticating Coder to Azure, regardless of where Coder is run,
+either on-premise or in a non-Azure cloud. This method is one of several
 [recommended by Terraform](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs#authenticating-to-azure).
 
 ## Step 1: Generate Client Certificate & PKCS bundle
@@ -26,8 +26,8 @@ openssl req -subj '/CN=myclientcertificate/O=MyCompany, Inc./ST=CA/C=US' \
   -new -newkey rsa:4096 -sha256 -days 730 -nodes -x509 -keyout client.key -out client.crt
 ```
 
-Next, generate a `.pfx` file to be used by Coder's Terraform runner to
-authenticate the AzureRM provider:
+Next, generate a `.pfx` file to be used by Coder's Provisioner to authenticate
+the AzureRM provider:
 
 ```console
 openssl pkcs12 -export -password pass:"Pa55w0rd123" -out client.pfx -inkey client.key -in client.crt
@@ -79,10 +79,41 @@ Run the below command to create the secret:
 kubectl create secret generic -n coder azure-client-cert-secret --from-file=client.pfx=/path/to/your/client.pfx
 ```
 
+In addition, create secrets for each of the following values from your Azure
+Application:
+
+- Client ID
+- Tenant ID
+- Subscription ID
+- Certificate password
+
 Next, set the following values in Coder's Helm chart:
 
 ```yaml
 coder:
+  env:
+    - name: ARM_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          key: id
+          name: arm-client-id
+    - name: ARM_CLIENT_CERTIFICATE_PATH
+      value: /home/coder/az/
+    - name: ARM_CLIENT_CERTIFICATE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          key: password
+          name: arm-client-cert-password
+    - name: ARM_TENANT_ID
+      valueFrom:
+        secretKeyRef:
+          key: id
+          name: arm-tenant-id
+    - name: ARM_SUBSCRIPTION_ID
+      valueFrom:
+        secretKeyRef:
+          key: id
+          name: arm-subscription-id
   volumes:
     - name: "azure-client-cert"
       secret:
@@ -98,41 +129,3 @@ Upgrade the Coder deployment using the following `helm` command:
 ```console
 helm upgrade coder coder-v2/coder -n coder -f values.yaml
 ```
-
-## Step 5: Configure your Template to use the Client Certificate
-
-Now that the client certificate is added to Coder, it can be used by Terraform
-to authenticate to Azure. Set the below arguments in your AzureRM provider block
-in the workspace template:
-
-```hcl
-variable "client_id" {
-  sensitive = true
-}
-variable "tenant_id" {
-  sensitive = true
-}
-variable "subscription_id" {
-  sensitive = true
-}
-variable "client_cert_path" {
-  sensitive = true
-}
-variable "client_cert_password" {
-  sensitive = true
-}
-
-provider "azurerm" {
-  features {}
-
-  client_id                   = var.client_id
-  client_certificate_path     = "/home/coder/az/client.pfx"
-  client_certificate_password = var.client_cert_password
-  tenant_id                   = var.tenant_id
-  subscription_id             = var.subscription_id
-}
-```
-
-Setting the `variable` values as `sensitive` means only the template writer can
-see the values, and will only be prompted to input such values upon running
-`coder templates push`.
