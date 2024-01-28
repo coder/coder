@@ -74,15 +74,8 @@ export const CodeExample: FC<CodeExampleProps> = ({
   );
 };
 
-const wildcardRe = /./g;
 function obfuscateText(text: string): string {
-  // Every global regex is stateful; have to reset the state after each exec to
-  // make sure that the operations remain pure
-  const initialLastIndex = wildcardRe.lastIndex;
-  const result = text.replaceAll(wildcardRe, "*");
-  wildcardRe.lastIndex = initialLastIndex;
-
-  return result;
+  return new Array(text.length).fill("*").join("");
 }
 
 const styles = {
