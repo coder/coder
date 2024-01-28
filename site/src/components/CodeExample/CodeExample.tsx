@@ -2,6 +2,7 @@ import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
+import { visuallyHidden } from "@mui/utils";
 
 export interface CodeExampleProps {
   code: string;
@@ -44,11 +45,36 @@ export const CodeExample: FC<CodeExampleProps> = ({
         }
       }}
     >
-      <code css={[styles.code, secret && styles.secret]}>{code}</code>
+      <code css={[styles.code, secret && styles.secret]}>
+        {/*
+         * Obfuscating text even though we have the characters replaced with
+         * discs in the CSS for two reasons:
+         * 1. The CSS property is non-standard and won't work everywhere; MDN
+         *    warns you not to rely on it alone in production
+         * 2. Even with it turned on and supported, the plaintext is still
+         *    readily available in the HTML itself
+         */}
+        <span aria-hidden>{obfuscateText(code)}</span>
+        <span css={{ ...visuallyHidden }}>
+          Encrypted text. Please access via the copy button.
+        </span>
+      </code>
+
       <CopyButton ref={buttonRef} text={code} />
     </div>
   );
 };
+
+const wildcardRe = /./g;
+function obfuscateText(text: string): string {
+  // Every global regex is stateful; have to reset the state after each exec to
+  // make sure that the operations remain pure
+  const initialLastIndex = wildcardRe.lastIndex;
+  const result = text.replaceAll(wildcardRe, "*");
+  wildcardRe.lastIndex = initialLastIndex;
+
+  return result;
+}
 
 const styles = {
   container: (theme) => ({
