@@ -1,6 +1,3 @@
-import { fireEvent, renderHook, waitFor } from "@testing-library/react";
-import { useClipboard } from "./useClipboard";
-
 /**
  * userEvent.setup is supposed to stub out a clipboard for you, since it doesn't
  * normally exist in JSDOM. Spent ages trying to figure out how to make it work,
@@ -12,18 +9,41 @@ import { useClipboard } from "./useClipboard";
  * @todo Figure out how to swap userEvent in, just to help make sure that the
  * tests mirror actual user flows more closely.
  */
-let mockClipboardValue = "";
-const mockClipboard: Partial<Clipboard> = {
-  readText: async () => mockClipboardValue,
-  writeText: async (newText) => {
-    mockClipboardValue = newText;
-  },
-};
+import { fireEvent, renderHook, waitFor } from "@testing-library/react";
+import { useClipboard } from "./useClipboard";
+
+type MockClipboard = Readonly<
+  Clipboard & {
+    resetText: () => void;
+  }
+>;
+
+function makeMockClipboard(): MockClipboard {
+  let mockClipboardValue = "";
+
+  return {
+    readText: async () => mockClipboardValue,
+    writeText: async (newText) => {
+      mockClipboardValue = newText;
+    },
+    resetText: () => {
+      mockClipboardValue = "";
+    },
+
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    read: jest.fn(),
+    write: jest.fn(),
+  };
+}
+
+const mockClipboard = makeMockClipboard();
 
 beforeAll(() => {
   const originalNavigator = window.navigator;
   jest.spyOn(window, "navigator", "get").mockImplementation(() => {
-    return { ...originalNavigator, clipboard: mockClipboard as Clipboard };
+    return { ...originalNavigator, clipboard: mockClipboard };
   });
 
   jest.spyOn(document, "hasFocus").mockImplementation(() => true);
@@ -31,7 +51,7 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-  mockClipboardValue = "";
+  mockClipboard.resetText();
 });
 
 afterAll(() => {
@@ -97,10 +117,8 @@ describe(useClipboard.name, () => {
     it("Listens to the user copying different text while in the same tab", async () => {
       const { result } = await prepareInitialClipboardValue(text1);
 
-      // Very hokey, but ClipboardEvents don't exist in testing environments
-      mockClipboardValue = text2;
+      await mockClipboard.writeText(text2);
       fireEvent(window, new Event("copy"));
-
       await waitFor(() => expect(result.current.isCopied).toBe(false));
     });
 
@@ -110,8 +128,7 @@ describe(useClipboard.name, () => {
       await waitFor(() => expect(result.current.isCopied).toBe(false));
 
       fireEvent(window, new FocusEvent("blur"));
-      mockClipboardValue = text2;
-
+      await mockClipboard.writeText(text2);
       fireEvent(window, new FocusEvent("focus"));
       await waitFor(() => expect(result.current.isCopied).toBe(true));
     });
