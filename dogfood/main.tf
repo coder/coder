@@ -129,13 +129,6 @@ module "jetbrains_gateway" {
   default        = "GO"
 }
 
-module "vscode-desktop" {
-  source   = "registry.coder.com/modules/vscode-desktop/coder"
-  version  = "1.0.2"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
-}
-
 module "filebrowser" {
   source   = "registry.coder.com/modules/filebrowser/coder"
   version  = "1.0.2"
@@ -172,10 +165,6 @@ resource "coder_agent" "dev" {
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
   startup_script_behavior = "blocking"
-
-  display_apps {
-    vscode = false
-  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them
