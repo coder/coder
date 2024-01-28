@@ -15,8 +15,8 @@ export interface CodeExampleProps {
  */
 export const CodeExample: FC<CodeExampleProps> = ({
   code,
-  secret,
   className,
+  secret = true,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const triggerButton = (event: KeyboardEvent | MouseEvent) => {
@@ -46,18 +46,24 @@ export const CodeExample: FC<CodeExampleProps> = ({
       }}
     >
       <code css={[styles.code, secret && styles.secret]}>
-        {/*
-         * Obfuscating text even though we have the characters replaced with
-         * discs in the CSS for two reasons:
-         * 1. The CSS property is non-standard and won't work everywhere; MDN
-         *    warns you not to rely on it alone in production
-         * 2. Even with it turned on and supported, the plaintext is still
-         *    readily available in the HTML itself
-         */}
-        <span aria-hidden>{obfuscateText(code)}</span>
-        <span css={{ ...visuallyHidden }}>
-          Encrypted text. Please access via the copy button.
-        </span>
+        {secret ? (
+          <>
+            {/*
+             * Obfuscating text even though we have the characters replaced with
+             * discs in the CSS for two reasons:
+             * 1. The CSS property is non-standard and won't work everywhere;
+             *    MDN warns you not to rely on it alone in production
+             * 2. Even with it turned on and supported, the plaintext is still
+             *    readily available in the HTML itself
+             */}
+            <span aria-hidden>{obfuscateText(code)}</span>
+            <span css={{ ...visuallyHidden }}>
+              Encrypted text. Please access via the copy button.
+            </span>
+          </>
+        ) : (
+          <>{code}</>
+        )}
       </code>
 
       <CopyButton ref={buttonRef} text={code} />
