@@ -16,6 +16,9 @@ export interface CodeExampleProps {
 export const CodeExample: FC<CodeExampleProps> = ({
   code,
   className,
+
+  // Defaulting to true to be on the safe side; you should have to opt out of
+  // the secure option, not remember to opt in
   secret = true,
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);

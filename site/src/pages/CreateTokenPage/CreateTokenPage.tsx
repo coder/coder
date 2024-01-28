@@ -71,6 +71,7 @@ export const CreateTokenPage: FC = () => {
     <>
       <p>Make sure you copy the below token before proceeding:</p>
       <CodeExample
+        secret={false}
         code={newToken?.key ?? ""}
         css={{
           minHeight: "auto",
