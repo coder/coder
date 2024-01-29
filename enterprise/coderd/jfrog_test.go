@@ -109,7 +109,7 @@ func TestJFrogXrayScan(t *testing.T) {
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
-		require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 
 		err = ownerClient.PostJFrogXrayScan(ctx, expectedPayload)
 		require.NoError(t, err)

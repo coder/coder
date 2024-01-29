@@ -348,7 +348,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				})
 			})
 		})
-		r.Route("/exp", func(r chi.Router) {
+		r.Route("/integrations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.jfrogEnabledMW,

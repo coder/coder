@@ -15,9 +15,12 @@ INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
-		payload
+		critical,
+		high,
+		medium,
+		results_url
 	)
 VALUES 
-	($1, $2, $3)
+	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
-DO UPDATE SET payload = $3;
+DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6;

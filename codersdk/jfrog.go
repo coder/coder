@@ -19,7 +19,7 @@ type JFrogXrayScan struct {
 }
 
 func (c *Client) PostJFrogXrayScan(ctx context.Context, req JFrogXrayScan) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/exp/jfrog/xray-scan", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/integrations/jfrog/xray-scan", req)
 	if err != nil {
 		return xerrors.Errorf("make request: %w", err)
 	}
@@ -32,7 +32,7 @@ func (c *Client) PostJFrogXrayScan(ctx context.Context, req JFrogXrayScan) error
 }
 
 func (c *Client) JFrogXRayScan(ctx context.Context, workspaceID, agentID uuid.UUID) (JFrogXrayScan, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/exp/jfrog/xray-scan", nil,
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/integrations/jfrog/xray-scan", nil,
 		WithQueryParam("workspace_id", workspaceID.String()),
 		WithQueryParam("agent_id", agentID.String()),
 	)

@@ -441,7 +441,10 @@ COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
-    payload jsonb DEFAULT '{}'::jsonb NOT NULL
+    critical integer DEFAULT 0 NOT NULL,
+    high integer DEFAULT 0 NOT NULL,
+    medium integer DEFAULT 0 NOT NULL,
+    results_url text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE licenses (

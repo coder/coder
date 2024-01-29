@@ -1,15 +1,11 @@
 package coderd
 
 import (
-	"database/sql"
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -24,7 +20,7 @@ import (
 // @Tags Enterprise
 // @Param request body codersdk.JFrogXrayScan true "Post JFrog XRay scan request"
 // @Success 200 {object} codersdk.Response
-// @Router /exp/jfrog/xray-scan [post]
+// @Router /integrations/jfrog/xray-scan [post]
 func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -33,22 +29,18 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := json.Marshal(req)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	err = api.Database.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
+	err := api.Database.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
 		WorkspaceID: req.WorkspaceID,
 		AgentID:     req.AgentID,
-		Payload:     payload,
+		Critical:    int32(req.Critical),
+		High:        int32(req.High),
+		Medium:      int32(req.Medium),
+		ResultsUrl:  req.ResultsURL,
 	})
-	if dbauthz.IsNotAuthorizedError(err) {
-		httpapi.Forbidden(rw)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
-
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -69,26 +61,20 @@ func (api *API) postJFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace_id query string true "Workspace ID"
 // @Param agent_id query string true "Agent ID"
 // @Success 200 {object} codersdk.JFrogXrayScan
-// @Router /exp/jfrog/xray-scan [get]
+// @Router /integrations/jfrog/xray-scan [get]
 func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
-		wid = r.URL.Query().Get("workspace_id")
-		aid = r.URL.Query().Get("agent_id")
+		ctx     = r.Context()
+		vals    = r.URL.Query()
+		p       = httpapi.NewQueryParamParser()
+		wsID    = p.Required("workspace_id").UUID(vals, uuid.UUID{}, "workspace_id")
+		agentID = p.Required("agent_id").UUID(vals, uuid.UUID{}, "agent_id")
 	)
 
-	wsID, err := uuid.Parse(wid)
-	if err != nil {
+	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "'workspace_id' must be a valid UUID.",
-		})
-		return
-	}
-
-	agentID, err := uuid.Parse(aid)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "'agent_id' must be a valid UUID.",
+			Message:     "Invalid query params.",
+			Validations: p.Errors,
 		})
 		return
 	}
@@ -97,20 +83,31 @@ func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID: wsID,
 		AgentID:     agentID,
 	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	if scan.Payload == nil {
-		scan.Payload = []byte("{}")
-	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, scan.Payload)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.JFrogXrayScan{
+		WorkspaceID: scan.WorkspaceID,
+		AgentID:     scan.AgentID,
+		Critical:    int(scan.Critical),
+		High:        int(scan.High),
+		Medium:      int(scan.Medium),
+		ResultsURL:  scan.ResultsUrl,
+	})
 }
 
 func (api *API) jfrogEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
+		// This doesn't actually use the external auth feature but we want
+		// to lock this behind an enterprise license and it's somewhat
+		// related to external auth (in that it is JFrog integration).
 		enabled := api.entitlements.Features[codersdk.FeatureMultipleExternalAuth].Enabled
 		api.entitlementsMu.RUnlock()
 

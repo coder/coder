@@ -2223,14 +2223,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
 			AgentID:     agent.ID,
 			WorkspaceID: ws.ID,
-			Payload:     []byte("{}"),
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
 		})
 		require.NoError(s.T(), err)
 
 		expect := database.JfrogXrayScan{
 			WorkspaceID: ws.ID,
 			AgentID:     agent.ID,
-			Payload:     []byte("{}"),
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
 		}
 
 		check.Args(database.GetJFrogXrayScanByWorkspaceAndAgentIDParams{

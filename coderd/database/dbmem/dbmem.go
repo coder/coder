@@ -7322,7 +7322,10 @@ func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context
 
 	for i, scan := range q.jfrogXRayScans {
 		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
-			scan.Payload = arg.Payload
+			scan.Critical = arg.Critical
+			scan.High = arg.High
+			scan.Medium = arg.Medium
+			scan.ResultsUrl = arg.ResultsUrl
 			q.jfrogXRayScans[i] = scan
 			return nil
 		}
@@ -7332,7 +7335,10 @@ func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context
 	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
 		WorkspaceID: arg.WorkspaceID,
 		AgentID:     arg.AgentID,
-		Payload:     arg.Payload,
+		Critical:    arg.Critical,
+		High:        arg.High,
+		Medium:      arg.Medium,
+		ResultsUrl:  arg.ResultsUrl,
 	})
 
 	return nil
