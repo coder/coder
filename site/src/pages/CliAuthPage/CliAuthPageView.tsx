@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -36,10 +35,10 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 
       <CodeExample code={sessionToken} secret />
 
-      <div css={styles.backButton}>
-        <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
+      <div css={{ paddingTop: 16 }}>
+        <RouterLink to="/workspaces" css={styles.backLink}>
           Go to workspaces
-        </Button>
+        </RouterLink>
       </div>
     </SignInLayout>
   );
@@ -49,14 +48,26 @@ const styles = {
   instructions: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.secondary,
-    paddingBottom: 32,
+    paddingBottom: 8,
     textAlign: "center",
-    lineHeight: 1.6,
+    lineHeight: 1.4,
+
+    // Have to undo styling side effects from <Welcome> component
+    marginTop: -24,
   }),
 
-  backButton: {
-    display: "flex",
-    justifyContent: "flex-end",
+  backLink: (theme) => ({
+    display: "block",
+    textAlign: "center",
+    color: theme.palette.text.primary,
+    textDecoration: "underline",
+    textUnderlineOffset: 3,
+    textDecorationColor: "hsla(0deg, 0%, 100%, 0.7)",
     paddingTop: 16,
-  },
+    paddingBottom: 16,
+
+    "&:hover": {
+      textDecoration: "none",
+    },
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
