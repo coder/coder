@@ -40,7 +40,7 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
     }
   };
 
-  return { isCopied: isCopied, copyToClipboard };
+  return { isCopied, copyToClipboard };
 };
 
 function simulateClipboardWrite(): boolean {
