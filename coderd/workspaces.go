@@ -591,7 +591,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			QueuePosition:  0,
 		},
 		database.User{
-			Name: member.Username,
+			Username: member.Username,
 		},
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
@@ -615,7 +615,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		apiBuild,
 		template,
 		database.User{
-			Name: member.Username,
+			Username: member.Username,
 		},
 		api.Options.AllowWorkspaceRenames,
 	)
