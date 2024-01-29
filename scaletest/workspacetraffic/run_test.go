@@ -296,6 +296,13 @@ func TestRun(t *testing.T) {
 			if err == nil || errors.Is(err, io.EOF) {
 				return
 			}
+			// Ignore policy violations, we expect these, e.g.:
+			//
+			// 	failed to get reader: received close frame: status = StatusPolicyViolation and reason = "timed out"
+			if websocket.CloseStatus(err) == websocket.StatusPolicyViolation {
+				return
+			}
+
 			t.Error(err)
 		}))
 		defer srv.Close()
