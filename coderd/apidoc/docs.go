@@ -648,31 +648,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/deployment/unprivileged": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "Unprivileged deployment config.",
-                "operationId": "unprivileged-deployment-config",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UnprivilegedDeploymentConfig"
-                        }
-                    }
-                }
-            }
-        },
         "/derp-map": {
             "get": {
                 "security": [
@@ -8270,6 +8245,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "upgrade_message": {
+                    "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
+                    "type": "string"
+                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
@@ -11495,17 +11474,6 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
-                }
-            }
-        },
-        "codersdk.UnprivilegedDeploymentConfig": {
-            "type": "object",
-            "properties": {
-                "cli_upgrade_message": {
-                    "type": "string"
-                },
-                "ssh_config": {
-                    "$ref": "#/definitions/codersdk.SSHConfigResponse"
                 }
             }
         },

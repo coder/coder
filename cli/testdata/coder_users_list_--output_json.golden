@@ -1,3 +1,4 @@
+check versions error: deployment config: GET http://localhost:36329/api/v2/deployment/unprivileged: unexpected status code 404: Route not found.
 [
   {
     "id": "[first user ID]",

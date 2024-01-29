@@ -163,6 +163,7 @@ export interface BuildInfoResponse {
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
+  readonly upgrade_message: string;
 }
 
 // From codersdk/insights.go
