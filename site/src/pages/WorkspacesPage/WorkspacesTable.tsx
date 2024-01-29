@@ -7,6 +7,7 @@ import TableRow from "@mui/material/TableRow";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import Star from "@mui/icons-material/Star";
 import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -150,6 +151,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             alignItems="center"
                           >
                             {workspace.name}
+                            {workspace.favorite && (
+                              <Star css={{ width: 16, height: 16 }} />
+                            )}
                             {workspace.outdated && (
                               <WorkspaceOutdatedTooltip
                                 templateName={workspace.template_name}

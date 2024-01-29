@@ -33,6 +33,7 @@ export interface WorkspaceProps {
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleDormantActivate: () => void;
+  handleToggleFavorite: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
@@ -64,6 +65,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   handleSettings,
   handleChangeVersion,
   handleDormantActivate,
+  handleToggleFavorite,
   workspace,
   isUpdating,
   isRestarting,
@@ -131,6 +133,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         handleBuildRetryDebug={handleBuildRetryDebug}
         handleChangeVersion={handleChangeVersion}
         handleDormantActivate={handleDormantActivate}
+        handleToggleFavorite={handleToggleFavorite}
         canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canChangeVersions}
         isUpdating={isUpdating}

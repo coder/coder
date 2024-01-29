@@ -1688,3 +1688,11 @@ export const updateHealthSettings = async (
   );
   return response.data;
 };
+
+export const putFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
+
+export const deleteFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
