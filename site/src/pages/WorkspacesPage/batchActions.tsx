@@ -1,6 +1,8 @@
 import { useMutation } from "react-query";
 import {
   deleteWorkspace,
+  deleteFavoriteWorkspace,
+  putFavoriteWorkspace,
   startWorkspace,
   stopWorkspace,
   updateWorkspace,
@@ -63,12 +65,44 @@ export function useBatchActions(options: UseBatchActionsProps) {
     },
   });
 
+  const favoriteAllMutation = useMutation({
+    mutationFn: (workspaces: Workspace[]) => {
+      return Promise.all(
+        workspaces
+          .filter((w) => !w.favorite)
+          .map((w) => putFavoriteWorkspace(w.id)),
+      );
+    },
+    onSuccess,
+    onError: () => {
+      displayError("Failed to favorite some workspaces");
+    },
+  });
+
+  const unfavoriteAllMutation = useMutation({
+    mutationFn: (workspaces: Workspace[]) => {
+      return Promise.all(
+        workspaces
+          .filter((w) => w.favorite)
+          .map((w) => deleteFavoriteWorkspace(w.id)),
+      );
+    },
+    onSuccess,
+    onError: () => {
+      displayError("Failed to unfavorite some workspaces");
+    },
+  });
+
   return {
+    favoriteAll: favoriteAllMutation.mutateAsync,
+    unfavoriteAll: unfavoriteAllMutation.mutateAsync,
     startAll: startAllMutation.mutateAsync,
     stopAll: stopAllMutation.mutateAsync,
     deleteAll: deleteAllMutation.mutateAsync,
     updateAll: updateAllMutation.mutateAsync,
     isLoading:
+      favoriteAllMutation.isLoading ||
+      unfavoriteAllMutation.isLoading ||
       startAllMutation.isLoading ||
       stopAllMutation.isLoading ||
       deleteAllMutation.isLoading,

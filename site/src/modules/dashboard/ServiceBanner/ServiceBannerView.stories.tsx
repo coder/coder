@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { ServiceBannerView } from "./ServiceBannerView";
 
 const meta: Meta<typeof ServiceBannerView> = {
-  title: "components/ServiceBannerView",
+  title: "modules/dashboard/ServiceBannerView",
   component: ServiceBannerView,
 };
 

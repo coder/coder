@@ -1,22 +1,18 @@
 import { useTheme } from "@emotion/react";
 import Paper from "@mui/material/Paper";
-import {
-  type HTMLProps,
-  type ReactNode,
-  type FC,
-  type PropsWithChildren,
-} from "react";
+import { type HTMLProps, type ReactNode, type FC } from "react";
 
 export interface ChartSectionProps {
   /**
    * action appears in the top right of the section card
    */
   action?: ReactNode;
+  children?: ReactNode;
   contentsProps?: HTMLProps<HTMLDivElement>;
   title?: string | JSX.Element;
 }
 
-export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
+export const ChartSection: FC<ChartSectionProps> = ({
   action,
   children,
   contentsProps,

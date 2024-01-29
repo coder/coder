@@ -4,7 +4,7 @@ import { MockUser, MockUser2 } from "testHelpers/entities";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
-  title: "components/NavbarView",
+  title: "modules/dashboard/NavbarView",
   parameters: { chromatic: chromaticWithTablet, layout: "fullscreen" },
   component: NavbarView,
   args: {

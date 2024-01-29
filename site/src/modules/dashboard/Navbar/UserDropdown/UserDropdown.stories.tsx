@@ -3,7 +3,7 @@ import { UserDropdown } from "./UserDropdown";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof UserDropdown> = {
-  title: "components/UserDropdown",
+  title: "modules/dashboard/UserDropdown",
   component: UserDropdown,
   args: {
     user: MockUser,

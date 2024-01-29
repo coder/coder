@@ -138,7 +138,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
 	defer retryCtxCancel()
 validate:
-	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
+	valid, _, err := c.ValidateToken(ctx, token)
 	if err != nil {
 		return externalAuthLink, false, xerrors.Errorf("validate external auth token: %w", err)
 	}
@@ -179,7 +179,14 @@ validate:
 
 // ValidateToken ensures the Git token provided is valid!
 // The user is optionally returned if the provider supports it.
-func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *codersdk.ExternalAuthUser, error) {
+func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
+	if link == nil {
+		return false, nil, xerrors.New("validate external auth token: token is nil")
+	}
+	if !link.Expiry.IsZero() && link.Expiry.Before(dbtime.Now()) {
+		return false, nil, nil
+	}
+
 	if c.ValidateURL == "" {
 		// Default that the token is valid if no validation URL is provided.
 		return true, nil, nil
@@ -189,7 +196,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.AccessToken))
 	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
@@ -396,10 +403,15 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if body.Error != "" {
 		return nil, xerrors.New(body.Error)
 	}
+	// If expiresIn is 0, then the token never expires.
+	expires := dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second)
+	if body.ExpiresIn == 0 {
+		expires = time.Time{}
+	}
 	return &oauth2.Token{
 		AccessToken:  body.AccessToken,
 		RefreshToken: body.RefreshToken,
-		Expiry:       dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+		Expiry:       expires,
 	}, nil
 }
 

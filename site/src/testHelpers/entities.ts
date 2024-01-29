@@ -4,7 +4,7 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
@@ -1020,6 +1020,12 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: false,
+};
+
+export const MockFavoriteWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-favorite-workspace",
   favorite: true,
 };
 

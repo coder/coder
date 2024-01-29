@@ -15,6 +15,7 @@ export const actionTypes = [
   "updating",
   "activate",
   "activating",
+  "toggleFavorite",
 
   // There's no need for a retrying state because retrying starts a transition
   // into one of the starting, stopping, or deleting states (based on the

@@ -104,3 +104,19 @@ func SDKAppFromProto(protoApp *WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		Health: health,
 	}, nil
 }
+
+func SDKServiceBannerFromProto(sbp *ServiceBanner) codersdk.ServiceBannerConfig {
+	return codersdk.ServiceBannerConfig{
+		Enabled:         sbp.GetEnabled(),
+		Message:         sbp.GetMessage(),
+		BackgroundColor: sbp.GetBackgroundColor(),
+	}
+}
+
+func ServiceBannerFromSDK(sb codersdk.ServiceBannerConfig) *ServiceBanner {
+	return &ServiceBanner{
+		Enabled:         sb.Enabled,
+		Message:         sb.Message,
+		BackgroundColor: sb.BackgroundColor,
+	}
+}

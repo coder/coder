@@ -84,7 +84,7 @@ func TestRestart(t *testing.T) {
 
 		matches := []string{
 			ephemeralParameterDescription, ephemeralParameterValue,
-			"Confirm restart workspace?", "yes",
+			"Restart workspace?", "yes",
 			"Stopping workspace", "",
 			"Starting workspace", "",
 			"workspace has been restarted", "",
@@ -138,7 +138,7 @@ func TestRestart(t *testing.T) {
 		}()
 
 		matches := []string{
-			"Confirm restart workspace?", "yes",
+			"Restart workspace?", "yes",
 			"Stopping workspace", "",
 			"Starting workspace", "",
 			"workspace has been restarted", "",

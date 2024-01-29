@@ -35,6 +35,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -61,15 +62,21 @@ func init() {
 }
 
 type Options struct {
-	BinFS         http.FileSystem
-	BinHashes     map[string]string
-	Database      database.Store
-	SiteFS        fs.FS
-	OAuth2Configs *httpmw.OAuth2Configs
-	DocsURL       string
+	BinFS             http.FileSystem
+	BinHashes         map[string]string
+	Database          database.Store
+	SiteFS            fs.FS
+	OAuth2Configs     *httpmw.OAuth2Configs
+	DocsURL           string
+	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
 }
 
 func New(opts *Options) *Handler {
+	if opts.AppearanceFetcher == nil {
+		daf := atomic.Pointer[appearance.Fetcher]{}
+		daf.Store(&appearance.DefaultFetcher)
+		opts.AppearanceFetcher = &daf
+	}
 	handler := &Handler{
 		opts:          opts,
 		secureHeaders: secureHeaders(),
@@ -147,7 +154,6 @@ type Handler struct {
 
 	buildInfoJSON string
 
-	AppearanceFetcher func(ctx context.Context) (codersdk.AppearanceConfig, error)
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
 	RegionsFetcher func(ctx context.Context) (any, error)
@@ -291,6 +297,7 @@ func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
 func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
+	af := *(h.opts.AppearanceFetcher.Load())
 	if filePath == "" {
 		filePath = "index.html"
 	}
@@ -317,11 +324,9 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	})
 	if !ok || apiKey == nil || actor == nil {
 		var cfg codersdk.AppearanceConfig
-		if h.AppearanceFetcher != nil {
-			// nolint:gocritic // User is not expected to be signed in.
-			ctx := dbauthz.AsSystemRestricted(r.Context())
-			cfg, _ = h.AppearanceFetcher(ctx)
-		}
+		// nolint:gocritic // User is not expected to be signed in.
+		ctx := dbauthz.AsSystemRestricted(r.Context())
+		cfg, _ = af.Fetch(ctx)
 		state.ApplicationName = applicationNameOrDefault(cfg)
 		state.LogoURL = cfg.LogoURL
 		return execTmpl(tmpl, state)
@@ -370,21 +375,21 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				}
 			}()
 		}
-		if h.AppearanceFetcher != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				cfg, err := h.AppearanceFetcher(ctx)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cfg, err := af.Fetch(ctx)
+			if err == nil {
+				appr, err := json.Marshal(cfg)
 				if err == nil {
-					appearance, err := json.Marshal(cfg)
-					if err == nil {
-						state.Appearance = html.EscapeString(string(appearance))
-						state.ApplicationName = applicationNameOrDefault(cfg)
-						state.LogoURL = cfg.LogoURL
-					}
+					state.Appearance = html.EscapeString(string(appr))
+					state.ApplicationName = applicationNameOrDefault(cfg)
+					state.LogoURL = cfg.LogoURL
 				}
-			}()
-		}
+			}
+		}()
+
 		if h.RegionsFetcher != nil {
 			wg.Add(1)
 			go func() {

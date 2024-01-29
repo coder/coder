@@ -271,18 +271,18 @@ func TestOAuthAppSecrets(t *testing.T) {
 		},
 	}})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	topCtx := testutil.Context(t, testutil.WaitLong)
 
 	// Make some apps.
 	//nolint:gocritic // OAauth2 app management requires owner permission.
-	app1, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+	app1, err := client.PostOAuth2ProviderApp(topCtx, codersdk.PostOAuth2ProviderAppRequest{
 		Name:        "razzle-dazzle",
 		CallbackURL: "http://localhost",
 	})
 	require.NoError(t, err)
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
-	app2, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+	app2, err := client.PostOAuth2ProviderApp(topCtx, codersdk.PostOAuth2ProviderAppRequest{
 		Name:        "razzle-dazzle-the-sequel",
 		CallbackURL: "http://localhost",
 	})
@@ -290,6 +290,7 @@ func TestOAuthAppSecrets(t *testing.T) {
 
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Should not be able to create secrets for a non-existent app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -318,6 +319,7 @@ func TestOAuthAppSecrets(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// No secrets yet.
 		//nolint:gocritic // OAauth2 app management requires owner permission.

@@ -51,13 +51,20 @@ export interface Role {
   /** A border, or a color for an outlined icon */
   outline: string;
 
-  /** A color for icons, text on a neutral background, the background of a button which should stand out */
-  fill: string;
-
   /** A color for text on the corresponding `background` */
   text: string;
 
-  // contrastOutline?: string;
+  /** A set of more saturated colors to make things stand out */
+  fill: {
+    /** A saturated color for use as a background, or for text or icons on a neutral background */
+    solid: string;
+
+    /** A color for outlining an area using the solid background color, or for an outlined icon */
+    outline: string;
+
+    /** A color for text when using the `solid` background color */
+    text: string;
+  };
 }
 
 /** Provides additional colors which can indicate different states for interactive elements */

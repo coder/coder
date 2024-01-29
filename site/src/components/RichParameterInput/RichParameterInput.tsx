@@ -10,6 +10,8 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Pill } from "components/Pill/Pill";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -31,7 +33,11 @@ const styles = {
   labelPrimary: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.primary,
-    fontWeight: 600,
+    fontWeight: 500,
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
 
     "& p": {
       margin: 0,
@@ -41,6 +47,11 @@ const styles = {
     ".small &": {
       fontSize: 14,
     },
+  }),
+  optionalLabel: (theme) => ({
+    fontSize: 14,
+    color: theme.palette.text.disabled,
+    fontWeight: 500,
   }),
   textField: {
     ".small & .MuiInputBase-root": {
@@ -102,6 +113,25 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
     ? parameter.display_name
     : parameter.name;
 
+  const labelPrimary = (
+    <span css={styles.labelPrimary}>
+      {displayName}
+
+      {!parameter.required && (
+        <Tooltip title="If no value is specified, the system will default to the value set by the administrator.">
+          <span css={styles.optionalLabel}>(optional)</span>
+        </Tooltip>
+      )}
+      {!parameter.mutable && (
+        <Tooltip title="This value cannot be modified after the workspace has been created.">
+          <Pill type="warning" icon={<ErrorOutline />}>
+            Immutable
+          </Pill>
+        </Tooltip>
+      )}
+    </span>
+  );
+
   return (
     <label htmlFor={parameter.name}>
       <Stack direction="row" alignItems="center">
@@ -117,13 +147,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0}>
-            <span css={styles.labelPrimary}>{displayName}</span>
+            {labelPrimary}
             <MemoizedMarkdown css={styles.labelCaption}>
               {parameter.description}
             </MemoizedMarkdown>
           </Stack>
         ) : (
-          <span css={styles.labelPrimary}>{displayName}</span>
+          labelPrimary
         )}
       </Stack>
     </label>

@@ -14,6 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -205,6 +207,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
@@ -264,7 +267,9 @@ func TestUserOAuth2Github(t *testing.T) {
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{}, nil
+					return &github.User{
+						ID: github.Int64(100),
+					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
@@ -295,7 +300,9 @@ func TestUserOAuth2Github(t *testing.T) {
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-					return &github.User{}, nil
+					return &github.User{
+						ID: github.Int64(100),
+					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
@@ -390,6 +397,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
@@ -442,6 +450,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -494,6 +503,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -532,6 +542,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("mathias"),
 					}, nil
 				},
@@ -574,6 +585,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
+						ID:    github.Int64(100),
 						Login: github.String("kyle"),
 					}, nil
 				},
@@ -590,6 +602,87 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+	t.Run("ChangedEmail", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+			oidctest.WithCallbackPath("/api/v2/users/oauth2/github/callback"),
+		)
+		const ghID = int64(7777)
+		auditor := audit.NewMock()
+		coderEmail := &github.UserEmail{
+			Email:    github.String("alice@coder.com"),
+			Verified: github.Bool(true),
+			Primary:  github.Bool(true),
+		}
+		gmailEmail := &github.UserEmail{
+			Email:    github.String("alice@gmail.com"),
+			Verified: github.Bool(true),
+			Primary:  github.Bool(false),
+		}
+		emails := []*github.UserEmail{
+			gmailEmail,
+			coderEmail,
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:  true,
+				AllowEveryone: true,
+				OAuth2Config:  promoauth.NewFactory(prometheus.NewRegistry()).NewGithub("test-github", fake.OIDCConfig(t, []string{})),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("alice"),
+						ID:    github.Int64(ghID),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return emails, nil
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// This should register the user
+		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		user, err := client.User(ctx, "me")
+		require.NoError(t, err)
+		userID := user.ID
+		require.Equal(t, user.Email, *coderEmail.Email)
+
+		// Now the user is registered, let's change their primary email.
+		coderEmail.Primary = github.Bool(false)
+		gmailEmail.Primary = github.Bool(true)
+
+		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		user, err = client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, userID)
+		require.Equal(t, user.Email, *gmailEmail.Email)
+
+		// Entirely change emails.
+		newEmail := "alice@newdomain.com"
+		emails = []*github.UserEmail{
+			{
+				Email:    github.String("alice@newdomain.com"),
+				Primary:  github.Bool(true),
+				Verified: github.Bool(true),
+			},
+		}
+		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		user, err = client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, userID)
+		require.Equal(t, user.Email, newEmail)
 	})
 }
 

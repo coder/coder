@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { useArgs } from "@storybook/preview-api";
 import { chromatic } from "testHelpers/chromatic";
 import { MockTemplateVersion } from "testHelpers/entities";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
-import { useArgs } from "@storybook/preview-api";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {
-  title: "component/ProvisionerTagsPopover",
+  title: "pages/TemplateVersionEditorPage/ProvisionerTagsPopover",
   parameters: {
     chromatic,
     layout: "centered",
@@ -37,4 +37,6 @@ const meta: Meta<typeof ProvisionerTagsPopover> = {
 export default meta;
 type Story = StoryObj<typeof ProvisionerTagsPopover>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as ProvisionerTagsPopover };

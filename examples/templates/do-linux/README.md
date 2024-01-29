@@ -9,7 +9,7 @@ tags: [vm, linux, digitalocean]
 
 # Remote Development on DigitalOcean Droplets
 
-Provision DigitalOcean Droplets as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
+Provision DigitalOcean Droplets as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 

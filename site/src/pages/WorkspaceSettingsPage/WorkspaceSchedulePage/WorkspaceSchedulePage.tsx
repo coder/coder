@@ -59,7 +59,10 @@ export const WorkspaceSchedulePage: FC = () => {
     mutationFn: submitSchedule,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        workspaceByOwnerAndNameKey(params.username, params.workspace),
+        workspaceByOwnerAndNameKey(
+          params.username.replace(/^@/, ""),
+          params.workspace,
+        ),
       );
     },
   });
@@ -98,8 +101,11 @@ export const WorkspaceSchedulePage: FC = () => {
 
       {template && (
         <WorkspaceScheduleForm
-          enableAutoStart={template.allow_user_autostart}
-          enableAutoStop={template.allow_user_autostop}
+          allowedTemplateAutoStartDays={
+            template.autostart_requirement.days_of_week
+          }
+          allowTemplateAutoStart={template.allow_user_autostart}
+          allowTemplateAutoStop={template.allow_user_autostop}
           submitScheduleError={submitScheduleMutation.error}
           initialValues={{
             ...getAutostart(workspace),

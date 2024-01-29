@@ -12,6 +12,7 @@ import {
   UpdateButton,
   ActivateButton,
   RetryButton,
+  FavoriteButton,
 } from "./Buttons";
 
 import Divider from "@mui/material/Divider";
@@ -30,6 +31,7 @@ import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
+  handleToggleFavorite: () => void;
   handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
   handleStop: () => void;
   handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
@@ -51,6 +53,7 @@ export interface WorkspaceActionsProps {
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
+  handleToggleFavorite,
   handleStart,
   handleStop,
   handleRestart,
@@ -131,6 +134,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
     retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
+    toggleFavorite: (
+      <FavoriteButton
+        workspaceID={workspace.id}
+        isFavorite={workspace.favorite}
+        onToggle={handleToggleFavorite}
+      />
+    ),
   };
 
   return (
@@ -149,6 +159,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           ))}
 
       {showCancel && <CancelButton handleAction={handleCancel} />}
+
+      {buttonMapping.toggleFavorite}
 
       <MoreMenu>
         <MoreMenuTrigger>

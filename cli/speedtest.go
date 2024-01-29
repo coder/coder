@@ -3,11 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
+	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -21,6 +23,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 		direct    bool
 		duration  time.Duration
 		direction string
+		pcapFile  string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -63,6 +66,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 				return err
 			}
 			defer conn.Close()
+
 			if direct {
 				ticker := time.NewTicker(time.Second)
 				defer ticker.Stop()
@@ -95,6 +99,19 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			} else {
 				conn.AwaitReachable(ctx)
 			}
+
+			if pcapFile != "" {
+				s := capture.New()
+				conn.InstallCaptureHook(s.LogPacket)
+				f, err := os.OpenFile(pcapFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				unregister := s.RegisterOutput(f)
+				defer unregister()
+			}
+
 			var tsDir tsspeedtest.Direction
 			switch direction {
 			case "up":
@@ -145,6 +162,12 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			FlagShorthand: "t",
 			Default:       tsspeedtest.DefaultDuration.String(),
 			Value:         clibase.DurationOf(&duration),
+		},
+		{
+			Description: "Specifies a file to write a network capture to.",
+			Flag:        "pcap-file",
+			Default:     "",
+			Value:       clibase.StringOf(&pcapFile),
 		},
 	}
 	return cmd

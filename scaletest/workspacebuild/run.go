@@ -66,7 +66,25 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 	if err != nil {
-		return xerrors.Errorf("wait for build: %w", err)
+		for i := 0; i < r.cfg.Retry; i++ {
+			_, _ = fmt.Fprintf(logs, "Retrying build %d/%d...\n", i+1, r.cfg.Retry)
+
+			workspace.LatestBuild, err = r.client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition:          codersdk.WorkspaceTransitionStart,
+				RichParameterValues: req.RichParameterValues,
+				TemplateVersionID:   req.TemplateVersionID,
+			})
+			if err != nil {
+				return xerrors.Errorf("create workspace build: %w", err)
+			}
+			err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return xerrors.Errorf("wait for build: %w", err)
+		}
 	}
 
 	if r.cfg.NoWaitForAgents {
