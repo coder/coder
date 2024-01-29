@@ -71,9 +71,9 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		} else {
 			renderedNo = Bold(ConfirmNo)
 		}
-		pretty.Fprintf(inv.Stdout, DefaultStyles.Placeholder, "(%s/%s) ", renderedYes, renderedNo)
+		_, _ = fmt.Fprintf(inv.Stdout, "(%s/%s) ", renderedYes, renderedNo)
 	} else if opts.Default != "" {
-		_, _ = fmt.Fprint(inv.Stdout, pretty.Sprint(DefaultStyles.Placeholder, "("+opts.Default+") "))
+		_, _ = fmt.Fprintf(inv.Stdout, "(%s) ", pretty.Sprint(DefaultStyles.Placeholder, opts.Default))
 	}
 	interrupt := make(chan os.Signal, 1)
 
