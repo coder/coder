@@ -9,7 +9,7 @@ tags: [vm, linux, aws, persistent-vm]
 
 # Remote Development on AWS EC2 VMs (Linux)
 
-Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
+Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 
