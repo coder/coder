@@ -122,6 +122,7 @@ run_scenario_cmd() {
 }
 
 declare -a pids=()
+declare -A pid_to_scenario=()
 declare -A failed=()
 target_start=0
 target_end=-1
@@ -274,7 +275,13 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	# Debug scenarios, for testing the runner.
 	"debug:greedy_agent_traffic")
 		greedy_agent_traffic 10 "${scenario}" &
-		status=$?
+		pids+=($!)
+		if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
+			wait "${pids[-1]}"
+			status=$?
+		else
+			SCALETEST_PROMETHEUS_START_PORT=$((SCALETEST_PROMETHEUS_START_PORT + 1))
+		fi
 		;;
 	"debug:success")
 		{
@@ -324,6 +331,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 
 		wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 	else
+		pid_to_scenario+=(["${pids[-1]}"]="${scenario}")
 		# Stagger the start of each scenario to avoid a burst of load and deted
 		# problematic scenarios.
 		sleep $((SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGERING * 60))
@@ -332,22 +340,30 @@ done
 
 if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
 	wait "${pids[@]}"
-	status=$?
-	if ((status > 0)); then
-		log "One or more load scenarios failed: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]} (exit=${status})"
+	# Wait on all pids will wait until all have exited, but we need to
+	# check their individual exit codes.
+	for pid in "${pids[@]}"; do
+		wait "${pid}"
+		status=${?}
+		scenario=${pid_to_scenario[${pid}]}
+		if ((status > 0)); then
+			log "Load scenario failed: ${scenario} (exit=${status})"
+			failed+=(["${scenario}"]="$status")
+		fi
+	done
+	if ((${#failed[@]} > 0)); then
 		PHASE_ADD_TAGS=error end_phase
-		exit 1
 	else
 		end_phase
 	fi
-else
-	if ((${#failed[@]} > 0)); then
-		log "Load scenarios failed: ${!failed[*]}"
-		for scenario in "${!failed[@]}"; do
-			log "  ${scenario}: exit=${failed[$scenario]}"
-		done
-		exit 1
-	fi
+fi
+
+if ((${#failed[@]} > 0)); then
+	log "Load scenarios failed: ${!failed[*]}"
+	for scenario in "${!failed[@]}"; do
+		log "  ${scenario}: exit=${failed[$scenario]}"
+	done
+	exit 1
 fi
 
 log "Scaletest complete!"
