@@ -12,9 +12,9 @@ OPTIONS:
           Specifies whether all workspaces will be listed or not.
 
   -c, --column string-array (default: workspace,template,status,healthy,last built,current version,outdated,starts at,stops after)
-          Columns to display in table output. Available columns: workspace,
-          template, status, healthy, last built, current version, outdated,
-          starts at, starts next, stops after, stops next, daily cost.
+          Columns to display in table output. Available columns: favorite,
+          workspace, template, status, healthy, last built, current version,
+          outdated, starts at, starts next, stops after, stops next, daily cost.
 
   -o, --output string (default: table)
           Output format. Available formats: table, json.
