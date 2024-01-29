@@ -382,7 +382,7 @@ func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt
 	if resp.StatusCode != http.StatusOK {
 		data, err := httputil.DumpResponse(resp, true)
 		if err == nil {
-			t.Log(string(data))
+			t.Logf("Attempt Login response payload\n%s", string(data))
 		}
 	}
 	require.Equal(t, http.StatusOK, resp.StatusCode, "client failed to login")

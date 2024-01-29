@@ -611,7 +611,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	// Verified that the lowest ID on GitHub is "1", so 0 should never occur.
 	if ghUser.GetID() == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "The GitHub user returned an ID of 0, this should never happen. Please report this error.",
+			Message: "The GitHub user ID is missing, this should never happen. Please report this error.",
 			// If this happens, the User could either be:
 			//  - Empty, in which case all these fields would also be empty.
 			//  - Not a user, in which case the "Type" would be something other than "User"
