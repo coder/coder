@@ -223,8 +223,7 @@ test("Patch request is not send when there are no changes", async () => {
 
 describe.each([
   {
-    testName:
-      "Do not ask when template version has no errors and no initial variables",
+    testName: "Do not ask when template version has no errors",
     initialVariables: undefined,
     loadedVariables: undefined,
     templateVersion: MockTemplateVersion,
