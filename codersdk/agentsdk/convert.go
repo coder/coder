@@ -266,3 +266,15 @@ func ProtoFromServiceBanner(sb codersdk.ServiceBannerConfig) *proto.ServiceBanne
 		BackgroundColor: sb.BackgroundColor,
 	}
 }
+
+func ProtoFromSubsystems(ss []codersdk.AgentSubsystem) ([]proto.Startup_Subsystem, error) {
+	ret := make([]proto.Startup_Subsystem, len(ss))
+	for i, s := range ss {
+		pi, ok := proto.Startup_Subsystem_value[strings.ToUpper(string(s))]
+		if !ok {
+			return nil, xerrors.Errorf("unknown subsystem: %s", s)
+		}
+		ret[i] = proto.Startup_Subsystem(pi)
+	}
+	return ret, nil
+}

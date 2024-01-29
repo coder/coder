@@ -88,7 +88,6 @@ type Client struct {
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	startup         agentsdk.PostStartupRequest
 	logs            []agentsdk.Log
 	derpMapUpdates  chan *tailcfg.DERPMap
 	derpMapOnce     sync.Once
@@ -173,10 +172,8 @@ func (c *Client) PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsR
 	return nil
 }
 
-func (c *Client) GetStartup() agentsdk.PostStartupRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.startup
+func (c *Client) GetStartup() <-chan *agentproto.Startup {
+	return c.fakeAgentAPI.startupCh
 }
 
 func (c *Client) GetMetadata() map[string]agentsdk.Metadata {
@@ -195,14 +192,6 @@ func (c *Client) PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequ
 		c.metadata[md.Key] = md
 		c.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
 	}
-	return nil
-}
-
-func (c *Client) PostStartup(ctx context.Context, startup agentsdk.PostStartupRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.startup = startup
-	c.logger.Debug(ctx, "post startup", slog.F("req", startup))
 	return nil
 }
 
@@ -250,7 +239,8 @@ type FakeAgentAPI struct {
 	t      testing.TB
 	logger slog.Logger
 
-	manifest *agentproto.Manifest
+	manifest  *agentproto.Manifest
+	startupCh chan *agentproto.Startup
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -294,9 +284,9 @@ func (*FakeAgentAPI) BatchUpdateAppHealths(context.Context, *agentproto.BatchUpd
 	panic("implement me")
 }
 
-func (*FakeAgentAPI) UpdateStartup(context.Context, *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	f.startupCh <- req.GetStartup()
+	return req.GetStartup(), nil
 }
 
 func (*FakeAgentAPI) BatchUpdateMetadata(context.Context, *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
@@ -311,8 +301,9 @@ func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLog
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest) *FakeAgentAPI {
 	return &FakeAgentAPI{
-		t:        t,
-		logger:   logger.Named("FakeAgentAPI"),
-		manifest: manifest,
+		t:         t,
+		logger:    logger.Named("FakeAgentAPI"),
+		manifest:  manifest,
+		startupCh: make(chan *agentproto.Startup, 100),
 	}
 }

@@ -556,18 +556,6 @@ type PostStartupRequest struct {
 	Subsystems        []codersdk.AgentSubsystem `json:"subsystems"`
 }
 
-func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/startup", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
-	}
-	return nil
-}
-
 type Log struct {
 	CreatedAt time.Time         `json:"created_at"`
 	Output    string            `json:"output"`
