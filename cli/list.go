@@ -47,10 +47,15 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
+	favIco := " "
+	if workspace.Favorite {
+		favIco = "★"
+	}
+	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
 	return workspaceListRow{
 		Favorite:       workspace.Favorite,
 		Workspace:      workspace,
-		WorkspaceName:  workspace.OwnerName + "/" + workspace.Name,
+		WorkspaceName:  workspaceName,
 		Template:       workspace.TemplateName,
 		Status:         status,
 		Healthy:        healthy,
@@ -72,7 +77,6 @@ func (r *RootCmd) list() *clibase.Cmd {
 			cliui.TableFormat(
 				[]workspaceListRow{},
 				[]string{
-					"favorite",
 					"workspace",
 					"template",
 					"status",
