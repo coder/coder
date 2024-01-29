@@ -138,7 +138,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <FavoriteButton
         workspaceID={workspace.id}
         isFavorite={workspace.favorite}
-        handleAction={handleToggleFavorite}
+        onToggle={handleToggleFavorite}
       />
     ),
   };

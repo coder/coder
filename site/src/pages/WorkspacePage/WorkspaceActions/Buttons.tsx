@@ -194,20 +194,20 @@ export const RetryButton: FC<RetryButtonProps> = ({
 };
 
 interface FavoriteButtonProps {
-  handleAction: (workspaceID: string) => void;
+  onToggle: (workspaceID: string) => void;
   workspaceID: string;
   isFavorite: boolean;
 }
 
 export const FavoriteButton: FC<FavoriteButtonProps> = ({
-  handleAction,
+  onToggle: onToggle,
   workspaceID,
   isFavorite,
 }) => {
   return (
     <TopbarButton
       startIcon={isFavorite ? <Star /> : <StarBorder />}
-      onClick={() => handleAction(workspaceID)}
+      onClick={() => onToggle(workspaceID)}
     >
       {isFavorite ? "Unfavorite" : "Favorite"}
     </TopbarButton>
