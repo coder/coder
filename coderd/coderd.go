@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -401,6 +402,7 @@ func New(options *Options) *API {
 	}
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
 		BinHashes:         binHashes,
@@ -1104,6 +1106,7 @@ type API struct {
 	// AccessControlStore is a pointer to an atomic pointer since it is
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
+	PortSharer         atomic.Pointer[portsharing.PortSharer]
 
 	HTTPAuth *HTTPAuthorizer
 
