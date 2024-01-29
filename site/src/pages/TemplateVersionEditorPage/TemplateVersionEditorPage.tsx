@@ -302,21 +302,23 @@ const useVersionLogs = (
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {
-  const { data: missingVariables } = useQuery({
+  const isRequiringVariables =
+    templateVersion?.job.error_code === "REQUIRED_TEMPLATE_VARIABLES";
+  const { data: variables } = useQuery({
     ...templateVersionVariables(templateVersion?.id ?? ""),
-    enabled: templateVersion?.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+    enabled: isRequiringVariables,
   });
   const [isMissingVariablesDialogOpen, setIsMissingVariablesDialogOpen] =
     useState(false);
 
   useEffect(() => {
-    if (missingVariables) {
+    if (isRequiringVariables) {
       setIsMissingVariablesDialogOpen(true);
     }
-  }, [missingVariables]);
+  }, [isRequiringVariables]);
 
   return {
-    missingVariables,
+    missingVariables: isRequiringVariables ? variables : undefined,
     isMissingVariablesDialogOpen,
     setIsMissingVariablesDialogOpen,
   };

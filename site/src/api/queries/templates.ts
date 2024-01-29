@@ -127,9 +127,15 @@ export const templateVersions = (templateId: string) => {
   };
 };
 
+export const templateVersionVariablesKey = (versionId: string) => [
+  "templateVersion",
+  versionId,
+  "variables",
+];
+
 export const templateVersionVariables = (versionId: string) => {
   return {
-    queryKey: ["templateVersion", versionId, "variables"],
+    queryKey: templateVersionVariablesKey(versionId),
     queryFn: () => API.getTemplateVersionVariables(versionId),
   };
 };

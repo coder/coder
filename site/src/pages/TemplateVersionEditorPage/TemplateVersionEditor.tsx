@@ -689,7 +689,7 @@ const styles = {
       padding: "0 16px",
       fontFamily: MONOSPACE_FONT_FAMILY,
 
-      "&:first-child": {
+      "&:first-of-type": {
         paddingTop: 16,
       },
 
@@ -715,7 +715,7 @@ const styles = {
       borderLeft: 0,
       borderRight: 0,
 
-      "&:first-child": {
+      "&:first-of-type": {
         borderTop: 0,
       },
 
