@@ -25,14 +25,14 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
       <div css={{ overflow: "hidden" }}>
         <div
           css={{
-            textTransform: "capitalize",
             color: theme.palette.text.primary,
             textOverflow: "ellipsis",
             overflow: "hidden",
             whiteSpace: "nowrap",
           }}
         >
-          {build.transition} by{" "}
+          <span css={{ textTransform: "capitalize" }}>{build.transition}</span>{" "}
+          by{" "}
           <span css={{ fontWeight: 500 }}>
             {getDisplayWorkspaceBuildInitiatedBy(build)}
           </span>
