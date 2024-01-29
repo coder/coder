@@ -1,10 +1,20 @@
-import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
+import {
+  patchTemplateVersion,
+  updateActiveTemplateVersion,
+  watchBuildLogsByTemplateVersionId,
+} from "api/api";
+import type {
+  PatchTemplateVersionRequest,
+  ProvisionerJobLog,
+  TemplateVersion,
+} from "api/typesGenerated";
 import {
   createTemplateVersion,
   resources,
@@ -19,16 +29,6 @@ import {
   createTemplateVersionFileTree,
   isAllowedFile,
 } from "utils/templateVersion";
-import {
-  patchTemplateVersion,
-  updateActiveTemplateVersion,
-  watchBuildLogsByTemplateVersionId,
-} from "api/api";
-import {
-  PatchTemplateVersionRequest,
-  ProvisionerJobLog,
-  TemplateVersion,
-} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
@@ -102,6 +102,16 @@ export const TemplateVersionEditorPage: FC = () => {
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
   };
 
+  // Provisioner Tags
+  const [provisionerTags, setProvisionerTags] = useState<
+    Record<string, string>
+  >({});
+  useEffect(() => {
+    if (templateVersionQuery.data?.job.tags) {
+      setProvisionerTags(templateVersionQuery.data.job.tags);
+    }
+  }, [templateVersionQuery.data?.job.tags]);
+
   return (
     <>
       <Helmet>
@@ -127,7 +137,7 @@ export const TemplateVersionEditorPage: FC = () => {
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",
-              tags: templateVersionQuery.data.job.tags,
+              tags: provisionerTags,
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
@@ -209,6 +219,10 @@ export const TemplateVersionEditorPage: FC = () => {
           }}
           onCancelSubmitMissingVariableValues={() => {
             setIsMissingVariablesDialogOpen(false);
+          }}
+          provisionerTags={provisionerTags}
+          onUpdateProvisionerTags={(tags) => {
+            setProvisionerTags(tags);
           }}
         />
       ) : (

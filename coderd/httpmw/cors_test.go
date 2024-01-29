@@ -7,14 +7,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 func TestWorkspaceAppCors(t *testing.T) {
 	t.Parallel()
 
-	regex, err := httpapi.CompileHostnamePattern("*--apps.dev.coder.com")
+	regex, err := appurl.CompileHostnamePattern("*--apps.dev.coder.com")
 	require.NoError(t, err)
 
 	methods := []string{
@@ -30,13 +30,13 @@ func TestWorkspaceAppCors(t *testing.T) {
 	tests := []struct {
 		name    string
 		origin  string
-		app     httpapi.ApplicationURL
+		app     appurl.ApplicationURL
 		allowed bool
 	}{
 		{
 			name:   "Self",
 			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
-			app: httpapi.ApplicationURL{
+			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
 				WorkspaceName: "ws",
@@ -47,7 +47,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		{
 			name:   "SameWorkspace",
 			origin: "https://8000--agent--ws--user--apps.dev.coder.com",
-			app: httpapi.ApplicationURL{
+			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
 				WorkspaceName: "ws",
@@ -58,7 +58,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		{
 			name:   "SameUser",
 			origin: "https://8000--agent2--ws2--user--apps.dev.coder.com",
-			app: httpapi.ApplicationURL{
+			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
 				WorkspaceName: "ws",
@@ -69,7 +69,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		{
 			name:   "DifferentOriginOwner",
 			origin: "https://3000--agent--ws--user2--apps.dev.coder.com",
-			app: httpapi.ApplicationURL{
+			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
 				WorkspaceName: "ws",
@@ -80,7 +80,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 		{
 			name:   "DifferentHostOwner",
 			origin: "https://3000--agent--ws--user--apps.dev.coder.com",
-			app: httpapi.ApplicationURL{
+			app: appurl.ApplicationURL{
 				AppSlugOrPort: "3000",
 				AgentName:     "agent",
 				WorkspaceName: "ws",

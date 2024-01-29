@@ -10,11 +10,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -34,10 +38,25 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+type token struct {
+	issued time.Time
+	email  string
+	exp    time.Time
+}
+
+type deviceFlow struct {
+	// userInput is the expected input to authenticate the device flow.
+	userInput string
+	exp       time.Time
+	granted   bool
+}
 
 // FakeIDP is a functional OIDC provider.
 // It only supports 1 OIDC client.
@@ -49,6 +68,9 @@ type FakeIDP struct {
 	handler   http.Handler
 	cfg       *oauth2.Config
 
+	// callbackPath allows changing where the callback path to coderd is expected.
+	// This only affects using the Login helper functions.
+	callbackPath string
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
@@ -65,12 +87,14 @@ type FakeIDP struct {
 	// That is the various access tokens, refresh tokens, states, etc.
 	codeToStateMap *syncmap.Map[string, string]
 	// Token -> Email
-	accessTokens *syncmap.Map[string, string]
+	accessTokens *syncmap.Map[string, token]
 	// Refresh Token -> Email
 	refreshTokensUsed    *syncmap.Map[string, bool]
 	refreshTokens        *syncmap.Map[string, string]
 	stateToIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
 	refreshIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
+	// Device flow
+	deviceCode *syncmap.Map[string, deviceFlow]
 
 	// hooks
 	// hookValidRedirectURL can be used to reject a redirect url from the
@@ -89,7 +113,8 @@ type FakeIDP struct {
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
 	// optional middlewares
-	middlewares chi.Middlewares
+	middlewares   chi.Middlewares
+	defaultExpire time.Duration
 }
 
 func StatusError(code int, err error) error {
@@ -134,6 +159,29 @@ func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 	}
 }
 
+func WithDefaultExpire(d time.Duration) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.defaultExpire = d
+	}
+}
+
+func WithCallbackPath(path string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.callbackPath = path
+	}
+}
+
+func WithStaticCredentials(id, secret string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		if id != "" {
+			f.clientID = id
+		}
+		if secret != "" {
+			f.clientSecret = secret
+		}
+	}
+}
+
 // WithExtra returns extra fields that be accessed on the returned Oauth Token.
 // These extra fields can override the default fields (id_token, access_token, etc).
 func WithMutateToken(mutateToken func(token map[string]interface{})) func(*FakeIDP) {
@@ -152,6 +200,12 @@ func WithCustomClientAuth(hook func(t testing.TB, req *http.Request) (url.Values
 func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.logger = slogtest.Make(t, options)
+	}
+}
+
+func WithLogger(logger slog.Logger) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.logger = logger
 	}
 }
 
@@ -196,6 +250,8 @@ const (
 	authorizePath = "/oauth2/authorize"
 	keysPath      = "/oauth2/keys"
 	userInfoPath  = "/oauth2/userinfo"
+	deviceAuth    = "/login/device/code"
+	deviceVerify  = "/login/device"
 )
 
 func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
@@ -211,14 +267,16 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		clientSecret:         uuid.NewString(),
 		logger:               slog.Make(),
 		codeToStateMap:       syncmap.New[string, string](),
-		accessTokens:         syncmap.New[string, string](),
+		accessTokens:         syncmap.New[string, token](),
 		refreshTokens:        syncmap.New[string, string](),
 		refreshTokensUsed:    syncmap.New[string, bool](),
 		stateToIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
 		refreshIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
+		deviceCode:           syncmap.New[string, deviceFlow](),
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
 		hookValidRedirectURL: func(redirectURL string) error { return nil },
+		defaultExpire:        time.Minute * 5,
 	}
 
 	for _, opt := range opts {
@@ -257,14 +315,16 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	// ProviderJSON is the JSON representation of the OpenID Connect provider
 	// These are all the urls that the IDP will respond to.
 	f.provider = ProviderJSON{
-		Issuer:      issuer,
-		AuthURL:     u.ResolveReference(&url.URL{Path: authorizePath}).String(),
-		TokenURL:    u.ResolveReference(&url.URL{Path: tokenPath}).String(),
-		JWKSURL:     u.ResolveReference(&url.URL{Path: keysPath}).String(),
-		UserInfoURL: u.ResolveReference(&url.URL{Path: userInfoPath}).String(),
+		Issuer:        issuer,
+		AuthURL:       u.ResolveReference(&url.URL{Path: authorizePath}).String(),
+		TokenURL:      u.ResolveReference(&url.URL{Path: tokenPath}).String(),
+		JWKSURL:       u.ResolveReference(&url.URL{Path: keysPath}).String(),
+		UserInfoURL:   u.ResolveReference(&url.URL{Path: userInfoPath}).String(),
+		DeviceCodeURL: u.ResolveReference(&url.URL{Path: deviceAuth}).String(),
 		Algorithms: []string{
 			"RS256",
 		},
+		ExternalAuthURL: u.ResolveReference(&url.URL{Path: "/external-auth-validate/user"}).String(),
 	}
 }
 
@@ -272,8 +332,23 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 	t.Helper()
 
+	srvURL := "localhost:0"
+	issURL, err := url.Parse(f.issuer)
+	if err == nil {
+		if issURL.Hostname() == "localhost" || issURL.Hostname() == "127.0.0.1" {
+			srvURL = issURL.Host
+		}
+	}
+
+	l, err := net.Listen("tcp", srvURL)
+	require.NoError(t, err, "failed to create listener")
+
 	ctx, cancel := context.WithCancel(context.Background())
-	srv := httptest.NewUnstartedServer(f.handler)
+	srv := &httptest.Server{
+		Listener: l,
+		Config:   &http.Server{Handler: f.handler, ReadHeaderTimeout: time.Second * 5},
+	}
+
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -304,6 +379,12 @@ func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt
 	t.Helper()
 
 	client, resp := f.AttemptLogin(t, client, idTokenClaims, opts...)
+	if resp.StatusCode != http.StatusOK {
+		data, err := httputil.DumpResponse(resp, true)
+		if err == nil {
+			t.Logf("Attempt Login response payload\n%s", string(data))
+		}
+	}
 	require.Equal(t, http.StatusOK, resp.StatusCode, "client failed to login")
 	return client, resp
 }
@@ -333,7 +414,11 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
-	coderOauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
+	path := "/api/v2/users/oidc/callback"
+	if f.callbackPath != "" {
+		path = f.callbackPath
+	}
+	coderOauthURL, err := client.URL.Parse(path)
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
 
@@ -420,6 +505,31 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...f
 	_ = res.Body.Close()
 }
 
+// DeviceLogin does the oauth2 device flow for external auth providers.
+func (*FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthID string) {
+	// First we need to initiate the device flow. This will have Coder hit the
+	// fake IDP and get a device code.
+	device, err := client.ExternalAuthDeviceByID(context.Background(), externalAuthID)
+	require.NoError(t, err)
+
+	// Now the user needs to go to the fake IDP page and click "allow" and enter
+	// the device code input. For our purposes, we just send an http request to
+	// the verification url. No additional user input is needed.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	resp, err := client.Request(ctx, http.MethodPost, device.VerificationURI, nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Now we need to exchange the device code for an access token. We do this
+	// in this method because it is the user that does the polling for the device
+	// auth flow, not the backend.
+	err = client.ExternalAuthDeviceExchange(context.Background(), externalAuthID, codersdk.ExternalAuthDeviceExchange{
+		DeviceCode: device.DeviceCode,
+	})
+	require.NoError(t, err)
+}
+
 // CreateAuthCode emulates a user clicking "allow" on the IDP page. When doing
 // unit tests, it's easier to skip this step sometimes. It does make an actual
 // request to the IDP, so it should be equivalent to doing this "manually" with
@@ -489,12 +599,15 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 
 // ProviderJSON is the .well-known/configuration JSON
 type ProviderJSON struct {
-	Issuer      string   `json:"issuer"`
-	AuthURL     string   `json:"authorization_endpoint"`
-	TokenURL    string   `json:"token_endpoint"`
-	JWKSURL     string   `json:"jwks_uri"`
-	UserInfoURL string   `json:"userinfo_endpoint"`
-	Algorithms  []string `json:"id_token_signing_alg_values_supported"`
+	Issuer        string   `json:"issuer"`
+	AuthURL       string   `json:"authorization_endpoint"`
+	TokenURL      string   `json:"token_endpoint"`
+	JWKSURL       string   `json:"jwks_uri"`
+	UserInfoURL   string   `json:"userinfo_endpoint"`
+	DeviceCodeURL string   `json:"device_authorization_endpoint"`
+	Algorithms    []string `json:"id_token_signing_alg_values_supported"`
+	// This is custom
+	ExternalAuthURL string `json:"external_auth_url"`
 }
 
 // newCode enforces the code exchanged is actually a valid code
@@ -507,9 +620,13 @@ func (f *FakeIDP) newCode(state string) string {
 
 // newToken enforces the access token exchanged is actually a valid access token
 // created by the IDP.
-func (f *FakeIDP) newToken(email string) string {
+func (f *FakeIDP) newToken(email string, expires time.Time) string {
 	accessToken := uuid.NewString()
-	f.accessTokens.Store(accessToken, email)
+	f.accessTokens.Store(accessToken, token{
+		issued: time.Now(),
+		email:  email,
+		exp:    expires,
+	})
 	return accessToken
 }
 
@@ -525,10 +642,15 @@ func (f *FakeIDP) authenticateBearerTokenRequest(t testing.TB, req *http.Request
 
 	auth := req.Header.Get("Authorization")
 	token := strings.TrimPrefix(auth, "Bearer ")
-	_, ok := f.accessTokens.Load(token)
+	authToken, ok := f.accessTokens.Load(token)
 	if !ok {
 		return "", xerrors.New("invalid access token")
 	}
+
+	if !authToken.exp.IsZero() && authToken.exp.Before(time.Now()) {
+		return "", xerrors.New("access token expired")
+	}
+
 	return token, nil
 }
 
@@ -651,9 +773,17 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(tokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		values, err := f.authenticateOIDCClientRequest(t, r)
+		var values url.Values
+		var err error
+		if r.URL.Query().Get("grant_type") == "urn:ietf:params:oauth:grant-type:device_code" {
+			values = r.URL.Query()
+		} else {
+			values, err = f.authenticateOIDCClientRequest(t, r)
+		}
 		f.logger.Info(r.Context(), "http idp call token",
-			slog.Error(err),
+			slog.F("url", r.URL.String()),
+			slog.F("valid", err == nil),
+			slog.F("grant_type", values.Get("grant_type")),
 			slog.F("values", values.Encode()),
 		)
 		if err != nil {
@@ -725,21 +855,52 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			f.refreshTokensUsed.Store(refreshToken, true)
 			// Always invalidate the refresh token after it is used.
 			f.refreshTokens.Delete(refreshToken)
+		case "urn:ietf:params:oauth:grant-type:device_code":
+			// Device flow
+			var resp externalauth.ExchangeDeviceCodeResponse
+			deviceCode := values.Get("device_code")
+			if deviceCode == "" {
+				resp.Error = "invalid_request"
+				resp.ErrorDescription = "missing device_code"
+				httpapi.Write(r.Context(), rw, http.StatusBadRequest, resp)
+				return
+			}
+
+			deviceFlow, ok := f.deviceCode.Load(deviceCode)
+			if !ok {
+				resp.Error = "invalid_request"
+				resp.ErrorDescription = "device_code provided not found"
+				httpapi.Write(r.Context(), rw, http.StatusBadRequest, resp)
+				return
+			}
+
+			if !deviceFlow.granted {
+				// Status code ok with the error as pending.
+				resp.Error = "authorization_pending"
+				resp.ErrorDescription = ""
+				httpapi.Write(r.Context(), rw, http.StatusOK, resp)
+				return
+			}
+
+			// Would be nice to get an actual email here.
+			claims = jwt.MapClaims{
+				"email": "unknown-dev-auth",
+			}
 		default:
 			t.Errorf("unexpected grant_type %q", values.Get("grant_type"))
 			http.Error(rw, "invalid grant_type", http.StatusBadRequest)
 			return
 		}
 
-		exp := time.Now().Add(time.Minute * 5)
+		exp := time.Now().Add(f.defaultExpire)
 		claims["exp"] = exp.UnixMilli()
 		email := getEmail(claims)
 		refreshToken := f.newRefreshTokens(email)
 		token := map[string]interface{}{
-			"access_token":  f.newToken(email),
+			"access_token":  f.newToken(email, exp),
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
-			"expires_in":    int64((time.Minute * 5).Seconds()),
+			"expires_in":    int64((f.defaultExpire).Seconds()),
 			"id_token":      f.encodeClaims(t, claims),
 		}
 		if f.hookMutateToken != nil {
@@ -748,31 +909,59 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		// Store the claims for the next refresh
 		f.refreshIDTokenClaims.Store(refreshToken, claims)
 
-		rw.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(rw).Encode(token)
+		mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Accept"))
+		if mediaType == "application/x-www-form-urlencoded" {
+			// This val encode might not work for some data structures.
+			// It's good enough for now...
+			rw.Header().Set("Content-Type", "application/x-www-form-urlencoded")
+			vals := url.Values{}
+			for k, v := range token {
+				vals.Set(k, fmt.Sprintf("%v", v))
+			}
+			_, _ = rw.Write([]byte(vals.Encode()))
+			return
+		}
+		// Default to json since the oauth2 package doesn't use Accept headers.
+		if mediaType == "application/json" || mediaType == "" {
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(token)
+			return
+		}
+
+		// If we get something we don't support, throw an error.
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "'Accept' header contains unsupported media type",
+			Detail:  fmt.Sprintf("Found %q", mediaType),
+		})
 	}))
 
 	validateMW := func(rw http.ResponseWriter, r *http.Request) (email string, ok bool) {
 		token, err := f.authenticateBearerTokenRequest(t, r)
-		f.logger.Info(r.Context(), "http call idp user info",
-			slog.Error(err),
-			slog.F("url", r.URL.String()),
-		)
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
+			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusUnauthorized)
 			return "", false
 		}
 
-		email, ok = f.accessTokens.Load(token)
+		authToken, ok := f.accessTokens.Load(token)
 		if !ok {
 			t.Errorf("access token user for user_info has no email to indicate which user")
-			http.Error(rw, "invalid access token, missing user info", http.StatusBadRequest)
+			http.Error(rw, "invalid access token, missing user info", http.StatusUnauthorized)
 			return "", false
 		}
-		return email, true
+
+		if !authToken.exp.IsZero() && authToken.exp.Before(time.Now()) {
+			http.Error(rw, "auth token expired", http.StatusUnauthorized)
+			return "", false
+		}
+
+		return authToken.email, true
 	}
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
+		f.logger.Info(r.Context(), "http userinfo endpoint",
+			slog.F("valid", ok),
+			slog.F("email", email),
+		)
 		if !ok {
 			return
 		}
@@ -790,6 +979,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// should be strict, and this one needs to handle sub routes.
 	mux.Mount("/external-auth-validate/", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
+		f.logger.Info(r.Context(), "http external auth validate",
+			slog.F("valid", ok),
+			slog.F("email", email),
+		)
 		if !ok {
 			return
 		}
@@ -815,6 +1008,125 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			},
 		}
 		_ = json.NewEncoder(rw).Encode(set)
+	}))
+
+	mux.Handle(deviceVerify, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		f.logger.Info(r.Context(), "http call device verify")
+
+		inputParam := "user_input"
+		userInput := r.URL.Query().Get(inputParam)
+		if userInput == "" {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user input",
+				Detail:  fmt.Sprintf("Hit this url again with ?%s=<user_code>", inputParam),
+			})
+			return
+		}
+
+		deviceCode := r.URL.Query().Get("device_code")
+		if deviceCode == "" {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid device code",
+				Detail:  "Hit this url again with ?device_code=<device_code>",
+			})
+			return
+		}
+
+		flow, ok := f.deviceCode.Load(deviceCode)
+		if !ok {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid device code",
+				Detail:  "Device code not found.",
+			})
+			return
+		}
+
+		if time.Now().After(flow.exp) {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid device code",
+				Detail:  "Device code expired.",
+			})
+			return
+		}
+
+		if strings.TrimSpace(flow.userInput) != strings.TrimSpace(userInput) {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid device code",
+				Detail:  "user code does not match",
+			})
+			return
+		}
+
+		f.deviceCode.Store(deviceCode, deviceFlow{
+			userInput: flow.userInput,
+			exp:       flow.exp,
+			granted:   true,
+		})
+		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+			Message: "Device authenticated!",
+		})
+	}))
+
+	mux.Handle(deviceAuth, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		f.logger.Info(r.Context(), "http call device auth")
+
+		p := httpapi.NewQueryParamParser()
+		p.Required("client_id")
+		clientID := p.String(r.URL.Query(), "", "client_id")
+		_ = p.String(r.URL.Query(), "", "scopes")
+		if len(p.Errors) > 0 {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid query params",
+				Validations: p.Errors,
+			})
+			return
+		}
+
+		if clientID != f.clientID {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid client id",
+			})
+			return
+		}
+
+		deviceCode := uuid.NewString()
+		lifetime := time.Second * 900
+		flow := deviceFlow{
+			//nolint:gosec
+			userInput: fmt.Sprintf("%d", rand.Intn(9999999)+1e8),
+		}
+		f.deviceCode.Store(deviceCode, deviceFlow{
+			userInput: flow.userInput,
+			exp:       time.Now().Add(lifetime),
+		})
+
+		verifyURL := f.issuerURL.ResolveReference(&url.URL{
+			Path: deviceVerify,
+			RawQuery: url.Values{
+				"device_code": {deviceCode},
+				"user_input":  {flow.userInput},
+			}.Encode(),
+		}).String()
+
+		if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Accept")); mediaType == "application/json" {
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"device_code":      deviceCode,
+				"user_code":        flow.userInput,
+				"verification_uri": verifyURL,
+				"expires_in":       int(lifetime.Seconds()),
+				"interval":         3,
+			})
+			return
+		}
+
+		// By default, GitHub form encodes these.
+		_, _ = fmt.Fprint(rw, url.Values{
+			"device_code":      {deviceCode},
+			"user_code":        {flow.userInput},
+			"verification_uri": {verifyURL},
+			"expires_in":       {strconv.Itoa(int(lifetime.Seconds()))},
+			"interval":         {"3"},
+		}.Encode())
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -918,6 +1230,8 @@ type ExternalAuthConfigOptions struct {
 	// completely customize the response. It captures all routes under the /external-auth-validate/*
 	// so the caller can do whatever they want and even add routes.
 	routes map[string]func(email string, rw http.ResponseWriter, r *http.Request)
+
+	UseDeviceAuth bool
 }
 
 func (o *ExternalAuthConfigOptions) AddRoute(route string, handle func(email string, rw http.ResponseWriter, r *http.Request)) *ExternalAuthConfigOptions {
@@ -941,7 +1255,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 	}
 	f.externalProviderID = id
 	f.externalAuthValidate = func(email string, rw http.ResponseWriter, r *http.Request) {
-		newPath := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/external-auth-validate/%s", id))
+		newPath := strings.TrimPrefix(r.URL.Path, "/external-auth-validate")
 		switch newPath {
 		// /user is ALWAYS supported under the `/` path too.
 		case "/user", "/", "":
@@ -964,19 +1278,34 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 		}
 	}
 	instrumentF := promoauth.NewFactory(prometheus.NewRegistry())
+	oauthCfg := instrumentF.New(f.clientID, f.OIDCConfig(t, nil))
 	cfg := &externalauth.Config{
-		InstrumentedOAuth2Config: instrumentF.New(f.clientID, f.OIDCConfig(t, nil)),
+		DisplayName:              id,
+		InstrumentedOAuth2Config: oauthCfg,
 		ID:                       id,
 		// No defaults for these fields by omitting the type
 		Type:        "",
 		DisplayIcon: f.WellknownConfig().UserInfoURL,
 		// Omit the /user for the validate so we can easily append to it when modifying
 		// the cfg for advanced tests.
-		ValidateURL: f.issuerURL.ResolveReference(&url.URL{Path: fmt.Sprintf("/external-auth-validate/%s", id)}).String(),
+		ValidateURL: f.issuerURL.ResolveReference(&url.URL{Path: "/external-auth-validate/"}).String(),
+		DeviceAuth: &externalauth.DeviceAuth{
+			Config:   oauthCfg,
+			ClientID: f.clientID,
+			TokenURL: f.provider.TokenURL,
+			Scopes:   []string{},
+			CodeURL:  f.provider.DeviceCodeURL,
+		},
 	}
+
+	if !custom.UseDeviceAuth {
+		cfg.DeviceAuth = nil
+	}
+
 	for _, opt := range opts {
 		opt(cfg)
 	}
+	f.updateIssuerURL(t, f.issuer)
 	return cfg
 }
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -268,6 +269,14 @@ func (u ExternalAuthLink) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
 
+func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
+	return &oauth2.Token{
+		AccessToken:  u.OAuthAccessToken,
+		RefreshToken: u.OAuthRefreshToken,
+		Expiry:       u.OAuthExpiry,
+	}
+}
+
 func (u UserLink) RBACObject() rbac.Object {
 	// I assume UserData is ok?
 	return rbac.ResourceUserData.WithOwner(u.UserID.String()).WithID(u.UserID)
@@ -373,6 +382,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			DormantAt:         r.DormantAt,
 			DeletingAt:        r.DeletingAt,
 			AutomaticUpdates:  r.AutomaticUpdates,
+			Favorite:          r.Favorite,
 		}
 	}
 

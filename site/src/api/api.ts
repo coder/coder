@@ -414,11 +414,16 @@ export const unarchiveTemplateVersion = async (templateVersionId: string) => {
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
-): Promise<TypesGen.Template> => {
+): Promise<TypesGen.Template | null> => {
   const response = await axios.patch<TypesGen.Template>(
     `/api/v2/templates/${templateId}`,
     data,
   );
+  // On 304 response there is no data payload.
+  if (response.status === 304) {
+    return null;
+  }
+
   return response.data;
 };
 
@@ -1682,4 +1687,12 @@ export const updateHealthSettings = async (
     data,
   );
   return response.data;
+};
+
+export const putFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
+
+export const deleteFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 };

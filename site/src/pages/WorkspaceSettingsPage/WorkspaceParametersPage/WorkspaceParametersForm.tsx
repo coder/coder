@@ -69,9 +69,6 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
   const hasNonEphemeralParameters = templateVersionRichParameters.some(
     (parameter) => !parameter.ephemeral,
   );
-  const hasImmutableParameters = templateVersionRichParameters.some(
-    (parameter) => !parameter.mutable,
-  );
 
   const disabled =
     workspace.outdated &&
@@ -97,12 +94,12 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
               {templateVersionRichParameters.map((parameter, index) =>
                 // Since we are adding the values to the form based on the index
                 // we can't filter them to not loose the right index position
-                parameter.mutable && !parameter.ephemeral ? (
+                !parameter.ephemeral ? (
                   <RichParameterInput
                     {...getFieldHelpers(
                       "rich_parameter_values[" + index + "].value",
                     )}
-                    disabled={isSubmitting || disabled}
+                    disabled={isSubmitting || disabled || !parameter.mutable}
                     key={parameter.name}
                     onChange={async (value) => {
                       await form.setFieldValue(
@@ -152,36 +149,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
             </FormFields>
           </FormSection>
         )}
-        {/* They are displayed here only for visibility purposes */}
-        {hasImmutableParameters && (
-          <FormSection
-            title="Immutable parameters"
-            description={
-              <>
-                These settings <strong>cannot be changed</strong> after creating
-                the workspace.
-              </>
-            }
-          >
-            <FormFields>
-              {templateVersionRichParameters.map((parameter, index) =>
-                !parameter.mutable ? (
-                  <RichParameterInput
-                    disabled
-                    {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    )}
-                    key={parameter.name}
-                    parameter={parameter}
-                    onChange={() => {
-                      throw new Error("Immutable parameters cannot be changed");
-                    }}
-                  />
-                ) : null,
-              )}
-            </FormFields>
-          </FormSection>
-        )}
+
         <FormFooter
           onCancel={onCancel}
           isLoading={isSubmitting}

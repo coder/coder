@@ -1,34 +1,34 @@
-import {
-  TemplateVersionParameter,
-  Workspace,
-  WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { useMe } from "hooks/useMe";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { type FC, useCallback, useState, useEffect } from "react";
+import { type FC, useCallback, useState, useEffect, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { Loader } from "components/Loader/Loader";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   uniqueNamesGenerator,
   animals,
   colors,
   NumberDictionary,
 } from "unique-names-generator";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import type {
+  TemplateVersionParameter,
+  Workspace,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated";
+import { useMe } from "contexts/auth/useMe";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
+import { checkAuthorization } from "api/queries/authCheck";
 import {
   templateByName,
   templateVersionExternalAuth,
   richParameters,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import { checkAuthorization } from "api/queries/authCheck";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { Loader } from "components/Loader/Loader";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -44,7 +44,15 @@ const CreateWorkspacePage: FC = () => {
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
-  const defaultName = getDefaultName(mode, searchParams);
+
+  const defaultName = useMemo(() => {
+    const paramsName = searchParams.get("name");
+    if (mode === "duplicate" && paramsName) {
+      return `${paramsName}-copy`;
+    }
+
+    return paramsName ?? generateUniqueName();
+  }, [mode, searchParams]);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -68,8 +76,12 @@ const CreateWorkspacePage: FC = () => {
     ? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
     : undefined;
 
-  const { externalAuth, externalAuthPollingState, startPollingExternalAuth } =
-    useExternalAuth(realizedVersionId);
+  const {
+    externalAuth,
+    externalAuthPollingState,
+    startPollingExternalAuth,
+    isLoadingExternalAuth,
+  } = useExternalAuth(realizedVersionId);
 
   const isLoadingFormData =
     templateQuery.isLoading ||
@@ -118,7 +130,9 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle(title)}</title>
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData || autoCreateWorkspaceMutation.isLoading ? (
+      {isLoadingFormData ||
+      isLoadingExternalAuth ||
+      autoCreateWorkspaceMutation.isLoading ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
@@ -169,7 +183,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     setExternalAuthPollingState("polling");
   }, []);
 
-  const { data: externalAuth } = useQuery(
+  const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
     versionId
       ? {
           ...templateVersionExternalAuth(versionId),
@@ -205,6 +219,7 @@ const useExternalAuth = (versionId: string | undefined) => {
     startPollingExternalAuth,
     externalAuth,
     externalAuthPollingState,
+    isLoadingExternalAuth,
   };
 };
 
@@ -241,17 +256,4 @@ function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   }
 
   return "form";
-}
-
-function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
-  if (mode === "auto") {
-    return generateUniqueName();
-  }
-
-  const paramsName = params.get("name");
-  if (mode === "duplicate" && paramsName) {
-    return `${paramsName}-copy`;
-  }
-
-  return paramsName ?? "";
 }

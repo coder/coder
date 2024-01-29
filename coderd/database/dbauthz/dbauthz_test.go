@@ -1549,6 +1549,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
+		ws1 := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws2 := dbgen.Workspace(s.T(), db, database.Workspace{})
+		check.Args(database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs: []uuid.UUID{ws1.ID, ws2.ID},
+		}).Asserts(rbac.ResourceWorkspace.All(), rbac.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateWorkspaceTTL", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		check.Args(database.UpdateWorkspaceTTLParams{
@@ -1570,6 +1577,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.ActivityBumpWorkspaceParams{
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 }
 

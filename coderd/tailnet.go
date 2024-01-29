@@ -95,6 +95,7 @@ func NewServerTailnet(
 		logger:               logger,
 		tracer:               traceProvider.Tracer(tracing.TracerName),
 		conn:                 conn,
+		coordinatee:          conn,
 		getMultiAgent:        getMultiAgent,
 		cache:                cache,
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
@@ -102,7 +103,14 @@ func NewServerTailnet(
 		transport:            tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
-	tn.transport.MaxIdleConnsPerHost = 10
+
+	// Bugfix: for some reason all calls to tn.dialContext come from
+	// "localhost", causing connections to be cached and requests to go to the
+	// wrong workspaces. This disables keepalives for now until the root cause
+	// can be found.
+	tn.transport.MaxIdleConnsPerHost = -1
+	tn.transport.DisableKeepAlives = true
+
 	tn.transport.MaxIdleConns = 0
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
@@ -121,12 +129,23 @@ func NewServerTailnet(
 	}
 	tn.agentConn.Store(&agentConn)
 
-	err = tn.getAgentConn().UpdateSelf(conn.Node())
+	pn, err := tailnet.NodeToProto(conn.Node())
 	if err != nil {
-		tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
+		tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+	} else {
+		err = tn.getAgentConn().UpdateSelf(pn)
+		if err != nil {
+			tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
+		}
 	}
+
 	conn.SetNodeCallback(func(node *tailnet.Node) {
-		err := tn.getAgentConn().UpdateSelf(node)
+		pn, err := tailnet.NodeToProto(node)
+		if err != nil {
+			tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+			return
+		}
+		err = tn.getAgentConn().UpdateSelf(pn)
 		if err != nil {
 			tn.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
 		}
@@ -191,21 +210,9 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 		// If no one has connected since the cutoff and there are no active
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(s.agentTickets[agentID]) == 0 {
-			deleted, err := s.conn.RemovePeer(tailnet.PeerSelector{
-				ID: tailnet.NodeID(agentID),
-				IP: netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-			})
-			if err != nil {
-				s.logger.Warn(ctx, "failed to remove peer from server tailnet", slog.Error(err))
-				continue
-			}
-			if !deleted {
-				s.logger.Warn(ctx, "peer didn't exist in tailnet", slog.Error(err))
-			}
-
 			deletedCount++
 			delete(s.agentConnectionTimes, agentID)
-			err = agentConn.UnsubscribeAgent(agentID)
+			err := agentConn.UnsubscribeAgent(agentID)
 			if err != nil {
 				s.logger.Error(ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
 			}
@@ -221,17 +228,18 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 func (s *ServerTailnet) watchAgentUpdates() {
 	for {
 		conn := s.getAgentConn()
-		nodes, ok := conn.NextUpdate(s.ctx)
+		resp, ok := conn.NextUpdate(s.ctx)
 		if !ok {
 			if conn.IsClosed() && s.ctx.Err() == nil {
 				s.logger.Warn(s.ctx, "multiagent closed, reinitializing")
+				s.coordinatee.SetAllPeersLost()
 				s.reinitCoordinator()
 				continue
 			}
 			return
 		}
 
-		err := s.conn.UpdateNodes(nodes, false)
+		err := s.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			if xerrors.Is(err, tailnet.ErrConnClosed) {
 				s.logger.Warn(context.Background(), "tailnet conn closed, exiting watchAgentUpdates", slog.Error(err))
@@ -281,9 +289,14 @@ type ServerTailnet struct {
 	cancel               func()
 	derpMapUpdaterClosed chan struct{}
 
-	logger        slog.Logger
-	tracer        trace.Tracer
-	conn          *tailnet.Conn
+	logger slog.Logger
+	tracer trace.Tracer
+
+	// in prod, these are the same, but coordinatee is a subset of Conn's
+	// methods which makes some tests easier.
+	conn        *tailnet.Conn
+	coordinatee tailnet.Coordinatee
+
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
 	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
 	cache         *wsconncache.Cache

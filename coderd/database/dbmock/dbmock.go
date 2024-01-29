@@ -117,6 +117,20 @@ func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(arg0, arg1 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), arg0, arg1)
 }
 
+// BatchUpdateWorkspaceLastUsedAt mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceLastUsedAt(arg0 context.Context, arg1 database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceLastUsedAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceLastUsedAt indicates an expected call of BatchUpdateWorkspaceLastUsedAt.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceLastUsedAt(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceLastUsedAt), arg0, arg1)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -484,6 +498,20 @@ func (m *MockStore) DeleteTailnetTunnel(arg0 context.Context, arg1 database.Dele
 func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), arg0, arg1)
+}
+
+// FavoriteWorkspace mocks base method.
+func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FavoriteWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FavoriteWorkspace indicates an expected call of FavoriteWorkspace.
+func (mr *MockStoreMockRecorder) FavoriteWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -3394,6 +3422,20 @@ func (m *MockStore) UnarchiveTemplateVersion(arg0 context.Context, arg1 database
 func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveTemplateVersion", reflect.TypeOf((*MockStore)(nil).UnarchiveTemplateVersion), arg0, arg1)
+}
+
+// UnfavoriteWorkspace mocks base method.
+func (m *MockStore) UnfavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnfavoriteWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnfavoriteWorkspace indicates an expected call of UnfavoriteWorkspace.
+func (mr *MockStoreMockRecorder) UnfavoriteWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnfavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).UnfavoriteWorkspace), arg0, arg1)
 }
 
 // UpdateAPIKeyByID mocks base method.

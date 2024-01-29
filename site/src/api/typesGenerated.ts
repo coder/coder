@@ -183,12 +183,24 @@ export interface CreateFirstUserRequest {
   readonly username: string;
   readonly password: string;
   readonly trial: boolean;
+  readonly trial_info: CreateFirstUserTrialInfo;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserResponse {
   readonly user_id: string;
   readonly organization_id: string;
+}
+
+// From codersdk/users.go
+export interface CreateFirstUserTrialInfo {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly phone_number: string;
+  readonly job_title: string;
+  readonly company_name: string;
+  readonly country: string;
+  readonly developers: string;
 }
 
 // From codersdk/groups.go
@@ -645,6 +657,13 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/oauth2.go
+export interface OAuth2AppEndpoints {
+  readonly authorization: string;
+  readonly token: string;
+  readonly device_authorization: string;
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig;
@@ -667,6 +686,7 @@ export interface OAuth2ProviderApp {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;
+  readonly endpoints: OAuth2AppEndpoints;
 }
 
 // From codersdk/oauth2.go
@@ -1289,6 +1309,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string;
+  readonly name: string;
 }
 
 // From codersdk/users.go
@@ -1336,6 +1357,7 @@ export interface UploadResponse {
 export interface User {
   readonly id: string;
   readonly username: string;
+  readonly name: string;
   readonly email: string;
   readonly created_at: string;
   readonly last_seen_at: string;
@@ -1475,6 +1497,7 @@ export interface Workspace {
   readonly health: WorkspaceHealth;
   readonly automatic_updates: AutomaticUpdates;
   readonly allow_renames: boolean;
+  readonly favorite: boolean;
 }
 
 // From codersdk/workspaceagents.go

@@ -15,6 +15,7 @@ import {
   type QueryOptions,
 } from "react-query";
 import { delay } from "utils/delay";
+import { getTemplateVersionFiles } from "utils/templateVersion";
 
 export const templateByNameKey = (orgId: string, name: string) => [
   orgId,
@@ -233,6 +234,38 @@ export const resources = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "resources"],
     queryFn: () => API.getTemplateVersionResources(versionId),
+  };
+};
+
+export const templateFiles = (fileId: string) => {
+  return {
+    queryKey: ["templateFiles", fileId],
+    queryFn: async () => {
+      const tarFile = await API.getFile(fileId);
+      return getTemplateVersionFiles(tarFile);
+    },
+  };
+};
+
+export const previousTemplateVersion = (
+  organizationId: string,
+  templateName: string,
+  versionName: string,
+) => {
+  return {
+    queryKey: [
+      "templateVersion",
+      organizationId,
+      templateName,
+      versionName,
+      "previous",
+    ],
+    queryFn: () =>
+      API.getPreviousTemplateVersionByName(
+        organizationId,
+        templateName,
+        versionName,
+      ),
   };
 };
 

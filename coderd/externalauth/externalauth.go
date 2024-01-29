@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,7 +138,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
 	defer retryCtxCancel()
 validate:
-	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
+	valid, _, err := c.ValidateToken(ctx, token)
 	if err != nil {
 		return externalAuthLink, false, xerrors.Errorf("validate external auth token: %w", err)
 	}
@@ -177,7 +179,14 @@ validate:
 
 // ValidateToken ensures the Git token provided is valid!
 // The user is optionally returned if the provider supports it.
-func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *codersdk.ExternalAuthUser, error) {
+func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
+	if link == nil {
+		return false, nil, xerrors.New("validate external auth token: token is nil")
+	}
+	if !link.Expiry.IsZero() && link.Expiry.Before(dbtime.Now()) {
+		return false, nil, nil
+	}
+
 	if c.ValidateURL == "" {
 		// Default that the token is valid if no validation URL is provided.
 		return true, nil, nil
@@ -187,7 +196,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.AccessToken))
 	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
@@ -300,6 +309,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
 
 	do := http.DefaultClient.Do
 	if c.Config != nil {
@@ -310,7 +320,6 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 
 	resp, err := do(req)
-	req.Header.Set("Accept", "application/json")
 	if err != nil {
 		return nil, err
 	}
@@ -321,13 +330,31 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	err = json.NewDecoder(resp.Body).Decode(&r)
 	if err != nil {
-		// Some status codes do not return json payloads, and we should
-		// return a better error.
-		switch resp.StatusCode {
-		case http.StatusTooManyRequests:
-			return nil, xerrors.New("rate limit hit, unable to authorize device. please try again later")
+		mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil {
+			mediaType = "unknown"
+		}
+
+		// If the json fails to decode, do a best effort to return a better error.
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			retryIn := "please try again later"
+			resetIn := resp.Header.Get("x-ratelimit-reset")
+			if resetIn != "" {
+				// Best effort to tell the user exactly how long they need
+				// to wait for.
+				unix, err := strconv.ParseInt(resetIn, 10, 64)
+				if err == nil {
+					waitFor := time.Unix(unix, 0).Sub(time.Now().Truncate(time.Second))
+					retryIn = fmt.Sprintf(" retry after %s", waitFor.Truncate(time.Second))
+				}
+			}
+			// 429 returns a plaintext payload with a message.
+			return nil, xerrors.New(fmt.Sprintf("rate limit hit, unable to authorize device. %s", retryIn))
+		case mediaType == "application/x-www-form-urlencoded":
+			return nil, xerrors.Errorf("status_code=%d, payload response is form-url encoded, expected a json payload", resp.StatusCode)
 		default:
-			return nil, err
+			return nil, xerrors.Errorf("status_code=%d, mediaType=%s: %w", resp.StatusCode, mediaType, err)
 		}
 	}
 	if r.ErrorDescription != "" {
@@ -376,10 +403,15 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if body.Error != "" {
 		return nil, xerrors.New(body.Error)
 	}
+	// If expiresIn is 0, then the token never expires.
+	expires := dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second)
+	if body.ExpiresIn == 0 {
+		expires = time.Time{}
+	}
 	return &oauth2.Token{
 		AccessToken:  body.AccessToken,
 		RefreshToken: body.RefreshToken,
-		Expiry:       dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+		Expiry:       expires,
 	}, nil
 }
 

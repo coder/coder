@@ -1,14 +1,15 @@
 import { action } from "@storybook/addon-actions";
 import { Meta, StoryObj } from "@storybook/react";
-import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
-import { ProvisionerJobLog } from "api/typesGenerated";
-import * as Mocks from "testHelpers/entities";
-import { Workspace } from "./Workspace";
-import { withReactContext } from "storybook-react-context";
 import EventSource from "eventsourcemock";
+import { withReactContext } from "storybook-react-context";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import * as Mocks from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
-import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
+import { WatchAgentMetadataContext } from "modules/resources/AgentMetadata";
+import { Workspace } from "./Workspace";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
   config: Mocks.MockAppearanceConfig,
@@ -16,12 +17,28 @@ const MockedAppearance = {
   setPreview: () => {},
 };
 
+const permissions: WorkspacePermissions = {
+  readWorkspace: true,
+  updateWorkspace: true,
+  updateTemplate: true,
+  viewDeploymentValues: true,
+};
+
 const meta: Meta<typeof Workspace> = {
   title: "pages/WorkspacePage/Workspace",
+  args: { permissions },
   component: Workspace,
+  parameters: {
+    queries: [
+      {
+        key: ["portForward", Mocks.MockWorkspaceAgent.id],
+        data: Mocks.MockListeningPortsResponse,
+      },
+    ],
+  },
   decorators: [
     (Story) => (
-      <DashboardProviderContext.Provider
+      <DashboardContext.Provider
         value={{
           buildInfo: Mocks.MockBuildInfo,
           entitlements: Mocks.MockEntitlementsWithScheduling,
@@ -49,7 +66,7 @@ const meta: Meta<typeof Workspace> = {
         >
           <Story />
         </ProxyContext.Provider>
-      </DashboardProviderContext.Provider>
+      </DashboardContext.Provider>
     ),
     withReactContext({
       Context: WatchAgentMetadataContext,
@@ -68,17 +85,25 @@ export const Running: Story = {
     workspace: Mocks.MockWorkspace,
     handleStart: action("start"),
     handleStop: action("stop"),
-    canUpdateWorkspace: true,
-    workspaceErrors: {},
     buildInfo: Mocks.MockBuildInfo,
     template: Mocks.MockTemplate,
+  },
+};
+
+export const Favorite: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockFavoriteWorkspace,
   },
 };
 
 export const WithoutUpdateAccess: Story = {
   args: {
     ...Running.args,
-    canUpdateWorkspace: false,
+    permissions: {
+      ...permissions,
+      updateWorkspace: false,
+    },
   },
 };
 
@@ -107,18 +132,6 @@ export const Stopping: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStoppingWorkspace,
-  },
-};
-
-export const Failed: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockFailedWorkspace,
-    workspaceErrors: {
-      buildError: Mocks.mockApiError({
-        message: "A workspace build is already active.",
-      }),
-    },
   },
 };
 
@@ -183,70 +196,6 @@ export const Canceled: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockCanceledWorkspace,
-  },
-};
-
-export const Outdated: Story = {
-  args: {
-    ...Running.args,
-    workspace: Mocks.MockOutdatedWorkspace,
-  },
-};
-
-export const CantAutostart: Story = {
-  args: {
-    ...Running.args,
-    canAutostart: false,
-    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
-  },
-};
-
-export const GetBuildsError: Story = {
-  args: {
-    ...Running.args,
-    workspaceErrors: {
-      getBuildsError: Mocks.mockApiError({
-        message: "There is a problem fetching builds.",
-      }),
-    },
-  },
-};
-
-export const CancellationError: Story = {
-  args: {
-    ...Failed.args,
-    workspaceErrors: {
-      cancellationError: Mocks.mockApiError({
-        message: "Job could not be canceled.",
-      }),
-    },
-    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
-  },
-};
-
-export const Deprecated: Story = {
-  args: {
-    ...Running.args,
-    template: {
-      ...Mocks.MockTemplate,
-      deprecated: true,
-      deprecation_message:
-        "Template deprecated due to reasons. [Learn more](#)",
-    },
-  },
-};
-
-export const Unhealthy: Story = {
-  args: {
-    ...Running.args,
-    workspace: {
-      ...Mocks.MockWorkspace,
-      latest_build: { ...Mocks.MockWorkspace.latest_build, status: "running" },
-      health: {
-        healthy: false,
-        failing_agents: [],
-      },
-    },
   },
 };
 

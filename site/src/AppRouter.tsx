@@ -5,17 +5,17 @@ import {
   BrowserRouter as Router,
   Navigate,
 } from "react-router-dom";
-import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
+import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
-import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
@@ -370,7 +370,6 @@ export const AppRouter: FC = () => {
 
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
@@ -413,6 +412,7 @@ export const AppRouter: FC = () => {
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
+            <Route path="/:username/:workspace" element={<WorkspacePage />} />
             <Route
               path="/templates/:template/versions/:version/edit"
               element={<TemplateVersionEditorPage />}

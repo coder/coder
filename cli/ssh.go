@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -53,7 +54,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		waitEnum         string
 		noWait           bool
 		logDirPath       string
-		remoteForward    string
+		remoteForwards   []string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -135,13 +136,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			stack := newCloserStack(ctx, logger)
 			defer stack.close(nil)
 
-			if remoteForward != "" {
-				isValid := validateRemoteForward(remoteForward)
-				if !isValid {
-					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-				}
-				if isValid && stdio {
-					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+			if len(remoteForwards) > 0 {
+				for _, remoteForward := range remoteForwards {
+					isValid := validateRemoteForward(remoteForward)
+					if !isValid {
+						return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+					}
+					if isValid && stdio {
+						return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+					}
 				}
 			}
 
@@ -311,18 +314,20 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			if remoteForward != "" {
-				localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
-				if err != nil {
-					return err
-				}
+			if len(remoteForwards) > 0 {
+				for _, remoteForward := range remoteForwards {
+					localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
+					if err != nil {
+						return err
+					}
 
-				closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
-				if err != nil {
-					return xerrors.Errorf("ssh remote forward: %w", err)
-				}
-				if err = stack.push("sshRemoteForward", closer); err != nil {
-					return err
+					closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
+					if err != nil {
+						return xerrors.Errorf("ssh remote forward: %w", err)
+					}
+					if err = stack.push("sshRemoteForward", closer); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -460,7 +465,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
-			Value:         clibase.StringOf(&remoteForward),
+			Value:         clibase.StringArrayOf(&remoteForwards),
 		},
 		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
@@ -571,13 +576,27 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 					codersdk.WorkspaceStatusStopped,
 				)
 		}
-		// startWorkspace based on the last build parameters.
+
+		// Start workspace based on the last build parameters.
+		// It's possible for a workspace build to fail due to the template requiring starting
+		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		build, err := startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("unable to start workspace: %w", err)
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
+		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
+			_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. The auto-update policy may require you to restart with the current active template version.")
+			_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceUpdate)
+			if err != nil {
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
+			}
+		} else if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with current template version: %w", err)
 		}
-		workspace.LatestBuild = build
+
+		// Refresh workspace state so that `outdated`, `build`,`template_*` fields are up-to-date.
+		workspace, err = namedWorkspace(ctx, client, workspaceParts[0])
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)

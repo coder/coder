@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,10 @@ func (RootCmd) errorExample() *clibase.Cmd {
 	//nolint:errorlint,forcetypeassert
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
+	//nolint:errorlint,forcetypeassert
+	apiErrorNoHelper := apiError.(*codersdk.Error)
+	apiErrorNoHelper.Helper = ""
+
 	// Some flags
 	var magicWord clibase.String
 
@@ -66,13 +71,27 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			{
 				Use: "multi-error",
 				Handler: func(inv *clibase.Invocation) error {
+					return xerrors.Errorf("wrapped: %w", errors.Join(
+						xerrors.Errorf("first error: %w", errorWithStackTrace()),
+						xerrors.Errorf("second error: %w", errorWithStackTrace()),
+						xerrors.Errorf("wrapped api error: %w", apiErrorNoHelper),
+					))
+				},
+			},
+			{
+				Use:   "multi-multi-error",
+				Short: "This is a multi error inside a multi error",
+				Handler: func(inv *clibase.Invocation) error {
 					// Closing the stdin file descriptor will cause the next close
 					// to fail. This is joined to the returned Command error.
 					if f, ok := inv.Stdin.(*os.File); ok {
 						_ = f.Close()
 					}
 
-					return xerrors.Errorf("some error: %w", errorWithStackTrace())
+					return errors.Join(
+						xerrors.Errorf("first error: %w", errorWithStackTrace()),
+						xerrors.Errorf("second error: %w", errorWithStackTrace()),
+					)
 				},
 			},
 

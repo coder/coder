@@ -45,7 +45,7 @@ export const parameters = {
   options: {
     storySort: {
       method: "alphabetical",
-      order: ["design", "pages", "components"],
+      order: ["design", "pages", "modules", "components"],
       locales: "en-US",
     },
   },
@@ -78,6 +78,7 @@ function withQuery(Story, { parameters }) {
     defaultOptions: {
       queries: {
         staleTime: Infinity,
+        retry: false,
       },
     },
   });

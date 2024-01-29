@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -64,7 +65,7 @@ type configMaps struct {
 	static         netmap.NetworkMap
 	peers          map[uuid.UUID]*peerLifecycle
 	addresses      []netip.Prefix
-	derpMap        *proto.DERPMap
+	derpMap        *tailcfg.DERPMap
 	logger         slog.Logger
 	blockEndpoints bool
 
@@ -72,7 +73,7 @@ type configMaps struct {
 	clock clock.Clock
 }
 
-func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic, addresses []netip.Prefix) *configMaps {
+func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
@@ -114,9 +115,8 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 				Caps: []filter.CapMatch{},
 			}},
 		},
-		peers:     make(map[uuid.UUID]*peerLifecycle),
-		addresses: addresses,
-		clock:     clock.New(),
+		peers: make(map[uuid.UUID]*peerLifecycle),
+		clock: clock.New(),
 	}
 	go c.configLoop()
 	return c
@@ -137,6 +137,7 @@ func (c *configMaps) configLoop() {
 			c.Wait()
 		}
 		if c.closing {
+			c.logger.Debug(context.Background(), "closing configMaps configLoop")
 			return
 		}
 		// queue up the reconfiguration actions we will take while we have
@@ -146,12 +147,14 @@ func (c *configMaps) configLoop() {
 		if c.derpMapDirty {
 			derpMap := c.derpMapLocked()
 			actions = append(actions, func() {
+				c.logger.Info(context.Background(), "updating engine DERP map", slog.F("derp_map", (*derpMapStringer)(derpMap)))
 				c.engine.SetDERPMap(derpMap)
 			})
 		}
 		if c.netmapDirty {
 			nm := c.netMapLocked()
 			actions = append(actions, func() {
+				c.logger.Info(context.Background(), "updating engine network map", slog.F("network_map", nm))
 				c.engine.SetNetworkMap(nm)
 				c.reconfig(nm)
 			})
@@ -159,6 +162,7 @@ func (c *configMaps) configLoop() {
 		if c.filterDirty {
 			f := c.filterLocked()
 			actions = append(actions, func() {
+				c.logger.Info(context.Background(), "updating engine filter", slog.F("filter", f))
 				c.engine.SetFilter(f)
 			})
 		}
@@ -200,7 +204,7 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 	nm.Addresses = make([]netip.Prefix, len(c.addresses))
 	copy(nm.Addresses, c.addresses)
 
-	nm.DERPMap = DERPMapFromProto(c.derpMap)
+	nm.DERPMap = c.derpMap.Clone()
 	nm.Peers = c.peerConfigLocked()
 	nm.SelfNode.Addresses = nm.Addresses
 	nm.SelfNode.AllowedIPs = nm.Addresses
@@ -249,10 +253,22 @@ func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
 	c.Broadcast()
 }
 
+// setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
+// c.L MUST NOT be held.
+func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	if CompareDERPMaps(c.derpMap, derpMap) {
+		return
+	}
+	c.derpMap = derpMap
+	c.derpMapDirty = true
+	c.Broadcast()
+}
+
 // derMapLocked returns the current DERPMap.  c.L must be held
 func (c *configMaps) derpMapLocked() *tailcfg.DERPMap {
-	m := DERPMapFromProto(c.derpMap)
-	return m
+	return c.derpMap.Clone()
 }
 
 // reconfig computes the correct wireguard config and calls the engine.Reconfig
@@ -409,6 +425,29 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 	}
 }
 
+// setAllPeersLost marks all peers as lost.  Typically, this is called when we lose connection to
+// the Coordinator.  (When we reconnect, we will get NODE updates for all peers that are still connected
+// and mark them as not lost.)
+func (c *configMaps) setAllPeersLost() {
+	c.L.Lock()
+	defer c.L.Unlock()
+	for _, lc := range c.peers {
+		if lc.lost {
+			// skip processing already lost nodes, as this just results in timer churn
+			continue
+		}
+		lc.lost = true
+		lc.setLostTimer(c)
+		// it's important to drop a log here so that we see it get marked lost if grepping thru
+		// the logs for a specific peer
+		c.logger.Debug(context.Background(),
+			"setAllPeersLost marked peer lost",
+			slog.F("peer_id", lc.peerID),
+			slog.F("key_id", lc.node.Key.ShortString()),
+		)
+	}
+}
+
 // peerLostTimeout is the callback that peerLifecycle uses when a peer is lost the timeout to
 // receive a handshake fires.
 func (c *configMaps) peerLostTimeout(id uuid.UUID) {
@@ -469,6 +508,18 @@ func (c *configMaps) protoNodeToTailcfg(p *proto.Node) (*tailcfg.Node, error) {
 	}, nil
 }
 
+// nodeAddresses returns the addresses for the peer with the given publicKey, if known.
+func (c *configMaps) nodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bool) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	for _, lc := range c.peers {
+		if lc.node.Key == publicKey {
+			return lc.node.Addresses, true
+		}
+	}
+	return nil, false
+}
+
 type peerLifecycle struct {
 	peerID        uuid.UUID
 	node          *tailcfg.Node
@@ -513,4 +564,17 @@ func prefixesDifferent(a, b []netip.Prefix) bool {
 		}
 	}
 	return false
+}
+
+// derpMapStringer converts a DERPMap into a readable string for logging, since
+// it includes pointers that we want to know the contents of, not actual pointer
+// address.
+type derpMapStringer tailcfg.DERPMap
+
+func (d *derpMapStringer) String() string {
+	out, err := json.Marshal((*tailcfg.DERPMap)(d))
+	if err != nil {
+		return fmt.Sprintf("!!!error marshaling DERPMap: %s", err.Error())
+	}
+	return string(out)
 }

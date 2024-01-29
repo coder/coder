@@ -13,6 +13,7 @@ primary_region = "cdg"
   CODER_HTTP_ADDRESS = "0.0.0.0:3000"
   CODER_PRIMARY_ACCESS_URL = "https://dev.coder.com"
   CODER_WILDCARD_ACCESS_URL = "*--apps.paris.fly.dev.coder.com"
+  CODER_VERBOSE = "true"
 
 [http_service]
   internal_port = 3000

@@ -4,9 +4,9 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "contexts/AuthProvider/permissions";
+import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -285,6 +285,7 @@ export const MockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUserAdmin: TypesGen.User = {
@@ -299,6 +300,7 @@ export const MockUserAdmin: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -313,6 +315,7 @@ export const MockUser2: TypesGen.User = {
   last_seen_at: "2022-09-14T19:12:21Z",
   login_type: "oidc",
   theme_preference: "",
+  name: "Mock User The Second",
 };
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -327,6 +330,7 @@ export const SuspendedMockUser: TypesGen.User = {
   last_seen_at: "",
   login_type: "password",
   theme_preference: "",
+  name: "",
 };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -355,7 +359,14 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
-  tags: {},
+  tags: {
+    scope: "organization",
+    owner: "",
+    wowzers: "whatatag",
+    isCapable: "false",
+    department: "engineering",
+    dreaming: "true",
+  },
   queue_position: 0,
   queue_size: 0,
 };
@@ -1009,6 +1020,13 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: false,
+};
+
+export const MockFavoriteWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-favorite-workspace",
+  favorite: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1087,6 +1105,26 @@ export const MockOutdatedWorkspace: TypesGen.Workspace = {
   ...MockFailedWorkspace,
   id: "test-outdated-workspace",
   outdated: true,
+};
+
+export const MockRunningOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-running-outdated-workspace",
+  outdated: true,
+};
+
+export const MockDormantWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-workspace",
+  dormant_at: new Date().toISOString(),
+};
+
+export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockStoppedWorkspace,
+  id: "test-dormant-outdated-workspace",
+  name: "Dormant-Workspace",
+  outdated: true,
+  dormant_at: new Date().toISOString(),
 };
 
 export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
@@ -1946,7 +1984,7 @@ type MockAPIOutput = {
 };
 
 export const mockApiError = ({
-  message,
+  message = "Something went wrong.",
   detail,
   validations,
 }: MockAPIInput): MockAPIOutput => ({
@@ -1954,9 +1992,9 @@ export const mockApiError = ({
   isAxiosError: true,
   response: {
     data: {
-      message: message ?? "Something went wrong.",
-      detail: detail ?? undefined,
-      validations: validations ?? undefined,
+      message,
+      detail,
+      validations,
     },
   },
 });
@@ -3340,6 +3378,11 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     name: "foo",
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
+    endpoints: {
+      authorization: "http://localhost:3001/login/oauth2/authorize",
+      token: "http://localhost:3001/login/oauth2/token",
+      device_authorization: "",
+    },
   },
 ];
 

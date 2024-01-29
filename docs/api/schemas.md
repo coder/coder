@@ -717,7 +717,7 @@ _None_
 {
   "value": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -861,6 +861,7 @@ _None_
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
+          "name": "string",
           "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
           "roles": [
             {
@@ -887,6 +888,7 @@ _None_
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -1024,7 +1026,7 @@ _None_
   },
   "support_links": [
     {
-      "icon": "string",
+      "icon": "bug",
       "name": "string",
       "target": "string"
     }
@@ -1173,6 +1175,7 @@ _None_
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
+    "name": "string",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1251,6 +1254,7 @@ _None_
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
+        "name": "string",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1511,18 +1515,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "string",
   "password": "string",
   "trial": true,
+  "trial_info": {
+    "company_name": "string",
+    "country": "string",
+    "developers": "string",
+    "first_name": "string",
+    "job_title": "string",
+    "last_name": "string",
+    "phone_number": "string"
+  },
   "username": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type    | Required | Restrictions | Description |
-| ---------- | ------- | -------- | ------------ | ----------- |
-| `email`    | string  | true     |              |             |
-| `password` | string  | true     |              |             |
-| `trial`    | boolean | false    |              |             |
-| `username` | string  | true     |              |             |
+| Name         | Type                                                                   | Required | Restrictions | Description |
+| ------------ | ---------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `email`      | string                                                                 | true     |              |             |
+| `password`   | string                                                                 | true     |              |             |
+| `trial`      | boolean                                                                | false    |              |             |
+| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
+| `username`   | string                                                                 | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -1539,6 +1553,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `organization_id` | string | false    |              |             |
 | `user_id`         | string | false    |              |             |
+
+## codersdk.CreateFirstUserTrialInfo
+
+```json
+{
+  "company_name": "string",
+  "country": "string",
+  "developers": "string",
+  "first_name": "string",
+  "job_title": "string",
+  "last_name": "string",
+  "phone_number": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `company_name` | string | false    |              |             |
+| `country`      | string | false    |              |             |
+| `developers`   | string | false    |              |             |
+| `first_name`   | string | false    |              |             |
+| `job_title`    | string | false    |              |             |
+| `last_name`    | string | false    |              |             |
+| `phone_number` | string | false    |              |             |
 
 ## codersdk.CreateGroupRequest
 
@@ -2278,7 +2318,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }
@@ -2336,19 +2376,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "verbose": true,
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
+    "wildcard_access_url": "string",
     "write_config": true
   },
   "options": [
@@ -2657,7 +2685,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "links": {
       "value": [
         {
-          "icon": "string",
+          "icon": "bug",
           "name": "string",
           "target": "string"
         }
@@ -2715,19 +2743,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "verbose": true,
   "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
-  "wildcard_access_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
+  "wildcard_access_url": "string",
   "write_config": true
 }
 ```
@@ -2792,7 +2808,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `verbose`                            | boolean                                                                                              | false    |              |                                                                    |
 | `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
-| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
@@ -3108,6 +3124,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3165,6 +3182,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
+      "name": "string",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3362,7 +3380,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "icon": "string",
+  "icon": "bug",
   "name": "string",
   "target": "string"
 }
@@ -3375,6 +3393,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`   | string | false    |              |             |
 | `name`   | string | false    |              |             |
 | `target` | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value  |
+| -------- | ------ |
+| `icon`   | `bug`  |
+| `icon`   | `chat` |
+| `icon`   | `docs` |
 
 ## codersdk.LogLevel
 
@@ -3496,6 +3522,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
 
+## codersdk.OAuth2AppEndpoints
+
+```json
+{
+  "authorization": "string",
+  "device_authorization": "string",
+  "token": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description                       |
+| ---------------------- | ------ | -------- | ------------ | --------------------------------- |
+| `authorization`        | string | false    |              |                                   |
+| `device_authorization` | string | false    |              | Device authorization is optional. |
+| `token`                | string | false    |              |                                   |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -3549,6 +3593,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string"
@@ -3557,12 +3606,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `callback_url` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `id`           | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -4458,7 +4508,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "links": {
     "value": [
       {
-        "icon": "string",
+        "icon": "bug",
         "name": "string",
         "target": "string"
       }
@@ -4980,6 +5030,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -5004,6 +5055,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`               | string                                         | true     |              |             |
 | `last_seen_at`     | string                                         | false    |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
+| `name`             | string                                         | false    |              |             |
 | `organization_ids` | array of string                                | false    |              |             |
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
@@ -5443,6 +5495,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "name": "string",
   "username": "string"
 }
 ```
@@ -5451,6 +5504,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
+| `name`     | string | false    |              |             |
 | `username` | string | true     |              |             |
 
 ## codersdk.UpdateUserQuietHoursScheduleRequest
@@ -5564,6 +5618,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
+  "name": "string",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -5587,6 +5642,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`               | string                                     | true     |              |             |
 | `last_seen_at`     | string                                     | false    |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
+| `name`             | string                                     | false    |              |             |
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
@@ -5890,6 +5946,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
   "dormant_at": "2019-08-24T14:15:22Z",
+  "favorite": true,
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -6070,6 +6127,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `created_at`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `deleting_at`                               | string                                                 | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template. |
 | `dormant_at`                                | string                                                 | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time*til* field on its template.                          |
+| `favorite`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)   | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                   |
 | `id`                                        | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `last_used_at`                              | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -7153,6 +7211,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
       "dormant_at": "2019-08-24T14:15:22Z",
+      "favorite": true,
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false

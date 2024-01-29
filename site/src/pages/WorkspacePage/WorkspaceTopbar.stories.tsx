@@ -1,5 +1,10 @@
 import { Meta, StoryObj } from "@storybook/react";
-import { MockUser, MockWorkspace } from "testHelpers/entities";
+import {
+  MockTemplate,
+  MockTemplateVersion,
+  MockUser,
+  MockWorkspace,
+} from "testHelpers/entities";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { addDays } from "date-fns";
@@ -20,6 +25,8 @@ const meta: Meta<typeof WorkspaceTopbar> = {
   decorators: [withDashboardProvider],
   args: {
     workspace: baseWorkspace,
+    template: MockTemplate,
+    latestVersion: MockTemplateVersion,
   },
   parameters: {
     layout: "fullscreen",

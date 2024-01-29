@@ -12,14 +12,19 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -27,7 +32,9 @@ import (
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -41,7 +48,7 @@ func TestCache(t *testing.T) {
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Manifest{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0)
 		}, 0)
 		defer func() {
 			_ = cache.Close()
@@ -54,10 +61,10 @@ func TestCache(t *testing.T) {
 	})
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
-		called := atomic.NewInt32(0)
+		called := int32(0)
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			called.Add(1)
-			return setupAgent(t, agentsdk.Manifest{}, 0), nil
+			atomic.AddInt32(&called, 1)
+			return setupAgent(t, agentsdk.Manifest{}, 0)
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -70,12 +77,12 @@ func TestCache(t *testing.T) {
 		require.NoError(t, err)
 		release()
 		<-conn.Closed()
-		require.Equal(t, int32(2), called.Load())
+		require.Equal(t, int32(2), called)
 	})
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Manifest{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0)
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -108,7 +115,7 @@ func TestCache(t *testing.T) {
 		go server.Serve(random)
 
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Manifest{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0)
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -154,7 +161,7 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
+func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Duration) (*codersdk.WorkspaceAgentConn, error) {
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	manifest.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
@@ -164,13 +171,16 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = coordinator.Close()
 	})
 	manifest.AgentID = uuid.New()
+	aC := &client{
+		t:              t,
+		agentID:        manifest.AgentID,
+		manifest:       manifest,
+		coordinator:    coordinator,
+		derpMapUpdates: make(chan *tailcfg.DERPMap),
+	}
+	t.Cleanup(aC.close)
 	closer := agent.New(agent.Options{
-		Client: &client{
-			t:           t,
-			agentID:     manifest.AgentID,
-			manifest:    manifest,
-			coordinator: coordinator,
-		},
+		Client:                 aC,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 		Addresses:              []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
@@ -184,18 +194,25 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		DERPForceWebSockets: manifest.DERPForceWebSockets,
 		Logger:              slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
 	})
-	require.NoError(t, err)
-	clientConn, serverConn := net.Pipe()
+	// setupAgent is called by wsconncache Dialer, so we can't use require here as it will end the
+	// test, which in turn closes the wsconncache, which in turn waits for the Dialer and deadlocks.
+	if !assert.NoError(t, err) {
+		return nil, err
+	}
 	t.Cleanup(func() {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
 		_ = conn.Close()
 	})
-	go coordinator.ServeClient(serverConn, uuid.New(), manifest.AgentID)
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-		return conn.UpdateNodes(nodes, false)
+	clientID := uuid.New()
+	testCtx, testCtxCancel := context.WithCancel(context.Background())
+	t.Cleanup(testCtxCancel)
+	coordination := tailnet.NewInMemoryCoordination(
+		testCtx, logger,
+		clientID, manifest.AgentID,
+		coordinator, conn,
+	)
+	t.Cleanup(func() {
+		_ = coordination.Close()
 	})
-	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: manifest.AgentID,
 		AgentIP: codersdk.WorkspaceAgentIP,
@@ -206,53 +223,75 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	if !agentConn.AwaitReachable(ctx) {
-		t.Fatal("agent not reachable")
+		// setupAgent is called by wsconncache Dialer, so we can't use t.Fatal here as it will end
+		// the test, which in turn closes the wsconncache, which in turn waits for the Dialer and
+		// deadlocks.
+		t.Error("agent not reachable")
+		return nil, xerrors.New("agent not reachable")
 	}
-	return agentConn
+	return agentConn, nil
 }
 
 type client struct {
-	t           *testing.T
-	agentID     uuid.UUID
-	manifest    agentsdk.Manifest
-	coordinator tailnet.CoordinatorV1
+	t              *testing.T
+	agentID        uuid.UUID
+	manifest       agentsdk.Manifest
+	coordinator    tailnet.Coordinator
+	closeOnce      sync.Once
+	derpMapUpdates chan *tailcfg.DERPMap
+}
+
+func (c *client) close() {
+	c.closeOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
 func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
 }
 
-type closer struct {
-	closeFunc func() error
-}
-
-func (c *closer) Close() error {
-	return c.closeFunc()
-}
-
-func (*client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
-	closed := make(chan struct{})
-	return make(<-chan agentsdk.DERPMapUpdate), &closer{
-		closeFunc: func() error {
-			close(closed)
-			return nil
-		},
-	}, nil
-}
-
-func (c *client) Listen(_ context.Context) (net.Conn, error) {
-	clientConn, serverConn := net.Pipe()
-	closed := make(chan struct{})
+func (c *client) Listen(_ context.Context) (drpc.Conn, error) {
+	logger := slogtest.Make(c.t, nil).Leveled(slog.LevelDebug).Named("drpc")
+	conn, lis := drpcsdk.MemTransportPipe()
 	c.t.Cleanup(func() {
-		_ = serverConn.Close()
-		_ = clientConn.Close()
-		<-closed
+		_ = conn.Close()
+		_ = lis.Close()
 	})
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&c.coordinator)
+	mux := drpcmux.New()
+	drpcService := &tailnet.DRPCService{
+		CoordPtr:               &coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: time.Microsecond,
+		DerpMapFn:              func() *tailcfg.DERPMap { return <-c.derpMapUpdates },
+	}
+	err := proto.DRPCRegisterTailnet(mux, drpcService)
+	if err != nil {
+		return nil, xerrors.Errorf("register DRPC service: %w", err)
+	}
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) ||
+				xerrors.Is(err, context.Canceled) ||
+				xerrors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+		},
+	})
+	serveCtx, cancel := context.WithCancel(context.Background())
+	c.t.Cleanup(cancel)
+	auth := tailnet.AgentTunnelAuth{}
+	streamID := tailnet.StreamID{
+		Name: "wsconncache_test-agent",
+		ID:   c.agentID,
+		Auth: auth,
+	}
+	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
-		close(closed)
+		server.Serve(serveCtx, lis)
 	}()
-	return clientConn, nil
+	return conn, nil
 }
 
 func (*client) ReportStats(_ context.Context, _ slog.Logger, _ <-chan *agentsdk.Stats, _ func(time.Duration)) (io.Closer, error) {

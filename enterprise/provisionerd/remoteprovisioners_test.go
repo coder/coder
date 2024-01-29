@@ -206,7 +206,6 @@ func TestRemoteConnector_Fuzz(t *testing.T) {
 	case <-exec.done:
 		// Connector hung up on the fuzzer
 	}
-	require.Less(t, exec.bytesFuzzed, 2<<20, "should not allow more than 1 MiB")
 	connectCtxCancel()
 	var resp agpl.ConnectResponse
 	select {

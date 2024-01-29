@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/appearance"
+
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -118,7 +120,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
-	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
@@ -127,6 +128,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			return api.fetchWorkspaceProxies(ctx)
 		}
 		return api.fetchRegions(ctx)
+	}
+	api.tailnetService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"),
+		&api.AGPL.TailnetCoordinator,
+		api.Options.DERPMapUpdateFrequency,
+		api.AGPL.DERPMap,
+	)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -483,6 +493,7 @@ type API struct {
 	provisionerDaemonAuth *provisionerDaemonAuth
 
 	licenseMetricsCollector license.MetricsCollector
+	tailnetService          *tailnet.ClientService
 }
 
 func (api *API) Close() error {
@@ -665,6 +676,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			acs = dbauthz.EnterpriseTemplateAccessControlStore{}
 		}
 		api.AGPL.AccessControlStore.Store(&acs)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureAppearance); shouldUpdate(initial, changed, enabled) {
+		if enabled {
+			f := newAppearanceFetcher(
+				api.Database,
+				api.DeploymentValues.Support.Links.Value,
+			)
+			api.AGPL.AppearanceFetcher.Store(&f)
+		} else {
+			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+		}
 	}
 
 	// External token encryption is soft-enforced

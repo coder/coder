@@ -162,13 +162,15 @@ func (q *msgQueue) dropped() {
 
 // Pubsub implementation using PostgreSQL.
 type pgPubsub struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	listenDone chan struct{}
-	pgListener *pq.Listener
-	db         *sql.DB
-	mut        sync.Mutex
-	queues     map[string]map[uuid.UUID]*msgQueue
+	ctx              context.Context
+	cancel           context.CancelFunc
+	listenDone       chan struct{}
+	pgListener       *pq.Listener
+	db               *sql.DB
+	mut              sync.Mutex
+	queues           map[string]map[uuid.UUID]*msgQueue
+	closedListener   bool
+	closeListenerErr error
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -240,15 +242,29 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 // Close closes the pubsub instance.
 func (p *pgPubsub) Close() error {
 	p.cancel()
-	err := p.pgListener.Close()
+	err := p.closeListener()
 	<-p.listenDone
 	return err
 }
 
+// closeListener closes the pgListener, unless it has already been closed.
+func (p *pgPubsub) closeListener() error {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	if p.closedListener {
+		return p.closeListenerErr
+	}
+	p.closeListenerErr = p.pgListener.Close()
+	p.closedListener = true
+	return p.closeListenerErr
+}
+
 // listen begins receiving messages on the pq listener.
 func (p *pgPubsub) listen() {
-	defer close(p.listenDone)
-	defer p.pgListener.Close()
+	defer func() {
+		_ = p.closeListener()
+		close(p.listenDone)
+	}()
 
 	var (
 		notif *pq.Notification

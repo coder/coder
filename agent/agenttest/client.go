@@ -3,19 +3,26 @@ package agenttest
 import (
 	"context"
 	"io"
-	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -24,11 +31,31 @@ func NewClient(t testing.TB,
 	agentID uuid.UUID,
 	manifest agentsdk.Manifest,
 	statsChan chan *agentsdk.Stats,
-	coordinator tailnet.CoordinatorV1,
+	coordinator tailnet.Coordinator,
 ) *Client {
 	if manifest.AgentID == uuid.Nil {
 		manifest.AgentID = agentID
 	}
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coordinator)
+	mux := drpcmux.New()
+	derpMapUpdates := make(chan *tailcfg.DERPMap)
+	drpcService := &tailnet.DRPCService{
+		CoordPtr:               &coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: time.Microsecond,
+		DerpMapFn:              func() *tailcfg.DERPMap { return <-derpMapUpdates },
+	}
+	err := proto.DRPCRegisterTailnet(mux, drpcService)
+	require.NoError(t, err)
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+		},
+	})
 	return &Client{
 		t:              t,
 		logger:         logger.Named("client"),
@@ -36,7 +63,8 @@ func NewClient(t testing.TB,
 		manifest:       manifest,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
-		derpMapUpdates: make(chan agentsdk.DERPMapUpdate),
+		server:         server,
+		derpMapUpdates: derpMapUpdates,
 	}
 }
 
@@ -47,7 +75,8 @@ type Client struct {
 	manifest             agentsdk.Manifest
 	metadata             map[string]agentsdk.Metadata
 	statsChan            chan *agentsdk.Stats
-	coordinator          tailnet.CoordinatorV1
+	coordinator          tailnet.Coordinator
+	server               *drpcserver.Server
 	LastWorkspaceAgent   func()
 	PatchWorkspaceLogs   func() error
 	GetServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
@@ -56,27 +85,38 @@ type Client struct {
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
 	logs            []agentsdk.Log
-	derpMapUpdates  chan agentsdk.DERPMapUpdate
+	derpMapUpdates  chan *tailcfg.DERPMap
+	derpMapOnce     sync.Once
+}
+
+func (c *Client) Close() {
+	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
 func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
 }
 
-func (c *Client) Listen(_ context.Context) (net.Conn, error) {
-	clientConn, serverConn := net.Pipe()
-	closed := make(chan struct{})
+func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
+	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
-		_ = serverConn.Close()
-		_ = clientConn.Close()
-		<-closed
+		_ = conn.Close()
+		_ = lis.Close()
 	}
 	c.t.Cleanup(c.LastWorkspaceAgent)
+	serveCtx, cancel := context.WithCancel(ctx)
+	c.t.Cleanup(cancel)
+	auth := tailnet.AgentTunnelAuth{}
+	streamID := tailnet.StreamID{
+		Name: "agenttest",
+		ID:   c.agentID,
+		Auth: auth,
+	}
+	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
-		close(closed)
+		_ = c.server.Serve(serveCtx, lis)
 	}()
-	return clientConn, nil
+	return conn, nil
 }
 
 func (c *Client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
@@ -197,7 +237,7 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 	return codersdk.ServiceBannerConfig{}, nil
 }
 
-func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
+func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	timer := time.NewTimer(testutil.WaitShort)
 	defer timer.Stop()
 	select {
@@ -207,14 +247,6 @@ func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
 	}
 
 	return nil
-}
-
-func (c *Client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
-	closed := make(chan struct{})
-	return c.derpMapUpdates, closeFunc(func() error {
-		close(closed)
-		return nil
-	}), nil
 }
 
 type closeFunc func() error

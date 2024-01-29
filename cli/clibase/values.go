@@ -59,6 +59,28 @@ func (i *Validator[T]) Type() string {
 	return i.Value.Type()
 }
 
+func (i *Validator[T]) MarshalYAML() (interface{}, error) {
+	m, ok := any(i.Value).(yaml.Marshaler)
+	if !ok {
+		return i.Value, nil
+	}
+	return m.MarshalYAML()
+}
+
+func (i *Validator[T]) UnmarshalYAML(n *yaml.Node) error {
+	return n.Decode(i.Value)
+}
+
+func (i *Validator[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.Value)
+}
+
+func (i *Validator[T]) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, i.Value)
+}
+
+func (i *Validator[T]) Underlying() pflag.Value { return i.Value }
+
 // values.go contains a standard set of value types that can be used as
 // Option Values.
 
@@ -378,6 +400,7 @@ func (s *Struct[T]) String() string {
 	return string(byt)
 }
 
+// nolint:revive
 func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 	var n yaml.Node
 	err := n.Encode(s.Value)
@@ -387,6 +410,7 @@ func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 	return n, nil
 }
 
+// nolint:revive
 func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
 	// HACK: for compatibility with flags, we use nil slices instead of empty
 	// slices. In most cases, nil slices and empty slices are treated
@@ -403,10 +427,12 @@ func (s *Struct[T]) Type() string {
 	return fmt.Sprintf("struct[%T]", s.Value)
 }
 
+// nolint:revive
 func (s *Struct[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.Value)
 }
 
+// nolint:revive
 func (s *Struct[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &s.Value)
 }

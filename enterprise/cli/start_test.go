@@ -159,12 +159,62 @@ func TestStart(t *testing.T) {
 
 						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
 						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
-						if initialTemplateVersion != ws.LatestBuild.TemplateVersionID {
-							require.Contains(t, buf.String(), "Failed to restart with the template version from your last build. Policy may require you to restart with the current active template version.")
+						if initialTemplateVersion == ws.LatestBuild.TemplateVersionID {
+							return
+						}
+
+						if cmd == "start" {
+							require.Contains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
+						}
+
+						if cmd == "restart" {
+							require.Contains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
 						}
 					})
 				}
 			})
 		}
+	})
+
+	t.Run("StartActivatesDormant", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		workspace := coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+		_ = coderdtest.MustTransitionWorkspace(t, memberClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
+		})
+		require.NoError(t, err)
+
+		inv, root := newCLI(t, "start", workspace.Name)
+		clitest.SetupConfig(t, memberClient, root)
+
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+
+		err = inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "Activating dormant workspace...")
+
+		workspace = coderdtest.MustWorkspace(t, memberClient, workspace.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 	})
 }

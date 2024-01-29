@@ -72,7 +72,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			start := time.Now()
 			for {
 				if n > 0 {
-					time.Sleep(time.Second)
+					time.Sleep(pingWait)
 				}
 				n++
 

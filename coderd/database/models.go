@@ -2144,6 +2144,8 @@ type User struct {
 	QuietHoursSchedule string `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	// "" can be interpreted as "the user does not care", falling back to the default theme
 	ThemePreference string `db:"theme_preference" json:"theme_preference"`
+	// Name of the Coder user
+	Name string `db:"name" json:"name"`
 }
 
 type UserLink struct {
@@ -2183,6 +2185,8 @@ type Workspace struct {
 	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	// Favorite is true if the workspace owner has favorited the workspace.
+	Favorite bool `db:"favorite" json:"favorite"`
 }
 
 type WorkspaceAgent struct {

@@ -6,13 +6,64 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	agpl "github.com/coder/coder/v2/tailnet"
 )
+
+type ClientService struct {
+	*agpl.ClientService
+}
+
+// NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
+// loaded on each processed connection.
+func NewClientService(
+	logger slog.Logger,
+	coordPtr *atomic.Pointer[agpl.Coordinator],
+	derpMapUpdateFrequency time.Duration,
+	derpMapFn func() *tailcfg.DERPMap,
+) (
+	*ClientService, error,
+) {
+	s, err := agpl.NewClientService(logger, coordPtr, derpMapUpdateFrequency, derpMapFn)
+	if err != nil {
+		return nil, err
+	}
+	return &ClientService{ClientService: s}, nil
+}
+
+func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID) error {
+	major, _, err := apiversion.Parse(version)
+	if err != nil {
+		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
+		return err
+	}
+	switch major {
+	case 1:
+		coord := *(s.CoordPtr.Load())
+		sub := coord.ServeMultiAgent(id)
+		return ServeWorkspaceProxy(ctx, conn, sub)
+	case 2:
+		auth := agpl.SingleTailnetTunnelAuth{}
+		streamID := agpl.StreamID{
+			Name: id.String(),
+			ID:   id,
+			Auth: auth,
+		}
+		return s.ServeConnV2(ctx, conn, streamID)
+	default:
+		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
+		return xerrors.New("unsupported version")
+	}
+}
 
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	go func() {
@@ -45,7 +96,11 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 				return xerrors.Errorf("unsubscribe agent: %w", err)
 			}
 		case wsproxysdk.CoordinateMessageTypeNodeUpdate:
-			err := ma.UpdateSelf(msg.Node)
+			pn, err := agpl.NodeToProto(msg.Node)
+			if err != nil {
+				return err
+			}
+			err = ma.UpdateSelf(pn)
 			if err != nil {
 				return xerrors.Errorf("update self: %w", err)
 			}
@@ -59,11 +114,14 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 func forwardNodesToWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	var lastData []byte
 	for {
-		nodes, ok := ma.NextUpdate(ctx)
+		resp, ok := ma.NextUpdate(ctx)
 		if !ok {
 			return xerrors.New("multiagent is closed")
 		}
-
+		nodes, err := agpl.OnlyNodeUpdates(resp)
+		if err != nil {
+			return xerrors.Errorf("failed to convert response: %w", err)
+		}
 		data, err := json.Marshal(wsproxysdk.CoordinateNodes{Nodes: nodes})
 		if err != nil {
 			return err

@@ -2,7 +2,7 @@ import { type FC, Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useMe } from "hooks/useMe";
+import { useMe } from "contexts/auth/useMe";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";

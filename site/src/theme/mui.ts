@@ -109,6 +109,14 @@ export const components = {
       },
       ["sizeXlarge" as any]: {
         height: BUTTON_XL_HEIGHT,
+
+        // With higher size we need to increase icon spacing.
+        "& .MuiButton-startIcon": {
+          marginRight: 12,
+        },
+        "& .MuiButton-endIcon": {
+          marginLeft: 12,
+        },
       },
       outlined: ({ theme }) => ({
         ":hover": {
@@ -143,9 +151,6 @@ export const components = {
         "& > .MuiSvgIcon-root": {
           fontSize: 13,
         },
-      },
-      startIcon: {
-        marginLeft: "-2px",
       },
     },
   },
@@ -410,7 +415,7 @@ export const components = {
       root: {
         // Not sure why but since the input has padding we don't need it here
         "& .MuiInputBase-root": {
-          padding: 0,
+          padding: "0px 0px 0px 8px",
         },
       },
     },

@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -179,6 +178,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 	})
 
 	c := agenttest.NewClient(t, logger, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coord)
+	t.Cleanup(c.Close)
 
 	options := agent.Options{
 		Client:     c,
@@ -204,22 +204,20 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 			Logger:    logger.Named("client"),
 		})
 		require.NoError(t, err)
-		clientConn, serverConn := net.Pipe()
-		serveClientDone := make(chan struct{})
 		t.Cleanup(func() {
-			_ = clientConn.Close()
-			_ = serverConn.Close()
 			_ = conn.Close()
-			<-serveClientDone
 		})
-		go func() {
-			defer close(serveClientDone)
-			coord.ServeClient(serverConn, uuid.New(), manifest.AgentID)
-		}()
-		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-			return conn.UpdateNodes(node, false)
+		clientID := uuid.New()
+		testCtx, testCtxCancel := context.WithCancel(context.Background())
+		t.Cleanup(testCtxCancel)
+		coordination := tailnet.NewInMemoryCoordination(
+			testCtx, logger,
+			clientID, manifest.AgentID,
+			coord, conn,
+		)
+		t.Cleanup(func() {
+			_ = coordination.Close()
 		})
-		conn.SetNodeCallback(sendNode)
 		return codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 			AgentID:   manifest.AgentID,
 			AgentIP:   codersdk.WorkspaceAgentIP,

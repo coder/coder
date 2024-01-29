@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	tailnet "github.com/coder/coder/v2/tailnet"
+	proto "github.com/coder/coder/v2/tailnet/proto"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -84,10 +84,10 @@ func (mr *MockMultiAgentConnMockRecorder) IsClosed() *gomock.Call {
 }
 
 // NextUpdate mocks base method.
-func (m *MockMultiAgentConn) NextUpdate(arg0 context.Context) ([]*tailnet.Node, bool) {
+func (m *MockMultiAgentConn) NextUpdate(arg0 context.Context) (*proto.CoordinateResponse, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NextUpdate", arg0)
-	ret0, _ := ret[0].([]*tailnet.Node)
+	ret0, _ := ret[0].(*proto.CoordinateResponse)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
@@ -127,7 +127,7 @@ func (mr *MockMultiAgentConnMockRecorder) UnsubscribeAgent(arg0 any) *gomock.Cal
 }
 
 // UpdateSelf mocks base method.
-func (m *MockMultiAgentConn) UpdateSelf(arg0 *tailnet.Node) error {
+func (m *MockMultiAgentConn) UpdateSelf(arg0 *proto.Node) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSelf", arg0)
 	ret0, _ := ret[0].(error)

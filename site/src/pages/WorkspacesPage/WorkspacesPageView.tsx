@@ -15,6 +15,7 @@ import { WorkspacesButton } from "./WorkspacesButton";
 import { UseQueryResult } from "react-query";
 import StopOutlined from "@mui/icons-material/StopOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import CloudQueue from "@mui/icons-material/CloudQueue";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -25,6 +26,7 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
+import { mustUpdateWorkspace } from "utils/workspace";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -51,12 +53,14 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   isRunningBatchAction: boolean;
   onDeleteAll: () => void;
+  onUpdateAll: () => void;
   onStartAll: () => void;
   onStopAll: () => void;
   canCheckWorkspaces: boolean;
   templatesFetchStatus: TemplateQuery["status"];
   templates: TemplateQuery["data"];
   canCreateTemplate: boolean;
+  canChangeVersions: boolean;
 }
 
 export const WorkspacesPageView = ({
@@ -71,6 +75,7 @@ export const WorkspacesPageView = ({
   checkedWorkspaces,
   onCheckChange,
   onDeleteAll,
+  onUpdateAll,
   onStopAll,
   onStartAll,
   isRunningBatchAction,
@@ -78,6 +83,7 @@ export const WorkspacesPageView = ({
   templates,
   templatesFetchStatus,
   canCreateTemplate,
+  canChangeVersions,
 }: WorkspacesPageViewProps) => {
   return (
     <Margins>
@@ -133,7 +139,9 @@ export const WorkspacesPageView = ({
                   onClick={onStartAll}
                   disabled={
                     !checkedWorkspaces?.every(
-                      (w) => w.latest_build.status === "stopped",
+                      (w) =>
+                        w.latest_build.status === "stopped" &&
+                        !mustUpdateWorkspace(w, canChangeVersions),
                     )
                   }
                 >
@@ -150,6 +158,9 @@ export const WorkspacesPageView = ({
                   <StopOutlined /> Stop
                 </MoreMenuItem>
                 <Divider />
+                <MoreMenuItem onClick={onUpdateAll}>
+                  <CloudQueue /> Update&hellip;
+                </MoreMenuItem>
                 <MoreMenuItem danger onClick={onDeleteAll}>
                   <DeleteOutlined /> Delete&hellip;
                 </MoreMenuItem>

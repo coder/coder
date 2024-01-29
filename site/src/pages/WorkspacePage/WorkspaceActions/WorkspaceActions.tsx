@@ -1,7 +1,7 @@
 import { type FC, type ReactNode, Fragment } from "react";
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
-import { workspaceUpdatePolicy } from "utils/workspace";
+import { mustUpdateWorkspace } from "utils/workspace";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import {
   CancelButton,
@@ -12,6 +12,7 @@ import {
   UpdateButton,
   ActivateButton,
   RetryButton,
+  FavoriteButton,
 } from "./Buttons";
 
 import Divider from "@mui/material/Divider";
@@ -30,6 +31,7 @@ import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
+  handleToggleFavorite: () => void;
   handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
   handleStop: () => void;
   handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
@@ -51,6 +53,7 @@ export interface WorkspaceActionsProps {
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
+  handleToggleFavorite,
   handleStart,
   handleStop,
   handleRestart,
@@ -79,11 +82,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canCancel &&
     (workspace.template_allow_user_cancel_workspace_jobs || isOwner);
 
-  const mustUpdate =
-    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
-    workspace.outdated;
-
-  const tooltipText = getTooltipText(workspace, mustUpdate);
+  const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
+  const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
   const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
@@ -134,6 +134,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
     retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
+    toggleFavorite: (
+      <FavoriteButton
+        workspaceID={workspace.id}
+        isFavorite={workspace.favorite}
+        onToggle={handleToggleFavorite}
+      />
+    ),
   };
 
   return (
@@ -152,6 +159,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           ))}
 
       {showCancel && <CancelButton handleAction={handleCancel} />}
+
+      {buttonMapping.toggleFavorite}
 
       <MoreMenu>
         <MoreMenuTrigger>
@@ -202,17 +211,25 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   );
 };
 
-function getTooltipText(workspace: Workspace, disabled: boolean): string {
-  if (!disabled) {
+function getTooltipText(
+  workspace: Workspace,
+  mustUpdate: boolean,
+  canChangeVersions: boolean,
+): string {
+  if (!mustUpdate && !canChangeVersions) {
     return "";
   }
 
+  if (!mustUpdate && canChangeVersions) {
+    return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
+  }
+
   if (workspace.template_require_active_version) {
-    return "This template requires automatic updates";
+    return "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.";
   }
 
   if (workspace.automatic_updates === "always") {
-    return "You have enabled automatic updates for this workspace";
+    return "Automatic updates are enabled for this workspace. Modify the update policy in workspace settings if you want to preserve the template version.";
   }
 
   return "";

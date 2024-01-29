@@ -89,11 +89,6 @@
           "icon_path": "./images/google-cloud.svg"
         },
         {
-          "title": "JFrog",
-          "description": "Integrate Coder with JFrog",
-          "path": "./platforms/jfrog.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Set up Coder on Kubernetes",
           "path": "./platforms/kubernetes/index.md",
@@ -204,6 +199,11 @@
               "title": "Permissions",
               "description": "Configure who can access a template",
               "path": "./templates/permissions.md"
+            },
+            {
+              "title": "Workspace Scheduling",
+              "description": "Configure when workspaces start, stop, and delete",
+              "path": "./templates/schedule.md"
             }
           ]
         },
@@ -235,6 +235,11 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
+        },
+        {
+          "title": "Workspace Scheduling",
+          "description": "Set workspace scheduling policies",
+          "path": "./templates/schedule.md"
         },
         {
           "title": "Icons",
@@ -608,6 +613,11 @@
           "path": "cli/external-auth_access-token.md"
         },
         {
+          "title": "favorite",
+          "description": "Add a workspace to your favorites",
+          "path": "cli/favorite.md"
+        },
+        {
           "title": "features",
           "description": "List Enterprise features",
           "path": "cli/features.md"
@@ -942,6 +952,11 @@
           "path": "cli/tokens_remove.md"
         },
         {
+          "title": "unfavorite",
+          "description": "Remove a workspace from your favorites",
+          "path": "cli/unfavorite.md"
+        },
+        {
           "title": "update",
           "description": "Will update and start a given workspace if it is out of date",
           "path": "cli/update.md"
@@ -1020,6 +1035,21 @@
           "title": "Google to AWS Federation",
           "description": "Federating a Google Cloud service account to AWS",
           "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./guides/artifactory-integration.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./guides/image-pull-secret.md"
+        },
+        {
+          "title": "Azure Federation",
+          "description": "Federating Coder to Azure",
+          "path": "./guides/azure-federation.md"
         }
       ]
     }

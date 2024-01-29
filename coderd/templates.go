@@ -669,7 +669,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		groupACL := template.GroupACL
 		if req.DisableEveryoneGroupAccess {
-			groupACL = database.TemplateACL{}
+			delete(groupACL, template.OrganizationID.String())
 		}
 
 		var err error

@@ -1,25 +1,18 @@
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { FC, useEffect, useState } from "react";
+import dayjs from "dayjs";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useNavigate } from "react-router-dom";
-import { Workspace } from "./Workspace";
-import { pageTitle } from "utils/page";
-import { hasJobError } from "utils/workspace";
-import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
-import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { MissingBuildParameters, restartWorkspace } from "api/api";
-import {
-  ConfirmDialog,
-  ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import * as TypesGen from "api/typesGenerated";
-import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import { getErrorMessage } from "api/errors";
+import type * as TypesGen from "api/typesGenerated";
 import { templateVersion, templateVersions } from "api/queries/templates";
-import { Alert } from "components/Alert/Alert";
-import { Stack } from "components/Stack/Stack";
+import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
+import { useMe } from "contexts/auth/useMe";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { pageTitle } from "utils/page";
 import {
   activate,
   changeVersion,
@@ -27,16 +20,22 @@ import {
   updateWorkspace,
   stopWorkspace,
   startWorkspace,
+  toggleFavorite,
   cancelBuild,
 } from "api/queries/workspaces";
-import { getErrorMessage } from "api/errors";
+import { Alert } from "components/Alert/Alert";
+import { Stack } from "components/Stack/Stack";
+import {
+  ConfirmDialog,
+  ConfirmDialogProps,
+} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
+import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { WorkspacePermissions } from "./permissions";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
+import { Workspace } from "./Workspace";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
-import dayjs from "dayjs";
-import { useMe } from "hooks";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -44,11 +43,11 @@ interface WorkspaceReadyPageProps {
   permissions: WorkspacePermissions;
 }
 
-export const WorkspaceReadyPage = ({
+export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   workspace,
   template,
   permissions,
-}: WorkspaceReadyPageProps): JSX.Element => {
+}) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { buildInfo } = useDashboard();
@@ -64,35 +63,25 @@ export const WorkspaceReadyPage = ({
   // Debug mode
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
-    enabled: permissions?.viewDeploymentValues,
+    enabled: permissions.viewDeploymentValues,
   });
 
   // Build logs
-  const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
-  const shouldDisplayBuildLogs =
-    hasJobError(workspace) ||
-    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
-      workspace.latest_build.status,
-    );
+  const shouldDisplayBuildLogs = workspace.latest_build.status !== "running";
+  const buildLogs = useWorkspaceBuildLogs(
+    workspace.latest_build.id,
+    shouldDisplayBuildLogs,
+  );
 
   // Restart
   const [confirmingRestart, setConfirmingRestart] = useState<{
     open: boolean;
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
-  const {
-    mutate: mutateRestartWorkspace,
-    error: restartBuildError,
-    isLoading: isRestarting,
-  } = useMutation({
-    mutationFn: restartWorkspace,
-  });
-
-  // Auto start
-  const canAutostartResponse = useQuery(
-    workspaceResolveAutostart(workspace.id),
-  );
-  const canAutostart = !canAutostartResponse.data?.parameter_mismatch ?? false;
+  const { mutate: mutateRestartWorkspace, isLoading: isRestarting } =
+    useMutation({
+      mutationFn: restartWorkspace,
+    });
 
   // SSH Prefix
   const sshPrefixQuery = useQuery(deploymentSSHConfig());
@@ -111,7 +100,7 @@ export const WorkspaceReadyPage = ({
   }, []);
 
   // Change version
-  const canChangeVersions = Boolean(permissions?.updateTemplate);
+  const canChangeVersions = permissions.updateTemplate;
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const changeVersionMutation = useMutation(
     changeVersion(workspace, queryClient),
@@ -128,7 +117,6 @@ export const WorkspaceReadyPage = ({
   });
 
   // Update workspace
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const updateWorkspaceMutation = useMutation(
     updateWorkspace(workspace, queryClient),
@@ -136,7 +124,7 @@ export const WorkspaceReadyPage = ({
 
   // If a user can update the template then they can force a delete
   // (via orphan).
-  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
+  const canUpdateTemplate = Boolean(permissions.updateTemplate);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const deleteWorkspaceMutation = useMutation(
     deleteWorkspace(workspace, queryClient),
@@ -155,6 +143,11 @@ export const WorkspaceReadyPage = ({
   // Start workspace
   const startWorkspaceMutation = useMutation(
     startWorkspace(workspace, queryClient),
+  );
+
+  // Toggle workspace favorite
+  const toggleFavoriteMutation = useMutation(
+    toggleFavorite(workspace, queryClient),
   );
 
   // Cancel build
@@ -193,6 +186,7 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
+        permissions={permissions}
         isUpdating={updateWorkspaceMutation.isLoading}
         isRestarting={isRestarting}
         workspace={workspace}
@@ -229,20 +223,13 @@ export const WorkspaceReadyPage = ({
             displayError(message);
           }
         }}
-        canUpdateWorkspace={canUpdateWorkspace}
-        updateMessage={latestVersion?.message}
+        handleToggleFavorite={() => {
+          toggleFavoriteMutation.mutate();
+        }}
+        latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
-        workspaceErrors={{
-          buildError:
-            restartBuildError ??
-            startWorkspaceMutation.error ??
-            stopWorkspaceMutation.error ??
-            deleteWorkspaceMutation.error ??
-            updateWorkspaceMutation.error,
-          cancellationError: cancelBuildMutation.error,
-        }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}
@@ -251,7 +238,6 @@ export const WorkspaceReadyPage = ({
             <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
-        canAutostart={canAutostart}
         isOwner={isOwner}
       />
 

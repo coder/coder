@@ -4,8 +4,8 @@ networking:
   accessURL:
   # Specifies the wildcard hostname to use for workspace applications in the form
   # "*.example.com".
-  # (default: <unset>, type: url)
-  wildcardAccessURL:
+  # (default: <unset>, type: string)
+  wildcardAccessURL: ""
   # Specifies the custom docs URL.
   # (default: <unset>, type: url)
   docsURL:
