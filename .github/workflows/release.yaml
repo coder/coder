@@ -321,7 +321,7 @@ jobs:
 
       - name: Start Packer builds
         if: ${{ !inputs.dry_run }}
-        uses: peter-evans/repository-dispatch@v2
+        uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
