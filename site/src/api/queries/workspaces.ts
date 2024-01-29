@@ -281,8 +281,7 @@ export const toggleFavorite = (
     onSuccess: async () => {
       queryClient.setQueryData(
         workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
-        {...workspace,
-        favorite: !workspace.favorite}
+        { ...workspace, favorite: !workspace.favorite },
       );
     },
   };
