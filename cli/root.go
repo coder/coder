@@ -840,17 +840,10 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, 
 		return xerrors.Errorf("deployment config: %w", err)
 	}
 
-	fmtWarningText := `version mismatch: client %s, server %s
-`
-	// Our installation script doesn't work on Windows, so instead we direct the user
-	// to the GitHub release page to download the latest installer.
-	if runtime.GOOS == "windows" {
-		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
-	} else {
-		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
-	}
+	fmtWarningText := "version mismatch: client %s, server %s\n%s"
+
 	warn := cliui.DefaultStyles.Warn
-	warning := fmt.Sprintf(pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+	warning := fmt.Sprintf(pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"), info.UpgradeMessage)
 
 	// If a custom upgrade message has been set, override the default that we
 	// display.

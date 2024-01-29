@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1789,6 +1791,7 @@ when required by your organization's security policy.`,
 			YAML:        "cliUpgradeMessage",
 			Group:       &deploymentGroupClient,
 			Value:       &c.CLIUpgradeMessage,
+			Default:     defaultUpgradeMessage(),
 			Hidden:      false,
 		},
 		{
@@ -2063,6 +2066,10 @@ type BuildInfoResponse struct {
 	// AgentAPIVersion is the current version of the Agent API (back versions
 	// MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
+
+	// UpgradeMessage is the message displayed to users when an outdated client
+	// is detected.
+	UpgradeMessage string `json:"upgrade_message"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -2319,4 +2326,14 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+}
+
+func defaultUpgradeMessage() string {
+	// Our installation script doesn't work on Windows, so instead we direct the user
+	// to the GitHub release page to download the latest installer.
+	version := buildinfo.Version()
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
+	}
+	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
