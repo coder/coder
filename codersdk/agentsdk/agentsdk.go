@@ -231,18 +231,18 @@ type PostAppHealthsRequest struct {
 	Healths map[uuid.UUID]codersdk.WorkspaceAppHealth
 }
 
-// PostAppHealth updates the workspace agent app health status.
-func (c *Client) PostAppHealth(ctx context.Context, req PostAppHealthsRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
-	if err != nil {
-		return err
+func AppHealthPoster(aAPI proto.DRPCAgentClient) func(ctx context.Context, req PostAppHealthsRequest) error {
+	return func(ctx context.Context, req PostAppHealthsRequest) error {
+		pReq, err := ProtoFromAppHealthsRequest(req)
+		if err != nil {
+			return xerrors.Errorf("convert AppHealthsRequest: %w", err)
+		}
+		_, err = aAPI.BatchUpdateAppHealths(ctx, pReq)
+		if err != nil {
+			return xerrors.Errorf("batch update app healths: %w", err)
+		}
+		return nil
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
 }
 
 // AuthenticateResponse is returned when an instance ID

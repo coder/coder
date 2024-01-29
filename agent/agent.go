@@ -91,7 +91,6 @@ type Client interface {
 	Listen(ctx context.Context) (drpc.Conn, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
-	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
@@ -808,7 +807,7 @@ func (a *agent) run(ctx context.Context) error {
 	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
 	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, manifest.Apps, a.client.PostAppHealth)(appReporterCtx)
+		a.logger, manifest.Apps, agentsdk.AppHealthPoster(aAPI))(appReporterCtx)
 
 	a.closeMutex.Lock()
 	network := a.network

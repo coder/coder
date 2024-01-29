@@ -278,3 +278,18 @@ func ProtoFromSubsystems(ss []codersdk.AgentSubsystem) ([]proto.Startup_Subsyste
 	}
 	return ret, nil
 }
+
+func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAppHealthRequest, error) {
+	pReq := &proto.BatchUpdateAppHealthRequest{}
+	for id, h := range req.Healths {
+		hp, ok := proto.AppHealth_value[strings.ToUpper(string(h))]
+		if !ok {
+			return nil, xerrors.Errorf("unknown app health: %s", h)
+		}
+		pReq.Updates = append(pReq.Updates, &proto.BatchUpdateAppHealthRequest_HealthUpdate{
+			Id:     id[:],
+			Health: proto.AppHealth(hp),
+		})
+	}
+	return pReq, nil
+}

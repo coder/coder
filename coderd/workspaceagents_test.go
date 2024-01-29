@@ -500,7 +500,14 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	// Verify that the manifest has DisableDirectConnections set to true.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
-	manifest := requireGetManifest(ctx, t, agentClient)
+	rpc, err := agentClient.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := rpc.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(rpc)
+	manifest := requireGetManifest(ctx, t, aAPI)
 	require.True(t, manifest.DisableDirectConnections)
 
 	_ = agenttest.New(t, client.URL, r.AgentToken)
@@ -823,46 +830,63 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
+	conn, err := agentClient.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
 
-	manifest := requireGetManifest(ctx, t, agentClient)
+	manifest := requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, manifest.Apps[0].Health)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, manifest.Apps[1].Health)
-	err := agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
-	require.Error(t, err)
 	// empty
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
-	require.Error(t, err)
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{})
+	require.NoError(t, err)
 	// healthcheck disabled
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[0].ID[:],
+				Health: agentproto.AppHealth_INITIALIZING,
+			},
 		},
 	})
 	require.Error(t, err)
 	// invalid value
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: 99,
+			},
 		},
 	})
 	require.Error(t, err)
 	// update to healthy
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: agentproto.AppHealth_HEALTHY,
+			},
 		},
 	})
 	require.NoError(t, err)
-	manifest = requireGetManifest(ctx, t, agentClient)
+	manifest = requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, manifest.Apps[1].Health)
 	// update to unhealthy
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: agentproto.AppHealth_UNHEALTHY,
+			},
 		},
 	})
 	require.NoError(t, err)
-	manifest = requireGetManifest(ctx, t, agentClient)
+	manifest = requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
@@ -1105,8 +1129,15 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
+	conn, err := agentClient.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
 
-	manifest := requireGetManifest(ctx, t, agentClient)
+	manifest := requireGetManifest(ctx, t, aAPI)
 
 	// Verify manifest API response.
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
@@ -1276,8 +1307,15 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
+	conn, err := agentClient.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
 
-	manifest := requireGetManifest(ctx, t, agentClient)
+	manifest := requireGetManifest(ctx, t, aAPI)
 
 	post := func(ctx context.Context, key, value string) error {
 		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
@@ -1622,14 +1660,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	})
 }
 
-func requireGetManifest(ctx context.Context, t testing.TB, client agent.Client) agentsdk.Manifest {
-	conn, err := client.Listen(ctx)
-	require.NoError(t, err)
-	defer func() {
-		cErr := conn.Close()
-		require.NoError(t, cErr)
-	}()
-	aAPI := agentproto.NewDRPCAgentClient(conn)
+func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
 	manifest, err := agentsdk.ManifestFromProto(mp)
