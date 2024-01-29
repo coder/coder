@@ -17,10 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-
-	agentproto "github.com/coder/coder/v2/agent/proto"
-
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -40,11 +36,12 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
-
-	// Used for swagger docs.
-	_ "github.com/coder/coder/v2/coderd/apidoc"
+	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
@@ -59,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -357,16 +355,6 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
-	staticHandler := site.New(&site.Options{
-		BinFS:         binFS,
-		BinHashes:     binHashes,
-		Database:      options.Database,
-		SiteFS:        site.FS(),
-		OAuth2Configs: oauthConfigs,
-		DocsURL:       options.DeploymentValues.DocsURL.String(),
-	})
-	staticHandler.Experiments.Store(&experiments)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
@@ -383,7 +371,6 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		SiteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -412,6 +399,19 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub),
 	}
+
+	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	api.SiteHandler = site.New(&site.Options{
+		BinFS:             binFS,
+		BinHashes:         binHashes,
+		Database:          options.Database,
+		SiteFS:            site.FS(),
+		OAuth2Configs:     oauthConfigs,
+		DocsURL:           options.DeploymentValues.DocsURL.String(),
+		AppearanceFetcher: &api.AppearanceFetcher,
+	})
+	api.SiteHandler.Experiments.Store(&experiments)
+
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
 			options.Database,
@@ -1089,6 +1089,7 @@ type API struct {
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
+	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []string]
