@@ -109,6 +109,7 @@ const styles = {
   featureList: {
     listStyle: "none",
     margin: 0,
+    marginRight: 8,
     padding: "0 12px",
     fontSize: 14,
     fontWeight: 500,
