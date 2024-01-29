@@ -11,8 +11,9 @@ module.exports = {
     },
     "@storybook/addon-links",
     "@storybook/addon-mdx-gfm",
-    "@storybook/addon-actions",
     "@storybook/addon-themes",
+    "@storybook/addon-actions",
+    "@storybook/addon-interactions",
   ],
   staticDirs: ["../static"],
   framework: {
