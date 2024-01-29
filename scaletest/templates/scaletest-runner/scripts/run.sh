@@ -14,7 +14,11 @@ set_status Running
 
 start_phase "Creating workspaces"
 if [[ ${SCALETEST_PARAM_SKIP_CREATE_WORKSPACES} == 0 ]]; then
+	# Note that we allow up to 5 failures to bring up the workspace, since
+	# we're creating a lot of workspaces at once and some of them may fail
+	# due to network issues or other transient errors.
 	coder exp scaletest create-workspaces \
+		--retry 5 \
 		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
 		--template "${SCALETEST_PARAM_TEMPLATE}" \
 		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
