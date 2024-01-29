@@ -6,6 +6,6 @@ func NewEnterprisePortSharer() *EnterprisePortSharer {
 	return &EnterprisePortSharer{}
 }
 
-func (EnterprisePortSharer) Enabled() bool {
+func (EnterprisePortSharer) CanRestrictShareLevel() bool {
 	return true
 }

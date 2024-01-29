@@ -1,13 +1,13 @@
 package portsharing
 
 type PortSharer interface {
-	Enabled() bool
+	CanRestrictShareLevel() bool
 }
 
 type AGPLPortSharer struct{}
 
-func (AGPLPortSharer) Enabled() bool {
-	return true
+func (AGPLPortSharer) CanRestrictShareLevel() bool {
+	return false
 }
 
 var DefaultPortSharer PortSharer = AGPLPortSharer{}
