@@ -266,6 +266,7 @@ describe.each([
     askForVariables,
   }) => {
     it(testName, async () => {
+      jest.resetAllMocks();
       const queryClient = new QueryClient();
       queryClient.setQueryData(
         templateVersionVariablesKey(MockTemplateVersion.id),
