@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -159,6 +160,8 @@ func TestServiceBanners(t *testing.T) {
 		banner, err := agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, cfg.ServiceBanner, banner)
+		banner = requireGetServiceBannerV2(ctx, t, agentClient)
+		require.Equal(t, cfg.ServiceBanner, banner)
 
 		// Create an AGPL Coderd against the same database
 		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
@@ -167,6 +170,8 @@ func TestServiceBanners(t *testing.T) {
 		banner, err = agplAgentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
+		banner = requireGetServiceBannerV2(ctx, t, agplAgentClient)
+		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 
 		// No license means no banner.
 		err = client.DeleteLicense(ctx, lic.ID)
@@ -174,7 +179,21 @@ func TestServiceBanners(t *testing.T) {
 		banner, err = agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
+		banner = requireGetServiceBannerV2(ctx, t, agentClient)
+		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 	})
+}
+
+func requireGetServiceBannerV2(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
+	cc, err := client.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_ = cc.Close()
+	}()
+	aAPI := proto.NewDRPCAgentClient(cc)
+	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+	require.NoError(t, err)
+	return proto.SDKServiceBannerFromProto(sbp)
 }
 
 func TestCustomSupportLinks(t *testing.T) {
