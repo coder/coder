@@ -22,6 +22,7 @@ type workspaceListRow struct {
 	codersdk.Workspace `table:"-"`
 
 	// For table format:
+	Favorite       bool   `json:"-" table:"favorite"`
 	WorkspaceName  string `json:"-" table:"workspace,default_sort"`
 	Template       string `json:"-" table:"template"`
 	Status         string `json:"-" table:"status"`
@@ -47,6 +48,7 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
 	return workspaceListRow{
+		Favorite:       workspace.Favorite,
 		Workspace:      workspace,
 		WorkspaceName:  workspace.OwnerName + "/" + workspace.Name,
 		Template:       workspace.TemplateName,
@@ -70,6 +72,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 			cliui.TableFormat(
 				[]workspaceListRow{},
 				[]string{
+					"favorite",
 					"workspace",
 					"template",
 					"status",
