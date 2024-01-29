@@ -284,7 +284,10 @@ export const toggleFavorite = (
         { ...workspace, favorite: !workspace.favorite },
       );
       await queryClient.invalidateQueries({
-        queryKey: workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+        queryKey: workspaceByOwnerAndNameKey(
+          workspace.owner_name,
+          workspace.name,
+        ),
       });
     },
   };
