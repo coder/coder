@@ -5,7 +5,7 @@ import {
   renderHook,
 } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
-import { QueryClient, QueryClientConfig } from "react-query";
+import { QueryClient } from "react-query";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { ThemeProvider } from "contexts/ThemeProvider";
@@ -19,21 +19,16 @@ import {
 } from "react-router-dom";
 import { MockUser } from "./entities";
 
-export function createTestQueryClient(
-  overrideConfig?: Partial<QueryClientConfig>,
-) {
+function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
   // are isolated and can't affect each other
   return new QueryClient({
-    ...overrideConfig,
     defaultOptions: {
-      ...overrideConfig?.defaultOptions,
       queries: {
         retry: false,
         cacheTime: 0,
         refetchOnWindowFocus: false,
         networkMode: "offlineFirst",
-        ...overrideConfig?.defaultOptions?.queries,
       },
     },
   });
