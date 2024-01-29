@@ -6,6 +6,6 @@ VALUES (
 	10,
 	5,
 	2,
-	"https://hello-world"
+	'https://hello-world'
 );
 
