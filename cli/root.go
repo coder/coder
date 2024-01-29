@@ -835,21 +835,10 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, 
 		return xerrors.Errorf("build info: %w", err)
 	}
 
-	dconfig, err := client.UnprivilegedDeploymentConfig(ctx)
-	if err != nil {
-		return xerrors.Errorf("deployment config: %w", err)
-	}
-
 	fmtWarningText := "version mismatch: client %s, server %s\n%s"
 
-	warn := cliui.DefaultStyles.Warn
-	warning := fmt.Sprintf(pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"), info.UpgradeMessage)
-
-	// If a custom upgrade message has been set, override the default that we
-	// display.
-	if msg := dconfig.CLIUpgradeMessage; msg != "" {
-		warning = fmt.Sprint(pretty.Sprint(warn, msg))
-	}
+	fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
+	warning := fmt.Sprintf(fmtWarn, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"), info.UpgradeMessage)
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) || forceCheck {
 		_, _ = fmt.Fprint(i.Stderr, warning)

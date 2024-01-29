@@ -2104,28 +2104,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
 }
 
-type UnprivilegedDeploymentConfig struct {
-	SSHConfig         SSHConfigResponse `json:"ssh_config"`
-	CLIUpgradeMessage string            `json:"cli_upgrade_message"`
-}
-
-// UnprivilegedDeploymentConfig returns unsensitive config values
-// accessible by an ordinary, unprivileged user.
-func (c *Client) UnprivilegedDeploymentConfig(ctx context.Context) (UnprivilegedDeploymentConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/unprivileged", nil)
-	if err != nil {
-		return UnprivilegedDeploymentConfig{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return UnprivilegedDeploymentConfig{}, ReadBodyAsError(res)
-	}
-
-	var config UnprivilegedDeploymentConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
-}
-
 type Experiment string
 
 const (
