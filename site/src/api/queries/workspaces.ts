@@ -268,7 +268,7 @@ const updateWorkspaceBuild = async (
 
 export const toggleFavorite = (
   workspace: Workspace,
-  queryClient: QueryClient
+  queryClient: QueryClient,
 ) => {
   return {
     mutationFn: () => {
@@ -282,6 +282,6 @@ export const toggleFavorite = (
       await queryClient.invalidateQueries({
         queryKey: workspaceBuildsKey(workspace.id),
       });
-    }
-  }
-}
+    },
+  };
+};
