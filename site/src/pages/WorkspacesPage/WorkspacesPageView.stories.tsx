@@ -165,6 +165,17 @@ export const AllStates: Story = {
   },
 };
 
+export const AllStatesWithFavorites: Story = {
+  args: {
+    workspaces: allWorkspaces.map((workspace, i) => ({
+      ...workspace,
+      // NOTE: testing sort order is not relevant here.
+      favorite: i % 2 === 0,
+    })),
+    count: allWorkspaces.length,
+  },
+};
+
 const icons = [
   "/icon/code.svg",
   "/icon/aws.svg",
