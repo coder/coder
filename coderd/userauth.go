@@ -604,6 +604,25 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If we have a nil GitHub ID, that is a big problem. That would mean we link
+	// this user and all other users with this bug to the same uuid.
+	// We should instead throw an error. This should never occur in production.
+	//
+	// Verified that the lowest ID on GitHub is "1", so 0 should never occur.
+	if ghUser.GetID() == 0 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "The GitHub user ID is missing, this should never happen. Please report this error.",
+			// If this happens, the User could either be:
+			//  - Empty, in which case all these fields would also be empty.
+			//  - Not a user, in which case the "Type" would be something other than "User"
+			Detail: fmt.Sprintf("Other user fields: name=%q, email=%q, type=%q",
+				ghUser.GetName(),
+				ghUser.GetEmail(),
+				ghUser.GetType(),
+			),
+		})
+		return
+	}
 	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
