@@ -41,20 +41,6 @@ func (m *MockMultiAgentConn) EXPECT() *MockMultiAgentConnMockRecorder {
 	return m.recorder
 }
 
-// AgentIsLegacy mocks base method.
-func (m *MockMultiAgentConn) AgentIsLegacy(arg0 uuid.UUID) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AgentIsLegacy", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// AgentIsLegacy indicates an expected call of AgentIsLegacy.
-func (mr *MockMultiAgentConnMockRecorder) AgentIsLegacy(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AgentIsLegacy", reflect.TypeOf((*MockMultiAgentConn)(nil).AgentIsLegacy), arg0)
-}
-
 // Close mocks base method.
 func (m *MockMultiAgentConn) Close() error {
 	m.ctrl.T.Helper()

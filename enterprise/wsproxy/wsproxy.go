@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -251,7 +250,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		regResp.DERPForceWebSockets,
 		s.DialCoordinator,
-		wsconncache.New(s.DialWorkspaceAgent, 0),
 		s.TracerProvider,
 	)
 	if err != nil {
@@ -432,10 +430,6 @@ func (s *Server) Close() error {
 	}
 	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
 	return err
-}
-
-func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	return s.SDKClient.DialWorkspaceAgent(s.ctx, id, nil)
 }
 
 func (*Server) mutateRegister(_ *wsproxysdk.RegisterWorkspaceProxyRequest) {

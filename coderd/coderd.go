@@ -65,7 +65,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -481,7 +480,6 @@ func New(options *Options) *API {
 		func(context.Context) (tailnet.MultiAgentConn, error) {
 			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 		},
-		wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		api.TracerProvider,
 	)
 	if err != nil {

@@ -5822,44 +5822,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/legacy": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Agent is legacy",
-                "operationId": "agent-is-legacy",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace Agent ID",
-                        "name": "workspaceagent",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/wsproxysdk.AgentIsLegacyResponse"
-                        }
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "security": [
@@ -13808,17 +13770,6 @@ const docTemplate = `{
                 },
                 "workspace_id": {
                     "type": "string"
-                }
-            }
-        },
-        "wsproxysdk.AgentIsLegacyResponse": {
-            "type": "object",
-            "properties": {
-                "found": {
-                    "type": "boolean"
-                },
-                "legacy": {
-                    "type": "boolean"
                 }
             }
         },

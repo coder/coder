@@ -65,14 +65,9 @@ var nonCanonicalHeaders = map[string]string{
 type AgentProvider interface {
 	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
 	// to the specified agent.
-	//
-	// TODO: after wsconncache is deleted this doesn't need to return an error.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error)
+	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
-	//
-	// TODO: after wsconncache is deleted this doesn't need to return a release
-	// func.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error)
 
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
@@ -548,18 +543,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	r.URL.Path = path
 	appURL.RawQuery = ""
 
-	proxy, release, err := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID)
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusBadGateway,
-			Title:        "Bad Gateway",
-			Description:  "Could not connect to workspace agent: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: s.DashboardURL.String(),
-		})
-		return
-	}
-	defer release()
+	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)

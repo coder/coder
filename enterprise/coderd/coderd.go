@@ -187,15 +187,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.reconnectingPTYSignedToken)
 		})
-
-		r.With(
-			apiKeyMiddlewareOptional,
-			httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
-				DB:       options.Database,
-				Optional: true,
-			}),
-			httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-		).Get("/workspaceagents/{workspaceagent}/legacy", api.agentIsLegacy)
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,

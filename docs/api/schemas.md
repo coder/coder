@@ -8860,22 +8860,6 @@ _None_
 | `user_id`            | string                                                   | false    |              |                                                                                         |
 | `workspace_id`       | string                                                   | false    |              |                                                                                         |
 
-## wsproxysdk.AgentIsLegacyResponse
-
-```json
-{
-  "found": true,
-  "legacy": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description |
-| -------- | ------- | -------- | ------------ | ----------- |
-| `found`  | boolean | false    |              |             |
-| `legacy` | boolean | false    |              |             |
-
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 
 ```json
