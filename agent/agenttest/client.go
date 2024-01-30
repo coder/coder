@@ -167,11 +167,6 @@ func (c *Client) PostLifecycle(ctx context.Context, req agentsdk.PostLifecycleRe
 	return nil
 }
 
-func (c *Client) PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error {
-	c.logger.Debug(ctx, "post app health", slog.F("req", req))
-	return nil
-}
-
 func (c *Client) GetStartup() <-chan *agentproto.Startup {
 	return c.fakeAgentAPI.startupCh
 }
@@ -279,9 +274,9 @@ func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycl
 	panic("implement me")
 }
 
-func (*FakeAgentAPI) BatchUpdateAppHealths(context.Context, *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
+	f.logger.Debug(ctx, "batch update app health", slog.F("req", req))
+	return &agentproto.BatchUpdateAppHealthResponse{}, nil
 }
 
 func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
