@@ -79,8 +79,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			if utf8.RuneCountInString(templateName) > 31 {
-				return xerrors.Errorf("Template name must be less than 32 characters")
+			if utf8.RuneCountInString(templateName) > 32 {
+				return xerrors.Errorf("Template name must be no more than 32 characters")
 			}
 
 			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
