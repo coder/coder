@@ -100,7 +100,7 @@ func TestMain(m *testing.M) {
 func Test_checkVersions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CustomInstallMessage", func(t *testing.T) {
+	t.Run("CustomUpgradeMessage", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -141,4 +141,43 @@ func Test_checkVersions(t *testing.T) {
 		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
 	})
+
+	t.Run("DefaultUpgradeMessage", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
+				ExternalURL: buildinfo.ExternalURL(),
+				// Provide a version that will not match
+				Version:         "v1.0.0",
+				AgentAPIVersion: coderd.AgentAPIVersionREST,
+				// does not matter what the url is
+				DashboardURL:   "https://example.com",
+				WorkspaceProxy: false,
+				UpgradeMessage: "",
+			})
+		}))
+		defer srv.Close()
+		surl, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.New(surl)
+
+		r := &RootCmd{}
+
+		cmd, err := r.Command(nil)
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		inv := cmd.Invoke()
+		inv.Stderr = &buf
+
+		err = r.checkVersions(inv, client, "v2.0.0")
+		require.NoError(t, err)
+
+		fmtOutput := fmt.Sprintf("version mismatch: client v2.0.0, server 1.0.0\n%s", defaultUpgradeMessage())
+		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
+		require.Equal(t, expectedOutput, buf.String())
+	})
+
 }
