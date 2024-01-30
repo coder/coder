@@ -1621,7 +1621,7 @@ func convertWorkspace(
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            owner.Name,
+		OwnerName:                            owner.Username,
 		OwnerAvatarURL:                       owner.AvatarURL,
 		OrganizationID:                       workspace.OrganizationID,
 		TemplateID:                           workspace.TemplateID,
