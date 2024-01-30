@@ -1821,8 +1821,9 @@ func TestUserAutofillParameters(t *testing.T) {
 
 		// Verify that latest parameter value is returned.
 		dbfake.WorkspaceBuild(t, db, database.Workspace{
-			OwnerID:    u2.ID,
-			TemplateID: version.Template.ID,
+			OrganizationID: u1.OrganizationID,
+			OwnerID:        u2.ID,
+			TemplateID:     version.Template.ID,
 		}).Params(
 			database.WorkspaceBuildParameter{
 				Name:  "param",

@@ -609,7 +609,7 @@ func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var sdkParams []codersdk.UserParameter
+	sdkParams := []codersdk.UserParameter{}
 	for _, param := range params {
 		sdkParams = append(sdkParams, codersdk.UserParameter{
 			Name:  param.Name,
