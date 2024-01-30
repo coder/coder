@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"net/http"
@@ -95,22 +96,24 @@ func TestDownload(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		tarball, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
 		})
 		require.NoError(t, err)
-		zipContent, err := coderd.CreateZipFromTar(tarball)
+
+		tarReader := tar.NewReader(bytes.NewReader(tarball))
+		require.NoError(t, err)
+		zipContent, err := coderd.CreateZipFromTar(tarReader)
 		require.NoError(t, err)
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		resp, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipContent))
 		require.NoError(t, err)
 		data, contentType, err := client.Download(ctx, resp.ID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ContentTypeTar, contentType)
-		require.Len(t, data, 1024) // FIXME compare output
+		require.Equal(t, tarball, data)
 	})
 }

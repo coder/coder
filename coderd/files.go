@@ -24,6 +24,8 @@ import (
 const (
 	tarMimeType = "application/x-tar"
 	zipMimeType = "application/zip"
+
+	httpFileMaxBytes = 10 * (10 << 20)
 )
 
 // @Summary Upload file
@@ -51,7 +53,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, 10*(10<<20))
+	r.Body = http.MaxBytesReader(rw, r.Body, httpFileMaxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -79,6 +81,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		contentType = tarMimeType
 	}
 
 	hashBytes := sha256.Sum256(data)
