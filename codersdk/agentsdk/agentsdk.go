@@ -135,35 +135,13 @@ type Script struct {
 	Script string `json:"script"`
 }
 
-// Manifest fetches manifest for the currently authenticated workspace agent.
-func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
-	if err != nil {
-		return Manifest{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return Manifest{}, codersdk.ReadBodyAsError(res)
-	}
-	var agentMeta Manifest
-	err = json.NewDecoder(res.Body).Decode(&agentMeta)
-	if err != nil {
-		return Manifest{}, err
-	}
-	err = c.rewriteDerpMap(agentMeta.DERPMap)
-	if err != nil {
-		return Manifest{}, err
-	}
-	return agentMeta, nil
-}
-
-// rewriteDerpMap rewrites the DERP map to use the access URL of the SDK as the
+// RewriteDERPMap rewrites the DERP map to use the access URL of the SDK as the
 // "embedded relay" access URL. The passed derp map is modified in place.
 //
 // Agents can provide an arbitrary access URL that may be different that the
 // globally configured one. This breaks the built-in DERP, which would continue
 // to reference the global access URL.
-func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
+func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	accessingPort := c.SDK.URL.Port()
 	if accessingPort == "" {
 		accessingPort = "80"
@@ -173,7 +151,9 @@ func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		// this should never happen because URL.Port() returns the empty string if the port is not
+		// valid.
+		c.SDK.Logger().Critical(context.Background(), "failed to parse URL port", slog.F("port", accessingPort))
 	}
 	for _, region := range derpMap.Regions {
 		if !region.EmbeddedRelay {
@@ -189,7 +169,6 @@ func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
 			node.ForceHTTP = c.SDK.URL.Scheme == "http"
 		}
 	}
-	return nil
 }
 
 // Listen connects to the workspace agent API WebSocket
