@@ -516,6 +516,7 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
         with:
+          # Do a fast, testing build for change previews
           buildScriptName: "storybook:ci"
           exitOnceUploaded: true
           # This will prevent CI from failing when Chromatic detects visual changes
@@ -549,7 +550,8 @@ jobs:
           autoAcceptChanges: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
-          buildScriptName: "storybook:ci"
+          # Do a full build with documentation for mainline builds
+          buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
           storybookBaseDir: "./site"

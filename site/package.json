@@ -162,7 +162,7 @@
     "protobufjs": "7.2.4",
     "rxjs": "7.8.1",
     "ssh2": "1.14.0",
-    "storybook": "7.5.2",
+    "storybook": "7.6.11",
     "storybook-addon-react-router-v6": "2.0.0",
     "storybook-react-context": "0.6.0",
     "ts-node": "10.9.1",
