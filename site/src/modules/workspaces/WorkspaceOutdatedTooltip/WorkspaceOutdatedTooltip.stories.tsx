@@ -5,7 +5,7 @@ import { MockTemplateVersion, MockTemplate } from "testHelpers/entities";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
 const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
-  title: "components/WorkspaceOutdatedTooltip",
+  title: "modules/workspaces/WorkspaceOutdatedTooltip",
   component: WorkspaceOutdatedTooltip,
   parameters: {
     queries: [

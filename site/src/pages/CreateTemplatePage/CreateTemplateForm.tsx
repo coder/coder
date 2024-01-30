@@ -1,5 +1,10 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
+import { useFormik } from "formik";
+import { type FC, useEffect } from "react";
+import camelCase from "lodash/camelCase";
+import capitalize from "lodash/capitalize";
+import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
   Template,
@@ -8,18 +13,19 @@ import type {
   VariableValue,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
-import { useFormik } from "formik";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
-import { type FC, useEffect } from "react";
 import {
   nameValidator,
   getFormHelpers,
   onChangeTrimmed,
   templateDisplayNameValidator,
 } from "utils/formUtils";
-import * as Yup from "yup";
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import {
+  type TemplateAutostartRequirementDaysValue,
+  type TemplateAutostopRequirementDaysValue,
+} from "utils/schedule";
+import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { IconField } from "components/IconField/IconField";
 import {
   HorizontalForm,
@@ -27,14 +33,8 @@ import {
   FormFields,
   FormFooter,
 } from "components/Form/Form";
-import camelCase from "lodash/camelCase";
-import capitalize from "lodash/capitalize";
+import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
-import {
-  type TemplateAutostartRequirementDaysValue,
-  type TemplateAutostopRequirementDaysValue,
-} from "utils/schedule";
-import { sortedDays } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 

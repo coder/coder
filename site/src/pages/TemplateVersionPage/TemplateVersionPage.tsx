@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
-import { useFileTab } from "components/TemplateFiles/TemplateFiles";
+import { useFileTab } from "modules/templates/TemplateFiles/TemplateFiles";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 import {
   templateByName,

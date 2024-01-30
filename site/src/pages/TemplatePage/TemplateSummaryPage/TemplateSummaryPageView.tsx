@@ -7,7 +7,7 @@ import type {
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
+import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { TemplateStats } from "./TemplateStats";
 
 export interface TemplateSummaryPageViewProps {

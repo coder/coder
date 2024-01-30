@@ -4,7 +4,7 @@ import { MockWorkspaceBuildLogs } from "testHelpers/entities";
 import { WorkspaceBuildLogs } from "./WorkspaceBuildLogs";
 
 const meta: Meta<typeof WorkspaceBuildLogs> = {
-  title: "components/WorkspaceBuildLogs",
+  title: "modules/workspaces/WorkspaceBuildLogs",
   parameters: { chromatic },
   component: WorkspaceBuildLogs,
 };
