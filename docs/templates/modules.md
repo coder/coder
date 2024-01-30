@@ -37,7 +37,7 @@ in the Terraform documentation.
 
 ## Coder modules
 
-Coder publishes plenty of modules that can be used to simlify some common tasks
+Coder publishes plenty of modules that can be used to simplify some common tasks
 across templates. Some of the modules we publish are,
 
 1. [`code-server`](https://registry.coder.com/modules/code-server) and
@@ -50,7 +50,7 @@ across templates. Some of the modules we publish are,
 6. [`vault-github`](https://registry.coder.com/modules/vault-github)
 
 For a full list of available modules please check
-[Coder module regsitry](https://registry.coder.com/modules).
+[Coder module registry](https://registry.coder.com/modules).
 
 ## Offline installations
 
