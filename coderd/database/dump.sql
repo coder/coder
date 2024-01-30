@@ -1161,6 +1161,13 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspace_port_sharing (
+    workspace_id uuid NOT NULL,
+    agent_name text NOT NULL,
+    port integer NOT NULL,
+    share_level integer NOT NULL
+);
+
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -1655,6 +1662,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_port_sharing
+    ADD CONSTRAINT workspace_port_sharing_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

@@ -5432,6 +5432,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
 | `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
+## codersdk.UpdatePortSharingLevelRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `agent_name`  | string  | false    |              |             |
+| `port`        | integer | false    |              |             |
+| `share_level` | integer | false    |              |             |
+
 ## codersdk.UpdateRoles
 
 ```json

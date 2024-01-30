@@ -2390,6 +2390,13 @@ type WorkspaceBuildTable struct {
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
+type WorkspacePortSharing struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+}
+
 type WorkspaceProxy struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`

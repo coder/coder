@@ -725,6 +725,10 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CreateWorkspacePortShareLevel(ctx context.Context, arg database.CreateWorkspacePortShareLevelParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -889,6 +893,10 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteWorkspacePortShareLevel(ctx context.Context, arg database.DeleteWorkspacePortShareLevelParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
@@ -2015,6 +2023,10 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
+func (q *querier) GetWorkspacePortShareLevel(ctx context.Context, arg database.GetWorkspacePortShareLevelParams) (database.WorkspacePortSharing, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
@@ -3114,6 +3126,10 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspacePortShareLevel(ctx context.Context, arg database.UpdateWorkspacePortShareLevelParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

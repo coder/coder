@@ -10636,6 +10636,85 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
+const createWorkspacePortShareLevel = `-- name: CreateWorkspacePortShareLevel :exec
+INSERT INTO workspace_port_sharing (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
+`
+
+type CreateWorkspacePortShareLevelParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+}
+
+func (q *sqlQuerier) CreateWorkspacePortShareLevel(ctx context.Context, arg CreateWorkspacePortShareLevelParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkspacePortShareLevel,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+		arg.ShareLevel,
+	)
+	return err
+}
+
+const deleteWorkspacePortShareLevel = `-- name: DeleteWorkspacePortShareLevel :exec
+DELETE FROM workspace_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+`
+
+type DeleteWorkspacePortShareLevelParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) DeleteWorkspacePortShareLevel(ctx context.Context, arg DeleteWorkspacePortShareLevelParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspacePortShareLevel, arg.WorkspaceID, arg.AgentName, arg.Port)
+	return err
+}
+
+const getWorkspacePortShareLevel = `-- name: GetWorkspacePortShareLevel :one
+SELECT workspace_id, agent_name, port, share_level FROM workspace_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+`
+
+type GetWorkspacePortShareLevelParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) GetWorkspacePortShareLevel(ctx context.Context, arg GetWorkspacePortShareLevelParams) (WorkspacePortSharing, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspacePortShareLevel, arg.WorkspaceID, arg.AgentName, arg.Port)
+	var i WorkspacePortSharing
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.Port,
+		&i.ShareLevel,
+	)
+	return i, err
+}
+
+const updateWorkspacePortShareLevel = `-- name: UpdateWorkspacePortShareLevel :exec
+UPDATE workspace_port_sharing SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
+`
+
+type UpdateWorkspacePortShareLevelParams struct {
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) UpdateWorkspacePortShareLevel(ctx context.Context, arg UpdateWorkspacePortShareLevelParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacePortShareLevel,
+		arg.ShareLevel,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+	)
+	return err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost

@@ -1002,6 +1002,15 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CreateWorkspacePortShareLevel(ctx context.Context, arg database.CreateWorkspacePortShareLevelParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1315,6 +1324,15 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteWorkspacePortShareLevel(ctx context.Context, arg database.DeleteWorkspacePortShareLevelParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -4627,6 +4645,15 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspacePortShareLevel(ctx context.Context, arg database.GetWorkspacePortShareLevelParams) (database.WorkspacePortSharing, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspacePortSharing{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7240,6 +7267,15 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspacePortShareLevel(ctx context.Context, arg database.UpdateWorkspacePortShareLevelParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

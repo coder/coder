@@ -7139,6 +7139,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/port-sharing": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Update port sharing level",
+                "operationId": "post-workspace-port-sharing-level",
+                "parameters": [
+                    {
+                        "description": "Update port sharing level request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdatePortSharingLevelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "security": [
@@ -11642,6 +11678,20 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.HealthSection"
                     }
+                }
+            }
+        },
+        "codersdk.UpdatePortSharingLevelRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "type": "integer"
                 }
             }
         },

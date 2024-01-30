@@ -1267,6 +1267,13 @@ export interface UpdateHealthSettings {
   readonly dismissed_healthchecks: HealthSection[];
 }
 
+// From codersdk/workspaceportsharing.go
+export interface UpdatePortSharingLevelRequest {
+  readonly agent_name: string;
+  readonly port: number;
+  readonly share_level: number;
+}
+
 // From codersdk/users.go
 export interface UpdateRoles {
   readonly roles: string[];
@@ -1873,6 +1880,7 @@ export type FeatureName =
   | "multiple_external_auth"
   | "oauth2_provider"
   | "scim"
+  | "shared_ports"
   | "template_rbac"
   | "user_limit"
   | "user_role_management"
@@ -1890,6 +1898,7 @@ export const FeatureNames: FeatureName[] = [
   "multiple_external_auth",
   "oauth2_provider",
   "scim",
+  "shared_ports",
   "template_rbac",
   "user_limit",
   "user_role_management",
