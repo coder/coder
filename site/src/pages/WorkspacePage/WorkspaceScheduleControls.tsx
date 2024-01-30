@@ -25,6 +25,7 @@ import {
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useMutation, useQueryClient } from "react-query";
 import { Dayjs } from "dayjs";
+import { visuallyHidden } from "@mui/utils";
 
 export interface WorkspaceScheduleControlsProps {
   workspace: Workspace;
@@ -100,21 +101,19 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
         <div css={styles.scheduleControls}>
           <Tooltip title="Subtract 1 hour from deadline">
             <IconButton
-              aria-label="Subtract hour"
               disabled={!deadlineMinusEnabled}
               size="small"
-              title=""
               css={styles.scheduleButton}
               onClick={() => {
                 handleDeadlineChange(deadline.subtract(1, "h"));
               }}
             >
               <RemoveIcon />
+              <span style={visuallyHidden}>Subtract 1 hour</span>
             </IconButton>
           </Tooltip>
-          <Tooltip title="Add 1 to deadline">
+          <Tooltip title="Add 1 hour to deadline">
             <IconButton
-              aria-label="Add hour"
               disabled={!deadlinePlusEnabled}
               size="small"
               css={styles.scheduleButton}
@@ -123,6 +122,7 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
               }}
             >
               <AddIcon />
+              <span style={visuallyHidden}>Add 1 hour</span>
             </IconButton>
           </Tooltip>
         </div>
