@@ -205,16 +205,12 @@ func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "coordinate")
+	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 
 	netConn := &closeNetConn{
 		Conn: wsNetConn,
 		closeFunc: func() {
-			cancelFunc()
 			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
-			<-pingClosed
 		},
 	}
 	config := yamux.DefaultConfig()
@@ -719,46 +715,4 @@ type closeNetConn struct {
 func (c *closeNetConn) Close() error {
 	c.closeFunc()
 	return c.Conn.Close()
-}
-
-func pingWebSocket(ctx context.Context, logger slog.Logger, conn *websocket.Conn, name string) <-chan struct{} {
-	// Ping once every 30 seconds to ensure that the websocket is alive. If we
-	// don't get a response within 30s we kill the websocket and reconnect.
-	// See: https://github.com/coder/coder/pull/5824
-	closed := make(chan struct{})
-	go func() {
-		defer close(closed)
-		tick := 30 * time.Second
-		ticker := time.NewTicker(tick)
-		defer ticker.Stop()
-		defer func() {
-			logger.Debug(ctx, fmt.Sprintf("%s pinger exited", name))
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case start := <-ticker.C:
-				ctx, cancel := context.WithTimeout(ctx, tick)
-
-				err := conn.Ping(ctx)
-				if err != nil {
-					logger.Error(ctx, fmt.Sprintf("workspace agent %s ping", name), slog.Error(err))
-
-					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
-					if err != nil {
-						logger.Error(ctx, fmt.Sprintf("close workspace agent %s websocket", name), slog.Error(err))
-					}
-
-					cancel()
-					return
-				}
-
-				logger.Debug(ctx, fmt.Sprintf("got %s ping", name), slog.F("took", time.Since(start)))
-				cancel()
-			}
-		}
-	}()
-
-	return closed
 }
