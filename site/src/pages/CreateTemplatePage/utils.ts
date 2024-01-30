@@ -59,14 +59,9 @@ export const newTemplate = (formData: CreateTemplateData) => {
 export const getFormPermissions = (entitlements: Entitlements) => {
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
-  // Requires the template RBAC feature, otherwise disabling everyone access
-  // means no one can access.
-  const allowDisableEveryoneAccess =
-    entitlements.features["template_rbac"].enabled;
 
   return {
     allowAdvancedScheduling,
-    allowDisableEveryoneAccess,
   };
 };
 
