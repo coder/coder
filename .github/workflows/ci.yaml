@@ -516,7 +516,7 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
         with:
-          buildScriptName: "storybook:build"
+          buildScriptName: "storybook:ci"
           exitOnceUploaded: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
@@ -530,6 +530,8 @@ jobs:
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -547,13 +549,15 @@ jobs:
           autoAcceptChanges: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
-          buildScriptName: "storybook:build"
+          buildScriptName: "storybook:ci"
           projectToken: 695c25b6cb65
           workingDir: "./site"
           storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
   offlinedocs:
     name: offlinedocs
@@ -726,7 +730,7 @@ jobs:
 
             # Define specific tags
             tags=("$tag" "main" "latest")
-            
+
             # Create and push a multi-arch manifest for each tag
             # we are adding `latest` tag and keeping `main` for backward
             # compatibality
