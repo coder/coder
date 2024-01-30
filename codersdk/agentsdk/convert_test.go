@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -143,4 +144,20 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.DisableDirectConnections, back.DisableDirectConnections)
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
+}
+
+func TestSubsystems(t *testing.T) {
+	t.Parallel()
+	ss := []codersdk.AgentSubsystem{
+		codersdk.AgentSubsystemEnvbox,
+		codersdk.AgentSubsystemEnvbuilder,
+		codersdk.AgentSubsystemExectrace,
+	}
+	ps, err := agentsdk.ProtoFromSubsystems(ss)
+	require.NoError(t, err)
+	require.Equal(t, ps, []proto.Startup_Subsystem{
+		proto.Startup_ENVBOX,
+		proto.Startup_ENVBUILDER,
+		proto.Startup_EXECTRACE,
+	})
 }

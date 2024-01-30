@@ -92,7 +92,6 @@ type Client interface {
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
-	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
@@ -737,13 +736,18 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("expand directory: %w", err)
 	}
-	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
+	subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
+	if err != nil {
+		a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
+		return xerrors.Errorf("failed to convert subsystems: %w", err)
+	}
+	_, err = aAPI.UpdateStartup(ctx, &proto.UpdateStartupRequest{Startup: &proto.Startup{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystems:        a.subsystems,
-	})
+		Subsystems:        subsys,
+	}})
 	if err != nil {
-		return xerrors.Errorf("update workspace agent version: %w", err)
+		return xerrors.Errorf("update workspace agent startup: %w", err)
 	}
 
 	oldManifest := a.manifest.Swap(&manifest)

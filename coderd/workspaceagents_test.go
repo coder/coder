@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1389,13 +1388,13 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			}
 		)
 
-		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+		err := postStartup(ctx, t, agentClient, &agentproto.Startup{
 			Version:           expectedVersion,
 			ExpandedDirectory: expectedDir,
-			Subsystems: []codersdk.AgentSubsystem{
+			Subsystems: []agentproto.Startup_Subsystem{
 				// Not sorted.
-				expectedSubsystems[1],
-				expectedSubsystems[0],
+				agentproto.Startup_EXECTRACE,
+				agentproto.Startup_ENVBOX,
 			},
 		})
 		require.NoError(t, err)
@@ -1409,7 +1408,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
 		// Sorted
 		require.Equal(t, expectedSubsystems, wsagent.Subsystems)
-		require.Equal(t, coderd.AgentAPIVersionREST, wsagent.APIVersion)
+		require.Equal(t, agentproto.CurrentVersion.String(), wsagent.APIVersion)
 	})
 
 	t.Run("InvalidSemver", func(t *testing.T) {
@@ -1427,13 +1426,10 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+		err := postStartup(ctx, t, agentClient, &agentproto.Startup{
 			Version: "1.2.3",
 		})
-		require.Error(t, err)
-		cerr, ok := codersdk.AsError(err)
-		require.True(t, ok)
-		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		require.ErrorContains(t, err, "invalid agent semver version")
 	})
 }
 
@@ -1639,4 +1635,16 @@ func requireGetManifest(ctx context.Context, t testing.TB, client agent.Client) 
 	manifest, err := agentsdk.ManifestFromProto(mp)
 	require.NoError(t, err)
 	return manifest
+}
+
+func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
+	conn, err := client.Listen(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
+	return err
 }
