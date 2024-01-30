@@ -959,6 +959,7 @@ func New(options *Options) *API {
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
+				r.Post("/port-sharing", api.postWorkspacePortShareLevel)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

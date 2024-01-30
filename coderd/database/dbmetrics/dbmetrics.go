@@ -142,6 +142,13 @@ func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m metricsStore) CreateWorkspacePortShareLevel(ctx context.Context, arg database.CreateWorkspacePortShareLevelParams) error {
+	start := time.Now()
+	r0 := m.s.CreateWorkspacePortShareLevel(ctx, arg)
+	m.queryLatencies.WithLabelValues("CreateWorkspacePortShareLevel").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)
@@ -298,6 +305,13 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) DeleteWorkspacePortShareLevel(ctx context.Context, arg database.DeleteWorkspacePortShareLevelParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspacePortShareLevel(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWorkspacePortShareLevel").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
@@ -1222,6 +1236,13 @@ func (m metricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspac
 	return workspace, err
 }
 
+func (m metricsStore) GetWorkspacePortShareLevel(ctx context.Context, arg database.GetWorkspacePortShareLevelParams) (database.WorkspacePortSharing, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacePortShareLevel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspacePortShareLevel").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)
@@ -1983,6 +2004,13 @@ func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databas
 	err := m.s.UpdateWorkspaceLastUsedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceLastUsedAt").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) UpdateWorkspacePortShareLevel(ctx context.Context, arg database.UpdateWorkspacePortShareLevelParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacePortShareLevel(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacePortShareLevel").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
