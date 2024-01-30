@@ -1,8 +1,11 @@
 import * as API from "api/api";
-import { QueryClient, type QueryOptions } from "react-query";
+import {
+  QueryClient,
+  UseMutationOptions,
+  type QueryOptions,
+} from "react-query";
 import { putWorkspaceExtension } from "api/api";
-import dayjs from "dayjs";
-import { getDeadline, getMaxDeadline, getMinDeadline } from "utils/schedule";
+import { Dayjs } from "dayjs";
 import {
   type WorkspaceBuildParameter,
   type Workspace,
@@ -103,25 +106,12 @@ export function workspaces(config: WorkspacesRequest = {}) {
   } as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
-export const decreaseDeadline = (workspace: Workspace) => {
+export const updateDeadline = (
+  workspace: Workspace,
+): UseMutationOptions<void, unknown, Dayjs> => {
   return {
-    mutationFn: (hours: number) => {
-      const proposedDeadline = getDeadline(workspace).subtract(hours, "hours");
-      const newDeadline = dayjs.max(proposedDeadline, getMinDeadline());
-      return putWorkspaceExtension(workspace.id, newDeadline);
-    },
-  };
-};
-
-export const increaseDeadline = (workspace: Workspace) => {
-  return {
-    mutationFn: (hours: number) => {
-      const proposedDeadline = getDeadline(workspace).add(hours, "hours");
-      const newDeadline = dayjs.min(
-        proposedDeadline,
-        getMaxDeadline(workspace),
-      );
-      return putWorkspaceExtension(workspace.id, newDeadline);
+    mutationFn: (deadline: Dayjs) => {
+      return putWorkspaceExtension(workspace.id, deadline);
     },
   };
 };
