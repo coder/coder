@@ -947,6 +947,10 @@ resource "kubernetes_manifest" "pod_monitor" {
         }
       }
       podMetricsEndpoints = [
+        # NOTE(mafredri): We could add more information here by including the
+        # scenario name in the port name (although it's limited to 15 chars so
+        # it needs to be short). That said, someone looking at the stats can
+        # assume that there's a 1-to-1 mapping between scenario# and port.
         for i, _ in data.coder_parameter.load_scenario_run_concurrently.value ? jsondecode(data.coder_parameter.load_scenarios.value) : [""] : {
           port     = "prom-http${i}"
           interval = "15s"
