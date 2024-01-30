@@ -218,7 +218,8 @@ func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
 		},
 	}
 	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
+	config.LogOutput = nil
+	config.Logger = slog.Stdlib(ctx, c.SDK.Logger(), slog.LevelInfo)
 	session, err := yamux.Client(netConn, config)
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
