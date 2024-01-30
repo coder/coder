@@ -87,8 +87,11 @@ Sysbox ahead of time will reduce disruption to your Coder instance.
 
 You can use a remote Docker host in 2 ways.
 
-1. Configuring terraform docker provider to use a [remote docker host over SSH or TCP](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
-2. Running an [external provisoner](https://coder.com/docs/v2/latest/admin/provisioners#external-provisioners) on the remote docker host.
+1. Configuring terraform docker provider to use a
+   [remote docker host over SSH or TCP](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
+2. Running an
+   [external provisoner](https://coder.com/docs/v2/latest/admin/provisioners#external-provisioners)
+   on the remote docker host.
 
 ## Troubleshooting
 
