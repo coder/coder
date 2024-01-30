@@ -354,6 +354,15 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	wsOwner, err := api.Database.GetUserByID(ctx, member.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Requested workspace owner %q does not exist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(ctx, rw, r, &createWorkspace) {
 		return
@@ -522,7 +531,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           member.UserID,
+			OwnerID:           wsOwner.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -590,9 +599,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		database.User{
-			Username: member.Username,
-		},
+		wsOwner,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -614,9 +621,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		database.User{
-			Username: member.Username,
-		},
+		wsOwner,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
