@@ -1,15 +1,16 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
+import { type FC, type ReactNode } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { type FC, type PropsWithChildren } from "react";
 
 export interface ExpanderProps {
   expanded: boolean;
   setExpanded: (val: boolean) => void;
+  children?: ReactNode;
 }
 
-export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
+export const Expander: FC<ExpanderProps> = ({
   expanded,
   setExpanded,
   children,

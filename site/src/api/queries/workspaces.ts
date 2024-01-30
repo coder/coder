@@ -265,3 +265,30 @@ const updateWorkspaceBuild = async (
     queryKey: workspaceBuildsKey(build.workspace_id),
   });
 };
+
+export const toggleFavorite = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: () => {
+      if (workspace.favorite) {
+        return API.deleteFavoriteWorkspace(workspace.id);
+      } else {
+        return API.putFavoriteWorkspace(workspace.id);
+      }
+    },
+    onSuccess: async () => {
+      queryClient.setQueryData(
+        workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+        { ...workspace, favorite: !workspace.favorite },
+      );
+      await queryClient.invalidateQueries({
+        queryKey: workspaceByOwnerAndNameKey(
+          workspace.owner_name,
+          workspace.name,
+        ),
+      });
+    },
+  };
+};

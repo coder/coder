@@ -364,7 +364,7 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 }
 
-func (s *MethodTestSuite) TestProvsionerJob() {
+func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
@@ -2215,6 +2215,44 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetUserLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
+
+		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
+			AgentID:     agent.ID,
+			WorkspaceID: ws.ID,
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
+		})
+		require.NoError(s.T(), err)
+
+		expect := database.JfrogXrayScan{
+			WorkspaceID: ws.ID,
+			AgentID:     agent.ID,
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
+		}
+
+		check.Args(database.GetJFrogXrayScanByWorkspaceAndAgentIDParams{
+			WorkspaceID: ws.ID,
+			AgentID:     agent.ID,
+		}).Asserts(ws, rbac.ActionRead).Returns(expect)
+	}))
+	s.Run("UpsertJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: tpl.ID,
+		})
+		check.Args(database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
+			WorkspaceID: ws.ID,
+			AgentID:     uuid.New(),
+		}).Asserts(tpl, rbac.ActionCreate)
 	}))
 }
 

@@ -41,7 +41,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			}
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "Confirm restart workspace?",
+				Text:      "Restart workspace?",
 				IsConfirm: true,
 			})
 			if err != nil {

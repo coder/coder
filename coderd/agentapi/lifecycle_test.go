@@ -382,10 +382,11 @@ func TestUpdateStartup(t *testing.T) {
 				database.WorkspaceAgentSubsystemEnvbuilder,
 				database.WorkspaceAgentSubsystemExectrace,
 			},
-			APIVersion: agentapi.AgentAPIVersionDRPC,
+			APIVersion: "2.0",
 		}).Return(nil)
 
-		resp, err := api.UpdateStartup(context.Background(), &agentproto.UpdateStartupRequest{
+		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")
+		resp, err := api.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
 			Startup: startup,
 		})
 		require.NoError(t, err)
@@ -416,7 +417,8 @@ func TestUpdateStartup(t *testing.T) {
 			Subsystems:        []agentproto.Startup_Subsystem{},
 		}
 
-		resp, err := api.UpdateStartup(context.Background(), &agentproto.UpdateStartupRequest{
+		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")
+		resp, err := api.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
 			Startup: startup,
 		})
 		require.Error(t, err)
@@ -451,7 +453,8 @@ func TestUpdateStartup(t *testing.T) {
 			},
 		}
 
-		resp, err := api.UpdateStartup(context.Background(), &agentproto.UpdateStartupRequest{
+		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")
+		resp, err := api.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
 			Startup: startup,
 		})
 		require.Error(t, err)

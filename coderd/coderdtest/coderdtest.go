@@ -915,23 +915,67 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 // AwaitWorkspaceAgents waits for all resources with agents to be connected. If
 // specific agents are provided, it will wait for those agents to be connected
 // but will not fail if other agents are not connected.
+//
+// Deprecated: Use NewWorkspaceAgentWaiter
 func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
-	t.Helper()
+	return NewWorkspaceAgentWaiter(t, client, workspaceID).AgentNames(agentNames).Wait()
+}
 
-	agentNamesMap := make(map[string]struct{}, len(agentNames))
-	for _, name := range agentNames {
+// WorkspaceAgentWaiter waits for all resources with agents to be connected. If
+// specific agents are provided using AgentNames(), it will wait for those agents
+// to be connected but will not fail if other agents are not connected.
+type WorkspaceAgentWaiter struct {
+	t                testing.TB
+	client           *codersdk.Client
+	workspaceID      uuid.UUID
+	agentNames       []string
+	resourcesMatcher func([]codersdk.WorkspaceResource) bool
+}
+
+// NewWorkspaceAgentWaiter returns an object that waits for agents to connect when
+// you call Wait() on it.
+func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) WorkspaceAgentWaiter {
+	return WorkspaceAgentWaiter{
+		t:           t,
+		client:      client,
+		workspaceID: workspaceID,
+	}
+}
+
+// AgentNames instructs the waiter to wait for the given, named agents to be connected and will
+// return even if other agents are not connected.
+func (w WorkspaceAgentWaiter) AgentNames(names []string) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.agentNames = names
+	return w
+}
+
+// MatchResources instructs the waiter to wait until the workspace has resources that cause the
+// provided matcher function to return true.
+func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource) bool) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.resourcesMatcher = m
+	return w
+}
+
+// Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
+func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
 		agentNamesMap[name] = struct{}{}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(t, func() bool {
+	require.Eventually(w.t, func() bool {
 		var err error
-		workspace, err := client.Workspace(ctx, workspaceID)
-		if !assert.NoError(t, err) {
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if !assert.NoError(w.t, err) {
 			return false
 		}
 		if workspace.LatestBuild.Job.CompletedAt == nil {
@@ -943,23 +987,25 @@ func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uui
 
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
-				if len(agentNames) > 0 {
+				if len(w.agentNames) > 0 {
 					if _, ok := agentNamesMap[agent.Name]; !ok {
 						continue
 					}
 				}
 
 				if agent.Status != codersdk.WorkspaceAgentConnected {
-					t.Logf("agent %s not connected yet", agent.Name)
+					w.t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}
 		}
 		resources = workspace.LatestBuild.Resources
-
-		return true
+		if w.resourcesMatcher == nil {
+			return true
+		}
+		return w.resourcesMatcher(resources)
 	}, testutil.WaitLong, testutil.IntervalMedium)
-	t.Logf("got workspace agents (workspace %s)", workspaceID)
+	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }
 

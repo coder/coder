@@ -1692,7 +1692,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		newTv := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
 			request.TemplateID = template.ID
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, newTv.ID)
 		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: newTv.ID,
 		})

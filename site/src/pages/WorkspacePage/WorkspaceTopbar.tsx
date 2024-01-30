@@ -63,6 +63,7 @@ export interface WorkspaceProps {
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
   latestVersion?: TypesGen.TemplateVersion;
+  handleToggleFavorite: () => void;
 }
 
 export const WorkspaceTopbar: FC<WorkspaceProps> = ({
@@ -75,6 +76,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   handleSettings,
   handleChangeVersion,
   handleDormantActivate,
+  handleToggleFavorite,
   workspace,
   isUpdating,
   isRestarting,
@@ -278,6 +280,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           handleRetryDebug={handleBuildRetryDebug}
           handleChangeVersion={handleChangeVersion}
           handleDormantActivate={handleDormantActivate}
+          handleToggleFavorite={handleToggleFavorite}
           canRetryDebug={canRetryDebugMode}
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}

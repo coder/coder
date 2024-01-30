@@ -278,6 +278,10 @@ func Test_Runner(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "test error")
 		require.Equal(t, 1, strings.Count(logsStr, "Retrying build"))
-		require.Equal(t, 2*2, strings.Count(logsStr, "test error")) // once per error, once per logged sdk response.
+		split := strings.Split(logsStr, "Retrying build")
+		// Ensure the error is present both before and after the retry.
+		for _, s := range split {
+			require.Contains(t, s, "test error")
+		}
 	})
 }

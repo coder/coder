@@ -7,41 +7,10 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
-
-// @Summary Agent is legacy
-// @ID agent-is-legacy
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param workspaceagent path string true "Workspace Agent ID" format(uuid)
-// @Success 200 {object} wsproxysdk.AgentIsLegacyResponse
-// @Router /workspaceagents/{workspaceagent}/legacy [get]
-// @x-apidocgen {"skip": true}
-func (api *API) agentIsLegacy(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	agentID, ok := httpmw.ParseUUIDParam(rw, r, "workspaceagent")
-	if !ok {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing UUID in URL.",
-		})
-		return
-	}
-
-	node := (*api.AGPL.TailnetCoordinator.Load()).Node(agentID)
-	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.AgentIsLegacyResponse{
-		Found: node != nil,
-		Legacy: node != nil &&
-			len(node.Addresses) > 0 &&
-			node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP,
-	})
-}
 
 // @Summary Workspace Proxy Coordinate
 // @ID workspace-proxy-coordinate

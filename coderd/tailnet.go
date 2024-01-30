@@ -22,7 +22,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -41,8 +40,7 @@ func init() {
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
 
-// NewServerTailnet creates a new tailnet intended for use by coderd. It
-// automatically falls back to wsconncache if a legacy agent is encountered.
+// NewServerTailnet creates a new tailnet intended for use by coderd.
 func NewServerTailnet(
 	ctx context.Context,
 	logger slog.Logger,
@@ -50,7 +48,6 @@ func NewServerTailnet(
 	derpMapFn func() *tailcfg.DERPMap,
 	derpForceWebSockets bool,
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
-	cache *wsconncache.Cache,
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
@@ -97,7 +94,6 @@ func NewServerTailnet(
 		conn:                 conn,
 		coordinatee:          conn,
 		getMultiAgent:        getMultiAgent,
-		cache:                cache,
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
 		agentTickets:         map[uuid.UUID]map[uuid.UUID]struct{}{},
 		transport:            tailnetTransport.Clone(),
@@ -299,7 +295,6 @@ type ServerTailnet struct {
 
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
 	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
-	cache         *wsconncache.Cache
 	nodesMu       sync.Mutex
 	// agentConnectionTimes is a map of agent tailnetNodes the server wants to
 	// keep a connection to. It contains the last time the agent was connected
@@ -311,7 +306,7 @@ type ServerTailnet struct {
 	transport *http.Transport
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
+func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
@@ -325,7 +320,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	proxy.Director = s.director(agentID, proxy.Director)
 	proxy.Transport = s.transport
 
-	return proxy, func() {}, nil
+	return proxy
 }
 
 type agentIDKey struct{}
@@ -387,28 +382,17 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 		ret  func()
 	)
 
-	if s.getAgentConn().AgentIsLegacy(agentID) {
-		s.logger.Debug(s.ctx, "acquiring legacy agent", slog.F("agent_id", agentID))
-		cconn, release, err := s.cache.Acquire(agentID)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("acquire legacy agent conn: %w", err)
-		}
-
-		conn = cconn.WorkspaceAgentConn
-		ret = release
-	} else {
-		s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
-		err := s.ensureAgent(agentID)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("ensure agent: %w", err)
-		}
-		ret = s.acquireTicket(agentID)
-
-		conn = codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
-			AgentID:   agentID,
-			CloseFunc: func() error { return codersdk.ErrSkipClose },
-		})
+	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
+	err := s.ensureAgent(agentID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
 	}
+	ret = s.acquireTicket(agentID)
+
+	conn = codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID:   agentID,
+		CloseFunc: func() error { return codersdk.ErrSkipClose },
+	})
 
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
@@ -458,7 +442,6 @@ func (c *netConnCloser) Close() error {
 
 func (s *ServerTailnet) Close() error {
 	s.cancel()
-	_ = s.cache.Close()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()
 	<-s.derpMapUpdaterClosed

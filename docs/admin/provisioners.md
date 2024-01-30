@@ -14,7 +14,7 @@ sometimes benefits to running external provisioner daemons:
   details.
 
 - **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate
-  secrets on provisoner servers.
+  secrets on provisioner servers.
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See

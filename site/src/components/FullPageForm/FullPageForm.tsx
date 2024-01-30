@@ -9,9 +9,10 @@ import {
 export interface FullPageFormProps {
   title: string;
   detail?: ReactNode;
+  children?: ReactNode;
 }
 
-export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
+export const FullPageForm: FC<FullPageFormProps> = ({
   title,
   detail,
   children,

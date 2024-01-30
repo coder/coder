@@ -1,5 +1,4 @@
-import { css } from "@emotion/css";
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
@@ -21,10 +20,6 @@ import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
-import {
-  ImmutableTemplateParametersSection,
-  MutableTemplateParametersSection,
-} from "components/TemplateParameters/TemplateParameters";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -44,6 +39,7 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 
 export const Language = {
   duplicationWarning:
@@ -90,7 +86,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const theme = useTheme();
   const [owner, setOwner] = useState(defaultOwner);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
@@ -222,65 +217,41 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             </FormFields>
           </FormSection>
 
-          {parameters && (
-            <>
-              <MutableTemplateParametersSection
-                templateParameters={parameters}
-                getInputProps={(parameter, index) => {
-                  return {
-                    ...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    ),
-                    onChange: async (value) => {
-                      await form.setFieldValue(
-                        "rich_parameter_values." + index,
-                        {
+          {parameters.length > 0 && (
+            <FormSection
+              title="Parameters"
+              description="These are the settings used by your template. Please note that immutable parameters cannot be modified once the workspace is created."
+            >
+              {/*
+                Opted not to use FormFields in order to increase spacing.
+                This decision was made because rich parameter inputs are more visually dense than standard text fields.
+              */}
+              <div css={{ display: "flex", flexDirection: "column", gap: 36 }}>
+                {parameters.map((parameter, index) => {
+                  const parameterField = `rich_parameter_values.${index}`;
+                  const parameterInputName = `${parameterField}.value`;
+                  const isDisabled =
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || creatingWorkspace;
+
+                  return (
+                    <RichParameterInput
+                      {...getFieldHelpers(parameterInputName)}
+                      onChange={async (value) => {
+                        await form.setFieldValue(parameterField, {
                           name: parameter.name,
-                          value: value,
-                        },
-                      );
-                    },
-                    disabled:
-                      disabledParamsList?.includes(
-                        parameter.name.toLowerCase().replace(/ /g, "_"),
-                      ) || creatingWorkspace,
-                  };
-                }}
-              />
-              <ImmutableTemplateParametersSection
-                templateParameters={parameters}
-                classes={{
-                  root: css`
-                    border: 1px solid ${theme.palette.warning.light};
-                    border-radius: 8px;
-                    background-color: ${theme.palette.background.paper};
-                    padding: 80px;
-                    margin-left: -80px;
-                    margin-right: -80px;
-                  `,
-                }}
-                getInputProps={(parameter, index) => {
-                  return {
-                    ...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    ),
-                    onChange: async (value) => {
-                      await form.setFieldValue(
-                        "rich_parameter_values." + index,
-                        {
-                          name: parameter.name,
-                          value: value,
-                        },
-                      );
-                    },
-                    disabled:
-                      disabledParamsList?.includes(
-                        parameter.name.toLowerCase().replace(/ /g, "_"),
-                      ) || creatingWorkspace,
-                  };
-                }}
-              />
-            </>
+                          value,
+                        });
+                      }}
+                      key={parameter.name}
+                      parameter={parameter}
+                      disabled={isDisabled}
+                    />
+                  );
+                })}
+              </div>
+            </FormSection>
           )}
 
           <FormFooter

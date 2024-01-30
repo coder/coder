@@ -62,9 +62,7 @@ interface UsersTableBodyProps {
   oidcRoleSyncEnabled: boolean;
 }
 
-export const UsersTableBody: FC<
-  React.PropsWithChildren<UsersTableBodyProps>
-> = ({
+export const UsersTableBody: FC<UsersTableBodyProps> = ({
   users,
   authMethods,
   roles,

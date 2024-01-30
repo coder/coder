@@ -130,6 +130,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
+		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsBatcher:                      api.statsBatcher,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
@@ -153,6 +154,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Auth: tailnet.AgentTunnelAuth{},
 	}
 	ctx = tailnet.WithStreamID(ctx, streamID)
+	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
 	if err != nil {
 		api.Logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))

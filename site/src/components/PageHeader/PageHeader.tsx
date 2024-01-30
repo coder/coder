@@ -4,9 +4,10 @@ import { Stack } from "../Stack/Stack";
 export interface PageHeaderProps {
   actions?: ReactNode;
   className?: string;
+  children?: ReactNode;
 }
 
-export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
+export const PageHeader: FC<PageHeaderProps> = ({
   children,
   actions,
   className,
@@ -48,9 +49,7 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
   );
 };
 
-export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
-  children,
-}) => {
+export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
   return (
     <h1
       css={{
@@ -67,9 +66,15 @@ export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
   );
 };
 
-export const PageHeaderSubtitle: FC<
-  PropsWithChildren<{ condensed?: boolean }>
-> = ({ children, condensed }) => {
+interface PageHeaderSubtitleProps {
+  children?: ReactNode;
+  condensed?: boolean;
+}
+
+export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
+  children,
+  condensed,
+}) => {
   return (
     <h2
       css={(theme) => ({
