@@ -383,41 +383,30 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.OrganizationID != uuid.Nil {
-		// If an organization was provided, make sure it exists.
-		_, err := api.Database.GetOrganizationByID(ctx, req.OrganizationID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
-				})
-				return
-			}
+	// An organization ID is required for making a new user. If we pass a nil
+	// uuid to the CreateUser func, it will create a new organization.
+	if req.OrganizationID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Organization ID is required",
+			Validations: []codersdk.ValidationError{{Field: "organization_id", Detail: "Organization ID is required"}},
+		})
+		return
+	}
 
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching organization.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	} else {
-		// If no organization is provided, add the user to the first
-		// organization.
-		organizations, err := api.Database.GetOrganizations(ctx)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching orgs.",
-				Detail:  err.Error(),
+	_, err = api.Database.GetOrganizationByID(ctx, req.OrganizationID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
 			})
 			return
 		}
 
-		if len(organizations) > 0 {
-			// Add the user to the first organization. Once multi-organization
-			// support is added, we should enable a configuration map of user
-			// email to organization.
-			req.OrganizationID = organizations[0].ID
-		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organization.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	var loginType database.LoginType
