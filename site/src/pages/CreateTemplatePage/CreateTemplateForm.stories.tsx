@@ -15,7 +15,6 @@ const meta: Meta<typeof CreateTemplateForm> = {
   component: CreateTemplateForm,
   args: {
     isSubmitting: false,
-    allowDisableEveryoneAccess: true,
   },
 };
 
