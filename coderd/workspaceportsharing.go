@@ -17,7 +17,7 @@ import (
 // @Accept json
 // @Produce json
 // @Tags PortSharing
-// @Param request body codersdk.UpdatePortSharingLevelRequest true "Update port sharing level request"
+// @Param request body codersdk.UpdateWorkspaceAgentPortSharingLevelRequest true "Update port sharing level request"
 // @Success 200
 // @Router /workspaces/{workspace}/port-sharing [post]
 func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Request) {
@@ -87,6 +87,24 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 		}
 
 		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if codersdk.WorkspacePortSharingLevel(psl.ShareLevel) == codersdk.WorkspaceAgentPortSharingLevelOwner {
+		// If the port is shared, and the user is trying to set it to owner,
+		// we need to remove the existing share record.
+		err = api.Database.DeleteWorkspacePortShareLevel(ctx, database.DeleteWorkspacePortShareLevelParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   req.AgentName,
+			Port:        int32(req.Port),
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
+		return
 	}
 
 	err = api.Database.UpdateWorkspacePortShareLevel(ctx, database.UpdateWorkspacePortShareLevelParams{
