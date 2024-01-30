@@ -56,6 +56,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
+  "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
 }
@@ -157,6 +158,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",

@@ -1445,6 +1445,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
+  "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
 }
@@ -1457,6 +1458,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `agent_api_version` | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
 | `dashboard_url`     | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
 | `external_url`      | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `upgrade_message`   | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
 | `version`           | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
 | `workspace_proxy`   | boolean | false    |              |                                                                                                                                                                     |
 
@@ -2131,6 +2133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -2497,6 +2500,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
+  "cli_upgrade_message": "string",
   "config": "string",
   "config_ssh": {
     "deploymentName": "string",
@@ -2758,6 +2762,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
+| `cli_upgrade_message`                | string                                                                                               | false    |              |                                                                    |
 | `config`                             | string                                                                                               | false    |              |                                                                    |
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |

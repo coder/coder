@@ -163,6 +163,7 @@ export interface BuildInfoResponse {
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
+  readonly upgrade_message: string;
 }
 
 // From codersdk/insights.go
@@ -438,6 +439,7 @@ export interface DeploymentValues {
   readonly web_terminal_renderer?: string;
   readonly allow_workspace_renames?: boolean;
   readonly healthcheck?: HealthcheckConfig;
+  readonly cli_upgrade_message?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;

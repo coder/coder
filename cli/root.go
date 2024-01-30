@@ -602,7 +602,7 @@ func (r *RootCmd) PrintWarnings(client *codersdk.Client) clibase.MiddlewareFunc 
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(inv, client)
+				versionErr <- r.checkVersions(inv, client, buildinfo.Version())
 				close(versionErr)
 			}()
 
@@ -812,7 +812,12 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) error {
+// checkVersions checks to see if there's a version mismatch between the client
+// and server and prints a message nudging the user to upgrade if a mismatch
+// is detected. forceCheck is a test flag and should always be false in production.
+//
+//nolint:revive
+func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, clientVersion string) error {
 	if r.noVersionCheck {
 		return nil
 	}
@@ -820,30 +825,26 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
-	clientVersion := buildinfo.Version()
-	info, err := client.BuildInfo(ctx)
+	serverInfo, err := client.BuildInfo(ctx)
 	// Avoid printing errors that are connection-related.
 	if isConnectionError(err) {
 		return nil
 	}
-
 	if err != nil {
 		return xerrors.Errorf("build info: %w", err)
 	}
 
-	fmtWarningText := `version mismatch: client %s, server %s
-`
-	// Our installation script doesn't work on Windows, so instead we direct the user
-	// to the GitHub release page to download the latest installer.
-	if runtime.GOOS == "windows" {
-		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
-	} else {
-		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
-	}
+	if !buildinfo.VersionsMatch(clientVersion, serverInfo.Version) {
+		upgradeMessage := defaultUpgradeMessage(serverInfo.CanonicalVersion())
+		if serverInfo.UpgradeMessage != "" {
+			upgradeMessage = serverInfo.UpgradeMessage
+		}
 
-	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
-		warn := cliui.DefaultStyles.Warn
-		_, _ = fmt.Fprintf(i.Stderr, pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		fmtWarningText := "version mismatch: client %s, server %s\n%s"
+		fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
+		warning := fmt.Sprintf(fmtWarn, clientVersion, serverInfo.Version, upgradeMessage)
+
+		_, _ = fmt.Fprint(i.Stderr, warning)
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
 
@@ -1215,4 +1216,14 @@ func SlimUnsupported(w io.Writer, cmd string) {
 
 	//nolint:revive
 	os.Exit(1)
+}
+
+func defaultUpgradeMessage(version string) string {
+	// Our installation script doesn't work on Windows, so instead we direct the user
+	// to the GitHub release page to download the latest installer.
+	version = strings.TrimPrefix(version, "v")
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
+	}
+	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }

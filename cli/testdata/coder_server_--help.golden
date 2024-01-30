@@ -65,6 +65,11 @@ CLIENT OPTIONS:
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
 
+      --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
+          The upgrade message to display to users when a client/server mismatch
+          is detected. By default it instructs users to update using 'curl -L
+          https://coder.com/install.sh | sh'.
+
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
