@@ -8,8 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/stretchr/testify/require"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/codersdk"
