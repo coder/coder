@@ -179,5 +179,4 @@ func Test_checkVersions(t *testing.T) {
 		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
 	})
-
 }

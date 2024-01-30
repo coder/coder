@@ -75,12 +75,11 @@ Whether Coder only allows connections to workspaces via the browser.
 
 ### --cli-upgrade-message
 
-|             |                                                                               |
-| ----------- | ----------------------------------------------------------------------------- | --------------------------------------- |
-| Type        | <code>string</code>                                                           |
-| Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code>                                       |
-| YAML        | <code>client.cliUpgradeMessage</code>                                         |
-| Default     | <code>download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version v0.0.0-devel'</code> |
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
+| YAML        | <code>client.cliUpgradeMessage</code>   |
 
 The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
 

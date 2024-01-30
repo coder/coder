@@ -1232,12 +1232,6 @@ export interface TransitionStats {
   readonly P95?: number;
 }
 
-// From codersdk/deployment.go
-export interface UnprivilegedDeploymentConfig {
-  readonly ssh_config: SSHConfigResponse;
-  readonly cli_upgrade_message: string;
-}
-
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string;
