@@ -57,6 +57,9 @@ func TestWorkspaceBuild(t *testing.T) {
 			assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1") &&
 			assert.Equal(t, logs[1].Ip.IPNet.IP.String(), "127.0.0.1")
 	}, testutil.WaitShort, testutil.IntervalFast)
+	wb, err := client.WorkspaceBuild(testutil.Context(t, testutil.WaitShort), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, wb.WorkspaceOwnerName) // note: we sadly cannot set avatar URL through client.
 }
 
 func TestWorkspaceBuildByBuildNumber(t *testing.T) {

@@ -108,7 +108,8 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		owner,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -294,7 +295,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		owner,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -351,15 +353,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	wsOwner, err := api.Database.GetUserByID(ctx, member.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Requested workspace owner %q does not exist.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -531,7 +524,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           wsOwner.ID,
+			OwnerID:           member.UserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -599,7 +592,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		wsOwner,
+		member.Username,
+		member.AvatarURL,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -621,7 +615,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		wsOwner,
+		member.Username,
+		member.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -971,7 +966,8 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		owner,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -1398,7 +1394,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			owner,
+			owner.Username,
+			owner.AvatarURL,
 			api.Options.AllowWorkspaceRenames,
 		)
 		if err != nil {
@@ -1564,7 +1561,8 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 			workspace,
 			build,
 			template,
-			owner,
+			owner.Username,
+			owner.AvatarURL,
 			data.allowRenames,
 		)
 		if err != nil {
@@ -1581,7 +1579,8 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	owner database.User,
+	username string,
+	avatarURL string,
 	allowRenames bool,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
@@ -1621,8 +1620,8 @@ func convertWorkspace(
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            owner.Username,
-		OwnerAvatarURL:                       owner.AvatarURL,
+		OwnerName:                            username,
+		OwnerAvatarURL:                       avatarURL,
 		OrganizationID:                       workspace.OrganizationID,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,
