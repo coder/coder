@@ -609,6 +609,16 @@ export interface IssueReconnectingPTYSignedTokenResponse {
   readonly signed_token: string;
 }
 
+// From codersdk/jfrog.go
+export interface JFrogXrayScan {
+  readonly workspace_id: string;
+  readonly agent_id: string;
+  readonly critical: number;
+  readonly high: number;
+  readonly medium: number;
+  readonly results_url: string;
+}
+
 // From codersdk/licenses.go
 export interface License {
   readonly id: number;
@@ -1473,6 +1483,7 @@ export interface Workspace {
   readonly updated_at: string;
   readonly owner_id: string;
   readonly owner_name: string;
+  readonly owner_avatar_url: string;
   readonly organization_id: string;
   readonly template_id: string;
   readonly template_name: string;
@@ -1627,6 +1638,7 @@ export interface WorkspaceBuild {
   readonly workspace_name: string;
   readonly workspace_owner_id: string;
   readonly workspace_owner_name: string;
+  readonly workspace_owner_avatar_url: string;
   readonly template_version_id: string;
   readonly template_version_name: string;
   readonly build_number: number;

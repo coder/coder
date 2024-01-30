@@ -25,7 +25,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/enterprise/tailnet"
@@ -201,12 +200,6 @@ func TestDialCoordinator(t *testing.T) {
 			err = cSrv.ServeMultiAgentClient(ctx, version, nc, proxyID)
 			serveMACErr <- err
 		})
-		r.Get("/api/v2/workspaceagents/{workspaceagent}/legacy", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(ctx, w, http.StatusOK, wsproxysdk.AgentIsLegacyResponse{
-				Found:  true,
-				Legacy: true,
-			})
-		})
 
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
@@ -257,11 +250,6 @@ func TestDialCoordinator(t *testing.T) {
 			eq, err := updates[0].GetNode().Equal(expected.GetPeerUpdates()[0].GetNode())
 			assert.NoError(t, err)
 			assert.True(t, eq)
-		}
-		// Check legacy
-		{
-			isLegacy := rma.AgentIsLegacy(agentID)
-			assert.True(t, isLegacy)
 		}
 		// UpdateSelf
 		{

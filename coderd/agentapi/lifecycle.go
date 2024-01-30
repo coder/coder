@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -15,6 +16,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
+
+type contextKeyAPIVersion struct{}
+
+func WithAPIVersion(ctx context.Context, version string) context.Context {
+	return context.WithValue(ctx, contextKeyAPIVersion{}, version)
+}
 
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
@@ -123,6 +130,10 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 }
 
 func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	apiVersion, ok := ctx.Value(contextKeyAPIVersion{}).(string)
+	if !ok {
+		return nil, xerrors.Errorf("internal error; api version unspecified")
+	}
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
@@ -164,13 +175,14 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 			dbSubsystems = append(dbSubsystems, dbSubsystem)
 		}
 	}
+	slices.Sort(dbSubsystems)
 
 	err = a.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                workspaceAgent.ID,
 		Version:           req.Startup.Version,
 		ExpandedDirectory: req.Startup.ExpandedDirectory,
 		Subsystems:        dbSubsystems,
-		APIVersion:        AgentAPIVersionDRPC,
+		APIVersion:        apiVersion,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)

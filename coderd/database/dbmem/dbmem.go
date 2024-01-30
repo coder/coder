@@ -129,6 +129,7 @@ type data struct {
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
+	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
@@ -1984,6 +1985,24 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 		}
 	}
 	return hungJobs, nil
+}
+
+func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.JfrogXrayScan{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			return scan, nil
+		}
+	}
+
+	return database.JfrogXrayScan{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
@@ -7289,6 +7308,39 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	defer q.mutex.RUnlock()
 
 	q.healthSettings = []byte(data)
+	return nil
+}
+
+func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			scan.Critical = arg.Critical
+			scan.High = arg.High
+			scan.Medium = arg.Medium
+			scan.ResultsUrl = arg.ResultsUrl
+			q.jfrogXRayScans[i] = scan
+			return nil
+		}
+	}
+
+	//nolint:gosimple
+	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		Critical:    arg.Critical,
+		High:        arg.High,
+		Medium:      arg.Medium,
+		ResultsUrl:  arg.ResultsUrl,
+	})
+
 	return nil
 }
 

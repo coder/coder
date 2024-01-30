@@ -1,12 +1,8 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { Paywall } from "components/Paywall/Paywall";
-import { Stack } from "components/Stack/Stack";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -38,26 +34,8 @@ export const TemplatePermissionsPage: FC = () => {
       {!isTemplateRBACEnabled ? (
         <Paywall
           message="Template permissions"
-          description="Manage your template permissions to allow users or groups to view or admin the template. To use this feature, you have to upgrade your account."
-          cta={
-            <Stack direction="row" alignItems="center">
-              <Link
-                href={docs("/admin/upgrade")}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Button
-                  startIcon={<ArrowRightAltOutlined />}
-                  variant="contained"
-                >
-                  See how to upgrade
-                </Button>
-              </Link>
-              <Link href={docs("/admin/rbac")} target="_blank" rel="noreferrer">
-                Read the documentation
-              </Link>
-            </Stack>
-          }
+          description="Control access of templates for users and groups to templates. You need an Enterprise license to use this feature."
+          documentationLink={docs("/admin/rbac")}
         />
       ) : (
         <TemplatePermissionsPageView

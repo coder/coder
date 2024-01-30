@@ -1182,6 +1182,84 @@ const docTemplate = `{
                 }
             }
         },
+        "/integrations/jfrog/xray-scan": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get JFrog XRay scan by workspace agent ID.",
+                "operationId": "get-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspace_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Post JFrog XRay scan by workspace agent ID.",
+                "operationId": "post-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "description": "Post JFrog XRay scan request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses": {
             "get": {
                 "security": [
@@ -5744,44 +5822,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/legacy": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Agent is legacy",
-                "operationId": "agent-is-legacy",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace Agent ID",
-                        "name": "workspaceagent",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/wsproxysdk.AgentIsLegacyResponse"
-                        }
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "security": [
@@ -9588,6 +9628,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.JFrogXrayScan": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "critical": {
+                    "type": "integer"
+                },
+                "high": {
+                    "type": "integer"
+                },
+                "medium": {
+                    "type": "integer"
+                },
+                "results_url": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.JobErrorCode": {
             "type": "string",
             "enum": [
@@ -12021,6 +12086,9 @@ const docTemplate = `{
                 "outdated": {
                     "type": "boolean"
                 },
+                "owner_avatar_url": {
+                    "type": "string"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -12596,6 +12664,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_avatar_url": {
                     "type": "string"
                 },
                 "workspace_owner_id": {
@@ -13712,17 +13783,6 @@ const docTemplate = `{
                 },
                 "workspace_id": {
                     "type": "string"
-                }
-            }
-        },
-        "wsproxysdk.AgentIsLegacyResponse": {
-            "type": "object",
-            "properties": {
-                "found": {
-                    "type": "boolean"
-                },
-                "legacy": {
-                    "type": "boolean"
                 }
             }
         },

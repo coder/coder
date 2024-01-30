@@ -438,6 +438,15 @@ COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friend
 
 COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
+CREATE TABLE jfrog_xray_scans (
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    critical integer DEFAULT 0 NOT NULL,
+    high integer DEFAULT 0 NOT NULL,
+    medium integer DEFAULT 0 NOT NULL,
+    results_url text DEFAULT ''::text NOT NULL
+);
+
 CREATE TABLE licenses (
     id integer NOT NULL,
     uploaded_at timestamp with time zone NOT NULL,
@@ -1292,6 +1301,9 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY jfrog_xray_scans
+    ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
+
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
 
@@ -1535,6 +1547,12 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY jfrog_xray_scans
+    ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY jfrog_xray_scans
+    ADD CONSTRAINT jfrog_xray_scans_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_secrets
     ADD CONSTRAINT oauth2_provider_app_secrets_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;

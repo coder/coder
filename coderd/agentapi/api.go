@@ -29,8 +29,6 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
-const AgentAPIVersionDRPC = "2.0"
-
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
 // session.
@@ -97,6 +95,16 @@ func New(opts Options) *API {
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
+		WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+			if opts.WorkspaceID != uuid.Nil {
+				return opts.WorkspaceID, nil
+			}
+			ws, err := opts.Database.GetWorkspaceByAgentID(ctx, wa.ID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return ws.Workspace.ID, nil
+		},
 	}
 
 	api.ServiceBannerAPI = &ServiceBannerAPI{

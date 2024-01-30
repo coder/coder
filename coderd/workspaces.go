@@ -94,7 +94,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	owner, ok := userByID(workspace.OwnerID, data.users)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -108,7 +108,8 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		ownerName,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -281,7 +282,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	owner, ok := userByID(workspace.OwnerID, data.users)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -294,7 +295,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		ownerName,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -591,6 +593,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			QueuePosition:  0,
 		},
 		member.Username,
+		member.AvatarURL,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -613,6 +616,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		apiBuild,
 		template,
 		member.Username,
+		member.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -941,7 +945,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	owner, ok := userByID(workspace.OwnerID, data.users)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -962,7 +966,8 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		ownerName,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {
@@ -1372,7 +1377,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+		owner, ok := userByID(workspace.OwnerID, data.users)
 		if !ok {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -1389,7 +1394,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			ownerName,
+			owner.Username,
+			owner.AvatarURL,
 			api.Options.AllowWorkspaceRenames,
 		)
 		if err != nil {
@@ -1556,6 +1562,7 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 			build,
 			template,
 			owner.Username,
+			owner.AvatarURL,
 			data.allowRenames,
 		)
 		if err != nil {
@@ -1572,7 +1579,8 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	ownerName string,
+	username string,
+	avatarURL string,
 	allowRenames bool,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
@@ -1612,7 +1620,8 @@ func convertWorkspace(
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            ownerName,
+		OwnerName:                            username,
+		OwnerAvatarURL:                       avatarURL,
 		OrganizationID:                       workspace.OrganizationID,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,

@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/stretchr/testify/require"

@@ -1394,56 +1394,52 @@ func TestAgent_Startup(t *testing.T) {
 
 	t.Run("EmptyDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
-		require.Equal(t, "", client.GetStartup().ExpandedDirectory)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		require.Equal(t, "", startup.GetExpandedDirectory())
 	})
 
 	t.Run("HomeDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "~",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, startup.GetExpandedDirectory())
 	})
 
 	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "coder/coder",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.GetStartup().ExpandedDirectory)
+		require.Equal(t, filepath.Join(homeDir, "coder/coder"), startup.GetExpandedDirectory())
 	})
 
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "$HOME",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, startup.GetExpandedDirectory())
 	})
 }
 
@@ -2026,7 +2022,11 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := slogtest.Make(t, &slogtest.Options{
+		// Agent can drop errors when shutting down, and some, like the
+		// fasthttplistener connection closed error, are unexported.
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}
@@ -2038,6 +2038,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	}
 	if metadata.WorkspaceName == "" {
 		metadata.WorkspaceName = "test-workspace"
+	}
+	if metadata.WorkspaceID == uuid.Nil {
+		metadata.WorkspaceID = uuid.New()
 	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {

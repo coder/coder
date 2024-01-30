@@ -345,11 +345,6 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
 		AgentID: agentID,
-		// Newer agents will listen on two IPs: WorkspaceAgentIP and an IP
-		// derived from the agents UUID. We need to use the legacy
-		// WorkspaceAgentIP here since we don't know if the agent is listening
-		// on the new IP.
-		AgentIP: WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
 			<-connector.closed
@@ -441,7 +436,10 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		}
 		return nil, err
 	}
-	client, err := tailnet.NewDRPCClient(websocket.NetConn(tac.ctx, ws, websocket.MessageBinary))
+	client, err := tailnet.NewDRPCClient(
+		websocket.NetConn(tac.ctx, ws, websocket.MessageBinary),
+		tac.logger,
+	)
 	if err != nil {
 		tac.logger.Debug(tac.ctx, "failed to create DRPCClient", slog.Error(err))
 		_ = ws.Close(websocket.StatusInternalError, "")
