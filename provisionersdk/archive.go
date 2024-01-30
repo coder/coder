@@ -135,7 +135,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		}
 		return err
 	}
-	err = tarWriter.Flush()
+	err = tarWriter.Close()
 	if err != nil {
 		return err
 	}

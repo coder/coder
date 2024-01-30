@@ -306,7 +306,7 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 		}
 	}
-	err := writer.Flush()
+	err := writer.Close()
 	if err != nil {
 		return nil, err
 	}
