@@ -436,7 +436,10 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		}
 		return nil, err
 	}
-	client, err := tailnet.NewDRPCClient(websocket.NetConn(tac.ctx, ws, websocket.MessageBinary))
+	client, err := tailnet.NewDRPCClient(
+		websocket.NetConn(tac.ctx, ws, websocket.MessageBinary),
+		tac.logger,
+	)
 	if err != nil {
 		tac.logger.Debug(tac.ctx, "failed to create DRPCClient", slog.Error(err))
 		_ = ws.Close(websocket.StatusInternalError, "")

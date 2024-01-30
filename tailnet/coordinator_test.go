@@ -464,7 +464,7 @@ func TestRemoteCoordination(t *testing.T) {
 		serveErr <- err
 	}()
 
-	client, err := tailnet.NewDRPCClient(cC)
+	client, err := tailnet.NewDRPCClient(cC, logger)
 	require.NoError(t, err)
 	protocol, err := client.Coordinate(ctx)
 	require.NoError(t, err)

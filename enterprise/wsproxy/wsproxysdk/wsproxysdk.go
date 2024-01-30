@@ -458,7 +458,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
 	nc := websocket.NetConn(ctx, conn, websocket.MessageBinary)
-	client, err := agpl.NewDRPCClient(nc)
+	client, err := agpl.NewDRPCClient(nc, logger)
 	if err != nil {
 		logger.Debug(ctx, "failed to create DRPCClient", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, "")
@@ -488,7 +488,9 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 
 	go func() {
 		<-ctx.Done()
-		ma.Close()
+		_ = ma.Close()
+		_ = client.DRPCConn().Close()
+		<-client.DRPCConn().Closed()
 		_ = conn.Close(websocket.StatusGoingAway, "closed")
 	}()
 
