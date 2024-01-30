@@ -6,7 +6,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
-import { type FC } from "react";
+import { Fragment, type FC } from "react";
 import useTheme from "@mui/system/useTheme";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -111,18 +111,13 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
                     return key !== "owner";
                   })
                   .map((k) => (
-                    <>
+                    <Fragment key={k}>
                       {k === "scope" ? (
-                        <ProvisionerTag key={k} k={k} v={tags[k]} />
+                        <ProvisionerTag k={k} v={tags[k]} />
                       ) : (
-                        <ProvisionerTag
-                          key={k}
-                          k={k}
-                          v={tags[k]}
-                          onDelete={onDelete}
-                        />
+                        <ProvisionerTag k={k} v={tags[k]} onDelete={onDelete} />
                       )}
-                    </>
+                    </Fragment>
                   ))}
               </Stack>
 
