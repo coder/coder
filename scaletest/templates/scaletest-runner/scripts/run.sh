@@ -92,12 +92,8 @@ else
 		fi
 		annotate_grafana_end greedy_agent "${scenario}: Greedy agent traffic"
 
-		return ${status}
+		return "${status}"
 	}
-fi
-
-if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
-	start_phase "Load scenarios: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]}"
 fi
 
 run_scenario_cmd() {
@@ -127,6 +123,9 @@ declare -A failed=()
 target_start=0
 target_end=-1
 
+if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
+	start_phase "Load scenarios: ${SCALETEST_PARAM_LOAD_SCENARIOS[*]}"
+fi
 for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
 		start_phase "Load scenario: ${scenario}"
@@ -320,24 +319,24 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	# scenario is run concurrently and all percentages add up to 100.
 	target_start=${target_end}
 
-	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 0 ]]; then
-		if ((status > 0)); then
-			log "Load scenario failed: ${scenario} (exit=${status})"
-			failed+=(["${scenario}"]="$status")
-			PHASE_ADD_TAGS=error end_phase
-		else
-			end_phase
-		fi
-
-		wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
-	else
+	if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
 		pid_to_scenario+=(["${pids[-1]}"]="${scenario}")
 		# Stagger the start of each scenario to avoid a burst of load and deted
 		# problematic scenarios.
 		sleep $((SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGERING * 60))
+		continue
 	fi
-done
 
+	if ((status > 0)); then
+		log "Load scenario failed: ${scenario} (exit=${status})"
+		failed+=(["${scenario}"]="${status}")
+		PHASE_ADD_TAGS=error end_phase
+	else
+		end_phase
+	fi
+
+	wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
+done
 if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
 	wait "${pids[@]}"
 	# Wait on all pids will wait until all have exited, but we need to
@@ -348,7 +347,7 @@ if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]]; then
 		scenario=${pid_to_scenario[${pid}]}
 		if ((status > 0)); then
 			log "Load scenario failed: ${scenario} (exit=${status})"
-			failed+=(["${scenario}"]="$status")
+			failed+=(["${scenario}"]="${status}")
 		fi
 	done
 	if ((${#failed[@]} > 0)); then
