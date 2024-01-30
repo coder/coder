@@ -12,7 +12,7 @@ terraform {
 }
 
 resource "time_static" "start_time" {
-  # We con't set `count = data.coder_workspace.me.start_count` here because then
+  # We don't set `count = data.coder_workspace.me.start_count` here because then
   # we can't use this value in `locals`, but we want to trigger recreation when
   # the scaletest is restarted.
   triggers = {
