@@ -23,8 +23,17 @@ import (
 func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	portSharer := *api.PortSharer.Load()
 	var req codersdk.UpdateWorkspaceAgentPortSharingLevelRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	shareLevelAllowed := portSharer.ShareLevelAllowed(workspace.ID, codersdk.WorkspacePortSharingLevel(req.ShareLevel))
+	if !shareLevelAllowed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Port sharing level not allowed.",
+		})
 		return
 	}
 
@@ -59,7 +68,12 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if (req.ShareLevel == codersdk.Shar)
+		if req.ShareLevel == int(codersdk.WorkspaceAgentPortSharingLevelOwner) {
+			// If the port is not shared, and the user is trying to set it to owner,
+			// we don't need to do anything.
+			rw.WriteHeader(http.StatusOK)
+			return
+		}
 
 		err = api.Database.CreateWorkspacePortShareLevel(ctx, database.CreateWorkspacePortShareLevelParams{
 			WorkspaceID: workspace.ID,
