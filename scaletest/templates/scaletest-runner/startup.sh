@@ -8,6 +8,11 @@ if [[ ${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE} == "${SCALETEST_PARAM_TEMPLATE}" 
 	exit 1
 fi
 
+if [[ ${SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY} == 1 ]] && [[ ${SCALETEST_PARAM_GREEDY_AGENT} == 1 ]]; then
+	echo "ERROR: Load scenario concurrency and greedy agent test cannot be enabled at the same time." >&2
+	exit 1
+fi
+
 # Unzip scripts and add to path.
 # shellcheck disable=SC2153
 echo "Extracting scaletest scripts into ${SCRIPTS_DIR}..."

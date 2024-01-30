@@ -51,7 +51,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		errCh <- err
 	}()
 
-	client, err := tailnet.NewDRPCClient(c)
+	client, err := tailnet.NewDRPCClient(c, logger)
 	require.NoError(t, err)
 
 	// Coordinate

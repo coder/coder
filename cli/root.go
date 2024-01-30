@@ -100,6 +100,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.configSSH(),
 		r.create(),
 		r.deleteWorkspace(),
+		r.favorite(),
 		r.list(),
 		r.open(),
 		r.ping(),
@@ -112,6 +113,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.start(),
 		r.stat(),
 		r.stop(),
+		r.unfavorite(),
 		r.update(),
 
 		// Hidden

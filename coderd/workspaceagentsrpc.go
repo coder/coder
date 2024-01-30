@@ -40,10 +40,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 	version := r.URL.Query().Get("version")
 	if version == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing required query parameter: version",
-		})
-		return
+		// The initial version on this HTTP endpoint was 2.0, so assume this version if unspecified.
+		// Coder v2.7.1 (not to be confused with the Agent API version) calls this endpoint without
+		// a version parameter and wants Agent API version 2.0.
+		version = "2.0"
 	}
 	if err := proto.CurrentVersion.Validate(version); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -130,19 +130,18 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
+		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsBatcher:                      api.statsBatcher,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 
-		AccessURL:                       api.AccessURL,
-		AppHostname:                     api.AppHostname,
-		AgentInactiveDisconnectTimeout:  api.AgentInactiveDisconnectTimeout,
-		AgentFallbackTroubleshootingURL: api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-		AgentStatsRefreshInterval:       api.AgentStatsRefreshInterval,
-		DisableDirectConnections:        api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		DerpForceWebSockets:             api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		DerpMapUpdateFrequency:          api.Options.DERPMapUpdateFrequency,
-		ExternalAuthConfigs:             api.ExternalAuthConfigs,
+		AccessURL:                 api.AccessURL,
+		AppHostname:               api.AppHostname,
+		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
+		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
+		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
@@ -155,6 +154,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Auth: tailnet.AgentTunnelAuth{},
 	}
 	ctx = tailnet.WithStreamID(ctx, streamID)
+	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
 	if err != nil {
 		api.Logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))

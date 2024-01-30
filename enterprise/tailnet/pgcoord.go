@@ -1494,7 +1494,7 @@ func (h *heartbeats) sendBeats() {
 
 func (h *heartbeats) sendBeat() {
 	_, err := h.store.UpsertTailnetCoordinator(h.ctx, h.self)
-	if xerrors.Is(err, context.Canceled) {
+	if database.IsQueryCanceledError(err) {
 		return
 	}
 	if err != nil {

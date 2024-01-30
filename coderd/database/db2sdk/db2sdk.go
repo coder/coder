@@ -266,16 +266,25 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	return dapps
 }
 
+func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
+	var envs map[string]string
+	if workspaceAgent.EnvironmentVariables.Valid {
+		err := json.Unmarshal(workspaceAgent.EnvironmentVariables.RawMessage, &envs)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal environment variables: %w", err)
+		}
+	}
+
+	return envs, nil
+}
+
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
 ) (codersdk.WorkspaceAgent, error) {
-	var envs map[string]string
-	if dbAgent.EnvironmentVariables.Valid {
-		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
-		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
-		}
+	envs, err := WorkspaceAgentEnvironment(dbAgent)
+	if err != nil {
+		return codersdk.WorkspaceAgent{}, err
 	}
 	troubleshootingURL := agentFallbackTroubleshootingURL
 	if dbAgent.TroubleshootingURL != "" {

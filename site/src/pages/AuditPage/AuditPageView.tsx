@@ -3,8 +3,8 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import { AuditLog } from "api/typesGenerated";
-import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
+import { type ComponentProps, type FC } from "react";
+import type { AuditLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
@@ -16,15 +16,15 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
-import { AuditHelpTooltip } from "./AuditHelpTooltip";
-import { ComponentProps, FC } from "react";
-import { AuditPaywall } from "./AuditPaywall";
-import { AuditFilter } from "./AuditFilter";
-
+import { Paywall } from "components/Paywall/Paywall";
 import {
   type PaginationResult,
   PaginationContainer,
 } from "components/PaginationWidget/PaginationContainer";
+import { docs } from "utils/docs";
+import { AuditHelpTooltip } from "./AuditHelpTooltip";
+import { AuditFilter } from "./AuditFilter";
+import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
 export const Language = {
   title: "Audit",
@@ -130,7 +130,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </Cond>
 
         <Cond>
-          <AuditPaywall />
+          <Paywall
+            message="Audit logs"
+            description="Audit logs allow you to monitor user operations on your deployment. You need an Enterprise license to use this feature."
+            documentationLink={docs("/admin/audit-logs")}
+          />
         </Cond>
       </ChooseOne>
     </Margins>

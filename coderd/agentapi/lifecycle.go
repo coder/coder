@@ -3,8 +3,10 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -15,12 +17,27 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
+type contextKeyAPIVersion struct{}
+
+func WithAPIVersion(ctx context.Context, version string) context.Context {
+	return context.WithValue(ctx, contextKeyAPIVersion{}, version)
+}
+
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	WorkspaceIDFn            func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+
+	TimeNowFn func() time.Time // defaults to dbtime.Now()
+}
+
+func (a *LifecycleAPI) now() time.Time {
+	if a.TimeNowFn != nil {
+		return a.TimeNowFn()
+	}
+	return dbtime.Now()
 }
 
 func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
@@ -68,7 +85,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 
 	changedAt := req.Lifecycle.ChangedAt.AsTime()
 	if changedAt.IsZero() {
-		changedAt = dbtime.Now()
+		changedAt = a.now()
 		req.Lifecycle.ChangedAt = timestamppb.New(changedAt)
 	}
 	dbChangedAt := sql.NullTime{Time: changedAt, Valid: true}
@@ -78,8 +95,13 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	switch lifecycleState {
 	case database.WorkspaceAgentLifecycleStateStarting:
 		startedAt = dbChangedAt
-		readyAt.Valid = false // This agent is re-starting, so it's not ready yet.
+		// This agent is (re)starting, so it's not ready yet.
+		readyAt.Time = time.Time{}
+		readyAt.Valid = false
 	case database.WorkspaceAgentLifecycleStateReady, database.WorkspaceAgentLifecycleStateStartError:
+		if !startedAt.Valid {
+			startedAt = dbChangedAt
+		}
 		readyAt = dbChangedAt
 	}
 
@@ -97,15 +119,21 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		return nil, xerrors.Errorf("update workspace agent lifecycle state: %w", err)
 	}
 
-	err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, xerrors.Errorf("publish workspace update: %w", err)
+	if a.PublishWorkspaceUpdateFn != nil {
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		if err != nil {
+			return nil, xerrors.Errorf("publish workspace update: %w", err)
+		}
 	}
 
 	return req.Lifecycle, nil
 }
 
 func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	apiVersion, ok := ctx.Value(contextKeyAPIVersion{}).(string)
+	if !ok {
+		return nil, xerrors.Errorf("internal error; api version unspecified")
+	}
 	workspaceAgent, err := a.AgentFn(ctx)
 	if err != nil {
 		return nil, err
@@ -147,13 +175,14 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 			dbSubsystems = append(dbSubsystems, dbSubsystem)
 		}
 	}
+	slices.Sort(dbSubsystems)
 
 	err = a.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                workspaceAgent.ID,
 		Version:           req.Startup.Version,
 		ExpandedDirectory: req.Startup.ExpandedDirectory,
 		Subsystems:        dbSubsystems,
-		APIVersion:        AgentAPIVersionDRPC,
+		APIVersion:        apiVersion,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent startup in database: %w", err)

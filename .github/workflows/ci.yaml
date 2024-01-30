@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 1
       # For pull requests it's not necessary to checkout the code
       - name: check changed files
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
@@ -741,7 +741,7 @@ jobs:
 
       - name: Prune old images
         if: github.ref == 'refs/heads/main'
-        uses: vlaurin/action-ghcr-prune@v0.5.0
+        uses: vlaurin/action-ghcr-prune@v0.6.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder

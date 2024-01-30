@@ -20,6 +20,7 @@ import {
   updateWorkspace,
   stopWorkspace,
   startWorkspace,
+  toggleFavorite,
   cancelBuild,
 } from "api/queries/workspaces";
 import { Alert } from "components/Alert/Alert";
@@ -144,6 +145,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
     startWorkspace(workspace, queryClient),
   );
 
+  // Toggle workspace favorite
+  const toggleFavoriteMutation = useMutation(
+    toggleFavorite(workspace, queryClient),
+  );
+
   // Cancel build
   const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
@@ -216,6 +222,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
             const message = getErrorMessage(e, "Error activate workspace.");
             displayError(message);
           }
+        }}
+        handleToggleFavorite={() => {
+          toggleFavoriteMutation.mutate();
         }}
         latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}

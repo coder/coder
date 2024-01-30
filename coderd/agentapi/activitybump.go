@@ -41,13 +41,14 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
-	if err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+	err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
 		NextAutostart: nextAutostart.UTC(),
 		WorkspaceID:   workspaceID,
-	}); err != nil {
+	})
+	if err != nil {
 		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 			// Bump will fail if the context is canceled, but this is ok.
-			log.Error(ctx, "bump failed", slog.Error(err),
+			log.Error(ctx, "activity bump failed", slog.Error(err),
 				slog.F("workspace_id", workspaceID),
 			)
 		}

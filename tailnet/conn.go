@@ -30,6 +30,7 @@ import (
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/wgengine"
+	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/magicsock"
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
@@ -218,7 +219,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		magicConn.DiscoPublicKey(),
 	)
 	cfgMaps.setAddresses(options.Addresses)
-	cfgMaps.setDERPMap(DERPMapToProto(options.DERPMap))
+	cfgMaps.setDERPMap(options.DERPMap)
 	cfgMaps.setBlockEndpoints(options.BlockEndpoints)
 
 	nodeUp := newNodeUpdater(
@@ -310,6 +311,12 @@ type Conn struct {
 	trafficStats *connstats.Statistics
 }
 
+func (c *Conn) InstallCaptureHook(f capture.Callback) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.wireguardEngine.InstallCaptureHook(f)
+}
+
 func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
 	c.magicConn.SetDebugLoggingEnabled(enabled)
 }
@@ -326,7 +333,7 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	c.configMaps.setDERPMap(DERPMapToProto(derpMap))
+	c.configMaps.setDERPMap(derpMap)
 }
 
 func (c *Conn) SetDERPForceWebSockets(v bool) {

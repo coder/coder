@@ -1,10 +1,10 @@
 import DialogActions from "@mui/material/DialogActions";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type PropsWithChildren, type ReactNode } from "react";
+import { type FC, type ReactNode } from "react";
 import {
   Dialog,
   DialogActionButtons,
-  DialogActionButtonsProps,
+  type DialogActionButtonsProps,
 } from "../Dialog";
 import type { ConfirmDialogType } from "../types";
 
@@ -98,7 +98,7 @@ const styles = {
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
  */
-export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
+export const ConfirmDialog: FC<ConfirmDialogProps> = ({
   cancelText,
   confirmLoading,
   confirmText,

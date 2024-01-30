@@ -9,7 +9,7 @@ tags: [container, kubernetes, devcontainer]
 
 # Remote Development on Kubernetes Pods (with Devcontainers)
 
-Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
+Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 

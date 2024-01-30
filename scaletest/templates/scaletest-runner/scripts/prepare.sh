@@ -47,8 +47,10 @@ unset CODER_SESSION_TOKEN
 echo -n "${token}" >"${CODER_CONFIG_DIR}/session"
 [[ $VERBOSE == 1 ]] && set -x # Restore logging (if enabled).
 
-log "Cleaning up from previous runs (if applicable)..."
-"${SCRIPTS_DIR}/cleanup.sh" "prepare"
+if [[ ${SCALETEST_PARAM_CLEANUP_PREPARE} == 1 ]]; then
+	log "Cleaning up from previous runs (if applicable)..."
+	"${SCRIPTS_DIR}/cleanup.sh" prepare
+fi
 
 log "Preparation complete!"
 

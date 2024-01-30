@@ -4,7 +4,7 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
@@ -897,6 +897,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
@@ -919,6 +920,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "autostart",
@@ -941,6 +943,7 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "autostop",
@@ -965,6 +968,7 @@ export const MockFailedWorkspaceBuild = (
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
@@ -1010,6 +1014,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
   owner_name: MockUser.username,
+  owner_avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
@@ -1020,6 +1025,13 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: false,
+};
+
+export const MockFavoriteWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-favorite-workspace",
+  favorite: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {

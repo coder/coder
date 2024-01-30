@@ -31,8 +31,8 @@ import (
 // client only dials a single agent at a time.
 //
 // Deprecated: use tailnet.IP() instead. This is kept for backwards
-// compatibility with wsconncache.
-// See: https://github.com/coder/coder/issues/8218
+// compatibility with outdated CLI clients and Workspace Proxies that dial it.
+// See: https://github.com/coder/coder/issues/11819
 var WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
 
 var ErrSkipClose = xerrors.New("skip tailnet close")
@@ -149,16 +149,10 @@ type WorkspaceAgentConn struct {
 // @typescript-ignore WorkspaceAgentConnOptions
 type WorkspaceAgentConnOptions struct {
 	AgentID   uuid.UUID
-	AgentIP   netip.Addr
 	CloseFunc func() error
 }
 
 func (c *WorkspaceAgentConn) agentAddress() netip.Addr {
-	var emptyIP netip.Addr
-	if cmp := c.opts.AgentIP.Compare(emptyIP); cmp != 0 {
-		return c.opts.AgentIP
-	}
-
 	return tailnet.IPFromUUID(c.opts.AgentID)
 }
 

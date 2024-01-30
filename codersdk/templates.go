@@ -263,7 +263,7 @@ type TemplateExample struct {
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
-		return Template{}, nil
+		return Template{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {

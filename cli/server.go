@@ -1773,12 +1773,6 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			Slug:         parts[1],
 		})
 	}
-	createClient := func(client *http.Client) (*github.Client, error) {
-		if enterpriseBaseURL != "" {
-			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
-		}
-		return github.NewClient(client), nil
-	}
 
 	endpoint := xgithub.Endpoint
 	if enterpriseBaseURL != "" {
@@ -1800,24 +1794,34 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 		}
 	}
 
+	instrumentedOauth := instrument.NewGithub("github-login", &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint:     endpoint,
+		RedirectURL:  redirectURL.String(),
+		Scopes: []string{
+			"read:user",
+			"read:org",
+			"user:email",
+		},
+	})
+
+	createClient := func(client *http.Client, source promoauth.Oauth2Source) (*github.Client, error) {
+		client = instrumentedOauth.InstrumentHTTPClient(client, source)
+		if enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		}
+		return github.NewClient(client), nil
+	}
+
 	return &coderd.GithubOAuth2Config{
-		OAuth2Config: instrument.NewGithub("github-login", &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Endpoint:     endpoint,
-			RedirectURL:  redirectURL.String(),
-			Scopes: []string{
-				"read:user",
-				"read:org",
-				"user:email",
-			},
-		}),
+		OAuth2Config:       instrumentedOauth,
 		AllowSignups:       allowSignups,
 		AllowEveryone:      allowEveryone,
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIAuthUser)
 			if err != nil {
 				return nil, err
 			}
@@ -1825,7 +1829,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return user, err
 		},
 		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIListEmails)
 			if err != nil {
 				return nil, err
 			}
@@ -1833,7 +1837,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return emails, err
 		},
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIOrgMemberships)
 			if err != nil {
 				return nil, err
 			}
@@ -1846,7 +1850,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return memberships, err
 		},
 		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPITeamMemberships)
 			if err != nil {
 				return nil, err
 			}

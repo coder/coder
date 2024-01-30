@@ -9,6 +9,8 @@ import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import RetryIcon from "@mui/icons-material/BuildOutlined";
 import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
+import Star from "@mui/icons-material/Star";
+import StarBorder from "@mui/icons-material/StarBorder";
 import { type FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { BuildParametersPopover } from "./BuildParametersPopover";
@@ -187,6 +189,27 @@ export const RetryButton: FC<RetryButtonProps> = ({
       onClick={() => handleAction()}
     >
       Retry{debug && " (Debug)"}
+    </TopbarButton>
+  );
+};
+
+interface FavoriteButtonProps {
+  onToggle: (workspaceID: string) => void;
+  workspaceID: string;
+  isFavorite: boolean;
+}
+
+export const FavoriteButton: FC<FavoriteButtonProps> = ({
+  onToggle: onToggle,
+  workspaceID,
+  isFavorite,
+}) => {
+  return (
+    <TopbarButton
+      startIcon={isFavorite ? <Star /> : <StarBorder />}
+      onClick={() => onToggle(workspaceID)}
+    >
+      {isFavorite ? "Unfavorite" : "Favorite"}
     </TopbarButton>
   );
 };

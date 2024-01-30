@@ -56,8 +56,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			if utf8.RuneCountInString(name) >= 32 {
-				return xerrors.Errorf("Template name must be less than 32 characters")
+			if utf8.RuneCountInString(name) > 32 {
+				return xerrors.Errorf("Template name must be no more than 32 characters")
 			}
 
 			var createTemplate bool

@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
 import TextField from "@mui/material/TextField";
 import type {
   ProvisionerJobLog,
@@ -21,14 +20,7 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import {
-  HelpTooltip,
-  HelpTooltipContent,
-  HelpTooltipText,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
 import { IconField } from "components/IconField/IconField";
-import Link from "@mui/material/Link";
 import {
   HorizontalForm,
   FormSection,
@@ -38,23 +30,13 @@ import {
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import { VariableInput } from "./VariableInput";
-import { docs } from "utils/docs";
-import {
-  AutostopRequirementDaysHelperText,
-  AutostopRequirementWeeksHelperText,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
-import MenuItem from "@mui/material/MenuItem";
 import {
   type TemplateAutostartRequirementDaysValue,
   type TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
-import {
-  TemplateScheduleAutostart,
-  sortedDays,
-} from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
+import { sortedDays } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-const MAX_TTL_DAYS = 30;
 
 export interface CreateTemplateData {
   name: string;
@@ -83,23 +65,6 @@ const validationSchema = Yup.object({
     "Please enter a description that is less than or equal to 128 characters.",
   ),
   icon: Yup.string().optional(),
-  default_ttl_hours: Yup.number()
-    .integer()
-    .min(0, "Default time until autostop must not be less than 0.")
-    .max(
-      24 * MAX_TTL_DAYS /* 30 days in hours */,
-      "Please enter a limit that is less than or equal to 720 hours (30 days).",
-    ),
-  max_ttl_hours: Yup.number()
-    .integer()
-    .min(0, "Maximum time until autostop must not be less than 0.")
-    .max(
-      24 * MAX_TTL_DAYS /* 30 days in hours */,
-      "Please enter a limit that is less than or equal to 720 hours (30 days).",
-    ),
-  autostop_requirement_days_of_week: Yup.string().required(),
-  autostop_requirement_weeks: Yup.number().required().min(1).max(16),
-  autostart_requirement_days_of_week: Yup.array().of(Yup.string()).required(),
 });
 
 const defaultInitialValues: CreateTemplateData = {
@@ -207,7 +172,6 @@ export type CreateTemplateFormProps = (
   jobError?: string;
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
-  allowDisableEveryoneAccess: boolean;
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
@@ -220,7 +184,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     jobError,
     logs,
     allowAdvancedScheduling,
-    allowDisableEveryoneAccess,
   } = props;
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
@@ -246,46 +209,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       window.scrollTo(0, document.body.scrollHeight);
     }
   }, [logs, jobError]);
-
-  // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
-  // "daily". Technically you can set weeks to a different value in the backend
-  // and it will work, but this is a UX decision so users don't set days=daily
-  // and weeks=2 and get confused when workspaces only restart daily during
-  // every second week.
-  //
-  // We want to set the value to 1 when the user selects "off" or "daily"
-  // because the input gets disabled so they can't change it to 1 themselves.
-  const {
-    values: { autostop_requirement_days_of_week },
-    setFieldValue,
-  } = form;
-  useEffect(() => {
-    if (!["saturday", "sunday"].includes(autostop_requirement_days_of_week)) {
-      // This is async but we don't really need to await the value.
-      void setFieldValue("autostop_requirement_weeks", 1);
-    }
-  }, [autostop_requirement_days_of_week, setFieldValue]);
-
-  const handleToggleUseMaxTTL = async () => {
-    const val = !form.values.use_max_ttl;
-    if (val) {
-      // set max_ttl to 1, set autostop_requirement to empty
-      await form.setValues({
-        ...form.values,
-        use_max_ttl: val,
-        max_ttl_hours: 1,
-        autostop_requirement_days_of_week: "off",
-        autostop_requirement_weeks: 1,
-      });
-    } else {
-      // set max_ttl to 0
-      await form.setValues({
-        ...form.values,
-        use_max_ttl: val,
-        max_ttl_hours: 0,
-      });
-    }
-  };
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -357,296 +280,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         </FormFields>
       </FormSection>
 
-      {/* Schedule */}
-      <FormSection
-        title="Schedule"
-        description="Define when workspaces created from this template automatically stop."
-      >
-        <FormFields>
-          <Stack direction="row" css={styles.ttlFields}>
-            <TextField
-              {...getFieldHelpers("default_ttl_hours", {
-                helperText: (
-                  <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />
-                ),
-              })}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              fullWidth
-              label="Default autostop (hours)"
-              type="number"
-            />
-          </Stack>
-
-          <Stack direction="row" css={styles.ttlFields}>
-            <TextField
-              {...getFieldHelpers("autostop_requirement_days_of_week", {
-                helperText: (
-                  <AutostopRequirementDaysHelperText
-                    days={form.values.autostop_requirement_days_of_week}
-                  />
-                ),
-              })}
-              disabled={
-                isSubmitting ||
-                form.values.use_max_ttl ||
-                !allowAdvancedScheduling
-              }
-              fullWidth
-              select
-              value={form.values.autostop_requirement_days_of_week}
-              label="Days with required stop"
-            >
-              <MenuItem key="off" value="off">
-                Off
-              </MenuItem>
-              <MenuItem key="daily" value="daily">
-                Daily
-              </MenuItem>
-              <MenuItem key="saturday" value="saturday">
-                Saturday
-              </MenuItem>
-              <MenuItem key="sunday" value="sunday">
-                Sunday
-              </MenuItem>
-            </TextField>
-
-            <TextField
-              {...getFieldHelpers("autostop_requirement_weeks", {
-                helperText: (
-                  <AutostopRequirementWeeksHelperText
-                    days={form.values.autostop_requirement_days_of_week}
-                    weeks={form.values.autostop_requirement_weeks}
-                  />
-                ),
-              })}
-              disabled={
-                isSubmitting ||
-                form.values.use_max_ttl ||
-                !allowAdvancedScheduling ||
-                !["saturday", "sunday"].includes(
-                  form.values.autostop_requirement_days_of_week || "",
-                )
-              }
-              fullWidth
-              inputProps={{ min: 1, max: 16, step: 1 }}
-              label="Weeks between required stops"
-              type="number"
-            />
-          </Stack>
-
-          <Stack direction="column">
-            <Stack direction="row" alignItems="center">
-              <Checkbox
-                id="use_max_ttl"
-                size="small"
-                disabled={isSubmitting || !allowAdvancedScheduling}
-                onChange={handleToggleUseMaxTTL}
-                name="use_max_ttl"
-                checked={form.values.use_max_ttl}
-              />
-              <Stack spacing={0.5}>
-                <strong>
-                  Use a max lifetime instead of a required autostop schedule.
-                </strong>
-                <span css={styles.optionHelperText}>
-                  Use a maximum lifetime for workspaces created from this
-                  template instead of an autostop requirement as configured
-                  above.
-                </span>
-              </Stack>
-            </Stack>
-
-            <TextField
-              {...getFieldHelpers("max_ttl_hours", {
-                helperText: allowAdvancedScheduling ? (
-                  <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
-                ) : (
-                  <>
-                    You need an enterprise license to use it.{" "}
-                    <Link href={docs("/enterprise")}>Learn more</Link>.
-                  </>
-                ),
-              })}
-              disabled={
-                isSubmitting ||
-                !form.values.use_max_ttl ||
-                !allowAdvancedScheduling
-              }
-              fullWidth
-              label="Max lifetime (hours)"
-              type="number"
-            />
-          </Stack>
-
-          <Stack direction="column">
-            <Stack direction="row" alignItems="center">
-              <Checkbox
-                id="allow_user_autostart"
-                size="small"
-                disabled={isSubmitting || !allowAdvancedScheduling}
-                onChange={async () => {
-                  await form.setFieldValue(
-                    "allow_user_autostart",
-                    !form.values.allow_user_autostart,
-                  );
-                }}
-                name="allow_user_autostart"
-                checked={form.values.allow_user_autostart}
-              />
-              <Stack spacing={0.5}>
-                <strong>
-                  Allow users to automatically start workspaces on a schedule.
-                </strong>
-              </Stack>
-            </Stack>
-
-            {allowAdvancedScheduling && (
-              <TemplateScheduleAutostart
-                allow_user_autostart={form.values.allow_user_autostart}
-                autostart_requirement_days_of_week={
-                  form.values.autostart_requirement_days_of_week
-                }
-                isSubmitting={isSubmitting}
-                onChange={async (
-                  newDaysOfWeek: TemplateAutostartRequirementDaysValue[],
-                ) => {
-                  await form.setFieldValue(
-                    "autostart_requirement_days_of_week",
-                    newDaysOfWeek,
-                  );
-                }}
-              />
-            )}
-
-            <Stack direction="row" alignItems="center">
-              <Checkbox
-                id="allow-user-autostop"
-                size="small"
-                disabled={isSubmitting || !allowAdvancedScheduling}
-                onChange={async () => {
-                  await form.setFieldValue(
-                    "allow_user_autostop",
-                    !form.values.allow_user_autostop,
-                  );
-                }}
-                name="allow-user-autostop"
-                checked={form.values.allow_user_autostop}
-              />
-              <Stack spacing={0.5}>
-                <strong>
-                  Allow users to customize autostop duration for workspaces.
-                </strong>
-                <span css={styles.optionHelperText}>
-                  Workspaces will always use the default TTL if this is set.
-                  Regardless of this setting, workspaces will still stop due to
-                  the autostop requirement policy.
-                </span>
-              </Stack>
-            </Stack>
-          </Stack>
-        </FormFields>
-      </FormSection>
-
-      {/* Permissions */}
-      <FormSection
-        title="Permissions"
-        description="Regulate actions allowed on workspaces created from this template."
-      >
-        <Stack direction="column">
-          <FormFields>
-            <label htmlFor="allow_user_cancel_workspace_jobs">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="allow_user_cancel_workspace_jobs"
-                  name="allow_user_cancel_workspace_jobs"
-                  disabled={isSubmitting}
-                  checked={form.values.allow_user_cancel_workspace_jobs}
-                  onChange={form.handleChange}
-                />
-
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    <strong>
-                      Allow users to cancel in-progress workspace jobs
-                    </strong>
-
-                    <HelpTooltip>
-                      <HelpTooltipTrigger size="small" />
-                      <HelpTooltipContent>
-                        <HelpTooltipText>
-                          If checked, users may be able to corrupt their
-                          workspace.
-                        </HelpTooltipText>
-                      </HelpTooltipContent>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Depending on your template, canceling builds may leave
-                    workspaces in an unhealthy state. This option isn&apos;t
-                    recommended for most use cases.
-                  </span>
-                </Stack>
-              </Stack>
-            </label>
-          </FormFields>
-          <FormFields>
-            <label htmlFor="allow_everyone_group_access">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="allow_everyone_group_access"
-                  name="allow_everyone_group_access"
-                  disabled={isSubmitting || !allowDisableEveryoneAccess}
-                  checked={form.values.allow_everyone_group_access}
-                  onChange={form.handleChange}
-                />
-
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    <strong>Allow everyone to use the template</strong>
-
-                    <HelpTooltip>
-                      <HelpTooltipTrigger size="small" />
-                      <HelpTooltipContent>
-                        <HelpTooltipText>
-                          If unchecked, only users with the &apos;template
-                          admin&apos; and &apos;owner&apos; role can use this
-                          template until the permissions are updated. Navigate
-                          to{" "}
-                          <strong>
-                            Templates <MenuPath /> Select a template{" "}
-                            <MenuPath /> Settings <MenuPath />
-                            Permissions
-                          </strong>{" "}
-                          to update permissions.
-                        </HelpTooltipText>
-                      </HelpTooltipContent>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    This setting requires an enterprise license for the&nbsp;
-                    <Link href={docs("/admin/rbac")}>
-                      &apos;Template RBAC&apos;
-                    </Link>{" "}
-                    feature to customize permissions.
-                  </span>
-                </Stack>
-              </Stack>
-            </label>
-          </FormFields>
-        </Stack>
-      </FormSection>
-
       {/* Variables */}
       {variables && variables.length > 0 && (
         <FormSection
@@ -697,10 +330,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   );
 };
 
-const MenuPath = () => {
-  return <span aria-label="in">&gt;</span>;
-};
-
 const fillNameAndDisplayWithFilename = async (
   filename: string,
   form: ReturnType<typeof useFormik<CreateTemplateData>>,
@@ -714,48 +343,6 @@ const fillNameAndDisplayWithFilename = async (
     ),
     form.setFieldValue("display_name", capitalize(name)),
   ]);
-};
-
-const hours = (h: number) => (h === 1 ? "hour" : "hours");
-
-const DefaultTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces will run until stopped manually.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)}. This will be
-      extended by 1 hour after last activity in the workspace was detected.
-    </span>
-  );
-};
-
-const MaxTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces may run indefinitely.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
-      any active connections.
-    </span>
-  );
 };
 
 const styles = {

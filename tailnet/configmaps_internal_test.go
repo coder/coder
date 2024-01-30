@@ -674,12 +674,12 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
-	derpMap := &proto.DERPMap{
-		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
-		Regions: map[int64]*proto.DERPMap_Region{
+	derpMap := &tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{1: 0.025}},
+		Regions: map[int]*tailcfg.DERPRegion{
 			1: {
 				RegionCode: "AUH",
-				Nodes: []*proto.DERPMap_Region_Node{
+				Nodes: []*tailcfg.DERPNode{
 					{Name: "AUH0"},
 				},
 			},
@@ -716,13 +716,22 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	defer uut.close()
 
 	// Given: DERP Map already set
-	derpMap := &proto.DERPMap{
-		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
-		Regions: map[int64]*proto.DERPMap_Region{
+	derpMap := &tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{
+			1:    0.025,
+			1001: 0.111,
+		}},
+		Regions: map[int]*tailcfg.DERPRegion{
 			1: {
 				RegionCode: "AUH",
-				Nodes: []*proto.DERPMap_Region_Node{
+				Nodes: []*tailcfg.DERPNode{
 					{Name: "AUH0"},
+				},
+			},
+			1001: {
+				RegionCode: "DXB",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "DXB0"},
 				},
 			},
 		},
@@ -734,8 +743,27 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	// Then: we don't configure
 	requireNeverConfigures(ctx, t, &uut.phased)
 
-	// When we set the same DERP map
-	uut.setDERPMap(derpMap)
+	// When we set the equivalent DERP map, with different ordering
+	uut.setDERPMap(&tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{
+			1001: 0.111,
+			1:    0.025,
+		}},
+		Regions: map[int]*tailcfg.DERPRegion{
+			1001: {
+				RegionCode: "DXB",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "DXB0"},
+				},
+			},
+			1: {
+				RegionCode: "AUH",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "AUH0"},
+				},
+			},
+		},
+	})
 
 	done := make(chan struct{})
 	go func() {

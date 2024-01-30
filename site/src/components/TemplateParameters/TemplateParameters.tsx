@@ -1,5 +1,5 @@
 import { TemplateVersionParameter } from "api/typesGenerated";
-import { FormSection, FormFields } from "components/Form/Form";
+import { FormFields, FormSection } from "components/Form/Form";
 import {
   RichParameterInput,
   RichParameterInputProps,
@@ -16,9 +16,7 @@ export type TemplateParametersSectionProps = {
   ) => Omit<RichParameterInputProps, "parameter" | "index">;
 } & Pick<ComponentProps<typeof FormSection>, "classes">;
 
-export const MutableTemplateParametersSection: FC<
-  TemplateParametersSectionProps
-> = ({
+export const TemplateParametersSection: FC<TemplateParametersSectionProps> = ({
   templateParameters,
   getInputProps,
   autofillSources,
@@ -46,43 +44,6 @@ export const MutableTemplateParametersSection: FC<
                     autofillSource={
                       autofillSources && autofillSources[parameter.name]
                     }
-                  />
-                ),
-            )}
-          </FormFields>
-        </FormSection>
-      )}
-    </>
-  );
-};
-
-export const ImmutableTemplateParametersSection: FC<
-  TemplateParametersSectionProps
-> = ({ templateParameters, getInputProps, ...formSectionProps }) => {
-  const hasImmutableParameters =
-    templateParameters.filter((p) => !p.mutable).length > 0;
-
-  return (
-    <>
-      {hasImmutableParameters && (
-        <FormSection
-          {...formSectionProps}
-          title="Immutable parameters"
-          description={
-            <>
-              These settings <strong>cannot be changed</strong> after creating
-              the workspace.
-            </>
-          }
-        >
-          <FormFields>
-            {templateParameters.map(
-              (parameter, index) =>
-                !parameter.mutable && (
-                  <RichParameterInput
-                    {...getInputProps(parameter, index)}
-                    key={parameter.name}
-                    parameter={parameter}
                   />
                 ),
             )}

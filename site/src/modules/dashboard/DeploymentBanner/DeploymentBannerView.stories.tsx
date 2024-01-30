@@ -6,7 +6,7 @@ import {
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const meta: Meta<typeof DeploymentBannerView> = {
-  title: "components/DeploymentBannerView",
+  title: "modules/dashboard/DeploymentBannerView",
   component: DeploymentBannerView,
   args: {
     stats: MockDeploymentStats,
