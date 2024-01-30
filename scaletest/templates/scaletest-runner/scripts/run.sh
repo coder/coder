@@ -323,7 +323,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		pid_to_scenario+=(["${pids[-1]}"]="${scenario}")
 		# Stagger the start of each scenario to avoid a burst of load and deted
 		# problematic scenarios.
-		sleep $((SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGERING * 60))
+		sleep $((SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGER_DELAY_MINS * 60))
 		continue
 	fi
 

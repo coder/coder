@@ -269,9 +269,9 @@ data "coder_parameter" "load_scenario_run_concurrently" {
   mutable     = true
 }
 
-data "coder_parameter" "load_scenario_concurrency_staggering" {
+data "coder_parameter" "load_scenario_concurrency_stagger_delay_mins" {
   order       = 25
-  name        = "Load Scenario Concurrency Staggering"
+  name        = "Load Scenario Concurrency Stagger Delay"
   type        = "number"
   default     = 3
   description = "The number of minutes to wait between starting each load scenario when run concurrently."
@@ -596,7 +596,7 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_CLEANUP_PREPARE : data.coder_parameter.cleanup_prepare.value ? "1" : "0",
     SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
     SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY : data.coder_parameter.load_scenario_run_concurrently.value ? "1" : "0",
-    SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGERING : "${data.coder_parameter.load_scenario_concurrency_staggering.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGER_DELAY_MINS : "${data.coder_parameter.load_scenario_concurrency_stagger_delay_mins.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_ssh_bytes_per_tick.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_ssh_tick_interval.value}",
