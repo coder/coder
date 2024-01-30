@@ -23,7 +23,7 @@ import (
 func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-	var req codersdk.UpdatePortSharingLevelRequest
+	var req codersdk.UpdateWorkspaceAgentPortSharingLevelRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -58,6 +58,8 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+
+		if (req.ShareLevel == codersdk.Shar)
 
 		err = api.Database.CreateWorkspacePortShareLevel(ctx, database.CreateWorkspacePortShareLevelParams{
 			WorkspaceID: workspace.ID,
