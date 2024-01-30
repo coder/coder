@@ -151,7 +151,7 @@ export default {
       text: colors.sky[50],
       fill: {
         solid: colors.sky[600],
-        outline: colors.sky[600],
+        outline: colors.sky[400],
         text: colors.white,
       },
       disabled: {
