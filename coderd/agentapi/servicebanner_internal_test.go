@@ -5,12 +5,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGetServiceBanner(t *testing.T) {
