@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 type ServiceBannerAPI struct {
@@ -19,5 +20,5 @@ func (a *ServiceBannerAPI) GetServiceBanner(ctx context.Context, _ *proto.GetSer
 	if err != nil {
 		return nil, xerrors.Errorf("fetch appearance: %w", err)
 	}
-	return proto.ServiceBannerFromSDK(cfg.ServiceBanner), nil
+	return agentsdk.ProtoFromServiceBanner(cfg.ServiceBanner), nil
 }

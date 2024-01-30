@@ -179,60 +179,16 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
-	apps, err := agentproto.SDKAppsFromProto(manifest.Apps)
+	sdkManifest, err := agentsdk.ManifestFromProto(manifest)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent apps.",
+			Message: "Internal error converting manifest.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	scripts, err := agentproto.SDKAgentScriptsFromProto(manifest.Scripts)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent scripts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	agentID, err := uuid.FromBytes(manifest.AgentId)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspaceID, err := uuid.FromBytes(manifest.WorkspaceId)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
-		AgentID:                  agentID,
-		AgentName:                manifest.AgentName,
-		OwnerName:                manifest.OwnerUsername,
-		WorkspaceID:              workspaceID,
-		WorkspaceName:            manifest.WorkspaceName,
-		Apps:                     apps,
-		Scripts:                  scripts,
-		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
-		DERPForceWebSockets:      manifest.DerpForceWebsockets,
-		GitAuthConfigs:           int(manifest.GitAuthConfigs),
-		EnvironmentVariables:     manifest.EnvironmentVariables,
-		Directory:                manifest.Directory,
-		VSCodePortProxyURI:       manifest.VsCodePortProxyUri,
-		MOTDFile:                 manifest.MotdPath,
-		DisableDirectConnections: manifest.DisableDirectConnections,
-		Metadata:                 agentproto.SDKAgentMetadataDescriptionsFromProto(manifest.Metadata),
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, sdkManifest)
 }
 
 const AgentAPIVersionREST = "1.0"
