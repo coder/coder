@@ -1481,6 +1481,7 @@ export interface Workspace {
   readonly updated_at: string;
   readonly owner_id: string;
   readonly owner_name: string;
+  readonly owner_avatar_url: string;
   readonly organization_id: string;
   readonly template_id: string;
   readonly template_name: string;
@@ -1635,6 +1636,7 @@ export interface WorkspaceBuild {
   readonly workspace_name: string;
   readonly workspace_owner_id: string;
   readonly workspace_owner_name: string;
+  readonly workspace_owner_avatar_url: string;
   readonly template_version_id: string;
   readonly template_version_name: string;
   readonly build_number: number;

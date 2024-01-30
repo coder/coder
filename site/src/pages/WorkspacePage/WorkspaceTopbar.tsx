@@ -2,7 +2,6 @@ import Tooltip from "@mui/material/Tooltip";
 import Link from "@mui/material/Link";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import PersonOutline from "@mui/icons-material/PersonOutline";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { useTheme } from "@emotion/react";
@@ -33,6 +32,7 @@ import { ExternalAvatar } from "components/Avatar/Avatar";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspacePermissions } from "./permissions";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -130,9 +130,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
         }}
       >
         <TopbarData>
-          <TopbarIcon>
-            <PersonOutline />
-          </TopbarIcon>
+          <UserAvatar
+            size="xs"
+            username={workspace.owner_name}
+            avatarURL={workspace.owner_avatar_url}
+          />
           <Tooltip title="Owner">
             <span>{workspace.owner_name}</span>
           </Tooltip>

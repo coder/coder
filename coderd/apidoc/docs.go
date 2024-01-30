@@ -12079,6 +12079,9 @@ const docTemplate = `{
                 "outdated": {
                     "type": "boolean"
                 },
+                "owner_avatar_url": {
+                    "type": "string"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -12654,6 +12657,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_avatar_url": {
                     "type": "string"
                 },
                 "workspace_owner_id": {
