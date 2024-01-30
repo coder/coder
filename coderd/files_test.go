@@ -9,8 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -72,7 +74,7 @@ func TestDownload(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("Insert", func(t *testing.T) {
+	t.Run("InsertTar_DownloadTar", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -86,5 +88,29 @@ func TestDownload(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, data, 1024)
 		require.Equal(t, codersdk.ContentTypeTar, contentType)
+	})
+
+	t.Run("InsertZip_DownloadTar", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		tarball, err := echo.Tar(&echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, err)
+		zipContent, err := coderd.CreateZipFromTar(tarball)
+		require.NoError(t, err)
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipContent))
+		require.NoError(t, err)
+		data, contentType, err := client.Download(ctx, resp.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ContentTypeTar, contentType)
+		require.Len(t, data, 1024) // FIXME compare output
 	})
 }

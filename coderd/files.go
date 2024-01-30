@@ -71,7 +71,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data, err = createTarFromZip(zipReader)
+		data, err = CreateTarFromZip(zipReader)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error processing .zip archive.",

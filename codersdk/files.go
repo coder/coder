@@ -12,6 +12,7 @@ import (
 
 const (
 	ContentTypeTar = "application/x-tar"
+	ContentTypeZip = "application/zip"
 )
 
 // UploadResponse contains the hash to reference the uploaded file.

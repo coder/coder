@@ -10,7 +10,7 @@ import (
 
 const zipCopyBufferSize = 4096
 
-func createTarFromZip(zipReader *zip.Reader) ([]byte, error) {
+func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
 	var tarBuffer bytes.Buffer
 
 	tarWriter := tar.NewWriter(&tarBuffer)
@@ -53,4 +53,8 @@ func processFileInZipArchive(zipFile *zip.File, tarWriter *tar.Writer) error {
 		}
 	}
 	return nil
+}
+
+func CreateZipFromTar(tarball []byte) ([]byte, error) {
+	panic("not implemented yet")
 }
