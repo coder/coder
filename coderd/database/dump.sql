@@ -1302,10 +1302,7 @@ ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY jfrog_xray_scans
-    ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id);
-
-ALTER TABLE ONLY jfrog_xray_scans
-    ADD CONSTRAINT jfrog_xray_scans_workspace_id_agent_id UNIQUE (agent_id, workspace_id);
+    ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
