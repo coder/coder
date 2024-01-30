@@ -157,34 +157,25 @@ func TestServiceBanners(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(r.AgentToken)
-		banner, err := agentClient.GetServiceBanner(ctx)
-		require.NoError(t, err)
-		require.Equal(t, cfg.ServiceBanner, banner)
-		banner = requireGetServiceBannerV2(ctx, t, agentClient)
+		banner := requireGetServiceBanner(ctx, t, agentClient)
 		require.Equal(t, cfg.ServiceBanner, banner)
 
 		// Create an AGPL Coderd against the same database
 		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
 		agplAgentClient := agentsdk.New(agplClient.URL)
 		agplAgentClient.SetSessionToken(r.AgentToken)
-		banner, err = agplAgentClient.GetServiceBanner(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
-		banner = requireGetServiceBannerV2(ctx, t, agplAgentClient)
+		banner = requireGetServiceBanner(ctx, t, agplAgentClient)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 
 		// No license means no banner.
 		err = client.DeleteLicense(ctx, lic.ID)
 		require.NoError(t, err)
-		banner, err = agentClient.GetServiceBanner(ctx)
-		require.NoError(t, err)
-		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
-		banner = requireGetServiceBannerV2(ctx, t, agentClient)
+		banner = requireGetServiceBanner(ctx, t, agentClient)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 	})
 }
 
-func requireGetServiceBannerV2(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
+func requireGetServiceBanner(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
 	cc, err := client.Listen(ctx)
 	require.NoError(t, err)
 	defer func() {

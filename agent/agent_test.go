@@ -35,6 +35,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/valyala/fasthttp/fasthttputil"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
@@ -2026,7 +2027,10 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := slogtest.Make(t, &slogtest.Options{
+		// we get this error when closing the Agent API
+		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs, fasthttputil.ErrInmemoryListenerClosed),
+	}).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}

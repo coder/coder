@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
@@ -95,7 +96,6 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
-	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
@@ -269,7 +269,6 @@ func (a *agent) init(ctx context.Context) {
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
-	go a.fetchServiceBannerLoop(ctx)
 	go a.manageProcessPriorityLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
@@ -662,22 +661,23 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
-func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
+func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient) error {
 	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-ticker.C:
-			serviceBanner, err := a.client.GetServiceBanner(ctx)
+			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
 			if err != nil {
 				if ctx.Err() != nil {
-					return
+					return ctx.Err()
 				}
 				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
-				continue
+				return err
 			}
+			serviceBanner := proto.SDKServiceBannerFromProto(sbp)
 			a.serviceBanner.Store(&serviceBanner)
 		}
 	}
@@ -693,10 +693,24 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	serviceBanner, err := a.client.GetServiceBanner(ctx)
+	// Listen returns the dRPC connection we use for the Agent v2+ API
+	conn, err := a.client.Listen(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cErr := conn.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
+		}
+	}()
+
+	aAPI := proto.NewDRPCAgentClient(conn)
+	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
 	if err != nil {
 		return xerrors.Errorf("fetch service banner: %w", err)
 	}
+	serviceBanner := proto.SDKServiceBannerFromProto(sbp)
 	a.serviceBanner.Store(&serviceBanner)
 
 	manifest, err := a.client.Manifest(ctx)
@@ -821,18 +835,6 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
-	// Listen returns the dRPC connection we use for both Coordinator and DERPMap updates
-	conn, err := a.client.Listen(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		cErr := conn.Close()
-		if cErr != nil {
-			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
-		}
-	}()
-
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running tailnet connection coordinator")
@@ -848,6 +850,15 @@ func (a *agent) run(ctx context.Context) error {
 		err := a.runDERPMapSubscriber(egCtx, conn, network)
 		if err != nil {
 			return xerrors.Errorf("run derp map subscriber: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running fetch server banner loop")
+		err := a.fetchServiceBannerLoop(egCtx, aAPI)
+		if err != nil {
+			return xerrors.Errorf("fetch server banner loop: %w", err)
 		}
 		return nil
 	})

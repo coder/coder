@@ -83,7 +83,8 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		ctx := inv.Context()
 		clitest.Start(t, inv)
-		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithVersion).Wait()
 		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
@@ -120,7 +121,9 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 		ctx := inv.Context()
-		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithVersion).
+			Wait()
 		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
@@ -161,7 +164,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		)
 
 		ctx := inv.Context()
-		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithVersion).
+			Wait()
 		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		resources := workspace.LatestBuild.Resources
@@ -212,7 +217,8 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithSubsystems).Wait()
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
 		require.Len(t, resources[0].Agents[0].Subsystems, 2)
@@ -220,4 +226,30 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystems[0])
 		require.Equal(t, codersdk.AgentSubsystemExectrace, resources[0].Agents[0].Subsystems[1])
 	})
+}
+
+func matchAgentWithVersion(rs []codersdk.WorkspaceResource) bool {
+	if len(rs) < 1 {
+		return false
+	}
+	if len(rs[0].Agents) < 1 {
+		return false
+	}
+	if rs[0].Agents[0].Version == "" {
+		return false
+	}
+	return true
+}
+
+func matchAgentWithSubsystems(rs []codersdk.WorkspaceResource) bool {
+	if len(rs) < 1 {
+		return false
+	}
+	if len(rs[0].Agents) < 1 {
+		return false
+	}
+	if len(rs[0].Agents[0].Subsystems) < 1 {
+		return false
+	}
+	return true
 }

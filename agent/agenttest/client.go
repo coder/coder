@@ -18,6 +18,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
@@ -48,6 +49,9 @@ func NewClient(t testing.TB,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	require.NoError(t, err)
+	fakeAAPI := NewFakeAgentAPI(t, logger)
+	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
+	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {
@@ -64,22 +68,23 @@ func NewClient(t testing.TB,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
 		server:         server,
+		fakeAgentAPI:   fakeAAPI,
 		derpMapUpdates: derpMapUpdates,
 	}
 }
 
 type Client struct {
-	t                    testing.TB
-	logger               slog.Logger
-	agentID              uuid.UUID
-	manifest             agentsdk.Manifest
-	metadata             map[string]agentsdk.Metadata
-	statsChan            chan *agentsdk.Stats
-	coordinator          tailnet.Coordinator
-	server               *drpcserver.Server
-	LastWorkspaceAgent   func()
-	PatchWorkspaceLogs   func() error
-	GetServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
+	t                  testing.TB
+	logger             slog.Logger
+	agentID            uuid.UUID
+	manifest           agentsdk.Manifest
+	metadata           map[string]agentsdk.Metadata
+	statsChan          chan *agentsdk.Stats
+	coordinator        tailnet.Coordinator
+	server             *drpcserver.Server
+	fakeAgentAPI       *FakeAgentAPI
+	LastWorkspaceAgent func()
+	PatchWorkspaceLogs func() error
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
@@ -221,20 +226,7 @@ func (c *Client) PatchLogs(ctx context.Context, logs agentsdk.PatchLogs) error {
 }
 
 func (c *Client) SetServiceBannerFunc(f func() (codersdk.ServiceBannerConfig, error)) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.GetServiceBannerFunc = f
-}
-
-func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.logger.Debug(ctx, "get service banner")
-	if c.GetServiceBannerFunc != nil {
-		return c.GetServiceBannerFunc()
-	}
-	return codersdk.ServiceBannerConfig{}, nil
+	c.fakeAgentAPI.SetServiceBannerFunc(f)
 }
 
 func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
@@ -253,4 +245,74 @@ type closeFunc func() error
 
 func (c closeFunc) Close() error {
 	return c()
+}
+
+type FakeAgentAPI struct {
+	sync.Mutex
+	t      testing.TB
+	logger slog.Logger
+
+	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
+}
+
+func (*FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *FakeAgentAPI) SetServiceBannerFunc(fn func() (codersdk.ServiceBannerConfig, error)) {
+	f.Lock()
+	defer f.Unlock()
+	f.getServiceBannerFunc = fn
+	f.logger.Info(context.Background(), "updated ServiceBannerFunc")
+}
+
+func (f *FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
+	f.Lock()
+	defer f.Unlock()
+	if f.getServiceBannerFunc == nil {
+		return &agentproto.ServiceBanner{}, nil
+	}
+	sb, err := f.getServiceBannerFunc()
+	if err != nil {
+		return nil, err
+	}
+	return agentproto.ServiceBannerFromSDK(sb), nil
+}
+
+func (*FakeAgentAPI) UpdateStats(context.Context, *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*FakeAgentAPI) BatchUpdateAppHealths(context.Context, *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*FakeAgentAPI) UpdateStartup(context.Context, *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*FakeAgentAPI) BatchUpdateMetadata(context.Context, *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func NewFakeAgentAPI(t testing.TB, logger slog.Logger) *FakeAgentAPI {
+	return &FakeAgentAPI{
+		t:      t,
+		logger: logger.Named("FakeAgentAPI"),
+	}
 }

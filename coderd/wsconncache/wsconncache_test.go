@@ -29,6 +29,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/wsconncache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -171,13 +173,12 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = coordinator.Close()
 	})
 	manifest.AgentID = uuid.New()
-	aC := &client{
-		t:              t,
-		agentID:        manifest.AgentID,
-		manifest:       manifest,
-		coordinator:    coordinator,
-		derpMapUpdates: make(chan *tailcfg.DERPMap),
-	}
+	aC := newClient(
+		t,
+		slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		manifest,
+		coordinator,
+	)
 	t.Cleanup(aC.close)
 	closer := agent.New(agent.Options{
 		Client:                 aC,
@@ -239,6 +240,45 @@ type client struct {
 	coordinator    tailnet.Coordinator
 	closeOnce      sync.Once
 	derpMapUpdates chan *tailcfg.DERPMap
+	server         *drpcserver.Server
+	fakeAgentAPI   *agenttest.FakeAgentAPI
+}
+
+func newClient(t *testing.T, logger slog.Logger, manifest agentsdk.Manifest, coordinator tailnet.Coordinator) *client {
+	logger = logger.Named("drpc")
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coordinator)
+	mux := drpcmux.New()
+	derpMapUpdates := make(chan *tailcfg.DERPMap)
+	drpcService := &tailnet.DRPCService{
+		CoordPtr:               &coordPtr,
+		Logger:                 logger,
+		DerpMapUpdateFrequency: time.Microsecond,
+		DerpMapFn:              func() *tailcfg.DERPMap { return <-derpMapUpdates },
+	}
+	err := proto.DRPCRegisterTailnet(mux, drpcService)
+	require.NoError(t, err)
+	fakeAAPI := agenttest.NewFakeAgentAPI(t, logger)
+	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
+	require.NoError(t, err)
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+		},
+	})
+
+	return &client{
+		t:              t,
+		agentID:        manifest.AgentID,
+		manifest:       manifest,
+		coordinator:    coordinator,
+		derpMapUpdates: derpMapUpdates,
+		server:         server,
+		fakeAgentAPI:   fakeAAPI,
+	}
 }
 
 func (c *client) close() {
@@ -250,35 +290,12 @@ func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 }
 
 func (c *client) Listen(_ context.Context) (drpc.Conn, error) {
-	logger := slogtest.Make(c.t, nil).Leveled(slog.LevelDebug).Named("drpc")
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.t.Cleanup(func() {
 		_ = conn.Close()
 		_ = lis.Close()
 	})
-	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
-	coordPtr.Store(&c.coordinator)
-	mux := drpcmux.New()
-	drpcService := &tailnet.DRPCService{
-		CoordPtr:               &coordPtr,
-		Logger:                 logger,
-		DerpMapUpdateFrequency: time.Microsecond,
-		DerpMapFn:              func() *tailcfg.DERPMap { return <-c.derpMapUpdates },
-	}
-	err := proto.DRPCRegisterTailnet(mux, drpcService)
-	if err != nil {
-		return nil, xerrors.Errorf("register DRPC service: %w", err)
-	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
-		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) {
-				return
-			}
-			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
-		},
-	})
+
 	serveCtx, cancel := context.WithCancel(context.Background())
 	c.t.Cleanup(cancel)
 	auth := tailnet.AgentTunnelAuth{}
@@ -289,7 +306,7 @@ func (c *client) Listen(_ context.Context) (drpc.Conn, error) {
 	}
 	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
-		server.Serve(serveCtx, lis)
+		c.server.Serve(serveCtx, lis)
 	}()
 	return conn, nil
 }
@@ -316,8 +333,4 @@ func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) err
 
 func (*client) PatchLogs(_ context.Context, _ agentsdk.PatchLogs) error {
 	return nil
-}
-
-func (*client) GetServiceBanner(_ context.Context) (codersdk.ServiceBannerConfig, error) {
-	return codersdk.ServiceBannerConfig{}, nil
 }
