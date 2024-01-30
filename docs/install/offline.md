@@ -232,7 +232,8 @@ accessible for your team to use.
 
 ## Coder Modules
 
-To Use Coder modules in offline installations please follow the instrcutiosn [here](../templates/modules.md#offline-installations).
+To Use Coder modules in offline installations please follow the instrcutiosn
+[here](../templates/modules.md#offline-installations).
 
 ## Firewall exceptions
 

@@ -37,20 +37,25 @@ in the Terraform documentation.
 
 ## Coder modules
 
-Coder publishes plenty of modules that can be used to simlify some common tasks across templates. Some of the modules we publish are,
+Coder publishes plenty of modules that can be used to simlify some common tasks
+across templates. Some of the modules we publish are,
 
-1. [`code-server`](https://registry.coder.com/modules/code-server) and [`vscode-web`](https://registry.coder.com/modules/vscode-web)
+1. [`code-server`](https://registry.coder.com/modules/code-server) and
+   [`vscode-web`](https://registry.coder.com/modules/vscode-web)
 2. [`git-clone`](https://registry.coder.com/modules/git-clone)
 3. [`dotfiles`](https://registry.coder.com/modules/dotfiles)
 4. [`jetbrains-gateway`](https://registry.coder.com/modules/jetbrains-gateway)
-5. [`jfrog-oauth`](https://registry.coder.com/modules/jfrog-oauth) and [`jfrog-token`](https://registry.coder.com/modules/jfrog-token)
+5. [`jfrog-oauth`](https://registry.coder.com/modules/jfrog-oauth) and
+   [`jfrog-token`](https://registry.coder.com/modules/jfrog-token)
 6. [`vault-github`](https://registry.coder.com/modules/vault-github)
 
-For a full list of available modules please check [Coder module regsitry](https://registry.coder.com/modules).
+For a full list of available modules please check
+[Coder module regsitry](https://registry.coder.com/modules).
 
 ## Offline installations
 
 In offline and restricted deploymnets, there are 2 ways to fetch modules.
+
 1. Artifactory
 2. Private git repository
 
@@ -106,9 +111,9 @@ Based on the instructions
 
 #### Example template
 
-We have an example template
-[here](../../examples/jfrog/remote/main.tf) that uses
-our [JFrog Docker](../../examples/jfrog/docker/main.tf) template as the underlying module.
+We have an example template [here](../../examples/jfrog/remote/main.tf) that
+uses our [JFrog Docker](../../examples/jfrog/docker/main.tf) template as the
+underlying module.
 
 ### Private git repository
 
