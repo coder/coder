@@ -1017,7 +1017,13 @@ func v1ReqLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logge
 }
 
 func v1RespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q Queue, resps <-chan *proto.CoordinateResponse) {
-	defer cancel()
+	defer func() {
+		cErr := q.Close()
+		if cErr != nil {
+			logger.Info(ctx, "error closing response Queue", slog.Error(cErr))
+		}
+		cancel()
+	}()
 	for {
 		resp, err := RecvCtx(ctx, resps)
 		if err != nil {
