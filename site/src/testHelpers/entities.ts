@@ -1014,7 +1014,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
   owner_name: MockUser.username,
-  owner_avatar_url: "",
+  owner_avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
