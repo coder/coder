@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
 	"testing"
@@ -10,9 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 )
 
@@ -100,18 +105,25 @@ func Test_checkVersions(t *testing.T) {
 
 		var (
 			expectedUpgradeMessage = "My custom upgrade message"
-			dv                     = coderdtest.DeploymentValues(t)
 		)
-		dv.CLIUpgradeMessage = clibase.String(expectedUpgradeMessage)
 
-		ownerClient := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues: dv,
-		})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
+				ExternalURL: buildinfo.ExternalURL(),
+				// Provide a version that will not match
+				Version:         "v1.0.0",
+				AgentAPIVersion: coderd.AgentAPIVersionREST,
+				// does not matter what the url is
+				DashboardURL:   "https://example.com",
+				WorkspaceProxy: false,
+				UpgradeMessage: expectedUpgradeMessage,
+			})
+		}))
+		defer srv.Close()
+		surl, err := url.Parse(srv.URL)
+		require.NoError(t, err)
 
-		// Create an unprivileged user to ensure the message can be printed
-		// to any Coder user.
-		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		client := codersdk.New(surl)
 
 		r := &RootCmd{}
 
@@ -122,10 +134,11 @@ func Test_checkVersions(t *testing.T) {
 		inv := cmd.Invoke()
 		inv.Stderr = &buf
 
-		err = r.checkVersions(inv, memberClient, true)
+		err = r.checkVersions(inv, client, "v2.0.0")
 		require.NoError(t, err)
 
-		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, expectedUpgradeMessage))
+		fmtOutput := fmt.Sprintf("version mismatch: client v2.0.0, server 1.0.0\n%s", expectedUpgradeMessage)
+		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
 	})
 }

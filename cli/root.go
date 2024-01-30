@@ -602,7 +602,7 @@ func (r *RootCmd) PrintWarnings(client *codersdk.Client) clibase.MiddlewareFunc 
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(inv, client, false)
+				versionErr <- r.checkVersions(inv, client, buildinfo.Version())
 				close(versionErr)
 			}()
 
@@ -817,7 +817,7 @@ func formatExamples(examples ...example) string {
 // is detected. forceCheck is a test flag and should always be false in production.
 //
 //nolint:revive
-func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, forceCheck bool) error {
+func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, clientVersion string) error {
 	if r.noVersionCheck {
 		return nil
 	}
@@ -825,8 +825,7 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, 
 	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
-	clientVersion := buildinfo.Version()
-	info, err := client.BuildInfo(ctx)
+	serverInfo, err := client.BuildInfo(ctx)
 	// Avoid printing errors that are connection-related.
 	if isConnectionError(err) {
 		return nil
@@ -835,12 +834,11 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, 
 		return xerrors.Errorf("build info: %w", err)
 	}
 
-	fmtWarningText := "version mismatch: client %s, server %s\n%s"
+	if !buildinfo.VersionsMatch(clientVersion, serverInfo.Version) {
+		fmtWarningText := "version mismatch: client %s, server %s\n%s"
+		fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
+		warning := fmt.Sprintf(fmtWarn, clientVersion, strings.TrimPrefix(serverInfo.CanonicalVersion(), "v"), serverInfo.UpgradeMessage)
 
-	fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
-	warning := fmt.Sprintf(fmtWarn, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"), info.UpgradeMessage)
-
-	if !buildinfo.VersionsMatch(clientVersion, info.Version) || forceCheck {
 		_, _ = fmt.Fprint(i.Stderr, warning)
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
