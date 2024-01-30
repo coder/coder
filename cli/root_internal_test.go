@@ -173,7 +173,7 @@ func Test_checkVersions(t *testing.T) {
 		err = r.checkVersions(inv, client, "v2.0.0")
 		require.NoError(t, err)
 
-		fmtOutput := fmt.Sprintf("version mismatch: client v2.0.0, server v1.0.0\n%s", defaultUpgradeMessage("1.0.0"))
+		fmtOutput := fmt.Sprintf("version mismatch: client v2.0.0, server v1.0.0\n%s", defaultUpgradeMessage("v1.0.0"))
 		expectedOutput := fmt.Sprintln(pretty.Sprint(cliui.DefaultStyles.Warn, fmtOutput))
 		require.Equal(t, expectedOutput, buf.String())
 	})
