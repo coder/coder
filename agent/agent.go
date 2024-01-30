@@ -88,7 +88,7 @@ type Options struct {
 }
 
 type Client interface {
-	Listen(ctx context.Context) (drpc.Conn, error)
+	ConnectRPC(ctx context.Context) (drpc.Conn, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
@@ -691,8 +691,8 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	// Listen returns the dRPC connection we use for the Agent v2+ API
-	conn, err := a.client.Listen(ctx)
+	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
+	conn, err := a.client.ConnectRPC(ctx)
 	if err != nil {
 		return err
 	}

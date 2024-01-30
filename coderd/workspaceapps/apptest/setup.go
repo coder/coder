@@ -398,7 +398,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
-		rpcConn, err := agentClient.Listen(appHostCtx)
+		rpcConn, err := agentClient.ConnectRPC(appHostCtx)
 		require.NoError(t, err)
 		aAPI := agentproto.NewDRPCAgentClient(rpcConn)
 		manifest, err := aAPI.GetManifest(appHostCtx, &agentproto.GetManifestRequest{})
