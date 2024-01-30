@@ -2438,6 +2438,75 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
+const getJFrogXrayScanByWorkspaceAndAgentID = `-- name: GetJFrogXrayScanByWorkspaceAndAgentID :one
+SELECT
+	agent_id, workspace_id, critical, high, medium, results_url
+FROM
+	jfrog_xray_scans
+WHERE
+	agent_id = $1
+AND
+	workspace_id = $2
+LIMIT
+	1
+`
+
+type GetJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error) {
+	row := q.db.QueryRowContext(ctx, getJFrogXrayScanByWorkspaceAndAgentID, arg.AgentID, arg.WorkspaceID)
+	var i JfrogXrayScan
+	err := row.Scan(
+		&i.AgentID,
+		&i.WorkspaceID,
+		&i.Critical,
+		&i.High,
+		&i.Medium,
+		&i.ResultsUrl,
+	)
+	return i, err
+}
+
+const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
+INSERT INTO 
+	jfrog_xray_scans (
+		agent_id,
+		workspace_id,
+		critical,
+		high,
+		medium,
+		results_url
+	)
+VALUES 
+	($1, $2, $3, $4, $5, $6)
+ON CONFLICT (agent_id, workspace_id)
+DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
+`
+
+type UpsertJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Critical    int32     `db:"critical" json:"critical"`
+	High        int32     `db:"high" json:"high"`
+	Medium      int32     `db:"medium" json:"medium"`
+	ResultsUrl  string    `db:"results_url" json:"results_url"`
+}
+
+func (q *sqlQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	_, err := q.db.ExecContext(ctx, upsertJFrogXrayScanByWorkspaceAndAgentID,
+		arg.AgentID,
+		arg.WorkspaceID,
+		arg.Critical,
+		arg.High,
+		arg.Medium,
+		arg.ResultsUrl,
+	)
+	return err
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses

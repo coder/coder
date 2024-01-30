@@ -545,6 +545,13 @@ func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time
 	return jobs, err
 }
 
+func (m metricsStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetJFrogXrayScanByWorkspaceAndAgentID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	start := time.Now()
 	version, err := m.s.GetLastUpdateCheck(ctx)
@@ -2024,6 +2031,13 @@ func (m metricsStore) UpsertHealthSettings(ctx context.Context, value string) er
 	start := time.Now()
 	r0 := m.s.UpsertHealthSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertJFrogXrayScanByWorkspaceAndAgentID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

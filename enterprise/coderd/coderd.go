@@ -348,6 +348,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				})
 			})
 		})
+		r.Route("/integrations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.jfrogEnabledMW,
+			)
+
+			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
+			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
