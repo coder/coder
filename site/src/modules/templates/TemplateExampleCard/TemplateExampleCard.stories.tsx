@@ -7,7 +7,7 @@ import {
 import { TemplateExampleCard } from "./TemplateExampleCard";
 
 const meta: Meta<typeof TemplateExampleCard> = {
-  title: "components/TemplateExampleCard",
+  title: "modules/templates/TemplateExampleCard",
   parameters: { chromatic },
   component: TemplateExampleCard,
   args: {
