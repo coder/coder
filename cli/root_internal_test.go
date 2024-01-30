@@ -103,9 +103,7 @@ func Test_checkVersions(t *testing.T) {
 	t.Run("CustomUpgradeMessage", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			expectedUpgradeMessage = "My custom upgrade message"
-		)
+		expectedUpgradeMessage := "My custom upgrade message"
 
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
