@@ -1435,6 +1435,12 @@ export interface UserLoginType {
   readonly login_type: LoginType;
 }
 
+// From codersdk/users.go
+export interface UserParameter {
+  readonly name: string;
+  readonly value: string;
+}
+
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;
@@ -2011,6 +2017,7 @@ export type RBACResource =
   | "template_insights"
   | "user"
   | "user_data"
+  | "user_workspace_build_parameters"
   | "workspace"
   | "workspace_execution"
   | "workspace_proxy";
@@ -2035,6 +2042,7 @@ export const RBACResources: RBACResource[] = [
   "template_insights",
   "user",
   "user_data",
+  "user_workspace_build_parameters",
   "workspace",
   "workspace_execution",
   "workspace_proxy",

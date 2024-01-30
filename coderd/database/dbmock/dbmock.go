@@ -2104,6 +2104,21 @@ func (mr *MockStoreMockRecorder) GetUserLinksByUserID(arg0, arg1 any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetUserLinksByUserID), arg0, arg1)
 }
 
+// GetUserWorkspaceBuildParameters mocks base method.
+func (m *MockStore) GetUserWorkspaceBuildParameters(arg0 context.Context, arg1 database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserWorkspaceBuildParameters", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserWorkspaceBuildParametersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserWorkspaceBuildParameters indicates an expected call of GetUserWorkspaceBuildParameters.
+func (mr *MockStoreMockRecorder) GetUserWorkspaceBuildParameters(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetUserWorkspaceBuildParameters), arg0, arg1)
+}
+
 // GetUsers mocks base method.
 func (m *MockStore) GetUsers(arg0 context.Context, arg1 database.GetUsersParams) ([]database.GetUsersRow, error) {
 	m.ctrl.T.Helper()

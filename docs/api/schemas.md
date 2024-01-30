@@ -4213,31 +4213,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                 |
-| --------------------- |
-| `workspace`           |
-| `workspace_proxy`     |
-| `workspace_execution` |
-| `application_connect` |
-| `audit_log`           |
-| `template`            |
-| `group`               |
-| `file`                |
-| `provisioner_daemon`  |
-| `organization`        |
-| `assign_role`         |
-| `assign_org_role`     |
-| `api_key`             |
-| `user`                |
-| `user_data`           |
-| `organization_member` |
-| `license`             |
-| `deployment_config`   |
-| `deployment_stats`    |
-| `replicas`            |
-| `debug_info`          |
-| `system`              |
-| `template_insights`   |
+| Value                             |
+| --------------------------------- |
+| `workspace`                       |
+| `workspace_proxy`                 |
+| `workspace_execution`             |
+| `application_connect`             |
+| `audit_log`                       |
+| `template`                        |
+| `group`                           |
+| `file`                            |
+| `provisioner_daemon`              |
+| `organization`                    |
+| `assign_role`                     |
+| `assign_org_role`                 |
+| `api_key`                         |
+| `user`                            |
+| `user_data`                       |
+| `user_workspace_build_parameters` |
+| `organization_member`             |
+| `license`                         |
+| `deployment_config`               |
+| `deployment_stats`                |
+| `replicas`                        |
+| `debug_info`                      |
+| `system`                          |
+| `template_insights`               |
 
 ## codersdk.RateLimitConfig
 
@@ -5831,6 +5832,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name         | Type                                     | Required | Restrictions | Description |
 | ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+
+## codersdk.UserParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

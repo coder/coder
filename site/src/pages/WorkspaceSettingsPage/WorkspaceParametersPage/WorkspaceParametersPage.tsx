@@ -24,6 +24,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
+import { AutofillBuildParameter } from "utils/richParameters";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
@@ -126,7 +127,12 @@ export const WorkspaceParametersPageView: FC<
           <WorkspaceParametersForm
             workspace={workspace}
             canChangeVersions={canChangeVersions}
-            buildParameters={data.buildParameters}
+            autofillParams={data.buildParameters.map(
+              (p): AutofillBuildParameter => ({
+                ...p,
+                source: "active_build",
+              }),
+            )}
             templateVersionRichParameters={data.templateVersionRichParameters}
             error={submitError}
             isSubmitting={isSubmitting}

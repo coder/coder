@@ -281,3 +281,15 @@ variable "CLOUD_API_KEY" {
 }
 
 ```
+
+## Create Autofill
+
+When the template doesn't specify default values, Coder may still autofill
+parameters.
+
+1. Coder will look for URL query parameters with form `param.<name>=<value>`.
+   This feature enables platform teams to create pre-filled template creation
+   links.
+2. Coder will populate recently used parameter key-value pairs for the user.
+   This feature helps reduce repetition when filling common parameters such as
+   `dotfiles_url` or `region`.

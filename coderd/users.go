@@ -569,6 +569,57 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
 }
 
+// Returns recent build parameters for the signed-in user.
+//
+// @Summary Get autofill build parameters for user
+// @ID get-autofill-build-parameters-for-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, username, or me"
+// @Param template_id query string true "Template ID"
+// @Success 200 {array} codersdk.UserParameter
+// @Router /users/{user}/autofill-parameters [get]
+func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	p := httpapi.NewQueryParamParser().Required("template_id")
+	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	params, err := api.Database.GetUserWorkspaceBuildParameters(
+		r.Context(),
+		database.GetUserWorkspaceBuildParametersParams{
+			OwnerID:    user.ID,
+			TemplateID: templateID,
+		},
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdkParams := []codersdk.UserParameter{}
+	for _, param := range params {
+		sdkParams = append(sdkParams, codersdk.UserParameter{
+			Name:  param.Name,
+			Value: param.Value,
+		})
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, sdkParams)
+}
+
 // Returns the user's login type. This only works if the api key for authorization
 // and the requested user match. Eg: 'me'
 //

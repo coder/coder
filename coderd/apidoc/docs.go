@@ -4142,6 +4142,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/autofill-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get autofill build parameters for user",
+                "operationId": "get-autofill-build-parameters-for-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "template_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserParameter"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/convert-login": {
             "post": {
                 "security": [
@@ -10493,6 +10537,7 @@ const docTemplate = `{
                 "api_key",
                 "user",
                 "user_data",
+                "user_workspace_build_parameters",
                 "organization_member",
                 "license",
                 "deployment_config",
@@ -10518,6 +10563,7 @@ const docTemplate = `{
                 "ResourceAPIKey",
                 "ResourceUser",
                 "ResourceUserData",
+                "ResourceUserWorkspaceBuildParameters",
                 "ResourceOrganizationMember",
                 "ResourceLicense",
                 "ResourceDeploymentValues",
@@ -11920,6 +11966,17 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

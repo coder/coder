@@ -821,6 +821,7 @@ func New(options *Options) *API {
 					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/autofill-parameters", api.userAutofillParameters)
 					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {

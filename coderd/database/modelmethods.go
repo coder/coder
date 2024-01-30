@@ -256,6 +256,10 @@ func (u User) UserDataRBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
 }
 
+func (u User) UserWorkspaceBuildParametersObject() rbac.Object {
+	return rbac.ResourceUserWorkspaceBuildParameters.WithID(u.ID).WithOwner(u.ID.String())
+}
+
 func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }

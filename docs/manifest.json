@@ -177,13 +177,13 @@
               "title": "Resource metadata",
               "description": "Show information in the workspace about template resources",
               "path": "./templates/resource-metadata.md"
-            },
-            {
-              "title": "Parameters",
-              "description": "Prompt the user for additional information about a workspace",
-              "path": "./templates/parameters.md"
             }
           ]
+        },
+        {
+          "title": "Parameters",
+          "description": "Prompt the user for additional information about a workspace",
+          "path": "./templates/parameters.md"
         },
         {
           "title": "Administering templates",
