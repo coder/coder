@@ -1320,7 +1320,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				signupsDisabledText = api.OIDCConfig.SignupsDisabledText
 			}
 			return httpError{
-				code:             http.StatusBadRequest,
+				code:             http.StatusForbidden,
 				msg:              "Signups are disabled",
 				detail:           signupsDisabledText,
 				renderStaticPage: true,
