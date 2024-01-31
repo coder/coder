@@ -13,6 +13,10 @@ import type { Meta, StoryObj } from "@storybook/react";
 const meta: Meta<typeof VersionsTable> = {
   title: "pages/TemplatePage/VersionsTable",
   component: VersionsTable,
+  args: {
+    onPromoteClick: () => {},
+    onArchiveClick: () => {},
+  },
 };
 
 export default meta;
