@@ -25,7 +25,7 @@ const MockedAppearance = {
 };
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {
-  title: "components/WorkspaceStatusBadge",
+  title: "modules/workspaces/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
   decorators: [
     (Story) => (

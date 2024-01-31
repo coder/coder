@@ -6,7 +6,7 @@ import { Loader } from "components/Loader/Loader";
 import {
   TemplateFiles,
   useFileTab,
-} from "components/TemplateFiles/TemplateFiles";
+} from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { getTemplatePageTitle } from "../utils";

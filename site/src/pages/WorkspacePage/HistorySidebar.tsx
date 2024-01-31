@@ -1,7 +1,9 @@
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
+import { type FC } from "react";
+import { useInfiniteQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import {
   Sidebar,
   SidebarCaption,
@@ -11,10 +13,13 @@ import {
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
-} from "components/WorkspaceBuild/WorkspaceBuildData";
-import { useInfiniteQuery } from "react-query";
+} from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
 
-export const HistorySidebar = ({ workspace }: { workspace: Workspace }) => {
+interface HistorySidebarProps {
+  workspace: Workspace;
+}
+
+export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
   const buildsQuery = useInfiniteQuery({
     ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
     enabled: workspace !== undefined,

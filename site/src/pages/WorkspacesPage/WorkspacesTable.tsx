@@ -21,11 +21,11 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
-import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
   DormantStatusBadge,
   WorkspaceStatusBadge,
-} from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+} from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";

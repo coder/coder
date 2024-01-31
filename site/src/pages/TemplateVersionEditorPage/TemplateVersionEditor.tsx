@@ -2,6 +2,14 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
+import { Link as RouterLink } from "react-router-dom";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import AlertTitle from "@mui/material/AlertTitle";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import type {
   ProvisionerJobLog,
   Template,
@@ -10,13 +18,10 @@ import type {
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated";
-import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import {
   createFile,
   existsFile,
@@ -38,10 +43,6 @@ import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog
 import { MonacoEditor } from "./MonacoEditor";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import AlertTitle from "@mui/material/AlertTitle";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -53,7 +54,6 @@ import {
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab

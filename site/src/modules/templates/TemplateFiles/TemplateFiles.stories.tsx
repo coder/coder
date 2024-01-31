@@ -13,7 +13,7 @@ const exampleFiles = {
 };
 
 const meta: Meta<typeof TemplateFiles> = {
-  title: "components/TemplateFiles",
+  title: "modules/templates/TemplateFiles",
   parameters: { chromatic },
   component: TemplateFiles,
   args: {

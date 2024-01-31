@@ -7,7 +7,7 @@ import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
+import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
