@@ -64,8 +64,8 @@ const NotificationPill = (props: NotificationsProps) => {
   return (
     <Pill
       icon={icon}
+      type={severity}
       css={(theme) => ({
-        "& svg": { color: theme.experimental.roles[severity].outline },
         borderColor: popover.isOpen
           ? theme.experimental.roles[severity].outline
           : undefined,

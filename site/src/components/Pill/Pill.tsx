@@ -20,8 +20,9 @@ export type PillProps = HTMLAttributes<HTMLDivElement> & {
 
 const themeOverrides = {
   neutral: (theme) => ({
-    backgroundColor: theme.experimental.l1.background,
-    borderColor: theme.experimental.l1.outline,
+    borderColor: theme.experimental.l2.fill.outline,
+    color: theme.experimental.l2.fill.text,
+    backgroundColor: theme.experimental.l2.background,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -29,7 +30,8 @@ const themeStyles = (type: ThemeRole) => (theme: Theme) => {
   const palette = theme.experimental.roles[type];
   return {
     backgroundColor: palette.background,
-    borderColor: palette.outline,
+    borderColor: palette.fill.outline,
+    color: palette.text,
   };
 };
 
@@ -59,7 +61,7 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
             display: "inline-flex",
             alignItems: "center",
             whiteSpace: "nowrap",
-            fontWeight: 400,
+            fontWeight: 500,
             borderWidth: 1,
             borderStyle: "solid",
             borderRadius: 99999,
@@ -79,7 +81,7 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
         {...divProps}
       >
         {icon}
-        {children}
+        <span>{children}</span>
       </div>
     );
   },

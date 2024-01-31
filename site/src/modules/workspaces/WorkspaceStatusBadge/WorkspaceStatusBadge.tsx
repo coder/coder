@@ -9,7 +9,6 @@ import { type FC, type ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { DormantDeletionText } from "./DormantDeletionText";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { useClassName } from "hooks/useClassName";
 import { formatDistanceToNow } from "date-fns";
@@ -111,7 +110,9 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       <Pill
         role="status"
         className={className}
-        icon={<AutoDeleteIcon />}
+        // Manually adjust the icon size as Material-UI's default
+        // padding/spacing for icons is inconsistent.
+        icon={<AutoDeleteIcon css={{ padding: 1 }} />}
         type="error"
       >
         Deletion Pending
@@ -137,38 +138,6 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
         Dormant
       </Pill>
     </Tooltip>
-  );
-};
-
-export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
-  workspace,
-  className,
-}) => {
-  const { text, type } = getDisplayWorkspaceStatus(
-    workspace.latest_build.status,
-  );
-
-  return (
-    <ChooseOne>
-      <Cond condition={Boolean(DormantDeletionText({ workspace }))}>
-        <DormantDeletionText workspace={workspace} />
-      </Cond>
-      <Cond>
-        <span
-          role="status"
-          data-testid="build-status"
-          className={className}
-          css={(theme) => ({
-            fontWeight: 600,
-            color: type
-              ? theme.experimental.roles[type].fill.solid
-              : theme.experimental.l1.text,
-          })}
-        >
-          {text}
-        </span>
-      </Cond>
-    </ChooseOne>
   );
 };
 

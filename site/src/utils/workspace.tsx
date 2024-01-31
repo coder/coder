@@ -197,7 +197,7 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "stopped":
       return {
-        type: "notice",
+        type: "neutral",
         text: "Stopped",
         icon: <StopIcon />,
       } as const;
