@@ -263,12 +263,6 @@ func newInstrumentedTripper(c *Config, source Oauth2Source, under http.RoundTrip
 		under = http.DefaultTransport
 	}
 
-	// If the underlying transport is the default, we need to clone it.
-	// We should also clone it if it supports cloning.
-	if tr, ok := under.(*http.Transport); ok {
-		under = tr.Clone()
-	}
-
 	return &instrumentedTripper{
 		c:          c,
 		source:     source,
