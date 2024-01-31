@@ -20,7 +20,13 @@ Use [GitHub releases](https://github.com/coder/coder/releases) to download the W
 
 ![Windows setup wizard](../images/install/windows-installer.png)
 
-Alternatively, you can install Coder via [winget](https://winget.run/pkg/Coder/Coder).
+Alternatively, you can use the
+[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
+package manager to install Coder:
+
+```powershell
+winget install Coder.Coder
+```
 
 ## Other
 
