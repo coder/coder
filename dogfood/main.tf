@@ -52,12 +52,12 @@ data "coder_parameter" "image_type" {
   description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
   option {
     icon  = "/icon/coder.svg"
-    name  = "Non-Nix"
+    name  = "Dogfood (Default)"
     value = "codercom/oss-dogfood:latest"
   }
   option {
     icon  = "/icons/nix.svg"
-    name  = "Nix"
+    name  = "Dogfood Nix (Experimental)"
     value = "codercom/oss-dogfood-nix:latest"
   }
 }
