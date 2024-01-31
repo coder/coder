@@ -24,11 +24,14 @@ import { AppProviders } from "App";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
-jest.mock("components/TemplateResourcesTable/TemplateResourcesTable", () => {
-  return {
-    TemplateResourcesTable: () => <div />,
-  };
-});
+jest.mock(
+  "modules/templates/TemplateResourcesTable/TemplateResourcesTable",
+  () => {
+    return {
+      TemplateResourcesTable: () => <div />,
+    };
+  },
+);
 
 const renderTemplateEditorPage = () => {
   renderWithAuth(<TemplateVersionEditorPage />, {
