@@ -166,7 +166,9 @@ func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse 
 	var resp codersdk.DAUsResponse
 	for _, date := range fillEmptyDays(dates) {
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-			Date:   date,
+			// This date is truncated to 00:00:00 of the given day, so only
+			// return date information.
+			Date:   date.Format("2006-01-02"),
 			Amount: len(respMap[date]),
 		})
 	}

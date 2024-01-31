@@ -2168,8 +2168,10 @@ type DAUsResponse struct {
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date" format:"date-time"`
-	Amount int       `json:"amount"`
+	// Date is a string formatted as 2024-01-31.
+	// Timezone and time information is not included.
+	Date   string `json:"date"`
+	Amount int    `json:"amount"`
 }
 
 type DAURequest struct {
