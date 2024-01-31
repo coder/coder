@@ -9,6 +9,6 @@ const (
 type WorkspacePortSharingLevel int
 type UpdateWorkspaceAgentPortSharingLevelRequest struct {
 	AgentName  string `json:"agent_name"`
-	Port       int    `json:"port"`
-	ShareLevel int    `json:"share_level"`
+	Port       int32  `json:"port"`
+	ShareLevel int32  `json:"share_level"`
 }

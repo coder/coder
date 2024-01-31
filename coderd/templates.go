@@ -533,6 +533,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
+		portSharer        = *api.PortSharer.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
@@ -629,6 +630,19 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
+	if req.MaxPortSharingLevel != nil && *req.MaxPortSharingLevel < 0 || *req.MaxPortSharingLevel > 2 {
+		if *req.MaxPortSharingLevel < 0 || *req.MaxPortSharingLevel > 2 {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be between 0 and 2."})
+		} else {
+			if !portSharer.CanRestrictSharing() {
+				validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
+			}
+		}
+	}
+	maxPortShareLevel := template.MaxPortSharingLevel
+	if req.MaxPortSharingLevel != nil {
+		maxPortShareLevel = *req.MaxPortSharingLevel
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -657,7 +671,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
-			(deprecationMessage == template.Deprecated) {
+			(deprecationMessage == template.Deprecated) &&
+			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
 
@@ -682,6 +697,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Icon:                         req.Icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
+			MaxPortSharingLevel:          maxPortShareLevel,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)

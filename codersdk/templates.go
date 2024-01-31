@@ -61,6 +61,7 @@ type Template struct {
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
 	RequireActiveVersion bool `json:"require_active_version"`
+	MaxPortShareLevel    int  `json:"max_port_share_level"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -246,7 +247,8 @@ type UpdateTemplateMeta struct {
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
-	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
+	DisableEveryoneGroupAccess bool   `json:"disable_everyone_group_access"`
+	MaxPortSharingLevel        *int32 `json:"max_port_sharing_level"`
 }
 
 type TemplateExample struct {
