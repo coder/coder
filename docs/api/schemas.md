@@ -5432,24 +5432,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
 | `dismissed_healthchecks` | array of [codersdk.HealthSection](#codersdkhealthsection) | false    |              |             |
 
-## codersdk.UpdatePortSharingLevelRequest
-
-```json
-{
-  "agent_name": "string",
-  "port": 0,
-  "share_level": 0
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-| ------------- | ------- | -------- | ------------ | ----------- |
-| `agent_name`  | string  | false    |              |             |
-| `port`        | integer | false    |              |             |
-| `share_level` | integer | false    |              |             |
-
 ## codersdk.UpdateRoles
 
 ```json
@@ -5550,6 +5532,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateWorkspaceAgentPortSharingLevelRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `agent_name`  | string  | false    |              |             |
+| `port`        | integer | false    |              |             |
+| `share_level` | integer | false    |              |             |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 

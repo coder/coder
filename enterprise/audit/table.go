@@ -88,6 +88,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_dormant_autodelete":       ActionTrack,
 		"require_active_version":            ActionTrack,
 		"deprecated":                        ActionTrack,
+		"max_port_sharing":                  ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

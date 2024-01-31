@@ -7213,7 +7213,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdatePortSharingLevelRequest"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortSharingLevelRequest"
                         }
                     }
                 ],
@@ -11730,20 +11730,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdatePortSharingLevelRequest": {
-            "type": "object",
-            "properties": {
-                "agent_name": {
-                    "type": "string"
-                },
-                "port": {
-                    "type": "integer"
-                },
-                "share_level": {
-                    "type": "integer"
-                }
-            }
-        },
         "codersdk.UpdateRoles": {
             "type": "object",
             "properties": {
@@ -11830,6 +11816,20 @@ const docTemplate = `{
                 "schedule": {
                     "description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template max TTL.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceAgentPortSharingLevelRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "type": "integer"
                 }
             }
         },
