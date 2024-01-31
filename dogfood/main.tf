@@ -266,7 +266,7 @@ resource "coder_agent" "dev" {
     sudo service docker start
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
-    cd ${local.repo_dir} && pnpm install && pnpm playwright:install
+    cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
 EOT
 }
 
