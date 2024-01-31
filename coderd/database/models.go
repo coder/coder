@@ -2003,7 +2003,7 @@ type Template struct {
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
-	MaxPortSharing				  int64           `db:"max_port_sharing" json:"max_port_sharing"`
+	MaxPortSharingLevel           int32           `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2044,8 +2044,9 @@ type TemplateTable struct {
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
-	Deprecated string `db:"deprecated" json:"deprecated"`
-	UseMaxTtl  bool   `db:"use_max_ttl" json:"use_max_ttl"`
+	Deprecated          string `db:"deprecated" json:"deprecated"`
+	UseMaxTtl           bool   `db:"use_max_ttl" json:"use_max_ttl"`
+	MaxPortSharingLevel int32  `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -2273,6 +2274,13 @@ type WorkspaceAgentMetadatum struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
+type WorkspaceAgentPortSharing struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+}
+
 type WorkspaceAgentScript struct {
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
@@ -2391,13 +2399,6 @@ type WorkspaceBuildTable struct {
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
-}
-
-type WorkspacePortSharing struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
 }
 
 type WorkspaceProxy struct {

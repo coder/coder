@@ -5720,7 +5720,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -5761,6 +5761,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.RequireActiveVersion,
 		&i.Deprecated,
 		&i.UseMaxTtl,
+		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5769,7 +5770,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5818,6 +5819,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.RequireActiveVersion,
 		&i.Deprecated,
 		&i.UseMaxTtl,
+		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5825,7 +5827,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, max_port_sharing_level, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -5867,6 +5869,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.RequireActiveVersion,
 			&i.Deprecated,
 			&i.UseMaxTtl,
+			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5885,7 +5888,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -5977,6 +5980,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.RequireActiveVersion,
 			&i.Deprecated,
 			&i.UseMaxTtl,
+			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -6009,10 +6013,11 @@ INSERT INTO
 		user_acl,
 		group_acl,
 		display_name,
-		allow_user_cancel_workspace_jobs
+		allow_user_cancel_workspace_jobs,
+		max_port_sharing_level
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 `
 
 type InsertTemplateParams struct {
@@ -6030,6 +6035,7 @@ type InsertTemplateParams struct {
 	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	MaxPortSharingLevel          int32           `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -6048,6 +6054,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.GroupACL,
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
+		arg.MaxPortSharingLevel,
 	)
 	return err
 }
@@ -6146,7 +6153,8 @@ SET
 	icon = $5,
 	display_name = $6,
 	allow_user_cancel_workspace_jobs = $7,
-	group_acl = $8
+	group_acl = $8,
+	max_port_sharing_level = $9
 WHERE
 	id = $1
 `
@@ -6160,6 +6168,7 @@ type UpdateTemplateMetaByIDParams struct {
 	DisplayName                  string      `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool        `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	GroupACL                     TemplateACL `db:"group_acl" json:"group_acl"`
+	MaxPortSharingLevel          int32       `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -6172,6 +6181,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 		arg.GroupACL,
+		arg.MaxPortSharingLevel,
 	)
 	return err
 }
@@ -8124,6 +8134,85 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.Name,
 	)
 	return i, err
+}
+
+const createWorkspaceAgentPortShare = `-- name: CreateWorkspaceAgentPortShare :exec
+INSERT INTO workspace_agent_port_sharing (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
+`
+
+type CreateWorkspaceAgentPortShareParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+}
+
+func (q *sqlQuerier) CreateWorkspaceAgentPortShare(ctx context.Context, arg CreateWorkspaceAgentPortShareParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkspaceAgentPortShare,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+		arg.ShareLevel,
+	)
+	return err
+}
+
+const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
+DELETE FROM workspace_agent_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+`
+
+type DeleteWorkspaceAgentPortShareParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentPortShare, arg.WorkspaceID, arg.AgentName, arg.Port)
+	return err
+}
+
+const getWorkspaceAgentPortShare = `-- name: GetWorkspaceAgentPortShare :one
+SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+`
+
+type GetWorkspaceAgentPortShareParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortSharing, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentPortShare, arg.WorkspaceID, arg.AgentName, arg.Port)
+	var i WorkspaceAgentPortSharing
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.Port,
+		&i.ShareLevel,
+	)
+	return i, err
+}
+
+const updateWorkspaceAgentPortShare = `-- name: UpdateWorkspaceAgentPortShare :exec
+UPDATE workspace_agent_port_sharing SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
+`
+
+type UpdateWorkspaceAgentPortShareParams struct {
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg UpdateWorkspaceAgentPortShareParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentPortShare,
+		arg.ShareLevel,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+	)
+	return err
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
@@ -10640,85 +10729,6 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
-const createWorkspacePortShareLevel = `-- name: CreateWorkspacePortShareLevel :exec
-INSERT INTO workspace_port_sharing (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
-`
-
-type CreateWorkspacePortShareLevelParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
-}
-
-func (q *sqlQuerier) CreateWorkspacePortShareLevel(ctx context.Context, arg CreateWorkspacePortShareLevelParams) error {
-	_, err := q.db.ExecContext(ctx, createWorkspacePortShareLevel,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.Port,
-		arg.ShareLevel,
-	)
-	return err
-}
-
-const deleteWorkspacePortShareLevel = `-- name: DeleteWorkspacePortShareLevel :exec
-DELETE FROM workspace_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
-`
-
-type DeleteWorkspacePortShareLevelParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-}
-
-func (q *sqlQuerier) DeleteWorkspacePortShareLevel(ctx context.Context, arg DeleteWorkspacePortShareLevelParams) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkspacePortShareLevel, arg.WorkspaceID, arg.AgentName, arg.Port)
-	return err
-}
-
-const getWorkspacePortShareLevel = `-- name: GetWorkspacePortShareLevel :one
-SELECT workspace_id, agent_name, port, share_level FROM workspace_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
-`
-
-type GetWorkspacePortShareLevelParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-}
-
-func (q *sqlQuerier) GetWorkspacePortShareLevel(ctx context.Context, arg GetWorkspacePortShareLevelParams) (WorkspacePortSharing, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspacePortShareLevel, arg.WorkspaceID, arg.AgentName, arg.Port)
-	var i WorkspacePortSharing
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.Port,
-		&i.ShareLevel,
-	)
-	return i, err
-}
-
-const updateWorkspacePortShareLevel = `-- name: UpdateWorkspacePortShareLevel :exec
-UPDATE workspace_port_sharing SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
-`
-
-type UpdateWorkspacePortShareLevelParams struct {
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-}
-
-func (q *sqlQuerier) UpdateWorkspacePortShareLevel(ctx context.Context, arg UpdateWorkspacePortShareLevelParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspacePortShareLevel,
-		arg.ShareLevel,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.Port,
-	)
-	return err
-}
-
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
@@ -11434,7 +11444,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, max_port_sharing_level
 	FROM
 		templates
 	WHERE

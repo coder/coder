@@ -1002,7 +1002,7 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) CreateWorkspacePortShareLevel(ctx context.Context, arg database.CreateWorkspacePortShareLevelParams) error {
+func (q *FakeQuerier) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
@@ -1326,7 +1326,7 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) DeleteWorkspacePortShareLevel(ctx context.Context, arg database.DeleteWorkspacePortShareLevelParams) error {
+func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
@@ -4172,6 +4172,15 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, arg database.
 	return metadata, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentPortSharing{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4643,15 +4652,6 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 		}
 	}
 	return database.Workspace{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetWorkspacePortShareLevel(ctx context.Context, arg database.GetWorkspacePortShareLevelParams) (database.WorkspacePortSharing, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.WorkspacePortSharing{}, err
-	}
-
-	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
@@ -7029,6 +7029,15 @@ func (q *FakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
+func (q *FakeQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -7268,15 +7277,6 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateWorkspacePortShareLevel(ctx context.Context, arg database.UpdateWorkspacePortShareLevelParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
