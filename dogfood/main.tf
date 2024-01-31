@@ -270,6 +270,7 @@ resource "coder_agent" "dev" {
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
+    cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
   EOT
 }
 
