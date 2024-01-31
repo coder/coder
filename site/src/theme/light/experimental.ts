@@ -177,7 +177,7 @@ export default {
     },
     inactive: {
       background: colors.gray[100],
-      outline: colors.gray[500],
+      outline: colors.gray[400],
       text: colors.gray[950],
       fill: {
         solid: colors.gray[600],

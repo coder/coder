@@ -1,8 +1,9 @@
-import { type TemplateVersion } from "api/typesGenerated";
 import { type FC, type ReactNode } from "react";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
-import { Pill, PillSpinner, type PillType } from "components/Pill/Pill";
+import type { TemplateVersion } from "api/typesGenerated";
+import { type ThemeRole } from "theme/experimental";
+import { Pill, PillSpinner } from "components/Pill/Pill";
 
 interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;
@@ -22,7 +23,7 @@ export const TemplateVersionStatusBadge: FC<
 export const getStatus = (
   version: TemplateVersion,
 ): {
-  type?: PillType;
+  type?: ThemeRole;
   text: string;
   icon: ReactNode;
 } => {
