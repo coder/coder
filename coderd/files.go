@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
@@ -134,7 +136,10 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 // @Success 200
 // @Router /files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx    = r.Context()
+		format = r.URL.Query().Get("format")
+	)
 
 	fileID := chi.URLParam(r, "fileID")
 	if fileID == "" {
@@ -165,7 +170,29 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw.Header().Set("Content-Type", file.Mimetype)
-	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(file.Data)
+	switch format {
+	case codersdk.FormatZip:
+		if file.Mimetype != codersdk.ContentTypeTar {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Only .tar files can be converted to .zip format",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		rw.Header().Set("Content-Type", codersdk.ContentTypeZip)
+		rw.WriteHeader(http.StatusOK)
+		err = WriteZipArchive(rw, tar.NewReader(bytes.NewReader(file.Data)))
+		if err != nil {
+			api.Logger.Error(ctx, "invalid .zip archive", slog.F("file_id", fileID), slog.F("mimetype", file.Mimetype), slog.Error(err))
+		}
+	case "": // no format? no conversion
+		rw.Header().Set("Content-Type", file.Mimetype)
+		_, _ = rw.Write(file.Data)
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported conversion format.",
+			Detail:  err.Error(),
+		})
+	}
 }

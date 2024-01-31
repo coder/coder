@@ -18,8 +18,8 @@ func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
 	return tarBuffer.Bytes(), nil
 }
 
-func writeTarArchive(tarBuffer *bytes.Buffer, zipReader *zip.Reader) error {
-	tarWriter := tar.NewWriter(tarBuffer)
+func writeTarArchive(w io.Writer, zipReader *zip.Reader) error {
+	tarWriter := tar.NewWriter(w)
 	defer tarWriter.Close()
 
 	for _, file := range zipReader.File {
@@ -28,7 +28,7 @@ func writeTarArchive(tarBuffer *bytes.Buffer, zipReader *zip.Reader) error {
 			return err
 		}
 	}
-	return tarWriter.Flush()
+	return nil
 }
 
 func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
@@ -57,15 +57,15 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 
 func CreateZipFromTar(tarReader *tar.Reader) ([]byte, error) {
 	var zipBuffer bytes.Buffer
-	err := writeZipArchive(&zipBuffer, tarReader)
+	err := WriteZipArchive(&zipBuffer, tarReader)
 	if err != nil {
 		return nil, err
 	}
 	return zipBuffer.Bytes(), nil
 }
 
-func writeZipArchive(zipBuffer *bytes.Buffer, tarReader *tar.Reader) error {
-	zipWriter := zip.NewWriter(zipBuffer)
+func WriteZipArchive(w io.Writer, tarReader *tar.Reader) error {
+	zipWriter := zip.NewWriter(w)
 	defer zipWriter.Close()
 
 	for {
@@ -97,5 +97,5 @@ func writeZipArchive(zipBuffer *bytes.Buffer, tarReader *tar.Reader) error {
 			return err
 		}
 	}
-	return zipWriter.Flush()
+	return nil // don't need to flush as we call `writer.Close()`
 }
