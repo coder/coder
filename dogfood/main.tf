@@ -266,8 +266,15 @@ resource "coder_agent" "dev" {
     sudo service docker start
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
-    cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
-EOT
+    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone does not exist.
+    # it will run on fine on a restart though 
+    if [ -d "${local.repo_dir}/site" ]; then
+      cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
+    else
+      echo "The directory ${local.repo_dir}/site does not exist. Clone is not complete."
+      echo 'Please run "${local.repo_dir}/site && pnpm install && pnpm playwright:instal" after workspace creation'
+    fi
+  EOT
 }
 
 resource "docker_volume" "home_volume" {
