@@ -1,19 +1,13 @@
 package portsharing
 
-import (
-	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/codersdk"
-)
-
 type PortSharer interface {
-	ShareLevelAllowed(workspaceID uuid.UUID, level codersdk.WorkspacePortSharingLevel) bool
+	CanRestrictSharing() bool
 }
 
 type AGPLPortSharer struct{}
 
-func (AGPLPortSharer) ShareLevelAllowed(_ uuid.UUID, _ codersdk.WorkspacePortSharingLevel) bool {
-	return true
+func (AGPLPortSharer) CanRestrictSharing() bool {
+	return false
 }
 
 var DefaultPortSharer PortSharer = AGPLPortSharer{}
