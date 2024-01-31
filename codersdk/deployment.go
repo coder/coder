@@ -2168,8 +2168,10 @@ type DAUsResponse struct {
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date" format:"date-time"`
-	Amount int       `json:"amount"`
+	// Date is a string formatted as 2024-01-31.
+	// Timezone and time information is not included.
+	Date   string `json:"date"`
+	Amount int    `json:"amount"`
 }
 
 type DAURequest struct {
@@ -2184,14 +2186,22 @@ func (d DAURequest) asRequestOption() RequestOption {
 	}
 }
 
-func TimezoneOffsetHour(loc *time.Location) int {
+// TimezoneOffsetHourWithTime is implemented to match the javascript 'getTimezoneOffset()' function.
+// This is the amount of time between this date evaluated in UTC and evaluated in the 'loc'
+// The trivial case of times being on the same day is:
+// 'time.Now().UTC().Hour() - time.Now().In(loc).Hour()'
+func TimezoneOffsetHourWithTime(now time.Time, loc *time.Location) int {
 	if loc == nil {
 		// Default to UTC time to be consistent across all callers.
 		loc = time.UTC
 	}
-	_, offsetSec := time.Now().In(loc).Zone()
-	// Convert to hours
-	return offsetSec / 60 / 60
+	_, offsetSec := now.In(loc).Zone()
+	// Convert to hours and flip the sign
+	return -1 * offsetSec / 60 / 60
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	return TimezoneOffsetHourWithTime(time.Now(), loc)
 }
 
 func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {

@@ -1405,7 +1405,7 @@ func TestTemplateMetrics(t *testing.T) {
 	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
-				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Date:   time.Now().UTC().Truncate(time.Hour * 24).Format("2006-01-02"),
 				Amount: 1,
 			},
 		},

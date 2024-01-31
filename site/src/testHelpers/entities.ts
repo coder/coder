@@ -21,17 +21,17 @@ export const MockOrganization: TypesGen.Organization = {
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27", amount: 1 },
+    { date: "2022-08-29", amount: 2 },
+    { date: "2022-08-30", amount: 1 },
   ],
 };
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 10 },
-    { date: "2022-08-29T00:00:00Z", amount: 22 },
-    { date: "2022-08-30T00:00:00Z", amount: 14 },
+    { date: "2022-08-27", amount: 10 },
+    { date: "2022-08-29", amount: 22 },
+    { date: "2022-08-30", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
