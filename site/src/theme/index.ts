@@ -14,12 +14,6 @@ export interface Theme extends MuiTheme {
   externalImages: ExternalImageModeStyles;
 }
 
-interface RealThemeSeriously
-  extends Pick<Theme, "monaco" | "externalImages">,
-    NewTheme {}
-
-const x = {} as unknown as RealThemeSeriously;
-
 export const DEFAULT_THEME = "dark";
 
 const theme = {
