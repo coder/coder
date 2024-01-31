@@ -158,7 +158,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             <PageHeaderSubtitle condensed>New workspace</PageHeaderSubtitle>
           </div>
 
-          {template.deprecated && <Pill type="warning">Deprecated</Pill>}
+          {template.deprecated && <Pill color="warning">Deprecated</Pill>}
         </Stack>
       </PageHeader>
 

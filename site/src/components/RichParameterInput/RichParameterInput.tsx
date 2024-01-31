@@ -125,7 +125,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
       )}
       {!parameter.mutable && (
         <Tooltip title="This value cannot be modified after the workspace has been created.">
-          <Pill type="warning" icon={<ErrorOutline />}>
+          <Pill color="warning" icon={<ErrorOutline />}>
             Immutable
           </Pill>
         </Tooltip>

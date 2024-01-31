@@ -179,61 +179,61 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "running":
       return {
-        type: "success",
+        color: "success",
         text: "Running",
         icon: <PlayIcon />,
       } as const;
     case "starting":
       return {
-        type: "active",
+        color: "active",
         text: "Starting",
         icon: <PillSpinner />,
       } as const;
     case "stopping":
       return {
-        type: "notice",
+        color: "notice",
         text: "Stopping",
         icon: <PillSpinner />,
       } as const;
     case "stopped":
       return {
-        type: "notice",
+        color: "neutral",
         text: "Stopped",
         icon: <StopIcon />,
       } as const;
     case "deleting":
       return {
-        type: "danger",
+        color: "danger",
         text: "Deleting",
         icon: <PillSpinner />,
       } as const;
     case "deleted":
       return {
-        type: "danger",
+        color: "danger",
         text: "Deleted",
         icon: <ErrorIcon />,
       } as const;
     case "canceling":
       return {
-        type: "notice",
+        color: "notice",
         text: "Canceling",
         icon: <PillSpinner />,
       } as const;
     case "canceled":
       return {
-        type: "notice",
+        color: "notice",
         text: "Canceled",
         icon: <ErrorIcon />,
       } as const;
     case "failed":
       return {
-        type: "error",
+        color: "error",
         text: "Failed",
         icon: <ErrorIcon />,
       } as const;
     case "pending":
       return {
-        type: "info",
+        color: "info",
         text: getPendingWorkspaceStatusText(provisionerJob),
         icon: <QueuedIcon />,
       } as const;

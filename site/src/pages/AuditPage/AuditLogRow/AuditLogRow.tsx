@@ -3,7 +3,7 @@ import Collapse from "@mui/material/Collapse";
 import TableCell from "@mui/material/TableCell";
 import type { AuditLog } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Pill, type PillType } from "components/Pill/Pill";
+import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -12,8 +12,9 @@ import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
+import { ThemeRole } from "theme/experimental";
 
-const httpStatusColor = (httpStatus: number): PillType => {
+const httpStatusColor = (httpStatus: number): ThemeRole => {
   // redirects are successful
   if (httpStatus === 307) {
     return "success";
@@ -137,7 +138,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 
                   <Pill
                     css={styles.httpStatusPill}
-                    type={httpStatusColor(auditLog.status_code)}
+                    color={httpStatusColor(auditLog.status_code)}
                   >
                     {auditLog.status_code.toString()}
                   </Pill>

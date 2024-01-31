@@ -86,7 +86,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
               new Date(license.claims.license_expires * 1000),
               new Date(),
             ) < 1 ? (
-              <Pill css={styles.expiredBadge} type="error">
+              <Pill css={styles.expiredBadge} color="error">
                 Expired
               </Pill>
             ) : (

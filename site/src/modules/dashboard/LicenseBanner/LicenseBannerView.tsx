@@ -55,7 +55,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
   if (messages.length === 1) {
     return (
       <div css={containerStyles}>
-        <Pill type={type}>{Language.licenseIssue}</Pill>
+        <Pill color={type}>{Language.licenseIssue}</Pill>
         <div css={styles.leftContent}>
           <span>{messages[0]}</span>
           &nbsp;
@@ -73,7 +73,7 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
 
   return (
     <div css={containerStyles}>
-      <Pill type={type}>{Language.licenseIssues(messages.length)}</Pill>
+      <Pill color={type}>{Language.licenseIssues(messages.length)}</Pill>
       <div css={styles.leftContent}>
         <div>
           {Language.exceeded}

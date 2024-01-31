@@ -18,56 +18,56 @@ export const Default: Story = {};
 export const Danger: Story = {
   args: {
     children: "Danger",
-    type: "danger",
+    color: "danger",
   },
 };
 
 export const Error: Story = {
   args: {
     children: "Error",
-    type: "error",
+    color: "error",
   },
 };
 
 export const Warning: Story = {
   args: {
     children: "Warning",
-    type: "warning",
+    color: "warning",
   },
 };
 
 export const Notice: Story = {
   args: {
     children: "Notice",
-    type: "notice",
+    color: "notice",
   },
 };
 
 export const Info: Story = {
   args: {
     children: "Information",
-    type: "info",
+    color: "info",
   },
 };
 
 export const Success: Story = {
   args: {
     children: "Success",
-    type: "success",
+    color: "success",
   },
 };
 
 export const Active: Story = {
   args: {
     children: "Active",
-    type: "active",
+    color: "active",
   },
 };
 
 export const WithIcon: Story = {
   args: {
     children: "Information",
-    type: "info",
+    color: "info",
     icon: <InfoOutlined />,
   },
 };

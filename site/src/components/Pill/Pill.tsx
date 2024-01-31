@@ -1,32 +1,18 @@
-import {
-  type FC,
-  type ReactNode,
-  useMemo,
-  forwardRef,
-  HTMLAttributes,
-} from "react";
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type FC, type ReactNode, forwardRef, HTMLAttributes } from "react";
+import { useTheme, type Theme } from "@emotion/react";
 import type { ThemeRole } from "theme/experimental";
 import CircularProgress, {
   CircularProgressProps,
 } from "@mui/material/CircularProgress";
 
-export type PillType = ThemeRole | keyof typeof themeOverrides;
-
 export type PillProps = HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
-  type?: PillType;
+  color?: ThemeRole;
 };
 
-const themeOverrides = {
-  neutral: (theme) => ({
-    backgroundColor: theme.experimental.l1.background,
-    borderColor: theme.experimental.l1.outline,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
+const themeStyles = (color: ThemeRole) => (theme: Theme) => {
+  const palette = theme.experimental.roles[color];
 
-const themeStyles = (type: ThemeRole) => (theme: Theme) => {
-  const palette = theme.experimental.roles[type];
   return {
     backgroundColor: palette.background,
     borderColor: palette.outline,
@@ -39,14 +25,9 @@ const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
   (props, ref) => {
-    const { icon, type = "neutral", children, ...divProps } = props;
+    const { icon, color = "neutral", children, ...divProps } = props;
     const theme = useTheme();
-    const typeStyles = useMemo(() => {
-      if (type in themeOverrides) {
-        return themeOverrides[type as keyof typeof themeOverrides];
-      }
-      return themeStyles(type as ThemeRole);
-    }, [type]);
+    const typeStyles = themeStyles(color);
 
     return (
       <div

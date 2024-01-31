@@ -2,9 +2,9 @@ import Tooltip, {
   type TooltipProps,
   tooltipClasses,
 } from "@mui/material/Tooltip";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import RecyclingIcon from "@mui/icons-material/Recycling";
-import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
+import ErrorOutline from "@mui/icons-material/ErrorOutlined";
+import RecyclingIcon from "@mui/icons-material/RecyclingOutlined";
+import AutoDeleteIcon from "@mui/icons-material/AutoDeleteOutlined";
 import { type FC, type ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
@@ -24,7 +24,7 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
   workspace,
   className,
 }) => {
-  const { text, icon, type } = getDisplayWorkspaceStatus(
+  const { text, icon, color } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
     workspace.latest_build.job,
   );
@@ -52,7 +52,7 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
             data-testid="build-status"
             className={className}
             icon={icon}
-            type={type}
+            color={color}
           >
             {text}
           </Pill>
@@ -64,7 +64,7 @@ export const WorkspaceStatusBadge: FC<WorkspaceStatusBadgeProps> = ({
           data-testid="build-status"
           className={className}
           icon={icon}
-          type={type}
+          color={color}
         >
           {text}
         </Pill>
@@ -111,8 +111,11 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
       <Pill
         role="status"
         className={className}
-        icon={<AutoDeleteIcon />}
-        type="error"
+        // Material-UI doesn't provide uniform padding and sizing for icons.
+        // Therefore, visual adjustments are occasionally necessary to achieve
+        // the desired appearance.
+        icon={<AutoDeleteIcon css={{ width: 12, height: 12 }} />}
+        color="warning"
       >
         Deletion Pending
       </Pill>
@@ -132,7 +135,7 @@ export const DormantStatusBadge: FC<DormantStatusBadgeProps> = ({
         role="status"
         className={className}
         icon={<RecyclingIcon />}
-        type="warning"
+        color="warning"
       >
         Dormant
       </Pill>
@@ -144,7 +147,7 @@ export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
   workspace,
   className,
 }) => {
-  const { text, type } = getDisplayWorkspaceStatus(
+  const { text, color } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
   );
 
@@ -160,8 +163,8 @@ export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
           className={className}
           css={(theme) => ({
             fontWeight: 600,
-            color: type
-              ? theme.experimental.roles[type].fill.solid
+            color: color
+              ? theme.experimental.roles[color].fill.solid
               : theme.experimental.l1.text,
           })}
         >

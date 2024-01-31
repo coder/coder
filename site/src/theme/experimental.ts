@@ -38,6 +38,10 @@ export interface NewTheme {
      * Preview features, experiments, unstable etc.
      */
     preview: Role;
+
+    /** This represents an action or information that is of secondary importance
+     * or neutral. It doesn't require significant attention. */
+    neutral: Role;
   };
 }
 

@@ -76,32 +76,32 @@ export const VersionRow: FC<VersionRowProps> = ({
 
           <Stack direction="row" alignItems="center" spacing={2}>
             {isActive && (
-              <Pill role="status" type="success">
+              <Pill role="status" color="success">
                 Active
               </Pill>
             )}
             {isLatest && (
-              <Pill role="status" type="info">
+              <Pill role="status" color="info">
                 Newest
               </Pill>
             )}
             {jobStatus === "pending" && (
-              <Pill role="status" type="warning">
+              <Pill role="status" color="warning">
                 Pending&hellip;
               </Pill>
             )}
             {jobStatus === "running" && (
-              <Pill role="status" type="warning">
+              <Pill role="status" color="warning">
                 Building&hellip;
               </Pill>
             )}
             {(jobStatus === "canceling" || jobStatus === "canceled") && (
-              <Pill role="status" type="neutral">
+              <Pill role="status" color="neutral">
                 Canceled
               </Pill>
             )}
             {jobStatus === "failed" && (
-              <Pill role="status" type="error">
+              <Pill role="status" color="error">
                 Failed
               </Pill>
             )}

@@ -185,5 +185,15 @@ export default {
         text: colors.white,
       },
     },
+    neutral: {
+      background: colors.gray[900],
+      outline: colors.gray[500],
+      text: colors.gray[50],
+      fill: {
+        solid: colors.gray[600],
+        outline: colors.gray[600],
+        text: colors.white,
+      },
+    },
   },
 } satisfies NewTheme;

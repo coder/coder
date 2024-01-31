@@ -67,7 +67,7 @@ export const useStatusFilterMenu = ({
     return {
       label: display.text,
       value: status,
-      color: display.type ?? "warning",
+      color: display.color ?? "warning",
     } as StatusOption;
   });
   return useFilterMenu({
