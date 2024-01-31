@@ -29,19 +29,25 @@ export interface NewTheme {
     /** Selected, in progress, of particular relevance right now. */
     active: InteractiveRole;
 
+    /** For things that can be made "active", but are not currently so.
+     * Paused, stopped, off, etc.
+     */
+    inactive: Role;
+
     /** Actions that have long lasting or irreversible effects.
      * Deletion, immutable parameters, etc.
      */
     danger: InteractiveRole;
 
     /** This isn't quite ready for prime-time, but you're welcome to look around!
-     * Preview features, experiments, unstable etc.
+     * Preview features, experiments, unstable, etc.
      */
     preview: Role;
   };
 }
 
-/** A set of colors which work together to fill a desirable "communication role"
+/**
+ * A set of colors which work together to fill a desirable "communication role"
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
 export interface Role {
