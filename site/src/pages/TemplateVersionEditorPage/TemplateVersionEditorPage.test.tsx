@@ -26,11 +26,9 @@ import { AppProviders } from "App";
 // since we don't need it for this test, we can mock it out
 jest.mock(
   "modules/templates/TemplateResourcesTable/TemplateResourcesTable",
-  () => {
-    return {
-      TemplateResourcesTable: () => <div />,
-    };
-  },
+  () => ({
+    TemplateResourcesTable: () => <div></div>,
+  }),
 );
 
 const renderTemplateEditorPage = () => {
@@ -40,7 +38,7 @@ const renderTemplateEditorPage = () => {
     extraRoutes: [
       {
         path: "/templates/:templateId",
-        element: <div />,
+        element: <div></div>,
       },
     ],
   });
