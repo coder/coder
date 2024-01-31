@@ -60,6 +60,9 @@ func TestInstrument(t *testing.T) {
 	// 0 Requests before we start
 	require.Nil(t, metricValue(t, reg, metricname, labels), "no metrics at start")
 
+	// This should never be done, but promoauth should not break the default client
+	// even if this happens. So intentionally do this to verify nothing breaks.
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, http.DefaultClient)
 	// Exchange should trigger a request
 	code := idp.CreateAuthCode(t, "foo")
 	token, err := cfg.Exchange(ctx, code)
@@ -92,7 +95,7 @@ func TestInstrument(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
-	require.NoError(t, compare(reg, snapshot), "no metric changes")
+	require.NoError(t, compare(reg, snapshot), "http default client corrupted")
 }
 
 func TestGithubRateLimits(t *testing.T) {
