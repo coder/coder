@@ -267,13 +267,9 @@ resource "coder_agent" "dev" {
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone does not exist.
-    # it will run on fine on a restart though 
-    if [ -d "${local.repo_dir}/site" ]; then
-      cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
-    else
-      echo "The directory ${local.repo_dir}/site does not exist. Clone is not complete."
-      echo 'Please run "cd ${local.repo_dir}/site && pnpm install && pnpm playwright:instal" after workspace creation'
-    fi
+    while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
+      sleep 1
+    done
   EOT
 }
 
