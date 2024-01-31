@@ -217,10 +217,13 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 // InstrumentHTTPClient will always return a new http client with the same
 // transport as the one passed in.
 func (c *Config) InstrumentHTTPClient(hc *http.Client, source Oauth2Source) *http.Client {
-	// TODO: clean http client
-	// The new tripper will instrument every request made by the oauth2 client.
-	hc.Transport = newInstrumentedTripper(c, source, hc.Transport)
-	return hc
+	return &http.Client{
+		// The new tripper will instrument every request made by the oauth2 client.
+		Transport:     newInstrumentedTripper(c, source, hc.Transport),
+		CheckRedirect: hc.CheckRedirect,
+		Jar:           hc.Jar,
+		Timeout:       hc.Timeout,
+	}
 }
 
 // wrapClient is the only way we can accurately instrument the oauth2 client.
