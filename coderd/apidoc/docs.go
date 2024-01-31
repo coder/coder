@@ -10071,6 +10071,9 @@ const docTemplate = `{
                 "sign_in_text": {
                     "type": "string"
                 },
+                "signups_disabled_text": {
+                    "type": "string"
+                },
                 "user_role_field": {
                     "type": "string"
                 },

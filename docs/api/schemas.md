@@ -2273,6 +2273,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "signups_disabled_text": "string",
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],
@@ -2640,6 +2641,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
+    "signups_disabled_text": "string",
     "user_role_field": "string",
     "user_role_mapping": {},
     "user_roles_default": ["string"],
@@ -3747,6 +3749,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
+  "signups_disabled_text": "string",
   "user_role_field": "string",
   "user_role_mapping": {},
   "user_roles_default": ["string"],
@@ -3777,6 +3780,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `issuer_url`            | string                           | false    |              |                                                                                  |
 | `scopes`                | array of string                  | false    |              |                                                                                  |
 | `sign_in_text`          | string                           | false    |              |                                                                                  |
+| `signups_disabled_text` | string                           | false    |              |                                                                                  |
 | `user_role_field`       | string                           | false    |              |                                                                                  |
 | `user_role_mapping`     | object                           | false    |              |                                                                                  |
 | `user_roles_default`    | array of string                  | false    |              |                                                                                  |

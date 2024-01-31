@@ -752,6 +752,7 @@ export interface OIDCConfig {
   readonly user_roles_default: string[];
   readonly sign_in_text: string;
   readonly icon_url: string;
+  readonly signups_disabled_text: string;
 }
 
 // From codersdk/organizations.go

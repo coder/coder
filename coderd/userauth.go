@@ -740,6 +740,8 @@ type OIDCConfig struct {
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
+	// SignupsDisabledText is the text do display on the static error page.
+	SignupsDisabledText string
 }
 
 func (cfg OIDCConfig) RoleSyncEnabled() bool {
@@ -1313,9 +1315,15 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
+			signupsDisabledText := api.OIDCConfig.SignupsDisabledText
+			if signupsDisabledText == "" {
+				signupsDisabledText = "Please contact your Coder administrator to request access."
+			}
 			return httpError{
-				code: http.StatusForbidden,
-				msg:  fmt.Sprintf("Signups are not allowed for login type %q", params.LoginType),
+				code:             http.StatusBadRequest,
+				msg:              "Signups are disabled",
+				detail:           signupsDisabledText,
+				renderStaticPage: true,
 			}
 		}
 
