@@ -2186,18 +2186,22 @@ func (d DAURequest) asRequestOption() RequestOption {
 	}
 }
 
-// TimezoneOffsetHour is implemented to match the javascript 'getTimezoneOffset()' function.
+// TimezoneOffsetHourWithTime is implemented to match the javascript 'getTimezoneOffset()' function.
 // This is the amount of time between this date evaluated in UTC and evaluated in the 'loc'
 // The trivial case of times being on the same day is:
 // 'time.Now().UTC().Hour() - time.Now().In(loc).Hour()'
-func TimezoneOffsetHour(loc *time.Location) int {
+func TimezoneOffsetHourWithTime(now time.Time, loc *time.Location) int {
 	if loc == nil {
 		// Default to UTC time to be consistent across all callers.
 		loc = time.UTC
 	}
-	_, offsetSec := time.Now().In(loc).Zone()
+	_, offsetSec := now.In(loc).Zone()
 	// Convert to hours and flip the sign
 	return -1 * offsetSec / 60 / 60
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	return TimezoneOffsetHourWithTime(time.Now(), loc)
 }
 
 func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
