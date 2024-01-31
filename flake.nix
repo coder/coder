@@ -50,9 +50,6 @@
           nfpm
           nodejs
           nodejs.pkgs.pnpm
-          nodejs.pkgs.prettier
-          nodejs.pkgs.typescript
-          nodejs.pkgs.typescript-language-server
           openssh
           openssl
           pango
