@@ -66,14 +66,14 @@ func TestInstrument(t *testing.T) {
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, http.DefaultClient)
 	// Exchange should trigger a request
 	code := idp.CreateAuthCode(t, "foo")
-	token, err := cfg.Exchange(ctx, code)
+	_, err := cfg.Exchange(ctx, code)
 	require.NoError(t, err)
 	require.Equal(t, count("Exchange"), 1)
 
 	// Do an exchange without a default http client as well to verify original
 	// transport is not broken.
 	code = idp.CreateAuthCode(t, "bar")
-	token, err = cfg.Exchange(noClientCtx, code)
+	token, err := cfg.Exchange(noClientCtx, code)
 	require.NoError(t, err)
 	require.Equal(t, count("Exchange"), 2)
 
