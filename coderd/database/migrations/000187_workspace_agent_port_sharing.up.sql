@@ -5,7 +5,7 @@ CREATE TABLE workspace_agent_port_sharing (
 	share_level integer NOT NULL
 );
 
-ALTER TABLE templates ADD COLUMN max_port_sharing integer NOT NULL DEFAULT 0;
+ALTER TABLE templates ADD COLUMN max_port_sharing_level integer NOT NULL DEFAULT 0;
 
 -- Update the template_with_users view by recreating it.
 DROP VIEW template_with_users;

@@ -1267,13 +1267,6 @@ export interface UpdateHealthSettings {
   readonly dismissed_healthchecks: HealthSection[];
 }
 
-// From codersdk/workspaceportsharing.go
-export interface UpdatePortSharingLevelRequest {
-  readonly agent_name: string;
-  readonly port: number;
-  readonly share_level: number;
-}
-
 // From codersdk/users.go
 export interface UpdateRoles {
   readonly roles: string[];
@@ -1328,6 +1321,13 @@ export interface UpdateUserProfileRequest {
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
+}
+
+// From codersdk/workspaceportsharing.go
+export interface UpdateWorkspaceAgentPortSharingLevelRequest {
+  readonly agent_name: string;
+  readonly port: number;
+  readonly share_level: number;
 }
 
 // From codersdk/workspaces.go
@@ -2191,6 +2191,12 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
   "authenticated",
   "owner",
   "public",
+];
+
+// From codersdk/workspaceportsharing.go
+export type WorkspacePortSharingLevel = 0 | 1 | 2;
+export const WorkspacePortSharingLevels: WorkspacePortSharingLevel[] = [
+  0, 1, 2,
 ];
 
 // From codersdk/workspacebuilds.go

@@ -84,7 +84,7 @@ INSERT INTO
 		group_acl,
 		display_name,
 		allow_user_cancel_workspace_jobs,
-		max_port_sharing
+		max_port_sharing_level
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
@@ -118,7 +118,7 @@ SET
 	display_name = $6,
 	allow_user_cancel_workspace_jobs = $7,
 	group_acl = $8,
-	max_port_sharing = $9
+	max_port_sharing_level = $9
 WHERE
 	id = $1
 ;

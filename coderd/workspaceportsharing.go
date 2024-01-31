@@ -57,7 +57,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	psl, err := api.Database.GetWorkspacePortShareLevel(ctx, database.GetWorkspacePortShareLevelParams{
+	psl, err := api.Database.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
 		WorkspaceID: workspace.ID,
 		AgentName:   req.AgentName,
 		Port:        int32(req.Port),
@@ -75,7 +75,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		err = api.Database.CreateWorkspacePortShareLevel(ctx, database.CreateWorkspacePortShareLevelParams{
+		err = api.Database.CreateWorkspaceAgentPortShare(ctx, database.CreateWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   req.AgentName,
 			Port:        int32(req.Port),
@@ -93,7 +93,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 	if codersdk.WorkspacePortSharingLevel(psl.ShareLevel) == codersdk.WorkspaceAgentPortSharingLevelOwner {
 		// If the port is shared, and the user is trying to set it to owner,
 		// we need to remove the existing share record.
-		err = api.Database.DeleteWorkspacePortShareLevel(ctx, database.DeleteWorkspacePortShareLevelParams{
+		err = api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   req.AgentName,
 			Port:        int32(req.Port),
@@ -107,7 +107,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = api.Database.UpdateWorkspacePortShareLevel(ctx, database.UpdateWorkspacePortShareLevelParams{
+	err = api.Database.UpdateWorkspaceAgentPortShare(ctx, database.UpdateWorkspaceAgentPortShareParams{
 		WorkspaceID: psl.WorkspaceID,
 		AgentName:   psl.AgentName,
 		Port:        psl.Port,

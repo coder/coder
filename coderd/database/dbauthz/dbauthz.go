@@ -725,7 +725,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
-func (q *querier) CreateWorkspacePortShareLevel(ctx context.Context, arg database.CreateWorkspacePortShareLevelParams) error {
+func (q *querier) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
 	panic("not implemented")
 }
 
@@ -895,7 +895,7 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
-func (q *querier) DeleteWorkspacePortShareLevel(ctx context.Context, arg database.DeleteWorkspacePortShareLevelParams) error {
+func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	panic("not implemented")
 }
 
@@ -1876,6 +1876,10 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.Ge
 	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2021,10 +2025,6 @@ func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database
 
 func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
-}
-
-func (q *querier) GetWorkspacePortShareLevel(ctx context.Context, arg database.GetWorkspacePortShareLevelParams) (database.WorkspacePortSharing, error) {
-	panic("not implemented")
 }
 
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
@@ -3019,6 +3019,10 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
@@ -3126,10 +3130,6 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspacePortShareLevel(ctx context.Context, arg database.UpdateWorkspacePortShareLevelParams) error {
-	panic("not implemented")
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
