@@ -22,6 +22,10 @@ import (
 	"github.com/coder/retry"
 )
 
+func OnlyDate(t time.Time) string {
+	return t.Format("2006-01-02")
+}
+
 // deploymentTimezoneOffsets are the timezones that are cached and supported.
 // Any non-listed timezone offsets will need to use the closest supported one.
 var deploymentTimezoneOffsets = []int{
@@ -168,7 +172,7 @@ func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse 
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
 			// This date is truncated to 00:00:00 of the given day, so only
 			// return date information.
-			Date:   date.Format("2006-01-02"),
+			Date:   OnlyDate(date),
 			Amount: len(respMap[date]),
 		})
 	}
