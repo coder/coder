@@ -1315,9 +1315,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
-			signupsDisabledText := api.OIDCConfig.SignupsDisabledText
-			if signupsDisabledText == "" {
-				signupsDisabledText = "Please contact your Coder administrator to request access."
+			signupsDisabledText := "Please contact your Coder administrator to request access."
+			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
+				signupsDisabledText = api.OIDCConfig.SignupsDisabledText
 			}
 			return httpError{
 				code:             http.StatusBadRequest,
