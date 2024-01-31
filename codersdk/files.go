@@ -12,6 +12,9 @@ import (
 
 const (
 	ContentTypeTar = "application/x-tar"
+	ContentTypeZip = "application/zip"
+
+	FormatZip = "zip"
 )
 
 // UploadResponse contains the hash to reference the uploaded file.
@@ -38,7 +41,12 @@ func (c *Client) Upload(ctx context.Context, contentType string, rd io.Reader) (
 
 // Download fetches a file by uploaded hash.
 func (c *Client) Download(ctx context.Context, id uuid.UUID) ([]byte, string, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/files/%s", id.String()), nil)
+	return c.DownloadWithFormat(ctx, id, "")
+}
+
+// Download fetches a file by uploaded hash, but it forces format conversion.
+func (c *Client) DownloadWithFormat(ctx context.Context, id uuid.UUID, format string) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/files/%s?format=%s", id.String(), format), nil)
 	if err != nil {
 		return nil, "", err
 	}

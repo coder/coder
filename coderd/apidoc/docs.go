@@ -920,7 +920,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "default": "application/x-tar",
-                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + `",
+                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + ` or ` + "`" + `application/zip` + "`" + `",
                         "name": "Content-Type",
                         "in": "header",
                         "required": true
