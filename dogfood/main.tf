@@ -266,7 +266,7 @@ resource "coder_agent" "dev" {
     sudo service docker start
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
-    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone does not exist.
+    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
     while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
       sleep 1
     done
