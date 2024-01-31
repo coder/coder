@@ -272,7 +272,7 @@ resource "coder_agent" "dev" {
       cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
     else
       echo "The directory ${local.repo_dir}/site does not exist. Clone is not complete."
-      echo 'Please run "${local.repo_dir}/site && pnpm install && pnpm playwright:instal" after workspace creation'
+      echo 'Please run "cd ${local.repo_dir}/site && pnpm install && pnpm playwright:instal" after workspace creation'
     fi
   EOT
 }
