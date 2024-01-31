@@ -494,26 +494,19 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
 
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:    "another@user.org",
 			Username: "someone-else",
 			Password: "SomeSecurePassword!",
 		})
-		require.NoError(t, err)
-
-		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
-
-		require.Len(t, user.OrganizationIDs, 1)
-		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+		require.ErrorContains(t, err, "Organization ID is required")
 	})
 
 	t.Run("Create", func(t *testing.T) {
