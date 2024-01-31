@@ -37,6 +37,7 @@ import (
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := api.Logger.Named("agentrpc")
 
 	version := r.URL.Query().Get("version")
 	if version == "" {
@@ -61,7 +62,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	build, ok := ensureLatestBuild(ctx, api.Database, api.Logger, rw, workspaceAgent)
+	build, ok := ensureLatestBuild(ctx, api.Database, logger, rw, workspaceAgent)
 	if !ok {
 		return
 	}
@@ -84,6 +85,12 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger = logger.With(
+		slog.F("owner", owner.Username),
+		slog.F("workspace_name", workspace.Name),
+		slog.F("agent_name", workspaceAgent.Name),
+	)
+
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -96,6 +103,10 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
+	ycfg := yamux.DefaultConfig()
+	ycfg.LogOutput = nil
+	ycfg.Logger = slog.Stdlib(ctx, logger.Named("yamux"), slog.LevelDebug)
+
 	mux, err := yamux.Server(wsNetConn, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -106,12 +117,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer mux.Close()
 
-	api.Logger.Debug(ctx, "accepting agent RPC connection",
-		slog.F("owner", owner.Username),
-		slog.F("workspace", workspace.Name),
-		slog.F("name", workspaceAgent.Name),
-	)
-	api.Logger.Debug(ctx, "accepting agent details", slog.F("agent", workspaceAgent))
+	logger.Debug(ctx, "accepting agent RPC connection", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
@@ -124,7 +130,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		AgentID: workspaceAgent.ID,
 
 		Ctx:                               api.ctx,
-		Log:                               api.Logger,
+		Log:                               logger,
 		Database:                          api.Database,
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
@@ -157,7 +163,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
 	if err != nil {
-		api.Logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
+		logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
