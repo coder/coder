@@ -1,32 +1,31 @@
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import TableCell from "@mui/material/TableCell";
+import { type FC, useState } from "react";
+import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "api/typesGenerated";
+import { type ThemeRole } from "theme/experimental";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Pill, type PillType } from "components/Pill/Pill";
+import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { type FC, useState } from "react";
-import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
-const httpStatusColor = (httpStatus: number): PillType => {
-  // redirects are successful
-  if (httpStatus === 307) {
-    return "success";
-  }
-
-  if (httpStatus >= 300 && httpStatus < 500) {
-    return "warning";
-  }
-
+const httpStatusColor = (httpStatus: number): ThemeRole => {
+  // Treat server errors (500) as errors
   if (httpStatus >= 500) {
     return "error";
   }
 
+  // Treat client errors (400) as warnings
+  if (httpStatus >= 400) {
+    return "warning";
+  }
+
+  // OK (200) and redirects (300) are successful
   return "success";
 };
 
