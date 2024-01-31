@@ -8877,8 +8877,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "date": {
-                    "type": "string",
-                    "format": "date-time"
+                    "description": "Date is a string formatted as 2024-01-31.\nTimezone and time information is not included.",
+                    "type": "string"
                 }
             }
         },

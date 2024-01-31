@@ -1931,16 +1931,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "amount": 0,
-  "date": "2019-08-24T14:15:22Z"
+  "date": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type    | Required | Restrictions | Description |
-| -------- | ------- | -------- | ------------ | ----------- |
-| `amount` | integer | false    |              |             |
-| `date`   | string  | false    |              |             |
+| Name     | Type    | Required | Restrictions | Description                                                                              |
+| -------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `amount` | integer | false    |              |                                                                                          |
+| `date`   | string  | false    |              | Date is a string formatted as 2024-01-31. Timezone and time information is not included. |
 
 ## codersdk.DAUsResponse
 
@@ -1949,7 +1949,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "entries": [
     {
       "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
+      "date": "string"
     }
   ],
   "tz_hour_offset": 0

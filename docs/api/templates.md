@@ -842,7 +842,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   "entries": [
     {
       "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
+      "date": "string"
     }
   ],
   "tz_hour_offset": 0
