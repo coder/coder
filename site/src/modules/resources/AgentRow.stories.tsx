@@ -311,3 +311,24 @@ export const Deprecated: Story = {
     serverAPIVersion: "2.0",
   },
 };
+
+export const WithXRayScan: Story = {
+  parameters: {
+    queries: [
+      {
+        key: [
+          "xray",
+          { agentId: MockWorkspaceAgent.id, workspaceId: MockWorkspace.id },
+        ],
+        data: {
+          workspace_id: MockWorkspace.id,
+          agent_id: MockWorkspaceAgent.id,
+          critical: 10,
+          high: 3,
+          medium: 5,
+          results_url: "http://localhost:8080",
+        },
+      },
+    ],
+  },
+};

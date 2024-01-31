@@ -37,6 +37,9 @@ import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { useQuery } from "react-query";
+import { xrayScan } from "api/queries/integrations";
+import { XRayScanAlert } from "./XRayScanAlert";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -74,6 +77,12 @@ export const AgentRow: FC<AgentRowProps> = ({
   sshPrefix,
   storybookLogs,
 }) => {
+  // XRay integration
+  const xrayScanQuery = useQuery(
+    xrayScan({ workspaceId: workspace.id, agentId: agent.id }),
+  );
+
+  // Apps visibility
   const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0;
   const shouldDisplayApps =
     showApps &&
@@ -84,6 +93,7 @@ export const AgentRow: FC<AgentRowProps> = ({
     agent.display_apps.includes("vscode_insiders");
   const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
 
+  // Agent runtime logs
   const logSourceByID = useMemo(() => {
     const sources: { [id: string]: WorkspaceAgentLogSource } = {};
     for (const source of agent.log_sources) {
@@ -216,6 +226,8 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
       </header>
 
+      {xrayScanQuery.data && <XRayScanAlert scan={xrayScanQuery.data} />}
+
       <div css={styles.content}>
         {agent.status === "connected" && (
           <section css={styles.apps}>
@@ -276,7 +288,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 
       {hasStartupFeatures && (
         <section
-          css={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}
+          css={(theme) => ({
+            borderTop: `1px solid ${theme.palette.divider}`,
+          })}
         >
           <Collapse in={showLogs}>
             <AutoSizer disableHeight>
@@ -570,6 +584,10 @@ const styles = {
     justifyContent: "space-between",
     flexWrap: "wrap",
     lineHeight: "1.5",
+
+    "&:has(+ [role='alert'])": {
+      paddingBottom: 16,
+    },
 
     [theme.breakpoints.down("md")]: {
       gap: 16,
