@@ -18,10 +18,10 @@ coder licenses list [flags]
 
 ### -c, --column
 
-|         |                                                   |
-| ------- | ------------------------------------------------- |
-| Type    | <code>string-array</code>                         |
-| Default | <code>UUID,Expires At,Uploaded At,Features</code> |
+|         |                                                      |
+| ------- | ---------------------------------------------------- |
+| Type    | <code>string-array</code>                            |
+| Default | <code>ID,UUID,Expires At,Uploaded At,Features</code> |
 
 Columns to display in table output. Available columns: id, uuid, uploaded at, features, expires at, trial.
 

@@ -163,6 +163,7 @@ export interface BuildInfoResponse {
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
+  readonly upgrade_message: string;
 }
 
 // From codersdk/insights.go
@@ -438,6 +439,7 @@ export interface DeploymentValues {
   readonly web_terminal_renderer?: string;
   readonly allow_workspace_renames?: boolean;
   readonly healthcheck?: HealthcheckConfig;
+  readonly cli_upgrade_message?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -605,6 +607,16 @@ export interface IssueReconnectingPTYSignedTokenRequest {
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenResponse {
   readonly signed_token: string;
+}
+
+// From codersdk/jfrog.go
+export interface JFrogXrayScan {
+  readonly workspace_id: string;
+  readonly agent_id: string;
+  readonly critical: number;
+  readonly high: number;
+  readonly medium: number;
+  readonly results_url: string;
 }
 
 // From codersdk/licenses.go
@@ -1425,6 +1437,12 @@ export interface UserLoginType {
   readonly login_type: LoginType;
 }
 
+// From codersdk/users.go
+export interface UserParameter {
+  readonly name: string;
+  readonly value: string;
+}
+
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;
@@ -1471,6 +1489,7 @@ export interface Workspace {
   readonly updated_at: string;
   readonly owner_id: string;
   readonly owner_name: string;
+  readonly owner_avatar_url: string;
   readonly organization_id: string;
   readonly template_id: string;
   readonly template_name: string;
@@ -1490,6 +1509,7 @@ export interface Workspace {
   readonly health: WorkspaceHealth;
   readonly automatic_updates: AutomaticUpdates;
   readonly allow_renames: boolean;
+  readonly favorite: boolean;
 }
 
 // From codersdk/workspaceagents.go
@@ -1624,6 +1644,7 @@ export interface WorkspaceBuild {
   readonly workspace_name: string;
   readonly workspace_owner_id: string;
   readonly workspace_owner_name: string;
+  readonly workspace_owner_avatar_url: string;
   readonly template_version_id: string;
   readonly template_version_name: string;
   readonly build_number: number;
@@ -1998,6 +2019,7 @@ export type RBACResource =
   | "template_insights"
   | "user"
   | "user_data"
+  | "user_workspace_build_parameters"
   | "workspace"
   | "workspace_execution"
   | "workspace_proxy";
@@ -2022,6 +2044,7 @@ export const RBACResources: RBACResource[] = [
   "template_insights",
   "user",
   "user_data",
+  "user_workspace_build_parameters",
   "workspace",
   "workspace_execution",
   "workspace_proxy",

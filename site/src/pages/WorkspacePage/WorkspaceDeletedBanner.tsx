@@ -1,14 +1,14 @@
 import Button from "@mui/material/Button";
-import { FC } from "react";
+import { type FC } from "react";
 import { Alert } from "components/Alert/Alert";
 
 export interface WorkspaceDeletedBannerProps {
   handleClick: () => void;
 }
 
-export const WorkspaceDeletedBanner: FC<
-  React.PropsWithChildren<WorkspaceDeletedBannerProps>
-> = ({ handleClick }) => {
+export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
+  handleClick,
+}) => {
   const NewWorkspaceButton = (
     <Button onClick={handleClick} size="small" variant="text">
       Create new workspace

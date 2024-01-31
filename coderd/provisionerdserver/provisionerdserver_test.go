@@ -67,7 +67,7 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 
 func TestAcquireJob_LongPoll(t *testing.T) {
 	t.Parallel()
-	//nolint:dogsled // ૮・ᴥ・ა
+	//nolint:dogsled
 	srv, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Microsecond})
 	job, err := srv.AcquireJob(context.Background(), nil)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestAcquireJob_LongPoll(t *testing.T) {
 
 func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	t.Parallel()
-	//nolint:dogsled // ૮ ˶′ﻌ ‵˶ ა
+	//nolint:dogsled
 	srv, _, _, _ := setup(t, false, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -101,8 +101,8 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	numBeats := 3
+	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
 		t.Logf("heartbeat")
@@ -114,28 +114,17 @@ func TestHeartbeat(t *testing.T) {
 			return nil
 		}
 	}
-	//nolint:dogsled // ｡:ﾟ૮ ˶ˆ ﻌ ˆ˶ ა ﾟ:｡
+	//nolint:dogsled
 	_, _, _, _ = setup(t, false, &overrides{
 		ctx:               ctx,
 		heartbeatFn:       heartbeatFn,
 		heartbeatInterval: testutil.IntervalFast,
 	})
 
-	_, ok := <-heartbeatChan
-	require.True(t, ok, "first heartbeat not received")
-	_, ok = <-heartbeatChan
-	require.True(t, ok, "second heartbeat not received")
-	cancel()
-	// Close the channel to ensure we don't receive any more heartbeats.
-	// The test will fail if we do.
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("heartbeat received after cancel: %v", r)
-		}
-	}()
-
-	close(heartbeatChan)
-	<-time.After(testutil.IntervalMedium)
+	for i := 0; i < numBeats; i++ {
+		testutil.RequireRecvCtx(ctx, t, heartbeatChan)
+	}
+	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
 
 func TestAcquireJob(t *testing.T) {

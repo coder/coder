@@ -22,6 +22,7 @@ export const workspaceFilterQuery = {
   running: "status:running",
   failed: "status:failed",
   dormant: "dormant:true",
+  outdated: "outdated:true",
 };
 
 type FilterPreset = {
@@ -47,6 +48,10 @@ const PRESET_FILTERS: FilterPreset[] = [
   {
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
+  },
+  {
+    query: workspaceFilterQuery.outdated,
+    name: "Outdated workspaces",
   },
 ];
 
@@ -210,7 +215,7 @@ const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
         height: 8,
         width: 8,
         borderRadius: 4,
-        backgroundColor: theme.experimental.roles[option.color].fill,
+        backgroundColor: theme.experimental.roles[option.color].fill.solid,
       }}
     />
   );

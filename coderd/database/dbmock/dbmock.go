@@ -500,6 +500,20 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), arg0, arg1)
 }
 
+// FavoriteWorkspace mocks base method.
+func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FavoriteWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FavoriteWorkspace indicates an expected call of FavoriteWorkspace.
+func (mr *MockStoreMockRecorder) FavoriteWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), arg0, arg1)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(arg0 context.Context, arg1 string) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -1053,6 +1067,21 @@ func (m *MockStore) GetHungProvisionerJobs(arg0 context.Context, arg1 time.Time)
 func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
+}
+
+// GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
+func (m *MockStore) GetJFrogXrayScanByWorkspaceAndAgentID(arg0 context.Context, arg1 database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJFrogXrayScanByWorkspaceAndAgentID", arg0, arg1)
+	ret0, _ := ret[0].(database.JfrogXrayScan)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJFrogXrayScanByWorkspaceAndAgentID indicates an expected call of GetJFrogXrayScanByWorkspaceAndAgentID.
+func (mr *MockStoreMockRecorder) GetJFrogXrayScanByWorkspaceAndAgentID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJFrogXrayScanByWorkspaceAndAgentID", reflect.TypeOf((*MockStore)(nil).GetJFrogXrayScanByWorkspaceAndAgentID), arg0, arg1)
 }
 
 // GetLastUpdateCheck mocks base method.
@@ -2073,6 +2102,21 @@ func (m *MockStore) GetUserLinksByUserID(arg0 context.Context, arg1 uuid.UUID) (
 func (mr *MockStoreMockRecorder) GetUserLinksByUserID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetUserLinksByUserID), arg0, arg1)
+}
+
+// GetUserWorkspaceBuildParameters mocks base method.
+func (m *MockStore) GetUserWorkspaceBuildParameters(arg0 context.Context, arg1 database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserWorkspaceBuildParameters", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserWorkspaceBuildParametersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserWorkspaceBuildParameters indicates an expected call of GetUserWorkspaceBuildParameters.
+func (mr *MockStoreMockRecorder) GetUserWorkspaceBuildParameters(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetUserWorkspaceBuildParameters), arg0, arg1)
 }
 
 // GetUsers mocks base method.
@@ -3410,6 +3454,20 @@ func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(arg0, arg1 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveTemplateVersion", reflect.TypeOf((*MockStore)(nil).UnarchiveTemplateVersion), arg0, arg1)
 }
 
+// UnfavoriteWorkspace mocks base method.
+func (m *MockStore) UnfavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnfavoriteWorkspace", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnfavoriteWorkspace indicates an expected call of UnfavoriteWorkspace.
+func (mr *MockStoreMockRecorder) UnfavoriteWorkspace(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnfavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).UnfavoriteWorkspace), arg0, arg1)
+}
+
 // UpdateAPIKeyByID mocks base method.
 func (m *MockStore) UpdateAPIKeyByID(arg0 context.Context, arg1 database.UpdateAPIKeyByIDParams) error {
 	m.ctrl.T.Helper()
@@ -4226,6 +4284,20 @@ func (m *MockStore) UpsertHealthSettings(arg0 context.Context, arg1 string) erro
 func (mr *MockStoreMockRecorder) UpsertHealthSettings(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), arg0, arg1)
+}
+
+// UpsertJFrogXrayScanByWorkspaceAndAgentID mocks base method.
+func (m *MockStore) UpsertJFrogXrayScanByWorkspaceAndAgentID(arg0 context.Context, arg1 database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertJFrogXrayScanByWorkspaceAndAgentID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertJFrogXrayScanByWorkspaceAndAgentID indicates an expected call of UpsertJFrogXrayScanByWorkspaceAndAgentID.
+func (mr *MockStoreMockRecorder) UpsertJFrogXrayScanByWorkspaceAndAgentID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertJFrogXrayScanByWorkspaceAndAgentID", reflect.TypeOf((*MockStore)(nil).UpsertJFrogXrayScanByWorkspaceAndAgentID), arg0, arg1)
 }
 
 // UpsertLastUpdateCheck mocks base method.

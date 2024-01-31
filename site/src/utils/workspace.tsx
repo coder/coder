@@ -274,7 +274,17 @@ export const getMatchingAgentOrFirst = (
     .filter((a) => a)[0];
 };
 
-export const workspaceUpdatePolicy = (
+export const mustUpdateWorkspace = (
+  workspace: TypesGen.Workspace,
+  canChangeVersions: boolean,
+): boolean => {
+  return (
+    workspaceUpdatePolicy(workspace, canChangeVersions) === "always" &&
+    workspace.outdated
+  );
+};
+
+const workspaceUpdatePolicy = (
   workspace: TypesGen.Workspace,
   canChangeVersions: boolean,
 ): TypesGen.AutomaticUpdates => {

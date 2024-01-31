@@ -130,7 +130,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 	for _, ws := range workspaces {
 		wsID := ws.ID
-		log := e.log.With(slog.F("workspace_id", wsID))
+		wsName := ws.Name
+		log := e.log.With(
+			slog.F("workspace_id", wsID),
+			slog.F("workspace_name", wsName),
+		)
 
 		eg.Go(func() error {
 			err := func() error {
@@ -256,7 +260,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.
 					auditLog.Success = err == nil
-					auditBuild(e.ctx, e.log, *e.auditor.Load(), *auditLog)
+					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
 				}
 				if err != nil {
 					return xerrors.Errorf("transition workspace: %w", err)
@@ -274,7 +278,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				return nil
 			}()
 			if err != nil {
-				e.log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
+				log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
 				statsMu.Lock()
 				stats.Errors[wsID] = err
 				statsMu.Unlock()

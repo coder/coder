@@ -129,6 +129,13 @@ export const getAuthenticatedUser = async () => {
   return response.data;
 };
 
+export const getUserParameters = async (templateID: string) => {
+  const response = await axios.get<TypesGen.UserParameter[]>(
+    "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
+  );
+  return response.data;
+};
+
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
@@ -1687,4 +1694,12 @@ export const updateHealthSettings = async (
     data,
   );
   return response.data;
+};
+
+export const putFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
+
+export const deleteFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 };

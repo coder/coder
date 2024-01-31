@@ -421,8 +421,8 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
     validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
   const usageColors = chroma
     .scale([
-      theme.experimental.roles.success.fill,
-      theme.experimental.roles.notice.fill,
+      theme.experimental.roles.success.fill.solid,
+      theme.experimental.roles.notice.fill.solid,
     ])
     .mode("lch")
     .colors(validUsage?.length ?? 0);

@@ -20,13 +20,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const (
-	CurrentMajor = 2
-	CurrentMinor = 0
-)
-
-var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)
-
 type streamIDContextKey struct{}
 
 // StreamID identifies the caller of the CoordinateTailnet RPC.  We store this
@@ -139,6 +132,10 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 	var lastDERPMap *tailcfg.DERPMap
 	for {
 		derpMap := s.DerpMapFn()
+		if derpMap == nil {
+			// in testing, we send nil to close the stream.
+			return io.EOF
+		}
 		if lastDERPMap == nil || !CompareDERPMaps(lastDERPMap, derpMap) {
 			protoDERPMap := DERPMapToProto(derpMap)
 			err := stream.Send(protoDERPMap)

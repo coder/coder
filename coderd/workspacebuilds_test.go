@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -37,12 +38,23 @@ func TestWorkspaceBuild(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
+	ctx := testutil.Context(t, testutil.WaitShort)
 	auditor := audit.NewMock()
-	client := coderdtest.New(t, &coderdtest.Options{
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Auditor:                  auditor,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
+	//nolint:gocritic // testing
+	up, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+		ID:        user.UserID,
+		Email:     coderdtest.FirstUserParams.Email,
+		Username:  coderdtest.FirstUserParams.Username,
+		Name:      "Admin",
+		AvatarURL: client.URL.String(),
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -57,6 +69,10 @@ func TestWorkspaceBuild(t *testing.T) {
 			assert.Equal(t, logs[0].Ip.IPNet.IP.String(), "127.0.0.1") &&
 			assert.Equal(t, logs[1].Ip.IPNet.IP.String(), "127.0.0.1")
 	}, testutil.WaitShort, testutil.IntervalFast)
+	wb, err := client.WorkspaceBuild(testutil.Context(t, testutil.WaitShort), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, up.Username, wb.WorkspaceOwnerName)
+	require.Equal(t, up.AvatarURL, wb.WorkspaceOwnerAvatarURL)
 }
 
 func TestWorkspaceBuildByBuildNumber(t *testing.T) {

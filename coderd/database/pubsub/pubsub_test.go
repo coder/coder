@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
@@ -32,6 +34,7 @@ func TestPubsub(t *testing.T) {
 	t.Run("Postgres", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
@@ -39,7 +42,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		event := "test"
@@ -61,13 +64,14 @@ func TestPubsub(t *testing.T) {
 	t.Run("PostgresCloseCancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
 		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
@@ -76,13 +80,14 @@ func TestPubsub(t *testing.T) {
 	t.Run("NotClosedOnCancelContext", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
 		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 
@@ -108,13 +113,14 @@ func TestPubsub(t *testing.T) {
 	t.Run("ClosePropagatesContextCancellationToSubscription", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
 		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 
@@ -164,6 +170,7 @@ func TestPubsub_ordering(t *testing.T) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	connectionURL, closePg, err := postgres.Open()
 	require.NoError(t, err)
@@ -171,7 +178,7 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	ps, err := pubsub.New(ctx, db, connectionURL)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -219,7 +226,8 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
-	ps, err := pubsub.New(ctx, db, connectionURL)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"

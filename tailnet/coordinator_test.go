@@ -383,6 +383,24 @@ func TestCoordinator_Lost(t *testing.T) {
 	test.LostTest(ctx, t, coordinator)
 }
 
+func TestCoordinator_MultiAgent_CoordClose(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	coord1 := tailnet.NewCoordinator(logger.Named("coord1"))
+	defer coord1.Close()
+
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
+	defer ma1.Close()
+
+	err := coord1.Close()
+	require.NoError(t, err)
+
+	ma1.RequireEventuallyClosed(ctx)
+}
+
 func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
 	t.Helper()
 	sc := make(chan net.Conn, 1)
@@ -460,11 +478,11 @@ func TestRemoteCoordination(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, tailnet.CurrentVersion.String(), sC, clientID, agentID)
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
 		serveErr <- err
 	}()
 
-	client, err := tailnet.NewDRPCClient(cC)
+	client, err := tailnet.NewDRPCClient(cC, logger)
 	require.NoError(t, err)
 	protocol, err := client.Coordinate(ctx)
 	require.NoError(t, err)

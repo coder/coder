@@ -524,6 +524,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
 		count    int64
+		retry    int64
 		template string
 
 		noCleanup bool
@@ -644,6 +645,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 							RichParameterValues: richParameters,
 						},
 						NoWaitForAgents: noWaitForAgents,
+						Retry:           int(retry),
 					},
 					NoCleanup: noCleanup,
 				}
@@ -752,6 +754,13 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Default:       "1",
 			Description:   "Required: Number of workspaces to create.",
 			Value:         clibase.Int64Of(&count),
+		},
+		{
+			Flag:        "retry",
+			Env:         "CODER_SCALETEST_RETRY",
+			Default:     "0",
+			Description: "Number of tries to create and bring up the workspace.",
+			Value:       clibase.Int64Of(&retry),
 		},
 		{
 			Flag:          "template",

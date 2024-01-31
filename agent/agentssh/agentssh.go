@@ -681,7 +681,11 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 
 	// This adds the ports dialog to code-server that enables
 	// proxying a port dynamically.
-	cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", manifest.VSCodePortProxyURI))
+	// If this is empty string, do not set anything. Code-server auto defaults
+	// using its basepath to construct a path based port proxy.
+	if manifest.VSCodePortProxyURI != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", manifest.VSCodePortProxyURI))
+	}
 
 	// Hide Coder message on code-server's "Getting Started" page
 	cmd.Env = append(cmd.Env, "CS_DISABLE_GETTING_STARTED_OVERRIDE=true")

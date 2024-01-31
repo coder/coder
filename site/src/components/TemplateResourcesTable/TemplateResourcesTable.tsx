@@ -1,15 +1,15 @@
-import { AgentRowPreview } from "components/Resources/AgentRowPreview";
-import { Resources } from "components/Resources/Resources";
-import { FC } from "react";
-import { WorkspaceResource } from "api/typesGenerated";
+import { type FC } from "react";
+import type { WorkspaceResource } from "api/typesGenerated";
+import { AgentRowPreview } from "modules/resources/AgentRowPreview";
+import { Resources } from "modules/resources/Resources";
 
 export interface TemplateResourcesProps {
   resources: WorkspaceResource[];
 }
 
-export const TemplateResourcesTable: FC<
-  React.PropsWithChildren<TemplateResourcesProps>
-> = ({ resources }) => {
+export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({
+  resources,
+}) => {
   return (
     <Resources
       resources={resources}

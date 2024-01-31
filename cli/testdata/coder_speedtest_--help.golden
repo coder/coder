@@ -14,6 +14,9 @@ OPTIONS:
           Specifies whether to run in reverse mode where the client receives and
           the server sends.
 
+      --pcap-file string
+          Specifies a file to write a network capture to.
+
   -t, --time duration (default: 5s)
           Specifies the duration to monitor traffic.
 

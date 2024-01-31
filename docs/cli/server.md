@@ -73,6 +73,16 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cli-upgrade-message
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
+| YAML        | <code>client.cliUpgradeMessage</code>   |
+
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+
 ### --cache-dir
 
 |             |                                     |

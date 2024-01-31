@@ -1,14 +1,26 @@
-import { renderWithAuth } from "testHelpers/renderHelpers";
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers";
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as api from "api/api";
 import {
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersionVariable1,
+  MockTemplateVersionVariable2,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
 import { Language } from "./PublishTemplateVersionDialog";
+import { QueryClient } from "react-query";
+import { templateVersionVariablesKey } from "api/queries/templates";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { RequireAuth } from "contexts/auth/RequireAuth";
+import { server } from "testHelpers/server";
+import { rest } from "msw";
+import { AppProviders } from "App";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -208,3 +220,111 @@ test("Patch request is not send when there are no changes", async () => {
   );
   expect(patchTemplateVersion).toBeCalledTimes(0);
 });
+
+describe.each([
+  {
+    testName: "Do not ask when template version has no errors",
+    initialVariables: undefined,
+    loadedVariables: undefined,
+    templateVersion: MockTemplateVersion,
+    askForVariables: false,
+  },
+  {
+    testName:
+      "Do not ask when template version has no errors even when having previously loaded variables",
+    initialVariables: [
+      MockTemplateVersionVariable1,
+      MockTemplateVersionVariable2,
+    ],
+    loadedVariables: undefined,
+    templateVersion: MockTemplateVersion,
+    askForVariables: false,
+  },
+  {
+    testName: "Ask when template version has errors",
+    initialVariables: undefined,
+    templateVersion: {
+      ...MockTemplateVersion,
+      job: {
+        ...MockTemplateVersion.job,
+        error_code: "REQUIRED_TEMPLATE_VARIABLES",
+      },
+    },
+    loadedVariables: [
+      MockTemplateVersionVariable1,
+      MockTemplateVersionVariable2,
+    ],
+    askForVariables: true,
+  },
+])(
+  "Missing template variables",
+  ({
+    testName,
+    initialVariables,
+    loadedVariables,
+    templateVersion,
+    askForVariables,
+  }) => {
+    it(testName, async () => {
+      jest.resetAllMocks();
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(
+        templateVersionVariablesKey(MockTemplateVersion.id),
+        initialVariables,
+      );
+
+      server.use(
+        rest.get(
+          "/api/v2/organizations/:org/templates/:template/versions/:version",
+          (req, res, ctx) => {
+            return res(ctx.json(templateVersion));
+          },
+        ),
+      );
+
+      if (loadedVariables) {
+        server.use(
+          rest.get(
+            "/api/v2/templateversions/:version/variables",
+            (req, res, ctx) => {
+              return res(ctx.json(loadedVariables));
+            },
+          ),
+        );
+      }
+
+      render(
+        <AppProviders queryClient={queryClient}>
+          <RouterProvider
+            router={createMemoryRouter(
+              [
+                {
+                  element: <RequireAuth />,
+                  children: [
+                    {
+                      element: <TemplateVersionEditorPage />,
+                      path: "/templates/:template/versions/:version/edit",
+                    },
+                  ],
+                },
+              ],
+              {
+                initialEntries: [
+                  `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+                ],
+              },
+            )}
+          />
+        </AppProviders>,
+      );
+      await waitForLoaderToBeRemoved();
+
+      const dialogSelector = /template variables/i;
+      if (askForVariables) {
+        await screen.findByText(dialogSelector);
+      } else {
+        expect(screen.queryByText(dialogSelector)).not.toBeInTheDocument();
+      }
+    });
+  },
+);

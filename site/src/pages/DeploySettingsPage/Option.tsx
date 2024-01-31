@@ -1,6 +1,6 @@
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import { css, useTheme } from "@emotion/react";
-import { type HTMLAttributes, type PropsWithChildren, type FC } from "react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, type HTMLAttributes, type PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 
@@ -107,42 +107,16 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
-export const OptionConfig = ({ isSource, ...attrs }: OptionConfigProps) => {
-  const theme = useTheme();
-  const borderColor = isSource
-    ? theme.experimental.roles.active.outline
-    : theme.palette.divider;
-
+export const OptionConfig: FC<OptionConfigProps> = ({ isSource, ...attrs }) => {
   return (
     <div
       {...attrs}
-      css={[
-        {
-          fontSize: 13,
-          fontFamily: MONOSPACE_FONT_FAMILY,
-          fontWeight: 600,
-          backgroundColor: theme.palette.background.paper,
-          display: "inline-flex",
-          alignItems: "center",
-          borderRadius: 4,
-          padding: 6,
-          lineHeight: 1,
-          gap: 6,
-          border: `1px solid ${borderColor}`,
-        },
-        isSource
-          ? {
-              "& .OptionConfigFlag": {
-                background: theme.experimental.roles.active.fill,
-              },
-            }
-          : undefined,
-      ]}
+      css={[styles.configOption, isSource && styles.sourceConfigOption]}
     />
   );
 };
 
-export const OptionConfigFlag = (props: HTMLAttributes<HTMLDivElement>) => {
+export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   const theme = useTheme();
 
   return (
@@ -163,6 +137,28 @@ export const OptionConfigFlag = (props: HTMLAttributes<HTMLDivElement>) => {
 };
 
 const styles = {
+  configOption: (theme) => ({
+    fontSize: 13,
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    fontWeight: 600,
+    backgroundColor: theme.palette.background.paper,
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 4,
+    padding: 6,
+    lineHeight: 1,
+    gap: 6,
+    border: `1px solid ${theme.palette.divider}`,
+  }),
+
+  sourceConfigOption: (theme) => ({
+    border: `1px solid ${theme.experimental.roles.active.fill.outline}`,
+
+    "& .OptionConfigFlag": {
+      background: theme.experimental.roles.active.fill.solid,
+    },
+  }),
+
   option: css`
     font-size: 14px;
     font-family: ${MONOSPACE_FONT_FAMILY};
@@ -173,4 +169,4 @@ const styles = {
       padding: 16px;
     }
   `,
-};
+} satisfies Record<string, Interpolation<Theme>>;
