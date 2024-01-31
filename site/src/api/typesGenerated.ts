@@ -163,6 +163,7 @@ export interface BuildInfoResponse {
   readonly dashboard_url: string;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
+  readonly upgrade_message: string;
 }
 
 // From codersdk/insights.go
@@ -438,6 +439,7 @@ export interface DeploymentValues {
   readonly web_terminal_renderer?: string;
   readonly allow_workspace_renames?: boolean;
   readonly healthcheck?: HealthcheckConfig;
+  readonly cli_upgrade_message?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -1435,6 +1437,12 @@ export interface UserLoginType {
   readonly login_type: LoginType;
 }
 
+// From codersdk/users.go
+export interface UserParameter {
+  readonly name: string;
+  readonly value: string;
+}
+
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string;
@@ -2011,6 +2019,7 @@ export type RBACResource =
   | "template_insights"
   | "user"
   | "user_data"
+  | "user_workspace_build_parameters"
   | "workspace"
   | "workspace_execution"
   | "workspace_proxy";
@@ -2035,6 +2044,7 @@ export const RBACResources: RBACResource[] = [
   "template_insights",
   "user",
   "user_data",
+  "user_workspace_build_parameters",
   "workspace",
   "workspace_execution",
   "workspace_proxy",

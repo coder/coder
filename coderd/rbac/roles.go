@@ -154,7 +154,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Permissions(map[string][]Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
-				ResourceUser.Type: {ActionRead},
+				ResourceUser.Type:                         {ActionRead},
+				ResourceUserWorkspaceBuildParameters.Type: {ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate},
 			})...,
@@ -209,9 +210,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        userAdmin,
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]Action{
-			ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUserData.Type:       {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceRoleAssignment.Type:               {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUser.Type:                         {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUserData.Type:                     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUserWorkspaceBuildParameters.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},

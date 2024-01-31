@@ -1,13 +1,15 @@
 import { TemplateVersionParameter } from "api/typesGenerated";
-import { FormSection, FormFields } from "components/Form/Form";
+import { FormFields, FormSection } from "components/Form/Form";
 import {
   RichParameterInput,
   RichParameterInputProps,
 } from "components/RichParameterInput/RichParameterInput";
 import { ComponentProps, FC } from "react";
+import { AutofillSource } from "utils/richParameters";
 
 export type TemplateParametersSectionProps = {
   templateParameters: TemplateVersionParameter[];
+  autofillSources?: Record<string, AutofillSource>;
   getInputProps: (
     parameter: TemplateVersionParameter,
     index: number,
@@ -17,6 +19,7 @@ export type TemplateParametersSectionProps = {
 export const TemplateParametersSection: FC<TemplateParametersSectionProps> = ({
   templateParameters,
   getInputProps,
+  autofillSources,
   ...formSectionProps
 }) => {
   const hasMutableParameters =
@@ -38,6 +41,9 @@ export const TemplateParametersSection: FC<TemplateParametersSectionProps> = ({
                     {...getInputProps(parameter, index)}
                     key={parameter.name}
                     parameter={parameter}
+                    autofillSource={
+                      autofillSources && autofillSources[parameter.name]
+                    }
                   />
                 ),
             )}

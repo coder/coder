@@ -68,7 +68,7 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
 // @Router /buildinfo [get]
-func buildInfo(accessURL *url.URL) http.HandlerFunc {
+func buildInfo(accessURL *url.URL, upgradeMessage string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 			ExternalURL:     buildinfo.ExternalURL(),
@@ -76,6 +76,7 @@ func buildInfo(accessURL *url.URL) http.HandlerFunc {
 			AgentAPIVersion: AgentAPIVersionREST,
 			DashboardURL:    accessURL.String(),
 			WorkspaceProxy:  false,
+			UpgradeMessage:  upgradeMessage,
 		})
 	}
 }

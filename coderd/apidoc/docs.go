@@ -920,7 +920,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "default": "application/x-tar",
-                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + `",
+                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + ` or ` + "`" + `application/zip` + "`" + `",
                         "name": "Content-Type",
                         "in": "header",
                         "required": true
@@ -4137,6 +4137,50 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/autofill-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get autofill build parameters for user",
+                "operationId": "get-autofill-build-parameters-for-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "template_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserParameter"
+                            }
                         }
                     }
                 }
@@ -8285,6 +8329,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "upgrade_message": {
+                    "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
+                    "type": "string"
+                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
@@ -8997,6 +9045,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "cache_directory": {
+                    "type": "string"
+                },
+                "cli_upgrade_message": {
                     "type": "string"
                 },
                 "config": {
@@ -10493,6 +10544,7 @@ const docTemplate = `{
                 "api_key",
                 "user",
                 "user_data",
+                "user_workspace_build_parameters",
                 "organization_member",
                 "license",
                 "deployment_config",
@@ -10518,6 +10570,7 @@ const docTemplate = `{
                 "ResourceAPIKey",
                 "ResourceUser",
                 "ResourceUserData",
+                "ResourceUserWorkspaceBuildParameters",
                 "ResourceOrganizationMember",
                 "ResourceLicense",
                 "ResourceDeploymentValues",
@@ -11920,6 +11973,17 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

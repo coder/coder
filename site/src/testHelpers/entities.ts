@@ -199,6 +199,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
   dashboard_url: "https:///mock-url",
   workspace_proxy: false,
+  upgrade_message: "My custom upgrade message",
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [

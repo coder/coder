@@ -1052,6 +1052,17 @@ func (s *MethodTestSuite) TestUser() {
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(u)
 	}))
+	s.Run("GetUserWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(
+			database.GetUserWorkspaceBuildParametersParams{
+				OwnerID:    u.ID,
+				TemplateID: uuid.UUID{},
+			},
+		).Asserts(u.UserWorkspaceBuildParametersObject(), rbac.ActionRead).Returns(
+			[]database.GetUserWorkspaceBuildParametersRow{},
+		)
+	}))
 	s.Run("UpdateUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserAppearanceSettingsParams{

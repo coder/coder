@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    drpc.url = "github:storj/drpc/v0.0.32";
+    drpc.url = "github:storj/drpc/v0.0.33";
   };
 
   outputs = { self, nixpkgs, flake-utils, drpc }:
@@ -45,14 +45,11 @@
           kubernetes-helm
           less
           # Needed for many LD system libs!
-          libuuid
+          util-linux
           mockgen
           nfpm
           nodejs
           nodejs.pkgs.pnpm
-          nodejs.pkgs.prettier
-          nodejs.pkgs.typescript
-          nodejs.pkgs.typescript-language-server
           openssh
           openssl
           pango
@@ -78,10 +75,16 @@
           zsh
           zstd
         ];
+
+        allPackages = pkgs.buildEnv {
+          name = "all-packages";
+          paths = devShellPackages;
+        };
       in
       {
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
+        packages.all = allPackages;
       }
     );
 }

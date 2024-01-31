@@ -645,7 +645,7 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo(api.AccessURL))
+		r.Get("/buildinfo", buildInfo(api.AccessURL, api.DeploymentValues.CLIUpgradeMessage.String()))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -821,6 +821,7 @@ func New(options *Options) *API {
 					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/autofill-parameters", api.userAutofillParameters)
 					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {

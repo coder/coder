@@ -383,6 +383,24 @@ func TestCoordinator_Lost(t *testing.T) {
 	test.LostTest(ctx, t, coordinator)
 }
 
+func TestCoordinator_MultiAgent_CoordClose(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	coord1 := tailnet.NewCoordinator(logger.Named("coord1"))
+	defer coord1.Close()
+
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
+	defer ma1.Close()
+
+	err := coord1.Close()
+	require.NoError(t, err)
+
+	ma1.RequireEventuallyClosed(ctx)
+}
+
 func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
 	t.Helper()
 	sc := make(chan net.Conn, 1)

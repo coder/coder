@@ -17,11 +17,7 @@ import {
   TopbarIcon,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import {
-  WorkspaceScheduleControls,
-  shouldDisplayScheduleControls,
-} from "./WorkspaceScheduleControls";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { displayDormantDeletion } from "utils/dormant";
@@ -29,10 +25,14 @@ import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
+import {
+  WorkspaceScheduleControls,
+  shouldDisplayScheduleControls,
+} from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export type WorkspaceError =
   | "getBuildsError"

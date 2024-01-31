@@ -433,6 +433,11 @@ client:
   # incorrectly can break SSH to your deployment, use cautiously.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
+  # The upgrade message to display to users when a client/server mismatch is
+  # detected. By default it instructs users to update using 'curl -L
+  # https://coder.com/install.sh | sh'.
+  # (default: <unset>, type: string)
+  cliUpgradeMessage: ""
   # The renderer to use when opening a web terminal. Valid values are 'canvas',
   # 'webgl', or 'dom'.
   # (default: canvas, type: string)

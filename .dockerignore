@@ -1,0 +1,6 @@
+# Ignore all files and folders
+**
+
+# Include flake.nix and flake.lock
+!flake.nix
+!flake.lock

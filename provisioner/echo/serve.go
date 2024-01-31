@@ -306,7 +306,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 			}
 		}
 	}
-	err := writer.Flush()
+	// `writer.Close()` function flushes the writer buffer, and adds extra padding to create a legal tarball.
+	err := writer.Close()
 	if err != nil {
 		return nil, err
 	}

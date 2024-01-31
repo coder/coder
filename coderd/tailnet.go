@@ -206,12 +206,13 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 		// If no one has connected since the cutoff and there are no active
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(s.agentTickets[agentID]) == 0 {
-			deletedCount++
-			delete(s.agentConnectionTimes, agentID)
 			err := agentConn.UnsubscribeAgent(agentID)
 			if err != nil {
 				s.logger.Error(ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
+				continue
 			}
+			deletedCount++
+			delete(s.agentConnectionTimes, agentID)
 		}
 	}
 	s.nodesMu.Unlock()

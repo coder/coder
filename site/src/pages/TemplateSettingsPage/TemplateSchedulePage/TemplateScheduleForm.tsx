@@ -5,8 +5,9 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import { FormikTouched, useFormik } from "formik";
-import { FC, ChangeEvent, useState, useEffect } from "react";
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { type FC, ChangeEvent, useState, useEffect } from "react";
+import { useTheme } from "@emotion/react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { getFormHelpers } from "utils/formUtils";
 import { docs } from "utils/docs";
 import {
@@ -20,6 +21,7 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import {
   useWorkspacesToGoDormant,
   useWorkspacesToBeDeleted,
@@ -38,8 +40,6 @@ import {
   AutostopRequirementWeeksHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import { useTheme } from "@emotion/react";
-import { TemplateScheduleAutostart } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;

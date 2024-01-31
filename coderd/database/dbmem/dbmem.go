@@ -3797,6 +3797,65 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
+func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	userWorkspaceIDs := make(map[uuid.UUID]struct{})
+	for _, ws := range q.workspaces {
+		if ws.OwnerID != params.OwnerID {
+			continue
+		}
+		if ws.TemplateID != params.TemplateID {
+			continue
+		}
+		userWorkspaceIDs[ws.ID] = struct{}{}
+	}
+
+	userWorkspaceBuilds := make(map[uuid.UUID]struct{})
+	for _, wb := range q.workspaceBuilds {
+		if _, ok := userWorkspaceIDs[wb.WorkspaceID]; !ok {
+			continue
+		}
+		userWorkspaceBuilds[wb.ID] = struct{}{}
+	}
+
+	templateVersions := make(map[uuid.UUID]struct{})
+	for _, tv := range q.templateVersions {
+		if tv.TemplateID.UUID != params.TemplateID {
+			continue
+		}
+		templateVersions[tv.ID] = struct{}{}
+	}
+
+	tvps := make(map[string]struct{})
+	for _, tvp := range q.templateVersionParameters {
+		if _, ok := templateVersions[tvp.TemplateVersionID]; !ok {
+			continue
+		}
+
+		if _, ok := tvps[tvp.Name]; !ok && !tvp.Ephemeral {
+			tvps[tvp.Name] = struct{}{}
+		}
+	}
+
+	userWorkspaceBuildParameters := make(map[string]database.GetUserWorkspaceBuildParametersRow)
+	for _, wbp := range q.workspaceBuildParameters {
+		if _, ok := userWorkspaceBuilds[wbp.WorkspaceBuildID]; !ok {
+			continue
+		}
+		if _, ok := tvps[wbp.Name]; !ok {
+			continue
+		}
+		userWorkspaceBuildParameters[wbp.Name] = database.GetUserWorkspaceBuildParametersRow{
+			Name:  wbp.Name,
+			Value: wbp.Value,
+		}
+	}
+
+	return maps.Values(userWorkspaceBuildParameters), nil
+}
+
 func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return nil, err

@@ -1,10 +1,11 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { MockTemplateVersion, MockTemplate } from "testHelpers/entities";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
 const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
-  title: "components/WorkspaceOutdatedTooltip",
+  title: "modules/workspaces/WorkspaceOutdatedTooltip",
   component: WorkspaceOutdatedTooltip,
   parameters: {
     queries: [
@@ -24,6 +25,19 @@ const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceOutdatedTooltip>;
 
-const Example: Story = {};
+const Example: Story = {
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByRole("button"));
+      await waitFor(() =>
+        expect(
+          screen.getByText(MockTemplateVersion.message),
+        ).toBeInTheDocument(),
+      );
+    });
+  },
+};
 
 export { Example as WorkspaceOutdatedTooltip };

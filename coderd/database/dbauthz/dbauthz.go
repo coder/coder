@@ -1768,6 +1768,17 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 	return q.db.GetUserLinksByUserID(ctx, userID)
 }
 
+func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	u, err := q.db.GetUserByID(ctx, params.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, u.UserWorkspaceBuildParametersObject()); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserWorkspaceBuildParameters(ctx, params)
+}
+
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// This does the filtering in SQL.
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)

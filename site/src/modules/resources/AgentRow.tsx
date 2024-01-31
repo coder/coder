@@ -25,7 +25,7 @@ import {
   Line,
   LogLine,
   logLineHeight,
-} from "components/WorkspaceBuildLogs/Logs";
+} from "modules/workspaces/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
 import { Stack } from "components/Stack/Stack";
 import { AgentLatency } from "./AgentLatency";

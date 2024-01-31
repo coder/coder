@@ -34,7 +34,6 @@ locals {
   repo_base_dir  = replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = module.git-clone.repo_dir
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  registry_name  = "codercom/oss-dogfood"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
@@ -44,6 +43,23 @@ data "coder_parameter" "repo_base_dir" {
   default     = "~"
   description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
   mutable     = true
+}
+
+data "coder_parameter" "image_type" {
+  type        = "string"
+  name        = "Coder Image"
+  default     = "codercom/oss-dogfood:latest"
+  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Dogfood (Default)"
+    value = "codercom/oss-dogfood:latest"
+  }
+  option {
+    icon  = "/icons/nix.svg"
+    name  = "Dogfood Nix (Experimental)"
+    value = "codercom/oss-dogfood-nix:latest"
+  }
 }
 
 data "coder_parameter" "region" {
@@ -248,7 +264,14 @@ resource "coder_agent" "dev" {
     set -eux -o pipefail
     # Start Docker service
     sudo service docker start
-EOT
+    # Install playwright dependencies
+    # We want to use the playwright version from site/package.json
+    # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
+    while ! [[ -f "${local.repo_dir}/site/package.json" ]]; do
+      sleep 1
+    done
+    cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
+  EOT
 }
 
 resource "docker_volume" "home_volume" {
@@ -279,15 +302,16 @@ resource "docker_volume" "home_volume" {
 }
 
 data "docker_registry_image" "dogfood" {
-  name = "${local.registry_name}:latest"
+  name = data.coder_parameter.image_type.value
 }
 
 resource "docker_image" "dogfood" {
-  name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
+  name = "${data.coder_parameter.image_type.value}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
+    filesha1("Dockerfile.nix"),
   ]
   keep_locally = true
 }

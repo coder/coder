@@ -1012,6 +1012,13 @@ func (m metricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID
 	return r0, r1
 }
 
+func (m metricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetUserWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	users, err := m.s.GetUsers(ctx, arg)
