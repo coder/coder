@@ -490,13 +490,9 @@ func TestPostUsers(t *testing.T) {
 
 	t.Run("CreateWithoutOrg", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs())
+		client := coderdtest.New(t, nil)
 
 		_ = coderdtest.CreateFirstUser(t, client)
-		numLogs++ // add an audit log for user create
-		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
