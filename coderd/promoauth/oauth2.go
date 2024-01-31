@@ -214,8 +214,8 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 	return c.underlying.TokenSource(c.wrapClient(ctx, SourceTokenSource), token)
 }
 
-// InstrumentHTTPClient will always return a new http client with the same
-// transport as the one passed in.
+// InstrumentHTTPClient will always return a new http client. The new client will
+// match the one passed in, but will have an instrumented round tripper.
 func (c *Config) InstrumentHTTPClient(hc *http.Client, source Oauth2Source) *http.Client {
 	return &http.Client{
 		// The new tripper will instrument every request made by the oauth2 client.
