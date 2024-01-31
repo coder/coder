@@ -130,29 +130,29 @@ const styles = {
     padding: "0 32px",
 
     "&.error": {
-      backgroundColor: theme.experimental.roles.error.background,
-      color: theme.experimental.roles.error.text,
+      backgroundColor: theme.roles.error.background,
+      color: theme.roles.error.text,
 
       "& .dashed-line": {
-        backgroundColor: theme.experimental.roles.error.outline,
+        backgroundColor: theme.roles.error.outline,
       },
     },
 
     "&.debug": {
-      backgroundColor: theme.experimental.roles.info.background,
-      color: theme.experimental.roles.info.text,
+      backgroundColor: theme.roles.info.background,
+      color: theme.roles.info.text,
 
       "& .dashed-line": {
-        backgroundColor: theme.experimental.roles.info.outline,
+        backgroundColor: theme.roles.info.outline,
       },
     },
 
     "&.warn": {
-      backgroundColor: theme.experimental.roles.warning.background,
-      color: theme.experimental.roles.warning.text,
+      backgroundColor: theme.roles.warning.background,
+      color: theme.roles.warning.text,
 
       "& .dashed-line": {
-        backgroundColor: theme.experimental.roles.warning.outline,
+        backgroundColor: theme.roles.warning.outline,
       },
     },
   }),

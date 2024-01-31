@@ -114,7 +114,7 @@ export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
 
 const styles = {
   icon: (theme) => ({
-    color: theme.experimental.roles.notice.outline,
+    color: theme.roles.notice.outline,
   }),
 
   container: {

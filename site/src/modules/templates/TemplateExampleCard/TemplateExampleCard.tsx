@@ -110,8 +110,8 @@ const styles = {
   }),
 
   activeTag: (theme) => ({
-    borderColor: theme.experimental.roles.active.outline,
-    backgroundColor: theme.experimental.roles.active.background,
+    borderColor: theme.roles.active.outline,
+    backgroundColor: theme.roles.active.background,
   }),
 
   description: (theme) => ({
