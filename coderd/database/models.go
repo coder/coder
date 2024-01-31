@@ -2003,6 +2003,7 @@ type Template struct {
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
+	MaxPortSharing				  int64           `db:"max_port_sharing" json:"max_port_sharing"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
