@@ -12,11 +12,13 @@ Our install script is the fastest way to install Coder on Linux/macOS:
 curl -L https://coder.com/install.sh | sh
 ```
 
-Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+Refer to [GitHub releases](https://github.com/coder/coder/releases) for
+alternate installation methods (e.g. standalone binaries, system packages).
 
 ## Windows
 
-Use [GitHub releases](https://github.com/coder/coder/releases) to download the Windows installer (`.msi`) or standalone binary (`.exe`).
+Use [GitHub releases](https://github.com/coder/coder/releases) to download the
+Windows installer (`.msi`) or standalone binary (`.exe`).
 
 ![Windows setup wizard](../images/install/windows-installer.png)
 
