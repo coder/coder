@@ -171,9 +171,8 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	}
 }
 
-// Listen connects to the workspace agent API WebSocket
-// that handles connection negotiation.
-func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
+// ConnectRPC connects to the workspace agent API and tailnet API
+func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -210,7 +209,7 @@ func (c *Client) Listen(ctx context.Context) (drpc.Conn, error) {
 	netConn := &closeNetConn{
 		Conn: wsNetConn,
 		closeFunc: func() {
-			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
+			_ = conn.Close(websocket.StatusGoingAway, "ConnectRPC closed")
 		},
 	}
 	config := yamux.DefaultConfig()
