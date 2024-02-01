@@ -104,7 +104,8 @@ func HTML(markdown string) string {
 	p := parser.NewWithExtensions(parser.CommonExtensions)
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: html.CommonFlags | html.SkipHTML},
+		Flags: html.CommonFlags | html.SkipHTML,
+	},
 	)
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }
