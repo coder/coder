@@ -1,6 +1,7 @@
 package parameter
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -94,4 +95,34 @@ func Plaintext(markdown string) (string, error) {
 	defer renderer.Close()
 
 	return strings.TrimSpace(output), nil
+}
+
+var (
+	reBold          = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	reItalic        = regexp.MustCompile(`\*([^*]+)\*`)
+	reStrikethrough = regexp.MustCompile(`~~([^~]+)~~`)
+	reLink          = regexp.MustCompile(`\[([^]]+)\]\(([^)]+)\)`)
+)
+
+func HTML(markdown string) string {
+	draft := replaceBold(markdown) // bold regexp must go before italic - ** vs. *
+	draft = replaceItalic(draft)
+	draft = replaceStrikethrough(draft)
+	return replaceLinks(draft)
+}
+
+func replaceItalic(markdown string) string {
+	return reItalic.ReplaceAllString(markdown, "<i>$1</i>")
+}
+
+func replaceBold(markdown string) string {
+	return reBold.ReplaceAllString(markdown, "<strong>$1</strong>")
+}
+
+func replaceStrikethrough(markdown string) string {
+	return reStrikethrough.ReplaceAllString(markdown, "<del>$1</del>")
+}
+
+func replaceLinks(markdown string) string {
+	return reLink.ReplaceAllString(markdown, `<a href="$2">$1</a>`)
 }

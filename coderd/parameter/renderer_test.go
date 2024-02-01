@@ -47,3 +47,25 @@ __This is bold text.__
 		require.Equal(t, nothingChanges, stripped)
 	})
 }
+
+func TestHTML(t *testing.T) {
+	t.Parallel()
+	t.Run("Simple", func(t *testing.T) {
+		t.Parallel()
+
+		mdDescription := `**Coder** is in *early access* mode. To ~~register~~ request access, fill out [this form](https://internal.example.com). ***Thank you!***`
+		expected := `<strong>Coder</strong> is in <i>early access</i> mode. To <del>register</del> request access, fill out <a href="https://internal.example.com">this form</a>. <i><strong>Thank you!</strong></i>`
+
+		rendered := parameter.HTML(mdDescription)
+		require.Equal(t, expected, rendered)
+	})
+
+	t.Run("Nothing changes", func(t *testing.T) {
+		t.Parallel()
+
+		nothingChanges := "This is a simple description, so nothing changes."
+
+		rendered := parameter.HTML(nothingChanges)
+		require.Equal(t, nothingChanges, rendered)
+	})
+}
