@@ -1,10 +1,14 @@
 package parameter
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
+	gomarkdown "github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 	"golang.org/x/xerrors"
 )
 
@@ -94,4 +98,14 @@ func Plaintext(markdown string) (string, error) {
 	defer renderer.Close()
 
 	return strings.TrimSpace(output), nil
+}
+
+func HTML(markdown string) string {
+	p := parser.NewWithExtensions(parser.CommonExtensions)
+	doc := p.Parse([]byte(markdown))
+	renderer := html.NewRenderer(html.RendererOptions{
+		Flags: html.CommonFlags | html.SkipHTML,
+	},
+	)
+	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }
