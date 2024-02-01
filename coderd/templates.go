@@ -630,13 +630,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.MaxPortSharingLevel != nil && *req.MaxPortSharingLevel < 0 || *req.MaxPortSharingLevel > 2 {
+	if req.MaxPortSharingLevel != nil {
 		if *req.MaxPortSharingLevel < 0 || *req.MaxPortSharingLevel > 2 {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be between 0 and 2."})
-		} else {
-			if !portSharer.CanRestrictSharing() {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
-			}
+		}
+		if !portSharer.CanRestrictSharing() {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
 		}
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
