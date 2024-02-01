@@ -66,10 +66,17 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   <Checkbox
                     // Remove the extra padding added for the first cell in the
                     // table
-                    css={{ marginLeft: "-20px" }}
+                    css={{
+                      marginLeft: "-20px",
+                      // MUI by default adds 9px padding to enhance the
+                      // clickable area. We aim to prevent this from impacting
+                      // the layout of surrounding elements.
+                      marginTop: -9,
+                      marginBottom: -9,
+                    }}
                     disabled={!workspaces || workspaces.length === 0}
                     checked={checkedWorkspaces.length === workspaces?.length}
-                    size="small"
+                    size="xsmall"
                     onChange={(_, checked) => {
                       if (!workspaces) {
                         return;
@@ -122,9 +129,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                         <Checkbox
                           // Remove the extra padding added for the first cell in the
                           // table
-                          css={{ marginLeft: "-20px" }}
+                          css={{
+                            marginLeft: "-20px",
+                          }}
                           data-testid={`checkbox-${workspace.id}`}
-                          size="small"
+                          size="xsmall"
                           disabled={cantBeChecked(workspace)}
                           checked={checked}
                           onClick={(e) => {
@@ -263,14 +272,18 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
       }
     },
   });
-
+  const bgColor = checked ? theme.palette.action.hover : undefined;
   return (
     <TableRow
       {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
       css={{
         ...clickableProps.css,
-        backgroundColor: checked ? theme.palette.action.hover : undefined,
+        backgroundColor: bgColor,
+
+        "&:hover": {
+          backgroundColor: `${bgColor} !important`,
+        },
       }}
     >
       {children}
