@@ -47,10 +47,10 @@ export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
     display: flex;
     align-items: center;
     padding: 12px;
-    background-color: ${theme.experimental.roles[type].background};
+    background-color: ${theme.roles[type].background};
   `;
 
-  const textColor = theme.experimental.roles[type].text;
+  const textColor = theme.roles[type].text;
 
   if (messages.length === 1) {
     return (

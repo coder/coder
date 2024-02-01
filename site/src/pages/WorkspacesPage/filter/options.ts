@@ -1,5 +1,5 @@
 import { BaseOption } from "components/Filter/options";
-import type { ThemeRole } from "theme/experimental";
+import type { ThemeRole } from "theme/roles";
 
 export type StatusOption = BaseOption & {
   color: ThemeRole;

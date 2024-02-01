@@ -9,7 +9,7 @@ import {
   type ReactNode,
   useMemo,
 } from "react";
-import type { ThemeRole } from "theme/experimental";
+import type { ThemeRole } from "theme/roles";
 
 export type PillProps = HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
@@ -17,7 +17,7 @@ export type PillProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 const themeStyles = (type: ThemeRole) => (theme: Theme) => {
-  const palette = theme.experimental.roles[type];
+  const palette = theme.roles[type];
   return {
     backgroundColor: palette.background,
     borderColor: palette.outline,

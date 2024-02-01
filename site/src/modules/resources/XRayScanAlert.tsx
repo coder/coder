@@ -1,10 +1,14 @@
-import { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { JFrogXrayScan } from "api/typesGenerated";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import type { JFrogXrayScan } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { FC } from "react";
 
-export const XRayScanAlert: FC<{ scan: JFrogXrayScan }> = ({ scan }) => {
+interface XRayScanAlertProps {
+  scan: JFrogXrayScan;
+}
+
+export const XRayScanAlert: FC<XRayScanAlertProps> = ({ scan }) => {
   return (
     <div role="alert" css={styles.root}>
       <ExternalImage
@@ -91,13 +95,13 @@ const styles = {
     },
   },
   critical: (theme) => ({
-    color: theme.experimental.roles.error.fill.solid,
+    color: theme.roles.error.fill.solid,
   }),
   high: (theme) => ({
-    color: theme.experimental.roles.warning.fill.solid,
+    color: theme.roles.warning.fill.solid,
   }),
   medium: (theme) => ({
-    color: theme.experimental.roles.notice.fill.solid,
+    color: theme.roles.notice.fill.solid,
   }),
   link: {
     marginLeft: "auto",

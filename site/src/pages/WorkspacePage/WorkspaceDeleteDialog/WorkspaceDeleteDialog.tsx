@@ -173,25 +173,25 @@ const styles = {
   orphanContainer: (theme) => ({
     marginTop: 24,
     display: "flex",
-    backgroundColor: theme.experimental.roles.danger.background,
+    backgroundColor: theme.roles.danger.background,
     justifyContent: "space-between",
-    border: `1px solid ${theme.experimental.roles.danger.outline}`,
+    border: `1px solid ${theme.roles.danger.outline}`,
     borderRadius: 8,
     padding: 12,
     gap: 8,
     lineHeight: "18px",
 
     "& .option": {
-      color: theme.experimental.roles.danger.fill.solid,
+      color: theme.roles.danger.fill.solid,
       "&.Mui-checked": {
-        color: theme.experimental.roles.danger.fill.solid,
+        color: theme.roles.danger.fill.solid,
       },
     },
 
     "& .info": {
       fontSize: 14,
       fontWeight: 600,
-      color: theme.experimental.roles.danger.text,
+      color: theme.roles.danger.text,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -127,9 +127,9 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
           {
             label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
             data: chartData,
-            pointBackgroundColor: theme.experimental.roles.active.outline,
-            pointBorderColor: theme.experimental.roles.active.outline,
-            borderColor: theme.experimental.roles.active.outline,
+            pointBackgroundColor: theme.roles.active.outline,
+            pointBorderColor: theme.roles.active.outline,
+            borderColor: theme.roles.active.outline,
           },
         ],
       }}
