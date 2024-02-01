@@ -67,6 +67,11 @@ func TestHTML(t *testing.T) {
 			expected: `<p><strong>Cod*er</strong> is in *early a<strong>ccess</strong> mode</p>`,
 		},
 		{
+			name:     "XSS",
+			input:    `<p onclick="alert(\"omghax\")">Click here to get access!</p>?`,
+			expected: `<p>Click here to get access!?</p>`,
+		},
+		{
 			name:     "No Markdown tags",
 			input:    "This is a simple description, so nothing changes.",
 			expected: "<p>This is a simple description, so nothing changes.</p>",
