@@ -105,9 +105,9 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 	ycfg := yamux.DefaultConfig()
 	ycfg.LogOutput = nil
-	ycfg.Logger = slog.Stdlib(ctx, logger.Named("yamux"), slog.LevelDebug)
+	ycfg.Logger = slog.Stdlib(ctx, logger.Named("yamux"), slog.LevelInfo)
 
-	mux, err := yamux.Server(wsNetConn, nil)
+	mux, err := yamux.Server(wsNetConn, ycfg)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to start yamux over websocket.",
