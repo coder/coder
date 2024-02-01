@@ -56,7 +56,7 @@ data "coder_parameter" "image_type" {
     value = "codercom/oss-dogfood:latest"
   }
   option {
-    icon  = "/icons/nix.svg"
+    icon  = "/icon/nix.svg"
     name  = "Dogfood Nix (Experimental)"
     value = "codercom/oss-dogfood-nix:latest"
   }
