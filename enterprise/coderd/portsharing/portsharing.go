@@ -1,7 +1,6 @@
 package portsharing
 
-type EnterprisePortSharer struct {
-}
+type EnterprisePortSharer struct{}
 
 func NewEnterprisePortSharer() *EnterprisePortSharer {
 	return &EnterprisePortSharer{}
