@@ -3,7 +3,7 @@ import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState, useMemo } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -17,6 +17,8 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import {
+  AutofillBuildParameter,
+  AutofillSource,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
@@ -58,7 +60,7 @@ export interface CreateWorkspacePageViewProps {
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
-  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
+  autofillParameters: AutofillBuildParameter[];
   permissions: CreateWSPermissions;
   creatingWorkspace: boolean;
   onCancel: () => void;
@@ -80,7 +82,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   externalAuthPollingState,
   startPollingExternalAuth,
   parameters,
-  defaultBuildParameters,
+  autofillParameters,
   permissions,
   creatingWorkspace,
   onSubmit,
@@ -98,7 +100,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         template_id: template.id,
         rich_parameter_values: getInitialRichParameterValues(
           parameters,
-          defaultBuildParameters,
+          autofillParameters,
         ),
       },
       validationSchema: Yup.object({
@@ -125,6 +127,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     form,
     error,
   );
+
+  const autofillSources = useMemo(() => {
+    return autofillParameters.reduce(
+      (acc, param) => {
+        acc[param.name] = param.source;
+        return acc;
+      },
+      {} as Record<string, AutofillSource>,
+    );
+  }, [autofillParameters]);
 
   return (
     <Margins size="medium">
@@ -244,6 +256,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                           value,
                         });
                       }}
+                      autofillSource={autofillSources[parameter.name]}
                       key={parameter.name}
                       parameter={parameter}
                       disabled={isDisabled}

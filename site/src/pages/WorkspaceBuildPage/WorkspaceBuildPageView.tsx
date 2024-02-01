@@ -7,7 +7,7 @@ import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
@@ -18,7 +18,7 @@ import { Alert } from "components/Alert/Alert";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
-} from "components/WorkspaceBuild/WorkspaceBuildData";
+} from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {

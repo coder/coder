@@ -175,6 +175,16 @@ export default {
         },
       },
     },
+    inactive: {
+      background: colors.gray[100],
+      outline: colors.gray[400],
+      text: colors.gray[950],
+      fill: {
+        solid: colors.gray[600],
+        outline: colors.gray[600],
+        text: colors.white,
+      },
+    },
     preview: {
       background: colors.violet[50],
       outline: colors.violet[500],

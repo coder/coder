@@ -129,6 +129,7 @@ type data struct {
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
+	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
@@ -1986,6 +1987,24 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
+func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.JfrogXrayScan{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			return scan, nil
+		}
+	}
+
+	return database.JfrogXrayScan{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3776,6 +3795,65 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 		}
 	}
 	return uls, nil
+}
+
+func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	userWorkspaceIDs := make(map[uuid.UUID]struct{})
+	for _, ws := range q.workspaces {
+		if ws.OwnerID != params.OwnerID {
+			continue
+		}
+		if ws.TemplateID != params.TemplateID {
+			continue
+		}
+		userWorkspaceIDs[ws.ID] = struct{}{}
+	}
+
+	userWorkspaceBuilds := make(map[uuid.UUID]struct{})
+	for _, wb := range q.workspaceBuilds {
+		if _, ok := userWorkspaceIDs[wb.WorkspaceID]; !ok {
+			continue
+		}
+		userWorkspaceBuilds[wb.ID] = struct{}{}
+	}
+
+	templateVersions := make(map[uuid.UUID]struct{})
+	for _, tv := range q.templateVersions {
+		if tv.TemplateID.UUID != params.TemplateID {
+			continue
+		}
+		templateVersions[tv.ID] = struct{}{}
+	}
+
+	tvps := make(map[string]struct{})
+	for _, tvp := range q.templateVersionParameters {
+		if _, ok := templateVersions[tvp.TemplateVersionID]; !ok {
+			continue
+		}
+
+		if _, ok := tvps[tvp.Name]; !ok && !tvp.Ephemeral {
+			tvps[tvp.Name] = struct{}{}
+		}
+	}
+
+	userWorkspaceBuildParameters := make(map[string]database.GetUserWorkspaceBuildParametersRow)
+	for _, wbp := range q.workspaceBuildParameters {
+		if _, ok := userWorkspaceBuilds[wbp.WorkspaceBuildID]; !ok {
+			continue
+		}
+		if _, ok := tvps[wbp.Name]; !ok {
+			continue
+		}
+		userWorkspaceBuildParameters[wbp.Name] = database.GetUserWorkspaceBuildParametersRow{
+			Name:  wbp.Name,
+			Value: wbp.Value,
+		}
+	}
+
+	return maps.Values(userWorkspaceBuildParameters), nil
 }
 
 func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
@@ -7289,6 +7367,39 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 	defer q.mutex.RUnlock()
 
 	q.healthSettings = []byte(data)
+	return nil
+}
+
+func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, scan := range q.jfrogXRayScans {
+		if scan.AgentID == arg.AgentID && scan.WorkspaceID == arg.WorkspaceID {
+			scan.Critical = arg.Critical
+			scan.High = arg.High
+			scan.Medium = arg.Medium
+			scan.ResultsUrl = arg.ResultsUrl
+			q.jfrogXRayScans[i] = scan
+			return nil
+		}
+	}
+
+	//nolint:gosimple
+	q.jfrogXRayScans = append(q.jfrogXRayScans, database.JfrogXrayScan{
+		WorkspaceID: arg.WorkspaceID,
+		AgentID:     arg.AgentID,
+		Critical:    arg.Critical,
+		High:        arg.High,
+		Medium:      arg.Medium,
+		ResultsUrl:  arg.ResultsUrl,
+	})
+
 	return nil
 }
 

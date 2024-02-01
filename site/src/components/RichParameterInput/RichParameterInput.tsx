@@ -10,6 +10,7 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { AutofillSource } from "utils/richParameters";
 import { Pill } from "components/Pill/Pill";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
@@ -167,6 +168,7 @@ export type RichParameterInputProps = Omit<
   "size" | "onChange"
 > & {
   parameter: TemplateVersionParameter;
+  autofillSource?: AutofillSource;
   onChange: (value: string) => void;
   size?: Size;
 };
@@ -174,6 +176,7 @@ export type RichParameterInputProps = Omit<
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   parameter,
   size = "medium",
+  autofillSource,
   ...fieldProps
 }) => {
   return (
@@ -186,6 +189,17 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <ParameterLabel parameter={parameter} />
       <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
+        {autofillSource && autofillSource !== "active_build" && (
+          <div css={{ marginTop: 4, fontSize: 12 }}>
+            🪄 Autofilled:{" "}
+            {
+              {
+                ["url"]: "value supplied by URL.",
+                ["user_history"]: "recently used value.",
+              }[autofillSource]
+            }
+          </div>
+        )}
       </div>
     </Stack>
   );

@@ -4,25 +4,39 @@ import {
 } from "api/typesGenerated";
 import * as Yup from "yup";
 
+export type AutofillSource = "user_history" | "url" | "active_build";
+
+// AutofillBuildParameter is a build parameter destined to a form, alongside
+// its source so that the form can explain where the value comes from.
+export type AutofillBuildParameter = {
+  source: AutofillSource;
+} & WorkspaceBuildParameter;
+
 export const getInitialRichParameterValues = (
-  templateParameters: TemplateVersionParameter[],
-  buildParameters?: WorkspaceBuildParameter[],
+  templateParams: TemplateVersionParameter[],
+  autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
-  return templateParameters.map((parameter) => {
-    const existentBuildParameter = buildParameters?.find(
-      (p) => p.name === parameter.name,
-    );
-    const shouldReturnTheDefaultValue =
-      !existentBuildParameter ||
-      !isValidValue(parameter, existentBuildParameter) ||
-      parameter.ephemeral;
-    if (shouldReturnTheDefaultValue) {
+  return templateParams.map((parameter) => {
+    // Short-circuit for ephemeral parameters, which are always reset to
+    // the template-defined default.
+    if (parameter.ephemeral) {
       return {
         name: parameter.name,
         value: parameter.default_value,
       };
     }
-    return existentBuildParameter;
+
+    const autofillParam = autofillParams?.find(
+      ({ name }) => name === parameter.name,
+    );
+
+    return {
+      name: parameter.name,
+      value:
+        autofillParam && isValidValue(parameter, autofillParam)
+          ? autofillParam.value
+          : parameter.default_value,
+    };
   });
 };
 

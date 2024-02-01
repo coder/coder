@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -255,6 +256,10 @@ func (u User) UserDataRBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
 }
 
+func (u User) UserWorkspaceBuildParametersObject() rbac.Object {
+	return rbac.ResourceUserWorkspaceBuildParameters.WithID(u.ID).WithOwner(u.ID.String())
+}
+
 func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
@@ -266,6 +271,14 @@ func (u GitSSHKey) RBACObject() rbac.Object {
 func (u ExternalAuthLink) RBACObject() rbac.Object {
 	// I assume UserData is ok?
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
+}
+
+func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
+	return &oauth2.Token{
+		AccessToken:  u.OAuthAccessToken,
+		RefreshToken: u.OAuthRefreshToken,
+		Expiry:       u.OAuthExpiry,
+	}
 }
 
 func (u UserLink) RBACObject() rbac.Object {

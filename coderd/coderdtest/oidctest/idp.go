@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"strings"
@@ -67,6 +68,9 @@ type FakeIDP struct {
 	handler   http.Handler
 	cfg       *oauth2.Config
 
+	// callbackPath allows changing where the callback path to coderd is expected.
+	// This only affects using the Login helper functions.
+	callbackPath string
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
@@ -158,6 +162,12 @@ func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 func WithDefaultExpire(d time.Duration) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.defaultExpire = d
+	}
+}
+
+func WithCallbackPath(path string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.callbackPath = path
 	}
 }
 
@@ -369,6 +379,12 @@ func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt
 	t.Helper()
 
 	client, resp := f.AttemptLogin(t, client, idTokenClaims, opts...)
+	if resp.StatusCode != http.StatusOK {
+		data, err := httputil.DumpResponse(resp, true)
+		if err == nil {
+			t.Logf("Attempt Login response payload\n%s", string(data))
+		}
+	}
 	require.Equal(t, http.StatusOK, resp.StatusCode, "client failed to login")
 	return client, resp
 }
@@ -398,7 +414,11 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
-	coderOauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
+	path := "/api/v2/users/oidc/callback"
+	if f.callbackPath != "" {
+		path = f.callbackPath
+	}
+	coderOauthURL, err := client.URL.Parse(path)
 	require.NoError(t, err)
 	f.SetRedirect(t, coderOauthURL.String())
 

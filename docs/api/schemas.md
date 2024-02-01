@@ -1445,6 +1445,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
+  "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
 }
@@ -1457,6 +1458,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `agent_api_version` | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
 | `dashboard_url`     | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
 | `external_url`      | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `upgrade_message`   | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
 | `version`           | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
 | `workspace_proxy`   | boolean | false    |              |                                                                                                                                                                     |
 
@@ -1929,16 +1931,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "amount": 0,
-  "date": "2019-08-24T14:15:22Z"
+  "date": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type    | Required | Restrictions | Description |
-| -------- | ------- | -------- | ------------ | ----------- |
-| `amount` | integer | false    |              |             |
-| `date`   | string  | false    |              |             |
+| Name     | Type    | Required | Restrictions | Description                                                                              |
+| -------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `amount` | integer | false    |              |                                                                                          |
+| `date`   | string  | false    |              | Date is a string formatted as 2024-01-31. Timezone and time information is not included. |
 
 ## codersdk.DAUsResponse
 
@@ -1947,7 +1949,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "entries": [
     {
       "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
+      "date": "string"
     }
   ],
   "tz_hour_offset": 0
@@ -2131,6 +2133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -2497,6 +2500,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
+  "cli_upgrade_message": "string",
   "config": "string",
   "config_ssh": {
     "deploymentName": "string",
@@ -2758,6 +2762,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
+| `cli_upgrade_message`                | string                                                                                               | false    |              |                                                                    |
 | `config`                             | string                                                                                               | false    |              |                                                                    |
 | `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
@@ -3338,6 +3343,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name           | Type   | Required | Restrictions | Description |
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `signed_token` | string | false    |              |             |
+
+## codersdk.JFrogXrayScan
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `agent_id`     | string  | false    |              |             |
+| `critical`     | integer | false    |              |             |
+| `high`         | integer | false    |              |             |
+| `medium`       | integer | false    |              |             |
+| `results_url`  | string  | false    |              |             |
+| `workspace_id` | string  | false    |              |             |
 
 ## codersdk.JobErrorCode
 
@@ -4189,31 +4218,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                 |
-| --------------------- |
-| `workspace`           |
-| `workspace_proxy`     |
-| `workspace_execution` |
-| `application_connect` |
-| `audit_log`           |
-| `template`            |
-| `group`               |
-| `file`                |
-| `provisioner_daemon`  |
-| `organization`        |
-| `assign_role`         |
-| `assign_org_role`     |
-| `api_key`             |
-| `user`                |
-| `user_data`           |
-| `organization_member` |
-| `license`             |
-| `deployment_config`   |
-| `deployment_stats`    |
-| `replicas`            |
-| `debug_info`          |
-| `system`              |
-| `template_insights`   |
+| Value                             |
+| --------------------------------- |
+| `workspace`                       |
+| `workspace_proxy`                 |
+| `workspace_execution`             |
+| `application_connect`             |
+| `audit_log`                       |
+| `template`                        |
+| `group`                           |
+| `file`                            |
+| `provisioner_daemon`              |
+| `organization`                    |
+| `assign_role`                     |
+| `assign_org_role`                 |
+| `api_key`                         |
+| `user`                            |
+| `user_data`                       |
+| `user_workspace_build_parameters` |
+| `organization_member`             |
+| `license`                         |
+| `deployment_config`               |
+| `deployment_stats`                |
+| `replicas`                        |
+| `debug_info`                      |
+| `system`                          |
+| `template_insights`               |
 
 ## codersdk.RateLimitConfig
 
@@ -5808,6 +5838,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
 | `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
 
+## codersdk.UserParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.UserQuietHoursScheduleConfig
 
 ```json
@@ -6072,12 +6118,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
+  "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
@@ -6110,6 +6158,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`                                      | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `organization_id`                           | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `outdated`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
+| `owner_avatar_url`                          | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_id`                                  | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_name`                                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `template_active_version_id`                | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -6766,6 +6815,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
   "workspace_owner_name": "string"
 }
@@ -6773,28 +6823,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                                              | Required | Restrictions | Description |
-| ----------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `build_number`          | integer                                                           | false    |              |             |
-| `created_at`            | string                                                            | false    |              |             |
-| `daily_cost`            | integer                                                           | false    |              |             |
-| `deadline`              | string                                                            | false    |              |             |
-| `id`                    | string                                                            | false    |              |             |
-| `initiator_id`          | string                                                            | false    |              |             |
-| `initiator_name`        | string                                                            | false    |              |             |
-| `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
-| `max_deadline`          | string                                                            | false    |              |             |
-| `reason`                | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
-| `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
-| `status`                | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
-| `template_version_id`   | string                                                            | false    |              |             |
-| `template_version_name` | string                                                            | false    |              |             |
-| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
-| `updated_at`            | string                                                            | false    |              |             |
-| `workspace_id`          | string                                                            | false    |              |             |
-| `workspace_name`        | string                                                            | false    |              |             |
-| `workspace_owner_id`    | string                                                            | false    |              |             |
-| `workspace_owner_name`  | string                                                            | false    |              |             |
+| Name                         | Type                                                              | Required | Restrictions | Description |
+| ---------------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `build_number`               | integer                                                           | false    |              |             |
+| `created_at`                 | string                                                            | false    |              |             |
+| `daily_cost`                 | integer                                                           | false    |              |             |
+| `deadline`                   | string                                                            | false    |              |             |
+| `id`                         | string                                                            | false    |              |             |
+| `initiator_id`               | string                                                            | false    |              |             |
+| `initiator_name`             | string                                                            | false    |              |             |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `max_deadline`               | string                                                            | false    |              |             |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
+| `template_version_id`        | string                                                            | false    |              |             |
+| `template_version_name`      | string                                                            | false    |              |             |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |             |
+| `updated_at`                 | string                                                            | false    |              |             |
+| `workspace_id`               | string                                                            | false    |              |             |
+| `workspace_name`             | string                                                            | false    |              |             |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |             |
+| `workspace_owner_id`         | string                                                            | false    |              |             |
+| `workspace_owner_name`       | string                                                            | false    |              |             |
 
 #### Enumerated Values
 
@@ -7333,12 +7384,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "updated_at": "2019-08-24T14:15:22Z",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string",
+        "workspace_owner_avatar_url": "string",
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
+      "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
@@ -8835,22 +8888,6 @@ _None_
 | `slug_or_port`       | string                                                   | false    |              |                                                                                         |
 | `user_id`            | string                                                   | false    |              |                                                                                         |
 | `workspace_id`       | string                                                   | false    |              |                                                                                         |
-
-## wsproxysdk.AgentIsLegacyResponse
-
-```json
-{
-  "found": true,
-  "legacy": true
-}
-```
-
-### Properties
-
-| Name     | Type    | Required | Restrictions | Description |
-| -------- | ------- | -------- | ------------ | ----------- |
-| `found`  | boolean | false    |              |             |
-| `legacy` | boolean | false    |              |             |
 
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 

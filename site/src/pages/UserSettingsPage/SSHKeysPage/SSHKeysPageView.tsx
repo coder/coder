@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import { type FC, type PropsWithChildren } from "react";
+import { type FC } from "react";
 import { useTheme } from "@emotion/react";
 import type { GitSSHKey } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
@@ -14,7 +14,7 @@ export interface SSHKeysPageViewProps {
   onRegenerateClick: () => void;
 }
 
-export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
+export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
   isLoading,
   getSSHKeyError,
   sshKey,

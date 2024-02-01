@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/postgres"
@@ -32,6 +34,7 @@ type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
 	returnSQLDB   func(*sql.DB)
+	logger        slog.Logger
 }
 
 type Option func(*options)
@@ -47,6 +50,12 @@ func WithTimezone(tz string) Option {
 func WithDumpOnFailure() Option {
 	return func(o *options) {
 		o.dumpOnFailure = true
+	}
+}
+
+func WithLogger(logger slog.Logger) Option {
+	return func(o *options) {
+		o.logger = logger
 	}
 }
 
@@ -74,7 +83,7 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
-	var o options
+	o := options{logger: slogtest.Make(t, nil).Named("pubsub").Leveled(slog.LevelDebug)}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -118,7 +127,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		}
 		db = database.New(sqlDB)
 
-		ps, err = pubsub.New(context.Background(), sqlDB, connectionURL)
+		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = ps.Close()

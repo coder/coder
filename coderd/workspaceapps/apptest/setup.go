@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -397,7 +398,10 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
-		manifest, err := agentClient.Manifest(appHostCtx)
+		rpcConn, err := agentClient.Listen(appHostCtx)
+		require.NoError(t, err)
+		aAPI := agentproto.NewDRPCAgentClient(rpcConn)
+		manifest, err := aAPI.GetManifest(appHostCtx, &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
 
 		appHost := appurl.ApplicationURL{
@@ -408,7 +412,9 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Username:      me.Username,
 		}
 		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
-		require.Equal(t, manifest.VSCodePortProxyURI, proxyURL)
+		require.Equal(t, manifest.VsCodePortProxyUri, proxyURL)
+		err = rpcConn.Close()
+		require.NoError(t, err)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

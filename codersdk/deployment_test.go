@@ -205,6 +205,7 @@ func TestTimezoneOffsets(t *testing.T) {
 
 	testCases := []struct {
 		Name           string
+		Now            time.Time
 		Loc            *time.Location
 		ExpectedOffset int
 	}{
@@ -213,29 +214,52 @@ func TestTimezoneOffsets(t *testing.T) {
 			Loc:            time.UTC,
 			ExpectedOffset: 0,
 		},
-		// The following test cases are broken re: daylight savings
-		//{
-		//	Name:           "Eastern",
-		//	Loc:            must(time.LoadLocation("America/New_York")),
-		//	ExpectedOffset: -4,
-		// },
-		//{
-		//	Name:           "Central",
-		//	Loc:            must(time.LoadLocation("America/Chicago")),
-		//	ExpectedOffset: -5,
-		// },
-		//{
-		//	Name:           "Ireland",
-		//	Loc:            must(time.LoadLocation("Europe/Dublin")),
-		//	ExpectedOffset: 1,
-		// },
+
+		{
+			Name:           "Eastern",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/New_York")),
+			ExpectedOffset: 5,
+		},
+		{
+			// Daylight savings is on the 14th of March to Nov 7 in 2021
+			Name:           "EasternDaylightSavings",
+			Now:            time.Date(2021, 3, 16, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/New_York")),
+			ExpectedOffset: 4,
+		},
+		{
+			Name:           "Central",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/Chicago")),
+			ExpectedOffset: 6,
+		},
+		{
+			Name:           "CentralDaylightSavings",
+			Now:            time.Date(2021, 3, 16, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/Chicago")),
+			ExpectedOffset: 5,
+		},
+		{
+			Name:           "Ireland",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("Europe/Dublin")),
+			ExpectedOffset: 0,
+		},
+		{
+			Name:           "IrelandDaylightSavings",
+			Now:            time.Date(2021, 4, 3, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("Europe/Dublin")),
+			ExpectedOffset: -1,
+		},
 		{
 			Name: "HalfHourTz",
+			Now:  time.Date(2024, 1, 20, 6, 0, 0, 0, must(time.LoadLocation("Asia/Yangon"))),
 			// This timezone is +6:30, but the function rounds to the nearest hour.
 			// This is intentional because our DAUs endpoint only covers 1-hour offsets.
 			// If the user is in a non-hour timezone, they get the closest hour bucket.
 			Loc:            must(time.LoadLocation("Asia/Yangon")),
-			ExpectedOffset: 6,
+			ExpectedOffset: -6,
 		},
 	}
 
@@ -244,7 +268,7 @@ func TestTimezoneOffsets(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			offset := codersdk.TimezoneOffsetHour(c.Loc)
+			offset := codersdk.TimezoneOffsetHourWithTime(c.Now, c.Loc)
 			require.Equal(t, c.ExpectedOffset, offset)
 		})
 	}

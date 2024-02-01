@@ -1,7 +1,13 @@
-import { Children, PropsWithChildren } from "react";
+import {
+  Children,
+  type FC,
+  type PropsWithChildren,
+  type ReactNode,
+} from "react";
 
 export interface CondProps {
   condition?: boolean;
+  children?: ReactNode;
 }
 
 /**
@@ -11,9 +17,7 @@ export interface CondProps {
  * @param condition boolean expression indicating whether the child should be rendered, or undefined
  * @returns child. Note that Cond alone does not enforce the condition; it should be used inside ChooseOne.
  */
-export const Cond = ({
-  children,
-}: PropsWithChildren<CondProps>): JSX.Element => {
+export const Cond: FC<CondProps> = ({ children }) => {
   return <>{children}</>;
 };
 
@@ -24,9 +28,7 @@ export const Cond = ({
  * @returns one of its children, or null if there are no children
  * @throws an error if its last child has a condition prop, or any non-final children do not have a condition prop
  */
-export const ChooseOne = ({
-  children,
-}: PropsWithChildren): JSX.Element | null => {
+export const ChooseOne: FC<PropsWithChildren> = ({ children }) => {
   const childArray = Children.toArray(children) as JSX.Element[];
   if (childArray.length === 0) {
     return null;

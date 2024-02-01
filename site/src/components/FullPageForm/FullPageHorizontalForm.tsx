@@ -1,21 +1,25 @@
+import Button from "@mui/material/Button";
+import { type FC, type ReactNode } from "react";
 import { Margins } from "components/Margins/Margins";
-import { FC, ReactNode } from "react";
 import {
   PageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader";
-import Button from "@mui/material/Button";
 
 export interface FullPageHorizontalFormProps {
   title: string;
   detail?: ReactNode;
   onCancel?: () => void;
+  children?: ReactNode;
 }
 
-export const FullPageHorizontalForm: FC<
-  React.PropsWithChildren<FullPageHorizontalFormProps>
-> = ({ title, detail, onCancel, children }) => {
+export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
+  title,
+  detail,
+  onCancel,
+  children,
+}) => {
   return (
     <Margins size="medium">
       <PageHeader

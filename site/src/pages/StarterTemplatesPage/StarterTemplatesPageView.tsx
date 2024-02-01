@@ -1,4 +1,6 @@
 import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -8,9 +10,7 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
-import { type FC } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {

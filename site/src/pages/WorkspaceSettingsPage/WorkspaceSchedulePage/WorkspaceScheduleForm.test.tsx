@@ -202,42 +202,42 @@ describe("ttlShutdownAt", () => {
     [
       "One hour --> helper text shows shutdown after 1 hour",
       1,
-      `Your workspace will shut down 1 hour after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 1 hour after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "Two hours --> helper text shows shutdown after 2 hours",
       2,
-      `Your workspace will shut down 2 hours after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 2 hours after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "24 hours --> helper text shows shutdown after 1 day",
       24,
-      `Your workspace will shut down 1 day after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 1 day after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "48 hours --> helper text shows shutdown after 2 days",
       48,
-      `Your workspace will shut down 2 days after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 2 days after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "1.2 hours --> helper text shows shutdown after 1 hour and 12 minutes",
       1.2,
-      `Your workspace will shut down 1 hour and 12 minutes after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 1 hour and 12 minutes after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "24.2 hours --> helper text shows shutdown after 1 day and 12 minutes",
       24.2,
-      `Your workspace will shut down 1 day and 12 minutes after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 1 day and 12 minutes after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "0.2 hours --> helper text shows shutdown after 12 minutes",
       0.2,
-      `Your workspace will shut down 12 minutes after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 12 minutes after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
     [
       "48.258 hours --> helper text shows shutdown after 2 days and 15 minutes and 28 seconds",
       48.258,
-      `Your workspace will shut down 2 days and 15 minutes and 28 seconds after its next start. We delay shutdown by this time whenever we detect activity.`,
+      `Your workspace will shut down 2 days and 15 minutes and 28 seconds after its next start. We delay shutdown by 1 hour whenever we detect activity.`,
     ],
   ])("%p", (_, ttlHours, expected) => {
     expect(ttlShutdownAt(ttlHours)).toEqual(expected);

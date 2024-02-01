@@ -992,9 +992,12 @@ func (q *querier) subscribe() {
 			}
 			return
 		}
-		defer cancelPeer()
+		defer func() {
+			q.logger.Info(q.ctx, "canceling peer updates subscription")
+			cancelPeer()
+		}()
 		bkoff.Reset()
-		q.logger.Debug(q.ctx, "subscribed to peer updates")
+		q.logger.Info(q.ctx, "subscribed to peer updates")
 
 		var cancelTunnel context.CancelFunc
 		err = backoff.Retry(func() error {
@@ -1012,8 +1015,11 @@ func (q *querier) subscribe() {
 			}
 			return
 		}
-		defer cancelTunnel()
-		q.logger.Debug(q.ctx, "subscribed to tunnel updates")
+		defer func() {
+			q.logger.Info(q.ctx, "canceling tunnel updates subscription")
+			cancelTunnel()
+		}()
+		q.logger.Info(q.ctx, "subscribed to tunnel updates")
 
 		// unblock the outer function from returning
 		subscribed <- struct{}{}

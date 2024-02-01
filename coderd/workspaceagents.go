@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"sort"
 	"strconv"
@@ -181,60 +179,16 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
-	apps, err := agentproto.SDKAppsFromProto(manifest.Apps)
+	sdkManifest, err := agentsdk.ManifestFromProto(manifest)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent apps.",
+			Message: "Internal error converting manifest.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	scripts, err := agentproto.SDKAgentScriptsFromProto(manifest.Scripts)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent scripts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	agentID, err := uuid.FromBytes(manifest.AgentId)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace agent ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspaceID, err := uuid.FromBytes(manifest.WorkspaceId)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
-		AgentID:                  agentID,
-		AgentName:                manifest.AgentName,
-		OwnerName:                manifest.OwnerUsername,
-		WorkspaceID:              workspaceID,
-		WorkspaceName:            manifest.WorkspaceName,
-		Apps:                     apps,
-		Scripts:                  scripts,
-		DERPMap:                  tailnet.DERPMapFromProto(manifest.DerpMap),
-		DERPForceWebSockets:      manifest.DerpForceWebsockets,
-		GitAuthConfigs:           int(manifest.GitAuthConfigs),
-		EnvironmentVariables:     manifest.EnvironmentVariables,
-		Directory:                manifest.Directory,
-		VSCodePortProxyURI:       manifest.VsCodePortProxyUri,
-		MOTDFile:                 manifest.MotdPath,
-		DisableDirectConnections: manifest.DisableDirectConnections,
-		Metadata:                 agentproto.SDKAgentMetadataDescriptionsFromProto(manifest.Metadata),
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, sdkManifest)
 }
 
 const AgentAPIVersionREST = "1.0"
@@ -768,6 +722,11 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -859,81 +818,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	portsResponse.Ports = filteredPorts
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
-}
-
-// Deprecated: use api.tailnet.AgentConn instead.
-// See: https://github.com/coder/coder/issues/8218
-func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	derpMap := api.DERPMap()
-	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:             api.DERPMap(),
-		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		Logger:              api.Logger.Named("net.tailnet"),
-		BlockEndpoints:      api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create tailnet conn: %w", err)
-	}
-	ctx, cancel := context.WithCancel(api.ctx)
-	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-		if !region.EmbeddedRelay {
-			return nil
-		}
-		left, right := net.Pipe()
-		go func() {
-			defer left.Close()
-			defer right.Close()
-			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			api.DERPServer.Accept(ctx, right, brw, "internal")
-		}()
-		return left
-	})
-
-	clientID := uuid.New()
-	coordination := tailnet.NewInMemoryCoordination(ctx, api.Logger,
-		clientID, agentID,
-		*(api.TailnetCoordinator.Load()), conn)
-
-	// Check for updated DERP map every 5 seconds.
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			lastDERPMap := derpMap
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-				}
-
-				derpMap := api.DERPMap()
-				if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
-					conn.SetDERPMap(derpMap)
-					lastDERPMap = derpMap
-				}
-				ticker.Reset(5 * time.Second)
-			}
-		}
-	}()
-
-	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-		AgentID: agentID,
-		AgentIP: codersdk.WorkspaceAgentIP,
-		CloseFunc: func() error {
-			_ = coordination.Close()
-			cancel()
-			return nil
-		},
-	})
-	if !agentConn.AwaitReachable(ctx) {
-		_ = agentConn.Close()
-		cancel()
-		return nil, xerrors.Errorf("agent not reachable")
-	}
-	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent
@@ -2037,78 +1921,26 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if listen {
-		// Since we're ticking frequently and this sign-in operation is rare,
-		// we are OK with polling to avoid the complexity of pubsub.
-		ticker, done := api.NewTicker(time.Second)
-		defer done()
-		var previousToken database.ExternalAuthLink
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker:
-			}
-			externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: externalAuthConfig.ID,
-				UserID:     workspace.OwnerID,
-			})
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					continue
-				}
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get external auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			// Expiry may be unset if the application doesn't configure tokens
-			// to expire.
-			// See
-			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
-			if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
-				continue
-			}
-
-			// Only attempt to revalidate an oauth token if it has actually changed.
-			// No point in trying to validate the same token over and over again.
-			if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
-				previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
-				previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
-				continue
-			}
-
-			valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
-			if err != nil {
-				api.Logger.Warn(ctx, "failed to validate external auth token",
-					slog.F("workspace_owner_id", workspace.OwnerID.String()),
-					slog.F("validate_url", externalAuthConfig.ValidateURL),
-					slog.Error(err),
-				)
-			}
-			previousToken = externalAuthLink
-			if !valid {
-				continue
-			}
-			resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to create external auth response.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusOK, resp)
+	var previousToken *database.ExternalAuthLink
+	// handleRetrying will attempt to continually check for a new token
+	// if listen is true. This is useful if an error is encountered in the
+	// original single flow.
+	//
+	// By default, if no errors are encountered, then the single flow response
+	// is returned.
+	handleRetrying := func(code int, response any) {
+		if !listen {
+			httpapi.Write(ctx, rw, code, response)
 			return
 		}
+
+		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace)
 	}
 
 	// This is the URL that will redirect the user with a state token.
 	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID))
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse access URL.",
 			Detail:  err.Error(),
 		})
@@ -2121,6 +1953,75 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
+			handleRetrying(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get external auth link.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
+			URL: redirectURL.String(),
+		})
+		return
+	}
+
+	externalAuthLink, valid, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
+	if err != nil {
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to refresh external auth token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !valid {
+		// Set the previous token so the retry logic will skip validating the
+		// same token again. This should only be set if the token is invalid and there
+		// was no error. If it is invalid because of an error, then we should recheck.
+		previousToken = &externalAuthLink
+		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
+			URL: redirectURL.String(),
+		})
+		return
+	}
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	if err != nil {
+		handleRetrying(http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create external auth response.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace) {
+	// Since we're ticking frequently and this sign-in operation is rare,
+	// we are OK with polling to avoid the complexity of pubsub.
+	ticker, done := api.NewTicker(time.Second)
+	defer done()
+	// If we have a previous token that is invalid, we should not check this again.
+	// This serves to prevent doing excessive unauthorized requests to the external
+	// auth provider. For github, this limit is 60 per hour, so saving a call
+	// per invalid token can be significant.
+	var previousToken database.ExternalAuthLink
+	if previous != nil {
+		previousToken = *previous
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker:
+		}
+		externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: externalAuthConfig.ID,
+			UserID:     workspace.OwnerID,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get external auth link.",
 				Detail:  err.Error(),
@@ -2128,35 +2029,45 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
-		})
-		return
-	}
+		// Expiry may be unset if the application doesn't configure tokens
+		// to expire.
+		// See
+		// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
+		if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
+			continue
+		}
 
-	externalAuthLink, updated, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to refresh external auth token.",
-			Detail:  err.Error(),
-		})
+		// Only attempt to revalidate an oauth token if it has actually changed.
+		// No point in trying to validate the same token over and over again.
+		if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
+			previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
+			previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
+			continue
+		}
+
+		valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthToken())
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to validate external auth token",
+				slog.F("workspace_owner_id", workspace.OwnerID.String()),
+				slog.F("validate_url", externalAuthConfig.ValidateURL),
+				slog.Error(err),
+			)
+		}
+		previousToken = externalAuthLink
+		if !valid {
+			continue
+		}
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create external auth response.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}
-	if !updated {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
-			URL: redirectURL.String(),
-		})
-		return
-	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create external auth response.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // createExternalAuthResponse creates an ExternalAuthResponse based on the

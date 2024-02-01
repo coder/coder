@@ -2438,6 +2438,75 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
+const getJFrogXrayScanByWorkspaceAndAgentID = `-- name: GetJFrogXrayScanByWorkspaceAndAgentID :one
+SELECT
+	agent_id, workspace_id, critical, high, medium, results_url
+FROM
+	jfrog_xray_scans
+WHERE
+	agent_id = $1
+AND
+	workspace_id = $2
+LIMIT
+	1
+`
+
+type GetJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error) {
+	row := q.db.QueryRowContext(ctx, getJFrogXrayScanByWorkspaceAndAgentID, arg.AgentID, arg.WorkspaceID)
+	var i JfrogXrayScan
+	err := row.Scan(
+		&i.AgentID,
+		&i.WorkspaceID,
+		&i.Critical,
+		&i.High,
+		&i.Medium,
+		&i.ResultsUrl,
+	)
+	return i, err
+}
+
+const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
+INSERT INTO 
+	jfrog_xray_scans (
+		agent_id,
+		workspace_id,
+		critical,
+		high,
+		medium,
+		results_url
+	)
+VALUES 
+	($1, $2, $3, $4, $5, $6)
+ON CONFLICT (agent_id, workspace_id)
+DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
+`
+
+type UpsertJFrogXrayScanByWorkspaceAndAgentIDParams struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Critical    int32     `db:"critical" json:"critical"`
+	High        int32     `db:"high" json:"high"`
+	Medium      int32     `db:"medium" json:"medium"`
+	ResultsUrl  string    `db:"results_url" json:"results_url"`
+}
+
+func (q *sqlQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	_, err := q.db.ExecContext(ctx, upsertJFrogXrayScanByWorkspaceAndAgentID,
+		arg.AgentID,
+		arg.WorkspaceID,
+		arg.Critical,
+		arg.High,
+		arg.Medium,
+		arg.ResultsUrl,
+	)
+	return err
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
@@ -9868,6 +9937,67 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 		pq.Array(arg.Requests),
 	)
 	return err
+}
+
+const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many
+SELECT name, value
+FROM (
+    SELECT DISTINCT ON (tvp.name)
+        tvp.name,
+        wbp.value,
+        wb.created_at
+    FROM
+        workspace_build_parameters wbp
+    JOIN
+        workspace_builds wb ON wb.id = wbp.workspace_build_id
+    JOIN
+        workspaces w ON w.id = wb.workspace_id
+    JOIN
+        template_version_parameters tvp ON tvp.template_version_id = wb.template_version_id
+    WHERE
+		w.owner_id = $1
+		AND wb.transition = 'start'
+		AND w.template_id = $2
+		AND tvp.ephemeral = false
+		AND tvp.name = wbp.name
+    ORDER BY
+        tvp.name, wb.created_at DESC
+) q1
+ORDER BY created_at DESC, name
+LIMIT 100
+`
+
+type GetUserWorkspaceBuildParametersParams struct {
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+type GetUserWorkspaceBuildParametersRow struct {
+	Name  string `db:"name" json:"name"`
+	Value string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserWorkspaceBuildParameters, arg.OwnerID, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserWorkspaceBuildParametersRow
+	for rows.Next() {
+		var i GetUserWorkspaceBuildParametersRow
+		if err := rows.Scan(&i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many

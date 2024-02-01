@@ -7,14 +7,15 @@ import {
   type HTMLAttributes,
   type ReactNode,
   forwardRef,
-  ComponentProps,
 } from "react";
 import { Stack } from "components/Stack/Stack";
 import { type CSSObject } from "@emotion/css";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import {
   Popover,
+  type PopoverProps,
   PopoverContent,
+  type PopoverContentProps,
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
@@ -25,13 +26,11 @@ type Size = "small" | "medium";
 
 export const HelpTooltipIcon = HelpIcon;
 
-export const HelpTooltip: FC<ComponentProps<typeof Popover>> = (props) => {
+export const HelpTooltip: FC<PopoverProps> = (props) => {
   return <Popover mode="hover" {...props} />;
 };
 
-export const HelpTooltipContent = (
-  props: ComponentProps<typeof PopoverContent>,
-) => {
+export const HelpTooltipContent: FC<PopoverContentProps> = (props) => {
   const theme = useTheme();
 
   return (
@@ -125,10 +124,12 @@ export const HelpTooltipText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
   );
 };
 
-export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
-  children,
-  href,
-}) => {
+interface HelpTooltipLink {
+  children?: ReactNode;
+  href: string;
+}
+
+export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
   return (
     <Link href={href} target="_blank" rel="noreferrer" css={styles.link}>
       <OpenInNewIcon css={styles.linkIcon} />

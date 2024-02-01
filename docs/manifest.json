@@ -177,13 +177,13 @@
               "title": "Resource metadata",
               "description": "Show information in the workspace about template resources",
               "path": "./templates/resource-metadata.md"
-            },
-            {
-              "title": "Parameters",
-              "description": "Prompt the user for additional information about a workspace",
-              "path": "./templates/parameters.md"
             }
           ]
+        },
+        {
+          "title": "Parameters",
+          "description": "Prompt the user for additional information about a workspace",
+          "path": "./templates/parameters.md"
         },
         {
           "title": "Administering templates",
@@ -1045,6 +1045,11 @@
           "title": "Template ImagePullSecrets",
           "description": "Creating ImagePullSecrets for private registries",
           "path": "./guides/image-pull-secret.md"
+        },
+        {
+          "title": "Azure Federation",
+          "description": "Federating Coder to Azure",
+          "path": "./guides/azure-federation.md"
         }
       ]
     }

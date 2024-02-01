@@ -33,7 +33,6 @@ import Tooltip from "@mui/material/Tooltip";
 import { formatDuration, intervalToDuration } from "date-fns";
 import { DisabledBadge } from "components/Badges/Badges";
 import { TemplateAutostartRequirement } from "api/typesGenerated";
-import { PropsWithChildren } from "react";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -184,9 +183,7 @@ export const validationSchema = Yup.object({
     }),
 });
 
-export const WorkspaceScheduleForm: FC<
-  PropsWithChildren<WorkspaceScheduleFormProps>
-> = ({
+export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   submitScheduleError,
   initialValues,
   isLoading,
@@ -461,6 +458,6 @@ export const ttlShutdownAt = (formTTL: number): string => {
     return `Your workspace will shut down ${formatDuration(
       intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
       { delimiter: " and " },
-    )} after its next start. We delay shutdown by this time whenever we detect activity.`;
+    )} after its next start. We delay shutdown by 1 hour whenever we detect activity.`;
   }
 };

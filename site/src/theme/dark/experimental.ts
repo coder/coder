@@ -151,7 +151,7 @@ export default {
       text: colors.sky[50],
       fill: {
         solid: colors.sky[600],
-        outline: colors.sky[600],
+        outline: colors.sky[400],
         text: colors.white,
       },
       disabled: {
@@ -173,6 +173,16 @@ export default {
           outline: colors.sky[500],
           text: colors.white,
         },
+      },
+    },
+    inactive: {
+      background: colors.zinc[950],
+      outline: colors.zinc[500],
+      text: colors.zinc[50],
+      fill: {
+        solid: colors.zinc[400],
+        outline: colors.zinc[400],
+        text: colors.white,
       },
     },
     preview: {

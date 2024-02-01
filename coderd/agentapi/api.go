@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -27,8 +28,6 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
-
-const AgentAPIVersionDRPC = "2.0"
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
@@ -61,6 +60,7 @@ type Options struct {
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 	StatsBatcher                      StatsBatcher
+	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 
@@ -95,10 +95,20 @@ func New(opts Options) *API {
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
+		WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
+			if opts.WorkspaceID != uuid.Nil {
+				return opts.WorkspaceID, nil
+			}
+			ws, err := opts.Database.GetWorkspaceByAgentID(ctx, wa.ID)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return ws.Workspace.ID, nil
+		},
 	}
 
 	api.ServiceBannerAPI = &ServiceBannerAPI{
-		Database: opts.Database,
+		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
 	api.StatsAPI = &StatsAPI{
