@@ -1255,6 +1255,8 @@ type httpError struct {
 	msg              string
 	detail           string
 	renderStaticPage bool
+
+	renderDetailMarkdown bool
 }
 
 func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
@@ -1266,6 +1268,8 @@ func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
 			Description:  e.detail,
 			RetryEnabled: false,
 			DashboardURL: "/login",
+
+			RenderDescriptionMarkdown: e.renderDetailMarkdown,
 		})
 		return
 	}
@@ -1325,6 +1329,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				msg:              "Signups are disabled",
 				detail:           signupsDisabledText,
 				renderStaticPage: true,
+
+				renderDetailMarkdown: true,
 			}
 		}
 

@@ -773,6 +773,8 @@ type ErrorPageData struct {
 	RetryEnabled bool
 	DashboardURL string
 	Warnings     []string
+
+	RenderDescriptionMarkdown bool
 }
 
 // RenderStaticErrorPage renders the static error page. This is used by app
@@ -781,12 +783,17 @@ type ErrorPageData struct {
 func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPageData) {
 	type outerData struct {
 		Error ErrorPageData
+
+		ErrorDescriptionHTML htmltemplate.HTML
 	}
 
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(data.Status)
 
-	err := errorTemplate.Execute(rw, outerData{Error: data})
+	err := errorTemplate.Execute(rw, outerData{
+		Error:                data,
+		ErrorDescriptionHTML: htmltemplate.HTML(data.Description), //nolint:gosec // gosec thinks this is user-input, but it is from Coder deployment configuration.
+	})
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to render error page: " + err.Error(),
