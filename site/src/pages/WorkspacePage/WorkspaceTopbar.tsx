@@ -233,7 +233,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </TopbarData>
         )}
 
-        {quota && (
+        {quota && quota.budget > 0 && (
           <TopbarData>
             <TopbarIcon>
               <Tooltip title="Daily usage">
