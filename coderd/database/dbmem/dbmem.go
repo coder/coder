@@ -147,7 +147,7 @@ type data struct {
 	workspaceAgentLogs            []database.WorkspaceAgentLog
 	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
 	workspaceAgentScripts         []database.WorkspaceAgentScript
-	workspaceAgentPortShare       []database.WorkspaceAgentPortShare
+	workspaceAgentPortShares      []database.WorkspaceAgentPortShare
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
@@ -1012,14 +1012,14 @@ func (q *FakeQuerier) CreateWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, share := range q.workspaceAgentPortShare {
+	for _, share := range q.workspaceAgentPortShares {
 		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
 			return xerrors.New("port share already exists")
 		}
 	}
 
 	//nolint:gosimple // I disagree
-	q.workspaceAgentPortShare = append(q.workspaceAgentPortShare, database.WorkspaceAgentPortShare{
+	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, database.WorkspaceAgentPortShare{
 		WorkspaceID: arg.WorkspaceID,
 		AgentName:   arg.AgentName,
 		Port:        arg.Port,
@@ -1353,9 +1353,9 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg datab
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for i, share := range q.workspaceAgentPortShare {
+	for i, share := range q.workspaceAgentPortShares {
 		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
-			q.workspaceAgentPortShare = append(q.workspaceAgentPortShare[:i], q.workspaceAgentPortShare[i+1:]...)
+			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
 			return nil
 		}
 	}
@@ -4209,7 +4209,7 @@ func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, share := range q.workspaceAgentPortShare {
+	for _, share := range q.workspaceAgentPortShares {
 		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
 			return share, nil
 		}
@@ -7072,7 +7072,18 @@ func (q *FakeQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg dat
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			share.ShareLevel = arg.ShareLevel
+			q.workspaceAgentPortShares[i] = share
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
