@@ -12,10 +12,10 @@ import (
 	"io"
 	"net/http"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
