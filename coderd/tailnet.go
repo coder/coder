@@ -99,8 +99,14 @@ func NewServerTailnet(
 		transport:            tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
-	tn.transport.MaxIdleConnsPerHost = 10
+	// These options are mostly just picked at random, and they can likely be
+	// fine tuned further. Generally, users are running applications in dev mode
+	// which can generate hundreds of requests per page load, so we increased
+	// MaxIdleConnsPerHost from 2 to 6 and removed the limit of total idle
+	// conns.
+	tn.transport.MaxIdleConnsPerHost = 6
 	tn.transport.MaxIdleConns = 0
+	tn.transport.IdleConnTimeout = 10 * time.Minute
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
 	// apps are already going to be accessed over plain HTTP, this config
