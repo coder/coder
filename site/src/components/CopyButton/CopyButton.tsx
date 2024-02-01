@@ -13,7 +13,6 @@ interface CopyButtonProps {
   wrapperStyles?: Interpolation<Theme>;
   buttonStyles?: Interpolation<Theme>;
   tooltipTitle?: string;
-  onClick?: MouseEventHandler;
 }
 
 export const Language = {
@@ -31,7 +30,6 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
       ctaCopy,
       wrapperStyles,
       buttonStyles,
-      onClick: outsideOnClick,
       tooltipTitle = Language.tooltipTitle,
     } = props;
     const { isCopied, copyToClipboard } = useClipboard(text);
