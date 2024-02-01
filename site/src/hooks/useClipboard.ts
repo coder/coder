@@ -22,8 +22,8 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
         setIsCopied(false);
       }, 1000);
     } catch (err) {
-      const isExecSupported = simulateClipboardWrite();
-      if (isExecSupported) {
+      const isExecCommandSupported = simulateClipboardWrite();
+      if (isExecCommandSupported) {
         setIsCopied(true);
         timeoutIdRef.current = window.setTimeout(() => {
           setIsCopied(false);
@@ -51,12 +51,12 @@ function simulateClipboardWrite(): boolean {
   dummyInput.focus();
   dummyInput.select();
 
-  const isExecSupported = document.execCommand("copy");
+  const isExecCommandSupported = document.execCommand("copy");
   dummyInput.remove();
 
   if (previousFocusTarget instanceof HTMLElement) {
     previousFocusTarget.focus();
   }
 
-  return isExecSupported;
+  return isExecCommandSupported;
 }
