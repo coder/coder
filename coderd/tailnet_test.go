@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +79,43 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("Metrics", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+		a := agents[0]
+
+		registry := prometheus.NewRegistry()
+		require.NoError(t, registry.Register(serverTailnet))
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp := serverTailnet.ReverseProxy(u, u, a.id)
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		require.Eventually(t, func() bool {
+			metrics, err := registry.Gather()
+			assert.NoError(t, err)
+			return counterHasValue(t, metrics, 1, "coder_servertailnet_total_conns", a.id.String()) &&
+				gaugeHasValue(t, metrics, 1, "coder_servertailnet_open_conns", a.id.String())
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
 	t.Run("HostRewrite", func(t *testing.T) {
@@ -327,4 +366,46 @@ func setupServerTailnetAgent(t *testing.T, agentNum int) ([]agentWithID, *coderd
 	})
 
 	return agents, serverTailnet
+}
+
+func gaugeHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
+	t.Helper()
+	for _, family := range metrics {
+		if family.GetName() != name {
+			continue
+		}
+		ms := family.GetMetric()
+	metricsLoop:
+		for _, m := range ms {
+			require.Equal(t, len(label), len(m.GetLabel()))
+			for i, lv := range label {
+				if lv != m.GetLabel()[i].GetValue() {
+					continue metricsLoop
+				}
+			}
+			return value == m.GetGauge().GetValue()
+		}
+	}
+	return false
+}
+
+func counterHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
+	t.Helper()
+	for _, family := range metrics {
+		if family.GetName() != name {
+			continue
+		}
+		ms := family.GetMetric()
+	metricsLoop:
+		for _, m := range ms {
+			require.Equal(t, len(label), len(m.GetLabel()))
+			for i, lv := range label {
+				if lv != m.GetLabel()[i].GetValue() {
+					continue metricsLoop
+				}
+			}
+			return value == m.GetCounter().GetValue()
+		}
+	}
+	return false
 }
