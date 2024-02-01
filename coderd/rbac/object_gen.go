@@ -28,6 +28,7 @@ func AllResources() []Object {
 		ResourceUserWorkspaceBuildParameters,
 		ResourceWildcard,
 		ResourceWorkspace,
+		ResourceWorkspaceAgentPortShare,
 		ResourceWorkspaceApplicationConnect,
 		ResourceWorkspaceBuild,
 		ResourceWorkspaceDormant,

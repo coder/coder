@@ -2283,10 +2283,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentMetadata(arg0, arg1 any) *gomo
 }
 
 // GetWorkspaceAgentPortShare mocks base method.
-func (m *MockStore) GetWorkspaceAgentPortShare(arg0 context.Context, arg1 database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
+func (m *MockStore) GetWorkspaceAgentPortShare(arg0 context.Context, arg1 database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceAgentPortShare", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceAgentPortSharing)
+	ret0, _ := ret[0].(database.WorkspaceAgentPortShare)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

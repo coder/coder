@@ -11002,6 +11002,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "max_port_share_level": {
+                    "type": "integer"
+                },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"

@@ -8137,7 +8137,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 }
 
 const createWorkspaceAgentPortShare = `-- name: CreateWorkspaceAgentPortShare :exec
-INSERT INTO workspace_agent_port_sharing (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
+INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
 `
 
 type CreateWorkspaceAgentPortShareParams struct {
@@ -8158,7 +8158,7 @@ func (q *sqlQuerier) CreateWorkspaceAgentPortShare(ctx context.Context, arg Crea
 }
 
 const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
-DELETE FROM workspace_agent_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+DELETE FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
 `
 
 type DeleteWorkspaceAgentPortShareParams struct {
@@ -8173,7 +8173,7 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg Dele
 }
 
 const getWorkspaceAgentPortShare = `-- name: GetWorkspaceAgentPortShare :one
-SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_sharing WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
 `
 
 type GetWorkspaceAgentPortShareParams struct {
@@ -8182,9 +8182,9 @@ type GetWorkspaceAgentPortShareParams struct {
 	Port        int32     `db:"port" json:"port"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortSharing, error) {
+func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentPortShare, arg.WorkspaceID, arg.AgentName, arg.Port)
-	var i WorkspaceAgentPortSharing
+	var i WorkspaceAgentPortShare
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.AgentName,
@@ -8195,7 +8195,7 @@ func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWork
 }
 
 const updateWorkspaceAgentPortShare = `-- name: UpdateWorkspaceAgentPortShare :exec
-UPDATE workspace_agent_port_sharing SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
+UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
 `
 
 type UpdateWorkspaceAgentPortShareParams struct {
