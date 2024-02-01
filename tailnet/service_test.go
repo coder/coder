@@ -26,7 +26,7 @@ import (
 
 func TestClientService_ServeClient_V2(t *testing.T) {
 	t.Parallel()
-	fCoord := newFakeCoordinator()
+	fCoord := NewFakeCoordinator()
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
@@ -64,15 +64,15 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	call := testutil.RequireRecvCtx(ctx, t, fCoord.coordinateCalls)
+	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
 	require.NotNil(t, call)
-	require.Equal(t, call.id, clientID)
-	require.Equal(t, call.name, "client")
-	require.True(t, call.auth.Authorize(agentID))
-	req := testutil.RequireRecvCtx(ctx, t, call.reqs)
+	require.Equal(t, call.ID, clientID)
+	require.Equal(t, call.Name, "client")
+	require.True(t, call.Auth.Authorize(agentID))
+	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
 	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
 
-	call.resps <- &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
+	call.Resps <- &proto.CoordinateResponse{PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{
 		{
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 			Node: &proto.Node{PreferredDerp: 22},
@@ -107,7 +107,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 
 func TestClientService_ServeClient_V1(t *testing.T) {
 	t.Parallel()
-	fCoord := newFakeCoordinator()
+	fCoord := NewFakeCoordinator()
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
@@ -128,14 +128,14 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		errCh <- err
 	}()
 
-	call := testutil.RequireRecvCtx(ctx, t, fCoord.serveClientCalls)
+	call := testutil.RequireRecvCtx(ctx, t, fCoord.ServeClientCalls)
 	require.NotNil(t, call)
-	require.Equal(t, call.id, clientID)
-	require.Equal(t, call.agent, agentID)
-	require.Equal(t, s, call.conn)
+	require.Equal(t, call.ID, clientID)
+	require.Equal(t, call.Agent, agentID)
+	require.Equal(t, s, call.Conn)
 	expectedError := xerrors.New("test error")
 	select {
-	case call.errCh <- expectedError:
+	case call.ErrCh <- expectedError:
 	// ok!
 	case <-ctx.Done():
 		t.Fatalf("timeout sending error")
@@ -145,75 +145,75 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	require.ErrorIs(t, err, expectedError)
 }
 
-type fakeCoordinator struct {
-	coordinateCalls  chan *fakeCoordinate
-	serveClientCalls chan *fakeServeClient
+type FakeCoordinator struct {
+	CoordinateCalls  chan *FakeCoordinate
+	ServeClientCalls chan *FakeServeClient
 }
 
-func (*fakeCoordinator) ServeHTTPDebug(http.ResponseWriter, *http.Request) {
+func (*FakeCoordinator) ServeHTTPDebug(http.ResponseWriter, *http.Request) {
 	panic("unimplemented")
 }
 
-func (*fakeCoordinator) Node(uuid.UUID) *tailnet.Node {
+func (*FakeCoordinator) Node(uuid.UUID) *tailnet.Node {
 	panic("unimplemented")
 }
 
-func (f *fakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (f *FakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	errCh := make(chan error)
-	f.serveClientCalls <- &fakeServeClient{
-		conn:  conn,
-		id:    id,
-		agent: agent,
-		errCh: errCh,
+	f.ServeClientCalls <- &FakeServeClient{
+		Conn:  conn,
+		ID:    id,
+		Agent: agent,
+		ErrCh: errCh,
 	}
 	return <-errCh
 }
 
-func (*fakeCoordinator) ServeAgent(net.Conn, uuid.UUID, string) error {
+func (*FakeCoordinator) ServeAgent(net.Conn, uuid.UUID, string) error {
 	panic("unimplemented")
 }
 
-func (*fakeCoordinator) Close() error {
+func (*FakeCoordinator) Close() error {
 	panic("unimplemented")
 }
 
-func (*fakeCoordinator) ServeMultiAgent(uuid.UUID) tailnet.MultiAgentConn {
+func (*FakeCoordinator) ServeMultiAgent(uuid.UUID) tailnet.MultiAgentConn {
 	panic("unimplemented")
 }
 
-func (f *fakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+func (f *FakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
-	f.coordinateCalls <- &fakeCoordinate{
-		ctx:   ctx,
-		id:    id,
-		name:  name,
-		auth:  a,
-		reqs:  reqs,
-		resps: resps,
+	f.CoordinateCalls <- &FakeCoordinate{
+		Ctx:   ctx,
+		ID:    id,
+		Name:  name,
+		Auth:  a,
+		Reqs:  reqs,
+		Resps: resps,
 	}
 	return reqs, resps
 }
 
-func newFakeCoordinator() *fakeCoordinator {
-	return &fakeCoordinator{
-		coordinateCalls:  make(chan *fakeCoordinate, 100),
-		serveClientCalls: make(chan *fakeServeClient, 100),
+func NewFakeCoordinator() *FakeCoordinator {
+	return &FakeCoordinator{
+		CoordinateCalls:  make(chan *FakeCoordinate, 100),
+		ServeClientCalls: make(chan *FakeServeClient, 100),
 	}
 }
 
-type fakeCoordinate struct {
-	ctx   context.Context
-	id    uuid.UUID
-	name  string
-	auth  tailnet.TunnelAuth
-	reqs  chan *proto.CoordinateRequest
-	resps chan *proto.CoordinateResponse
+type FakeCoordinate struct {
+	Ctx   context.Context
+	ID    uuid.UUID
+	Name  string
+	Auth  tailnet.TunnelAuth
+	Reqs  chan *proto.CoordinateRequest
+	Resps chan *proto.CoordinateResponse
 }
 
-type fakeServeClient struct {
-	conn  net.Conn
-	id    uuid.UUID
-	agent uuid.UUID
-	errCh chan error
+type FakeServeClient struct {
+	Conn  net.Conn
+	ID    uuid.UUID
+	Agent uuid.UUID
+	ErrCh chan error
 }
