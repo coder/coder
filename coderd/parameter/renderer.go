@@ -1,11 +1,14 @@
 package parameter
 
 import (
-	"regexp"
+	"bytes"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/ansi"
+	gomarkdown "github.com/gomarkdown/markdown"
+	"github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 	"golang.org/x/xerrors"
 )
 
@@ -97,32 +100,11 @@ func Plaintext(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-var (
-	reBold          = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	reItalic        = regexp.MustCompile(`\*([^*]+)\*`)
-	reStrikethrough = regexp.MustCompile(`~~([^~]+)~~`)
-	reLink          = regexp.MustCompile(`\[([^]]+)\]\(([^)]+)\)`)
-)
-
 func HTML(markdown string) string {
-	draft := replaceBold(markdown) // bold regexp must go before italic - ** vs. *
-	draft = replaceItalic(draft)
-	draft = replaceStrikethrough(draft)
-	return replaceLinks(draft)
-}
-
-func replaceItalic(markdown string) string {
-	return reItalic.ReplaceAllString(markdown, "<i>$1</i>")
-}
-
-func replaceBold(markdown string) string {
-	return reBold.ReplaceAllString(markdown, "<strong>$1</strong>")
-}
-
-func replaceStrikethrough(markdown string) string {
-	return reStrikethrough.ReplaceAllString(markdown, "<del>$1</del>")
-}
-
-func replaceLinks(markdown string) string {
-	return reLink.ReplaceAllString(markdown, `<a href="$2">$1</a>`)
+	p := parser.NewWithExtensions(parser.CommonExtensions)
+	doc := p.Parse([]byte(markdown))
+	renderer := html.NewRenderer(html.RendererOptions{
+		Flags: html.CommonFlags | html.SkipHTML},
+	)
+	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }

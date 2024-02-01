@@ -206,7 +206,10 @@ require (
 
 require go.uber.org/mock v0.4.0
 
-require github.com/benbjohnson/clock v1.3.5
+require (
+	github.com/benbjohnson/clock v1.3.5
+	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
+)
 
 require github.com/tdewolff/test v1.0.11-0.20240106005702-7de5f7df4739 // indirect
 

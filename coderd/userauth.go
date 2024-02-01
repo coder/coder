@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -1317,7 +1318,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
-				signupsDisabledText = api.OIDCConfig.SignupsDisabledText
+				signupsDisabledText = parameter.HTML(api.OIDCConfig.SignupsDisabledText)
 			}
 			return httpError{
 				code:             http.StatusForbidden,
