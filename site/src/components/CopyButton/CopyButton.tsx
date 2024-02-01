@@ -45,10 +45,7 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
             size="small"
             aria-label={Language.ariaLabel}
             variant="text"
-            onClick={(event) => {
-              void copyToClipboard();
-              outsideOnClick?.(event);
-            }}
+            onClick={copyToClipboard}
           >
             {isCopied ? (
               <Check css={styles.copyIcon} />
