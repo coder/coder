@@ -7066,7 +7066,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentPortShare(_ context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
