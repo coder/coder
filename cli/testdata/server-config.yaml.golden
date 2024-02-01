@@ -349,6 +349,7 @@ oidc:
   # (default: <unset>, type: url)
   iconURL:
   # The custom text to show on the error page informing about disabled OIDC signups.
+  # Markdown format is supported.
   # (default: <unset>, type: string)
   signupsDisabledText: ""
 # Telemetry is critical to our ability to improve Coder. We strip all personal
