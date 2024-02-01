@@ -91,7 +91,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
       css={styles.withImage}
       message="Create a Template"
       description="Contact your Coder administrator to create a template. You can share the code below."
-      cta={<CodeExample code="coder templates init" />}
+      cta={<CodeExample secret={false} code="coder templates init" />}
       image={
         <div css={styles.emptyImage}>
           <img src="/featured/templates.webp" alt="" />

@@ -176,7 +176,7 @@ func TestServiceBanners(t *testing.T) {
 }
 
 func requireGetServiceBanner(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
-	cc, err := client.Listen(ctx)
+	cc, err := client.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_ = cc.Close()

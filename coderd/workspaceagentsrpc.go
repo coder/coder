@@ -37,6 +37,7 @@ import (
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := api.Logger.Named("agentrpc")
 
 	version := r.URL.Query().Get("version")
 	if version == "" {
@@ -61,7 +62,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	build, ok := ensureLatestBuild(ctx, api.Database, api.Logger, rw, workspaceAgent)
+	build, ok := ensureLatestBuild(ctx, api.Database, logger, rw, workspaceAgent)
 	if !ok {
 		return
 	}
@@ -84,6 +85,12 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger = logger.With(
+		slog.F("owner", owner.Username),
+		slog.F("workspace_name", workspace.Name),
+		slog.F("agent_name", workspaceAgent.Name),
+	)
+
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -96,7 +103,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	mux, err := yamux.Server(wsNetConn, nil)
+	ycfg := yamux.DefaultConfig()
+	ycfg.LogOutput = nil
+	ycfg.Logger = slog.Stdlib(ctx, logger.Named("yamux"), slog.LevelInfo)
+
+	mux, err := yamux.Server(wsNetConn, ycfg)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to start yamux over websocket.",
@@ -106,25 +117,18 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer mux.Close()
 
-	api.Logger.Debug(ctx, "accepting agent RPC connection",
-		slog.F("owner", owner.Username),
-		slog.F("workspace", workspace.Name),
-		slog.F("name", workspaceAgent.Name),
-	)
-	api.Logger.Debug(ctx, "accepting agent details", slog.F("agent", workspaceAgent))
-
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	logger.Debug(ctx, "accepting agent RPC connection", slog.F("agent", workspaceAgent))
 
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
 	defer closeCtxCancel()
-	monitor := api.startAgentWebsocketMonitor(closeCtx, workspaceAgent, build, conn)
+	monitor := api.startAgentYamuxMonitor(closeCtx, workspaceAgent, build, mux)
 	defer monitor.close()
 
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID: workspaceAgent.ID,
 
 		Ctx:                               api.ctx,
-		Log:                               api.Logger,
+		Log:                               logger,
 		Database:                          api.Database,
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
@@ -157,7 +161,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
 	if err != nil {
-		api.Logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
+		logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
@@ -214,12 +218,59 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 func (api *API) startAgentWebsocketMonitor(ctx context.Context,
 	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
 	conn *websocket.Conn,
-) *agentWebsocketMonitor {
-	monitor := &agentWebsocketMonitor{
+) *agentConnectionMonitor {
+	monitor := &agentConnectionMonitor{
 		apiCtx:            api.ctx,
 		workspaceAgent:    workspaceAgent,
 		workspaceBuild:    workspaceBuild,
 		conn:              conn,
+		pingPeriod:        api.AgentConnectionUpdateFrequency,
+		db:                api.Database,
+		replicaID:         api.ID,
+		updater:           api,
+		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
+		logger: api.Logger.With(
+			slog.F("workspace_id", workspaceBuild.WorkspaceID),
+			slog.F("agent_id", workspaceAgent.ID),
+		),
+	}
+	monitor.init()
+	monitor.start(ctx)
+
+	return monitor
+}
+
+type yamuxPingerCloser struct {
+	mux *yamux.Session
+}
+
+func (y *yamuxPingerCloser) Close(websocket.StatusCode, string) error {
+	return y.mux.Close()
+}
+
+func (y *yamuxPingerCloser) Ping(ctx context.Context) error {
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := y.mux.Ping()
+		errCh <- err
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
+}
+
+func (api *API) startAgentYamuxMonitor(ctx context.Context,
+	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
+	mux *yamux.Session,
+) *agentConnectionMonitor {
+	monitor := &agentConnectionMonitor{
+		apiCtx:            api.ctx,
+		workspaceAgent:    workspaceAgent,
+		workspaceBuild:    workspaceBuild,
+		conn:              &yamuxPingerCloser{mux: mux},
 		pingPeriod:        api.AgentConnectionUpdateFrequency,
 		db:                api.Database,
 		replicaID:         api.ID,
@@ -245,7 +296,7 @@ type pingerCloser interface {
 	Close(code websocket.StatusCode, reason string) error
 }
 
-type agentWebsocketMonitor struct {
+type agentConnectionMonitor struct {
 	apiCtx         context.Context
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
@@ -272,7 +323,7 @@ type agentWebsocketMonitor struct {
 //
 // We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 // because we want to log the agent's last ping time.
-func (m *agentWebsocketMonitor) sendPings(ctx context.Context) {
+func (m *agentConnectionMonitor) sendPings(ctx context.Context) {
 	t := time.NewTicker(m.pingPeriod)
 	defer t.Stop()
 
@@ -295,7 +346,7 @@ func (m *agentWebsocketMonitor) sendPings(ctx context.Context) {
 	}
 }
 
-func (m *agentWebsocketMonitor) updateConnectionTimes(ctx context.Context) error {
+func (m *agentConnectionMonitor) updateConnectionTimes(ctx context.Context) error {
 	//nolint:gocritic // We only update the agent we are minding.
 	err := m.db.UpdateWorkspaceAgentConnectionByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentConnectionByIDParams{
 		ID:               m.workspaceAgent.ID,
@@ -314,7 +365,7 @@ func (m *agentWebsocketMonitor) updateConnectionTimes(ctx context.Context) error
 	return nil
 }
 
-func (m *agentWebsocketMonitor) init() {
+func (m *agentConnectionMonitor) init() {
 	now := dbtime.Now()
 	m.firstConnectedAt = m.workspaceAgent.FirstConnectedAt
 	if !m.firstConnectedAt.Valid {
@@ -331,7 +382,7 @@ func (m *agentWebsocketMonitor) init() {
 	m.lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
 }
 
-func (m *agentWebsocketMonitor) start(ctx context.Context) {
+func (m *agentConnectionMonitor) start(ctx context.Context) {
 	ctx, m.cancel = context.WithCancel(ctx)
 	m.wg.Add(2)
 	go pprof.Do(ctx, pprof.Labels("agent", m.workspaceAgent.ID.String()),
@@ -346,7 +397,7 @@ func (m *agentWebsocketMonitor) start(ctx context.Context) {
 		})
 }
 
-func (m *agentWebsocketMonitor) monitor(ctx context.Context) {
+func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 	defer func() {
 		// If connection closed then context will be canceled, try to
 		// ensure our final update is sent. By waiting at most the agent
@@ -384,7 +435,7 @@ func (m *agentWebsocketMonitor) monitor(ctx context.Context) {
 	}()
 	reason := "disconnect"
 	defer func() {
-		m.logger.Debug(ctx, "agent websocket monitor is closing connection",
+		m.logger.Debug(ctx, "agent connection monitor is closing connection",
 			slog.F("reason", reason))
 		_ = m.conn.Close(websocket.StatusGoingAway, reason)
 	}()
@@ -409,6 +460,7 @@ func (m *agentWebsocketMonitor) monitor(ctx context.Context) {
 		lastPing := *m.lastPing.Load()
 		if time.Since(lastPing) > m.disconnectTimeout {
 			reason = "ping timeout"
+			m.logger.Warn(ctx, "connection to agent timed out")
 			return
 		}
 		connectionStatusChanged := m.disconnectedAt.Valid
@@ -421,6 +473,7 @@ func (m *agentWebsocketMonitor) monitor(ctx context.Context) {
 		err = m.updateConnectionTimes(ctx)
 		if err != nil {
 			reason = err.Error()
+			m.logger.Error(ctx, "failed to update agent connection times", slog.Error(err))
 			return
 		}
 		if connectionStatusChanged {
@@ -429,12 +482,13 @@ func (m *agentWebsocketMonitor) monitor(ctx context.Context) {
 		err = checkBuildIsLatest(ctx, m.db, m.workspaceBuild)
 		if err != nil {
 			reason = err.Error()
+			m.logger.Info(ctx, "disconnected possibly outdated agent", slog.Error(err))
 			return
 		}
 	}
 }
 
-func (m *agentWebsocketMonitor) close() {
+func (m *agentConnectionMonitor) close() {
 	m.cancel()
 	m.wg.Wait()
 }

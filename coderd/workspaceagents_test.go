@@ -319,7 +319,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentListen(t *testing.T) {
+func TestWorkspaceAgentConnectRPC(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Connect", func(t *testing.T) {
@@ -400,7 +400,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		_, err = agentClient.Listen(ctx)
+		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -500,7 +500,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	// Verify that the manifest has DisableDirectConnections set to true.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
-	rpc, err := agentClient.Listen(ctx)
+	rpc, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := rpc.Close()
@@ -830,7 +830,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
-	conn, err := agentClient.Listen(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := conn.Close()
@@ -1129,7 +1129,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	conn, err := agentClient.Listen(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := conn.Close()
@@ -1307,7 +1307,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
-	conn, err := agentClient.Listen(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := conn.Close()
@@ -1669,7 +1669,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	conn, err := client.Listen(ctx)
+	conn, err := client.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := conn.Close()

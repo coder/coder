@@ -21,3 +21,9 @@ declare module "@mui/material/Button" {
     xlarge: true;
   }
 }
+
+declare module "@mui/material/Checkbox" {
+  interface CheckboxPropsSizeOverrides {
+    xsmall: true;
+  }
+}

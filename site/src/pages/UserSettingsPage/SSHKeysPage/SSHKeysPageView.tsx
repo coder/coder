@@ -61,7 +61,7 @@ export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
             </code>
             .
           </p>
-          <CodeExample code={sshKey.public_key.trim()} />
+          <CodeExample secret={false} code={sshKey.public_key.trim()} />
           <div>
             <Button onClick={onRegenerateClick} data-testid="regenerate">
               Regenerate&hellip;
