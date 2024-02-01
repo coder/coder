@@ -428,8 +428,8 @@ OIDC OPTIONS:
           URL pointing to the icon to use on the OpenID Connect login button.
 
       --oidc-signups-disabled-text string, $CODER_OIDC_SIGNUPS_DISABLED_TEXT
-           The custom text to show on the error page informing about disabled
-           OIDC signups.
+          The custom text to show on the error page informing about disabled
+          OIDC signups.
 
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
