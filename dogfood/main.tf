@@ -31,7 +31,7 @@ locals {
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = module.git-clone.repo_dir
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
