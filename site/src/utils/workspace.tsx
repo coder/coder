@@ -191,13 +191,13 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "stopping":
       return {
-        type: "notice",
+        type: "inactive",
         text: "Stopping",
         icon: <PillSpinner />,
       } as const;
     case "stopped":
       return {
-        type: "notice",
+        type: "inactive",
         text: "Stopped",
         icon: <StopIcon />,
       } as const;
@@ -215,13 +215,13 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "canceling":
       return {
-        type: "notice",
+        type: "inactive",
         text: "Canceling",
         icon: <PillSpinner />,
       } as const;
     case "canceled":
       return {
-        type: "notice",
+        type: "inactive",
         text: "Canceled",
         icon: <ErrorIcon />,
       } as const;
@@ -233,7 +233,7 @@ export const getDisplayWorkspaceStatus = (
       } as const;
     case "pending":
       return {
-        type: "info",
+        type: "active",
         text: getPendingWorkspaceStatusText(provisionerJob),
         icon: <QueuedIcon />,
       } as const;
