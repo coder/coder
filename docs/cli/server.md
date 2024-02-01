@@ -905,7 +905,7 @@ The token expiry duration for browser sessions. Sessions may last longer if they
 | Environment | <code>$CODER_OIDC_SIGNUPS_DISABLED_TEXT</code> |
 | YAML        | <code>oidc.signupsDisabledText</code>          |
 
-The custom text to show on the error page informing about disabled OIDC signups.
+The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.
 
 ### --log-stackdriver
 

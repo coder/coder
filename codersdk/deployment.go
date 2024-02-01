@@ -1269,7 +1269,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Signups disabled text",
-			Description: "The custom text to show on the error page informing about disabled OIDC signups.",
+			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
 			Flag:        "oidc-signups-disabled-text",
 			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
 			Value:       &c.OIDC.SignupsDisabledText,
