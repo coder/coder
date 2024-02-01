@@ -322,6 +322,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "enable": true
     },
     "provisioner": {
+      "binary_path": "string",
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemon_psk": "string",

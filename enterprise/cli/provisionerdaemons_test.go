@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -160,4 +161,21 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 		assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
 	})
+}
+
+func TestProvisionerDaemon_CustomBinary(t *testing.T) {
+	t.Parallel()
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--provisioner-daemon-binary-path=/this/will/never/exist")
+	err := conf.URL().Write(client.URL.String())
+	require.NoError(t, err)
+	waiter := clitest.StartWithWaiter(t, inv)
+	waiter.RequireIs(os.ErrNotExist)
 }

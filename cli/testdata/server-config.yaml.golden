@@ -386,6 +386,11 @@ provisioning:
   # Pre-shared key to authenticate external provisioner daemons to Coder server.
   # (default: <unset>, type: string)
   daemonPSK: ""
+  # Override the binary used by the provisioner. This can allow, for example,
+  # overriding the Terraform version in use. If unset, the first available match in
+  # path will be used.
+  # (default: <unset>, type: string)
+  binaryPath: ""
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

@@ -443,6 +443,11 @@ updating, and deleting workspace resources.
       --provisioner-daemon-poll-jitter duration, $CODER_PROVISIONER_DAEMON_POLL_JITTER (default: 100ms)
           Deprecated and ignored.
 
+      --provisioner-daemon-binary-path string, $CODER_PROVISIONER_DAEMON_BINARY_PATH
+          Override the binary used by the provisioner. This can allow, for
+          example, overriding the Terraform version in use. If unset, the first
+          available match in path will be used.
+
       --provisioner-daemon-psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate external provisioner daemons to Coder
           server.

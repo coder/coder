@@ -1353,6 +1353,12 @@ func newProvisionerDaemon(
 			return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
 		}
 
+		if cfg.Provisioner.BinaryPath != "" {
+			if _, err := os.Stat(cfg.Provisioner.BinaryPath.Value()); errors.Is(err, os.ErrNotExist) {
+				return nil, xerrors.Errorf("stat provisioner binary path: %w", err)
+			}
+		}
+
 		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 		terraformClient, terraformServer := drpc.MemTransportPipe()
 		wg.Add(1)
@@ -1368,6 +1374,7 @@ func newProvisionerDaemon(
 			defer cancel()
 
 			err := terraform.Serve(ctx, &terraform.ServeOptions{
+				BinaryPath: cfg.Provisioner.BinaryPath.String(),
 				ServeOptions: &provisionersdk.ServeOptions{
 					Listener:      terraformServer,
 					Logger:        logger.Named("terraform"),

@@ -56,6 +56,7 @@ func validateProvisionerDaemonName(name string) error {
 
 func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
+		binaryPath     string
 		cacheDir       string
 		logHuman       string
 		logJSON        string
@@ -81,6 +82,12 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
+
+			if binaryPath != "" {
+				if _, err := os.Stat(binaryPath); xerrors.Is(err, os.ErrNotExist) {
+					return xerrors.Errorf("stat provisioner binary path: %w", err)
+				}
+			}
 
 			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer notifyStop()
@@ -151,6 +158,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				defer cancel()
 
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
+					BinaryPath: binaryPath,
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
 						Logger:        logger.Named("terraform"),
@@ -290,6 +298,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Env:         "CODER_PROVISIONER_DAEMON_LOG_FILTER",
 			Description: "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
 			Value:       clibase.StringArrayOf(&logFilter),
+			Default:     "",
+		},
+		{
+			Flag:        "provisioner-daemon-binary-path",
+			Env:         "CODER_PROVISIONER_DAEMON_BINARY_PATH",
+			Description: "Override the binary used by the provisioner. This can allow, for example, overriding the Terraform version in use. If unset, the first available match in path will be used.",
+			Value:       clibase.StringOf(&binaryPath),
 			Default:     "",
 		},
 	}

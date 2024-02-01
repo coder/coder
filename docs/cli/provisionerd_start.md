@@ -88,6 +88,15 @@ Deprecated and ignored.
 
 Deprecated and ignored.
 
+### --provisioner-daemon-binary-path
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_BINARY_PATH</code> |
+
+Override the binary used by the provisioner. This can allow, for example, overriding the Terraform version in use. If unset, the first available match in path will be used.
+
 ### --psk
 
 |             |                                            |

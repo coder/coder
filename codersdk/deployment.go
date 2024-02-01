@@ -372,6 +372,9 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
+	// BinaryPath is the absolute path to the provisioner binary to use.
+	// This may be interpreted differently depending on the provisioner type.
+	BinaryPath clibase.String `json:"binary_path" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1407,6 +1410,15 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPSK",
+		},
+		{
+			Name:        "Provisioner Daemon Binary Path",
+			Description: "Override the binary used by the provisioner. This can allow, for example, overriding the Terraform version in use. If unset, the first available match in path will be used.",
+			Flag:        "provisioner-daemon-binary-path",
+			Env:         "CODER_PROVISIONER_DAEMON_BINARY_PATH",
+			Value:       &c.Provisioner.BinaryPath,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "binaryPath",
 		},
 		// RateLimit settings
 		{

@@ -773,6 +773,16 @@ Collect database metrics (may increase charges for metrics storage).
 
 Serve prometheus metrics on the address defined by prometheus address.
 
+### --provisioner-daemon-binary-path
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_BINARY_PATH</code> |
+| YAML        | <code>provisioning.binaryPath</code>               |
+
+Override the binary used by the provisioner. This can allow, for example, overriding the Terraform version in use. If unset, the first available match in path will be used.
+
 ### --provisioner-daemon-psk
 
 |             |                                            |

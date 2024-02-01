@@ -2297,6 +2297,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "enable": true
     },
     "provisioner": {
+      "binary_path": "string",
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemon_psk": "string",
@@ -2665,6 +2666,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "enable": true
   },
   "provisioner": {
+    "binary_path": "string",
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemon_psk": "string",
@@ -3959,6 +3961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "binary_path": "string",
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemon_psk": "string",
@@ -3970,14 +3973,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-| ----------------------- | ------- | -------- | ------------ | ----------- |
-| `daemon_poll_interval`  | integer | false    |              |             |
-| `daemon_poll_jitter`    | integer | false    |              |             |
-| `daemon_psk`            | string  | false    |              |             |
-| `daemons`               | integer | false    |              |             |
-| `daemons_echo`          | boolean | false    |              |             |
-| `force_cancel_interval` | integer | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description                                                                                                                               |
+| ----------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `binary_path`           | string  | false    |              | Binary path is the absolute path to the provisioner binary to use. This may be interpreted differently depending on the provisioner type. |
+| `daemon_poll_interval`  | integer | false    |              |                                                                                                                                           |
+| `daemon_poll_jitter`    | integer | false    |              |                                                                                                                                           |
+| `daemon_psk`            | string  | false    |              |                                                                                                                                           |
+| `daemons`               | integer | false    |              |                                                                                                                                           |
+| `daemons_echo`          | boolean | false    |              |                                                                                                                                           |
+| `force_cancel_interval` | integer | false    |              |                                                                                                                                           |
 
 ## codersdk.ProvisionerDaemon
 

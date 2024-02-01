@@ -10260,6 +10260,10 @@ const docTemplate = `{
         "codersdk.ProvisionerConfig": {
             "type": "object",
             "properties": {
+                "binary_path": {
+                    "description": "BinaryPath is the absolute path to the provisioner binary to use.\nThis may be interpreted differently depending on the provisioner type.",
+                    "type": "string"
+                },
                 "daemon_poll_interval": {
                     "type": "integer"
                 },

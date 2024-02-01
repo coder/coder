@@ -32,6 +32,11 @@ OPTIONS:
       --poll-jitter duration, $CODER_PROVISIONERD_POLL_JITTER (default: 100ms)
           Deprecated and ignored.
 
+      --provisioner-daemon-binary-path string, $CODER_PROVISIONER_DAEMON_BINARY_PATH
+          Override the binary used by the provisioner. This can allow, for
+          example, overriding the Terraform version in use. If unset, the first
+          available match in path will be used.
+
       --psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate with Coder server.
 

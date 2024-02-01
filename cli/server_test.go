@@ -1487,6 +1487,26 @@ func TestServer(t *testing.T) {
 		})
 	})
 
+	t.Run("Provisioners", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CustomBinaryNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			inv, _ := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--provisioner-daemons", "1",
+				"--provisioner-daemon-binary-path", "/this/path/will/never/exist",
+			)
+			waiter := clitest.StartWithWaiter(t, inv)
+			waiter.Cancel()
+			waiter.RequireIs(os.ErrNotExist)
+		})
+	})
+
 	t.Run("YAML", func(t *testing.T) {
 		t.Parallel()
 
