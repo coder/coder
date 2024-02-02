@@ -25,9 +25,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-sharing
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                                   | Required | Description                       |
-| ------ | ---- | ---------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
-| `body` | body | [codersdk.UpdateWorkspaceAgentPortSharingLevelRequest](schemas.md#codersdkupdateworkspaceagentportsharinglevelrequest) | true     | Update port sharing level request |
+| Name   | In   | Type                                                                                                               | Required | Description                       |
+| ------ | ---- | ------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------------- |
+| `body` | body | [codersdk.UpdateWorkspaceAgentPortShareLevelRequest](schemas.md#codersdkupdateworkspaceagentportsharelevelrequest) | true     | Update port sharing level request |
 
 ### Responses
 

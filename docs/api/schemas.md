@@ -5535,7 +5535,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
 
-## codersdk.UpdateWorkspaceAgentPortSharingLevelRequest
+## codersdk.UpdateWorkspaceAgentPortShareLevelRequest
 
 ```json
 {

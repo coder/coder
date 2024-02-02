@@ -6361,7 +6361,7 @@
         "produces": ["application/json"],
         "tags": ["PortSharing"],
         "summary": "Update port sharing level",
-        "operationId": "post-workspace-port-sharing-level",
+        "operationId": "update-workspace-port-sharing-level",
         "parameters": [
           {
             "description": "Update port sharing level request",
@@ -6369,7 +6369,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortSharingLevelRequest"
+              "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareLevelRequest"
             }
           }
         ],
@@ -10707,7 +10707,7 @@
         }
       }
     },
-    "codersdk.UpdateWorkspaceAgentPortSharingLevelRequest": {
+    "codersdk.UpdateWorkspaceAgentPortShareLevelRequest": {
       "type": "object",
       "properties": {
         "agent_name": {

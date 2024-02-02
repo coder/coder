@@ -90,6 +90,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
+		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, 0),
 	})
 	require.NoError(t, err, "insert template")
 
