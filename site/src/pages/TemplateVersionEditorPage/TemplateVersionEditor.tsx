@@ -55,6 +55,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -450,7 +451,44 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <div css={{ flex: 1, overflowY: "auto" }} data-chromatic="ignore">
               {activePath ? (
                 isEditorValueBinary ? (
-                  <p>File type not supported</p>
+                  <div
+                    role="alert"
+                    css={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 40,
+                    }}
+                  >
+                    <div
+                      css={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        maxWidth: 420,
+                        textAlign: "center",
+                      }}
+                    >
+                      <WarningOutlined
+                        css={{
+                          fontSize: 48,
+                          color: theme.roles.warning.fill.outline,
+                        }}
+                      />
+                      <p
+                        css={{
+                          margin: 0,
+                          padding: 0,
+                          marginTop: 24,
+                        }}
+                      >
+                        The file is not displayed in the text editor because it
+                        is either binary or uses an unsupported text encoding.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <MonacoEditor
                     value={editorValue}
