@@ -7156,7 +7156,7 @@ const docTemplate = `{
                     "PortSharing"
                 ],
                 "summary": "Update port sharing level",
-                "operationId": "post-workspace-port-sharing-level",
+                "operationId": "update-workspace-port-sharing-level",
                 "parameters": [
                     {
                         "description": "Update port sharing level request",
@@ -7164,7 +7164,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortSharingLevelRequest"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareLevelRequest"
                         }
                     }
                 ],
@@ -11773,7 +11773,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateWorkspaceAgentPortSharingLevelRequest": {
+        "codersdk.UpdateWorkspaceAgentPortShareLevelRequest": {
             "type": "object",
             "properties": {
                 "agent_name": {

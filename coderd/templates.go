@@ -344,6 +344,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			DisplayName:                  createTemplate.DisplayName,
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
+			MaxPortSharingLevel:          0,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -631,15 +632,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
-	if req.MaxPortSharingLevel != nil {
-		if *req.MaxPortSharingLevel < 0 || *req.MaxPortSharingLevel > 2 {
+	if req.MaxPortShareLevel != nil {
+		if *req.MaxPortShareLevel < 0 || *req.MaxPortShareLevel > 2 {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be between 0 and 2."})
 		}
 		if !portSharer.CanRestrictSharing() {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
 		}
 
-		maxPortShareLevel = *req.MaxPortSharingLevel
+		maxPortShareLevel = *req.MaxPortShareLevel
 	}
 
 	if len(validErrs) > 0 {

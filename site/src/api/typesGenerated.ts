@@ -1300,7 +1300,7 @@ export interface UpdateTemplateMeta {
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
   readonly disable_everyone_group_access: boolean;
-  readonly max_port_sharing_level?: number;
+  readonly max_port_share_level?: number;
 }
 
 // From codersdk/users.go
@@ -1325,8 +1325,8 @@ export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
 }
 
-// From codersdk/workspaceportsharing.go
-export interface UpdateWorkspaceAgentPortSharingLevelRequest {
+// From codersdk/workspaceportshare.go
+export interface UpdateWorkspaceAgentPortShareLevelRequest {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: number;
@@ -2195,11 +2195,9 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
   "public",
 ];
 
-// From codersdk/workspaceportsharing.go
-export type WorkspacePortSharingLevel = 0 | 1 | 2;
-export const WorkspacePortSharingLevels: WorkspacePortSharingLevel[] = [
-  0, 1, 2,
-];
+// From codersdk/workspaceportshare.go
+export type WorkspacePortShareLevel = 0 | 1 | 2;
+export const WorkspacePortShareLevels: WorkspacePortShareLevel[] = [0, 1, 2];
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
