@@ -176,7 +176,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
                   clipboard.isCopied ? <CheckOutlined /> : <FileCopyOutlined />
                 }
                 variant="contained"
-                onClick={clipboard.copy}
+                onClick={clipboard.copyToClipboard}
                 disabled={clipboard.isCopied}
               >
                 Copy button code

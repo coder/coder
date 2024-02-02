@@ -348,6 +348,10 @@ oidc:
   # URL pointing to the icon to use on the OpenID Connect login button.
   # (default: <unset>, type: url)
   iconURL:
+  # The custom text to show on the error page informing about disabled OIDC signups.
+  # Markdown format is supported.
+  # (default: <unset>, type: string)
+  signupsDisabledText: ""
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 # information before sending data to our servers. Please only disable telemetry
 # when required by your organization's security policy.

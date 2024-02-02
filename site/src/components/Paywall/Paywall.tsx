@@ -81,8 +81,8 @@ const styles = {
     maxWidth: 920,
     margin: "auto",
     padding: 24,
-    backgroundImage: `linear-gradient(160deg, transparent, ${theme.experimental.roles.active.background})`,
-    border: `1px solid ${theme.experimental.roles.active.fill.outline}`,
+    backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
+    border: `1px solid ${theme.roles.active.fill.outline}`,
     borderRadius: 8,
     gap: 32,
   }),
@@ -115,7 +115,7 @@ const styles = {
     fontWeight: 500,
   },
   featureIcon: (theme) => ({
-    color: theme.experimental.roles.active.fill.outline,
+    color: theme.roles.active.fill.outline,
   }),
   feature: {
     display: "flex",

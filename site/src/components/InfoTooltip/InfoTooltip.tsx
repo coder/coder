@@ -8,7 +8,7 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { ThemeRole } from "theme/experimental";
+import type { ThemeRole } from "theme/roles";
 
 interface InfoTooltipProps {
   type?: ThemeRole;
@@ -22,7 +22,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
   type = "info",
 }) => {
   const theme = useTheme();
-  const iconColor = theme.experimental.roles[type].outline;
+  const iconColor = theme.roles[type].outline;
 
   return (
     <HelpTooltip>

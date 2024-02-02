@@ -161,7 +161,7 @@ export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
           css={(theme) => ({
             fontWeight: 600,
             color: type
-              ? theme.experimental.roles[type].fill.solid
+              ? theme.roles[type].fill.solid
               : theme.experimental.l1.text,
           })}
         >

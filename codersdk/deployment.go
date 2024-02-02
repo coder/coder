@@ -303,6 +303,7 @@ type OIDCConfig struct {
 	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText clibase.String                      `json:"signups_disabled_text" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1265,6 +1266,15 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.IconURL,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
+		},
+		{
+			Name:        "Signups disabled text",
+			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
+			Flag:        "oidc-signups-disabled-text",
+			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
+			Value:       &c.OIDC.SignupsDisabledText,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "signupsDisabledText",
 		},
 		// Telemetry settings
 		{

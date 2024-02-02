@@ -4,7 +4,7 @@ import TableCell from "@mui/material/TableCell";
 import { type FC, useState } from "react";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "api/typesGenerated";
-import { type ThemeRole } from "theme/experimental";
+import { type ThemeRole } from "theme/roles";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";

@@ -118,7 +118,7 @@ const styles = {
   }),
 
   providerConnectedLabelIcon: (theme) => ({
-    color: theme.experimental.roles.success.fill.solid,
+    color: theme.roles.success.fill.solid,
     fontSize: 16,
   }),
 } as Record<string, Interpolation<Theme>>;

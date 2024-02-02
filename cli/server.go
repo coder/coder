@@ -179,6 +179,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		UserRoleMapping:     vals.OIDC.UserRoleMapping.Value,
 		UserRolesDefault:    vals.OIDC.UserRolesDefault.GetSlice(),
 		SignInText:          vals.OIDC.SignInText.String(),
+		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 	}, nil
@@ -673,9 +674,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
+				}
+				options.Pubsub = ps
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(ps)
 				}
 				defer options.Pubsub.Close()
 			}

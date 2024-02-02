@@ -248,7 +248,7 @@ const styles = {
   },
 
   metadataValueSuccess: (theme) => ({
-    color: theme.experimental.roles.success.fill.outline,
+    color: theme.roles.success.fill.outline,
   }),
 
   metadataValueError: (theme) => ({

@@ -73,10 +73,10 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
         <Pill
           css={{
             backgroundColor: hasOwnerRole
-              ? theme.experimental.roles.info.background
+              ? theme.roles.info.background
               : theme.experimental.l2.background,
             borderColor: hasOwnerRole
-              ? theme.experimental.roles.info.outline
+              ? theme.roles.info.outline
               : theme.experimental.l2.outline,
           }}
         >

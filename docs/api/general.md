@@ -298,6 +298,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "signups_disabled_text": "string",
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],

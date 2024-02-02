@@ -1,4 +1,7 @@
-import { FC, ReactNode } from "react";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, type ReactNode } from "react";
+import { type ThemeRole } from "theme/roles";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
@@ -6,10 +9,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { Interpolation, Theme, useTheme } from "@emotion/react";
-import Button, { ButtonProps } from "@mui/material/Button";
-import { ThemeRole } from "theme/experimental";
-import { AlertProps } from "components/Alert/Alert";
+import { type AlertProps } from "components/Alert/Alert";
 
 export type NotificationItem = {
   title: string;
@@ -44,7 +44,7 @@ export const Notifications: FC<NotificationsProps> = ({
         horizontal="right"
         css={{
           "& .MuiPaper-root": {
-            borderColor: theme.experimental.roles[severity].outline,
+            borderColor: theme.roles[severity].outline,
             maxWidth: 400,
           },
         }}
@@ -57,18 +57,19 @@ export const Notifications: FC<NotificationsProps> = ({
   );
 };
 
-const NotificationPill = (props: NotificationsProps) => {
-  const { items, severity, icon } = props;
+const NotificationPill: FC<NotificationsProps> = ({
+  items,
+  severity,
+  icon,
+}) => {
   const popover = usePopover();
 
   return (
     <Pill
       icon={icon}
       css={(theme) => ({
-        "& svg": { color: theme.experimental.roles[severity].outline },
-        borderColor: popover.isOpen
-          ? theme.experimental.roles[severity].outline
-          : undefined,
+        "& svg": { color: theme.roles[severity].outline },
+        borderColor: popover.isOpen ? theme.roles[severity].outline : undefined,
       })}
     >
       {items.length}
@@ -76,9 +77,11 @@ const NotificationPill = (props: NotificationsProps) => {
   );
 };
 
-const NotificationItem: FC<{ notification: NotificationItem }> = (props) => {
-  const { notification } = props;
+interface NotificationItemProps {
+  notification: NotificationItem;
+}
 
+const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
   return (
     <article css={styles.notificationItem}>
       <h4 css={{ margin: 0, fontWeight: 500 }}>{notification.title}</h4>

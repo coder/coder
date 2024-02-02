@@ -5,6 +5,7 @@ const meta: Meta<typeof CodeExample> = {
   title: "components/CodeExample",
   component: CodeExample,
   args: {
+    secret: false,
     code: `echo "hello, friend!"`,
   },
 };
@@ -12,7 +13,11 @@ const meta: Meta<typeof CodeExample> = {
 export default meta;
 type Story = StoryObj<typeof CodeExample>;
 
-export const Example: Story = {};
+export const Example: Story = {
+  args: {
+    secret: false,
+  },
+};
 
 export const Secret: Story = {
   args: {
@@ -22,6 +27,7 @@ export const Secret: Story = {
 
 export const LongCode: Story = {
   args: {
+    secret: false,
     code: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnKzATuWwmmt5+CKTPuRGN0R1PBemA+6/SStpLiyX+L",
   },
 };

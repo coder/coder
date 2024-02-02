@@ -92,8 +92,8 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
             }
 
             &.Mui-selected {
-              color: ${theme.experimental.roles.active.text};
-              background: ${theme.experimental.roles.active.background};
+              color: ${theme.roles.active.text};
+              background: ${theme.roles.active.background};
             }
 
             &.Mui-focused {

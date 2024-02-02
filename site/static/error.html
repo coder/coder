@@ -167,8 +167,10 @@ running). */}}
         {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
         .Error.Title }}
       </h1>
+      {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
+      else }}
       <p>{{ .Error.Description }}</p>
-      {{- if .Error.Warnings }}
+      {{ end }} {{- if .Error.Warnings }}
       <div class="warning">
         <div class="warning-title">
           <svg

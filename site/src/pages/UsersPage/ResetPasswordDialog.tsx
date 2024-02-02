@@ -34,6 +34,7 @@ export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
     <>
       <p>{Language.message(user?.username)}</p>
       <CodeExample
+        secret={false}
         code={newPassword ?? ""}
         css={{
           minHeight: "auto",

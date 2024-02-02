@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -740,6 +741,8 @@ type OIDCConfig struct {
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
+	// SignupsDisabledText is the text do display on the static error page.
+	SignupsDisabledText string
 }
 
 func (cfg OIDCConfig) RoleSyncEnabled() bool {
@@ -1252,6 +1255,8 @@ type httpError struct {
 	msg              string
 	detail           string
 	renderStaticPage bool
+
+	renderDetailMarkdown bool
 }
 
 func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
@@ -1263,6 +1268,8 @@ func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
 			Description:  e.detail,
 			RetryEnabled: false,
 			DashboardURL: "/login",
+
+			RenderDescriptionMarkdown: e.renderDetailMarkdown,
 		})
 		return
 	}
@@ -1313,9 +1320,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
+			signupsDisabledText := "Please contact your Coder administrator to request access."
+			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
+				signupsDisabledText = parameter.HTML(api.OIDCConfig.SignupsDisabledText)
+			}
 			return httpError{
-				code: http.StatusForbidden,
-				msg:  fmt.Sprintf("Signups are not allowed for login type %q", params.LoginType),
+				code:             http.StatusForbidden,
+				msg:              "Signups are disabled",
+				detail:           signupsDisabledText,
+				renderStaticPage: true,
+
+				renderDetailMarkdown: true,
 			}
 		}
 

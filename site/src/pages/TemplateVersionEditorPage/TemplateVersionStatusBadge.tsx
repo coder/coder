@@ -2,7 +2,7 @@ import { type FC, type ReactNode } from "react";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
 import type { TemplateVersion } from "api/typesGenerated";
-import { type ThemeRole } from "theme/experimental";
+import { type ThemeRole } from "theme/roles";
 import { Pill, PillSpinner } from "components/Pill/Pill";
 
 interface TemplateVersionStatusBadgeProps {

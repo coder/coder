@@ -215,7 +215,7 @@ const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
         height: 8,
         width: 8,
         borderRadius: 4,
-        backgroundColor: theme.experimental.roles[option.color].fill.solid,
+        backgroundColor: theme.roles[option.color].fill.solid,
       }}
     />
   );

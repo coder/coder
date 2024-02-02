@@ -426,6 +426,10 @@ OIDC OPTIONS:
       --oidc-icon-url url, $CODER_OIDC_ICON_URL
           URL pointing to the icon to use on the OpenID Connect login button.
 
+      --oidc-signups-disabled-text string, $CODER_OIDC_SIGNUPS_DISABLED_TEXT
+          The custom text to show on the error page informing about disabled
+          OIDC signups. Markdown format is supported.
+
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.

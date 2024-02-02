@@ -23,13 +23,13 @@ export const LastSeen: FC<LastSeenProps> = ({ at, ...attrs }) => {
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
     message = "Now";
-    color = theme.experimental.roles.success.fill.solid;
+    color = theme.roles.success.fill.solid;
   } else if (t.isAfter(now.subtract(3, "day"))) {
     color = theme.experimental.l2.text;
   } else if (t.isAfter(now.subtract(1, "month"))) {
-    color = theme.experimental.roles.warning.fill.solid;
+    color = theme.roles.warning.fill.solid;
   } else if (t.isAfter(now.subtract(100, "year"))) {
-    color = theme.experimental.roles.error.fill.solid;
+    color = theme.roles.error.fill.solid;
   } else {
     message = "Never";
   }
