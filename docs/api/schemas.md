@@ -5535,7 +5535,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
 
-## codersdk.UpdateWorkspaceAgentPortShareLevelRequest
+## codersdk.UpdateWorkspaceAgentPortShareRequest
 
 ```json
 {
@@ -5547,11 +5547,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-| ------------- | ------- | -------- | ------------ | ----------- |
-| `agent_name`  | string  | false    |              |             |
-| `port`        | integer | false    |              |             |
-| `share_level` | integer | false    |              |             |
+| Name          | Type                                                                 | Required | Restrictions | Description |
+| ------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_name`  | string                                                               | false    |              |             |
+| `port`        | integer                                                              | false    |              |             |
+| `share_level` | [codersdk.WorkspacePortShareLevel](#codersdkworkspaceportsharelevel) | false    |              |             |
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
@@ -6970,6 +6970,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ---------------- | --------------- | -------- | ------------ | -------------------------------------------------------------------- |
 | `failing_agents` | array of string | false    |              | Failing agents lists the IDs of the agents that are failing, if any. |
 | `healthy`        | boolean         | false    |              | Healthy is true if the workspace is healthy.                         |
+
+## codersdk.WorkspacePortShareLevel
+
+```json
+0
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value |
+| ----- |
+| `0`   |
+| `1`   |
+| `2`   |
 
 ## codersdk.WorkspaceProxy
 

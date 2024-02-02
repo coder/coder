@@ -5761,7 +5761,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.RequireActiveVersion,
 		&i.Deprecated,
 		&i.UseMaxTtl,
-		&i.MaxPortSharingLevel,
+		&i.MaxPortShareLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5819,7 +5819,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.RequireActiveVersion,
 		&i.Deprecated,
 		&i.UseMaxTtl,
-		&i.MaxPortSharingLevel,
+		&i.MaxPortShareLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5869,7 +5869,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.RequireActiveVersion,
 			&i.Deprecated,
 			&i.UseMaxTtl,
-			&i.MaxPortSharingLevel,
+			&i.MaxPortShareLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5980,7 +5980,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.RequireActiveVersion,
 			&i.Deprecated,
 			&i.UseMaxTtl,
-			&i.MaxPortSharingLevel,
+			&i.MaxPortShareLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {

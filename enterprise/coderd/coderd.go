@@ -535,7 +535,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureWorkspaceProxy:             true,
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
-			codersdk.FeatureSharedPorts:                true,
+			codersdk.FeatureControlSharedPorts:         true,
 		})
 	if err != nil {
 		return err
@@ -693,7 +693,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if initial, changed, enabled := featureChanged(codersdk.FeatureSharedPorts); shouldUpdate(initial, changed, enabled) {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
 		var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
 		if enabled {
 			ps = portsharing.NewEnterprisePortSharer()

@@ -140,6 +140,47 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureControlSharedPorts: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		var level int32 = 2
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, level, updated.MaxPortShareLevel)
+
+		level = 3
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.ErrorContains(t, err, "Value must be between 0 and 2")
+
+		level = -1
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.ErrorContains(t, err, "Value must be between 0 and 2")
+	})
+
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{

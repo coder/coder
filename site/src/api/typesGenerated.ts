@@ -1326,10 +1326,10 @@ export interface UpdateUserQuietHoursScheduleRequest {
 }
 
 // From codersdk/workspaceportshare.go
-export interface UpdateWorkspaceAgentPortShareLevelRequest {
+export interface UpdateWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
-  readonly share_level: number;
+  readonly share_level: WorkspacePortShareLevel;
 }
 
 // From codersdk/workspaces.go
@@ -1876,13 +1876,13 @@ export type FeatureName =
   | "appearance"
   | "audit_log"
   | "browser_only"
+  | "control_shared_ports"
   | "external_provisioner_daemons"
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
   | "oauth2_provider"
   | "scim"
-  | "shared_ports"
   | "template_rbac"
   | "user_limit"
   | "user_role_management"
@@ -1894,13 +1894,13 @@ export const FeatureNames: FeatureName[] = [
   "appearance",
   "audit_log",
   "browser_only",
+  "control_shared_ports",
   "external_provisioner_daemons",
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
   "oauth2_provider",
   "scim",
-  "shared_ports",
   "template_rbac",
   "user_limit",
   "user_role_management",

@@ -6350,7 +6350,7 @@
         }
       }
     },
-    "/workspaces/{workspace}/port-sharing": {
+    "/workspaces/{workspace}/port-share": {
       "post": {
         "security": [
           {
@@ -6360,8 +6360,8 @@
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["PortSharing"],
-        "summary": "Update port sharing level",
-        "operationId": "update-workspace-port-sharing-level",
+        "summary": "Update port share",
+        "operationId": "update-workspace-port-share",
         "parameters": [
           {
             "description": "Update port sharing level request",
@@ -6369,7 +6369,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareLevelRequest"
+              "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareRequest"
             }
           }
         ],
@@ -10707,7 +10707,7 @@
         }
       }
     },
-    "codersdk.UpdateWorkspaceAgentPortShareLevelRequest": {
+    "codersdk.UpdateWorkspaceAgentPortShareRequest": {
       "type": "object",
       "properties": {
         "agent_name": {
@@ -10717,7 +10717,7 @@
           "type": "integer"
         },
         "share_level": {
-          "type": "integer"
+          "$ref": "#/definitions/codersdk.WorkspacePortShareLevel"
         }
       }
     },
@@ -11743,6 +11743,15 @@
           "example": false
         }
       }
+    },
+    "codersdk.WorkspacePortShareLevel": {
+      "type": "integer",
+      "enum": [0, 1, 2],
+      "x-enum-varnames": [
+        "WorkspaceAgentPortShareLevelOwner",
+        "WorkspaceAgentPortShareLevelAuthenticated",
+        "WorkspaceAgentPortShareLevelPublic"
+      ]
     },
     "codersdk.WorkspaceProxy": {
       "type": "object",

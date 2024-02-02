@@ -7188,7 +7188,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{workspace}/port-sharing": {
+        "/workspaces/{workspace}/port-share": {
             "post": {
                 "security": [
                     {
@@ -7204,8 +7204,8 @@ const docTemplate = `{
                 "tags": [
                     "PortSharing"
                 ],
-                "summary": "Update port sharing level",
-                "operationId": "update-workspace-port-sharing-level",
+                "summary": "Update port share",
+                "operationId": "update-workspace-port-share",
                 "parameters": [
                     {
                         "description": "Update port sharing level request",
@@ -7213,7 +7213,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareLevelRequest"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareRequest"
                         }
                     }
                 ],
@@ -11822,7 +11822,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateWorkspaceAgentPortShareLevelRequest": {
+        "codersdk.UpdateWorkspaceAgentPortShareRequest": {
             "type": "object",
             "properties": {
                 "agent_name": {
@@ -11832,7 +11832,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "share_level": {
-                    "type": "integer"
+                    "$ref": "#/definitions/codersdk.WorkspacePortShareLevel"
                 }
             }
         },
@@ -12908,6 +12908,19 @@ const docTemplate = `{
                     "example": false
                 }
             }
+        },
+        "codersdk.WorkspacePortShareLevel": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentPortShareLevelOwner",
+                "WorkspaceAgentPortShareLevelAuthenticated",
+                "WorkspaceAgentPortShareLevelPublic"
+            ]
         },
         "codersdk.WorkspaceProxy": {
             "type": "object",
