@@ -103,7 +103,7 @@ provision:
       fi
       DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
       printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${DOCKER_ARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
-      coder templates create "docker-${DOCKER_ARCH}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
+      coder templates push "docker-${DOCKER_ARCH}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
       rm -rfv "${temp_template_dir}"
 probes:
   - description: "docker to be installed"

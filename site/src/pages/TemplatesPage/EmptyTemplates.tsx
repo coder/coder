@@ -7,7 +7,7 @@ import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
+import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -91,7 +91,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
       css={styles.withImage}
       message="Create a Template"
       description="Contact your Coder administrator to create a template. You can share the code below."
-      cta={<CodeExample code="coder templates init" />}
+      cta={<CodeExample secret={false} code="coder templates init" />}
       image={
         <div css={styles.emptyImage}>
           <img src="/featured/templates.webp" alt="" />

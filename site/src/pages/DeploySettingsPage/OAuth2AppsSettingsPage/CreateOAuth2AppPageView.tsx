@@ -4,9 +4,9 @@ import { type FC } from "react";
 import { Link } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Header } from "components/DeploySettingsLayout/Header";
 import { Stack } from "components/Stack/Stack";
 import { OAuth2AppForm } from "./OAuth2AppForm";
+import { Header } from "../Header";
 
 type CreateOAuth2AppProps = {
   isUpdating: boolean;

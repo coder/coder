@@ -148,6 +148,12 @@ var (
 		Type: "user_data",
 	}
 
+	// ResourceUserWorkspaceBuildParameters is the user's workspace build
+	// parameter history.
+	ResourceUserWorkspaceBuildParameters = Object{
+		Type: "user_workspace_build_parameters",
+	}
+
 	// ResourceOrganizationMember is a user's membership in an organization.
 	// Has ONLY an organization owner.
 	//	create/delete  = Create/delete member from org.

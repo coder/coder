@@ -335,10 +335,10 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			ExternalAuthConfigs: []*externalauth.Config{{
-				OAuth2Config: &testutil.OAuth2Config{},
-				ID:           "github",
-				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)

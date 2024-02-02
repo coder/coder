@@ -48,6 +48,10 @@ func TestEntitlements(t *testing.T) {
 		require.Empty(t, res.Warnings)
 	})
 	t.Run("FullLicense", func(t *testing.T) {
+		// PGCoordinator requires a real postgres
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("test only with postgres")
+		}
 		t.Parallel()
 		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,

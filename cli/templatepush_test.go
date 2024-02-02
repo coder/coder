@@ -679,7 +679,6 @@ func TestTemplatePush(t *testing.T) {
 				templateName,
 				"--directory", source,
 				"--test.provisioner", string(database.ProvisionerTypeEcho),
-				"--create",
 			}
 			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, templateAdmin, root)
@@ -725,4 +724,64 @@ func createEchoResponsesWithTemplateVariables(templateVariables []*proto.Templat
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ApplyComplete,
 	}
+}
+
+func completeWithAgent() *echo.Responses {
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// Need this for Windows because of a known issue with Go:
+// https://github.com/golang/go/issues/52986
+func removeTmpDirUntilSuccessAfterTest(t *testing.T, tempDir string) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := os.RemoveAll(tempDir)
+		for err != nil {
+			err = os.RemoveAll(tempDir)
+		}
+	})
 }

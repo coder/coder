@@ -22,17 +22,19 @@ type workspaceListRow struct {
 	codersdk.Workspace `table:"-"`
 
 	// For table format:
-	WorkspaceName string `json:"-" table:"workspace,default_sort"`
-	Template      string `json:"-" table:"template"`
-	Status        string `json:"-" table:"status"`
-	Healthy       string `json:"-" table:"healthy"`
-	LastBuilt     string `json:"-" table:"last built"`
-	Outdated      bool   `json:"-" table:"outdated"`
-	StartsAt      string `json:"-" table:"starts at"`
-	StartsNext    string `json:"-" table:"starts next"`
-	StopsAfter    string `json:"-" table:"stops after"`
-	StopsNext     string `json:"-" table:"stops next"`
-	DailyCost     string `json:"-" table:"daily cost"`
+	Favorite       bool   `json:"-" table:"favorite"`
+	WorkspaceName  string `json:"-" table:"workspace,default_sort"`
+	Template       string `json:"-" table:"template"`
+	Status         string `json:"-" table:"status"`
+	Healthy        string `json:"-" table:"healthy"`
+	LastBuilt      string `json:"-" table:"last built"`
+	CurrentVersion string `json:"-" table:"current version"`
+	Outdated       bool   `json:"-" table:"outdated"`
+	StartsAt       string `json:"-" table:"starts at"`
+	StartsNext     string `json:"-" table:"starts next"`
+	StopsAfter     string `json:"-" table:"stops after"`
+	StopsNext      string `json:"-" table:"stops next"`
+	DailyCost      string `json:"-" table:"daily cost"`
 }
 
 func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) workspaceListRow {
@@ -45,19 +47,26 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
+	favIco := " "
+	if workspace.Favorite {
+		favIco = "★"
+	}
+	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
 	return workspaceListRow{
-		Workspace:     workspace,
-		WorkspaceName: workspace.OwnerName + "/" + workspace.Name,
-		Template:      workspace.TemplateName,
-		Status:        status,
-		Healthy:       healthy,
-		LastBuilt:     durationDisplay(lastBuilt),
-		Outdated:      workspace.Outdated,
-		StartsAt:      schedRow.StartsAt,
-		StartsNext:    schedRow.StartsNext,
-		StopsAfter:    schedRow.StopsAfter,
-		StopsNext:     schedRow.StopsNext,
-		DailyCost:     strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
+		Favorite:       workspace.Favorite,
+		Workspace:      workspace,
+		WorkspaceName:  workspaceName,
+		Template:       workspace.TemplateName,
+		Status:         status,
+		Healthy:        healthy,
+		LastBuilt:      durationDisplay(lastBuilt),
+		CurrentVersion: workspace.LatestBuild.TemplateVersionName,
+		Outdated:       workspace.Outdated,
+		StartsAt:       schedRow.StartsAt,
+		StartsNext:     schedRow.StartsNext,
+		StopsAfter:     schedRow.StopsAfter,
+		StopsNext:      schedRow.StopsNext,
+		DailyCost:      strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
 
@@ -73,6 +82,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 					"status",
 					"healthy",
 					"last built",
+					"current version",
 					"outdated",
 					"starts at",
 					"stops after",

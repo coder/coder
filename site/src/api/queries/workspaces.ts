@@ -1,8 +1,11 @@
 import * as API from "api/api";
-import { QueryClient, type QueryOptions } from "react-query";
+import {
+  QueryClient,
+  UseMutationOptions,
+  type QueryOptions,
+} from "react-query";
 import { putWorkspaceExtension } from "api/api";
-import dayjs from "dayjs";
-import { getDeadline, getMaxDeadline, getMinDeadline } from "utils/schedule";
+import { Dayjs } from "dayjs";
 import {
   type WorkspaceBuildParameter,
   type Workspace,
@@ -103,25 +106,12 @@ export function workspaces(config: WorkspacesRequest = {}) {
   } as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
-export const decreaseDeadline = (workspace: Workspace) => {
+export const updateDeadline = (
+  workspace: Workspace,
+): UseMutationOptions<void, unknown, Dayjs> => {
   return {
-    mutationFn: (hours: number) => {
-      const proposedDeadline = getDeadline(workspace).subtract(hours, "hours");
-      const newDeadline = dayjs.max(proposedDeadline, getMinDeadline());
-      return putWorkspaceExtension(workspace.id, newDeadline);
-    },
-  };
-};
-
-export const increaseDeadline = (workspace: Workspace) => {
-  return {
-    mutationFn: (hours: number) => {
-      const proposedDeadline = getDeadline(workspace).add(hours, "hours");
-      const newDeadline = dayjs.min(
-        proposedDeadline,
-        getMaxDeadline(workspace),
-      );
-      return putWorkspaceExtension(workspace.id, newDeadline);
+    mutationFn: (deadline: Dayjs) => {
+      return putWorkspaceExtension(workspace.id, deadline);
     },
   };
 };
@@ -264,4 +254,31 @@ const updateWorkspaceBuild = async (
   await queryClient.invalidateQueries({
     queryKey: workspaceBuildsKey(build.workspace_id),
   });
+};
+
+export const toggleFavorite = (
+  workspace: Workspace,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: () => {
+      if (workspace.favorite) {
+        return API.deleteFavoriteWorkspace(workspace.id);
+      } else {
+        return API.putFavoriteWorkspace(workspace.id);
+      }
+    },
+    onSuccess: async () => {
+      queryClient.setQueryData(
+        workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+        { ...workspace, favorite: !workspace.favorite },
+      );
+      await queryClient.invalidateQueries({
+        queryKey: workspaceByOwnerAndNameKey(
+          workspace.owner_name,
+          workspace.name,
+        ),
+      });
+    },
+  };
 };

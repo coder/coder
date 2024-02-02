@@ -114,6 +114,13 @@ func (m metricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m metricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)
@@ -291,6 +298,13 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	r0, r1 := m.s.DeleteTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.FavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("FavoriteWorkspace").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -529,6 +543,13 @@ func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time
 	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
 	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
 	return jobs, err
+}
+
+func (m metricsStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetJFrogXrayScanByWorkspaceAndAgentID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -988,6 +1009,13 @@ func (m metricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID
 	start := time.Now()
 	r0, r1 := m.s.GetUserLinksByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetUserWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1607,6 +1635,13 @@ func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database
 	return r0
 }
 
+func (m metricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnfavoriteWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
@@ -2003,6 +2038,13 @@ func (m metricsStore) UpsertHealthSettings(ctx context.Context, value string) er
 	start := time.Now()
 	r0 := m.s.UpsertHealthSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertJFrogXrayScanByWorkspaceAndAgentID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

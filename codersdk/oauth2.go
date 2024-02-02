@@ -14,6 +14,18 @@ type OAuth2ProviderApp struct {
 	Name        string    `json:"name"`
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
+
+	// Endpoints are included in the app response for easier discovery. The OAuth2
+	// spec does not have a defined place to find these (for comparison, OIDC has
+	// a '/.well-known/openid-configuration' endpoint).
+	Endpoints OAuth2AppEndpoints `json:"endpoints"`
+}
+
+type OAuth2AppEndpoints struct {
+	Authorization string `json:"authorization"`
+	Token         string `json:"token"`
+	// DeviceAuth is optional.
+	DeviceAuth string `json:"device_authorization"`
 }
 
 // OAuth2ProviderApps returns the applications configured to authenticate using

@@ -209,3 +209,37 @@ func TestFrom(t *testing.T) {
 		})
 	}
 }
+
+func TestUserRealNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"1", true},
+		{"A", true},
+		{"A1", true},
+		{".", true},
+		{"Mr Bean", true},
+		{"Severus Snape", true},
+		{"Prof. Albus Percival Wulfric Brian Dumbledore", true},
+		{"Pablo Diego José Francisco de Paula Juan Nepomuceno María de los Remedios Cipriano de la Santísima Trinidad Ruiz y Picasso", true},
+		{"Hector Ó hEochagáin", true},
+		{"Małgorzata Kalinowska-Iszkowska", true},
+		{"成龍", true},
+		{". .", true},
+
+		{"Lord Voldemort ", false},
+		{" Bellatrix Lestrange", false},
+		{" ", false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			valid := httpapi.UserRealNameValid(testCase.Name)
+			require.Equal(t, testCase.Valid, valid == nil)
+		})
+	}
+}

@@ -1,9 +1,9 @@
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import { type FC, type HTMLAttributes } from "react";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
-import { type FC, type HTMLProps } from "react";
 
-interface CopyableValueProps extends HTMLProps<HTMLDivElement> {
+interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
   value: string;
   placement?: TooltipProps["placement"];
   PopperProps?: TooltipProps["PopperProps"];
@@ -13,10 +13,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
   value,
   placement = "bottom-start",
   PopperProps,
-  ...props
+  children,
+  ...attrs
 }) => {
-  const { isCopied, copy } = useClipboard(value);
-  const clickableProps = useClickable<HTMLSpanElement>(copy);
+  const { isCopied, copyToClipboard } = useClipboard(value);
+  const clickableProps = useClickable<HTMLSpanElement>(copyToClipboard);
 
   return (
     <Tooltip
@@ -24,7 +25,9 @@ export const CopyableValue: FC<CopyableValueProps> = ({
       placement={placement}
       PopperProps={PopperProps}
     >
-      <span {...props} {...clickableProps} css={{ cursor: "pointer" }} />
+      <span {...attrs} {...clickableProps} css={{ cursor: "pointer" }}>
+        {children}
+      </span>
     </Tooltip>
   );
 };

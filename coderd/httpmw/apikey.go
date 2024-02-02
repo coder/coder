@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -74,8 +75,8 @@ func UserAuthorization(r *http.Request) Authorization {
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
-	Github OAuth2Config
-	OIDC   OAuth2Config
+	Github promoauth.OAuth2Config
+	OIDC   promoauth.OAuth2Config
 }
 
 func (c *OAuth2Configs) IsZero() bool {
@@ -270,7 +271,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
-			var oauthConfig OAuth2Config
+			var oauthConfig promoauth.OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
 				oauthConfig = cfg.OAuth2Configs.Github

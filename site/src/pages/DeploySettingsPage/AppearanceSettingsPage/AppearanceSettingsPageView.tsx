@@ -9,17 +9,17 @@ import { type FC, useState } from "react";
 import { BlockPicker } from "react-color";
 import { useFormik } from "formik";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
-import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers } from "utils/formUtils";
 import colors from "theme/tailwindColors";
+import { Header } from "../Header";
+import { Fieldset } from "../Fieldset";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -214,10 +214,10 @@ export const AppearanceSettingsPageView: FC<
             />
             <Stack spacing={0}>
               <TextField
-                {...serviceBannerFieldHelpers(
-                  "message",
-                  "Markdown bold, italics, and links are supported.",
-                )}
+                {...serviceBannerFieldHelpers("message", {
+                  helperText:
+                    "Markdown bold, italics, and links are supported.",
+                })}
                 fullWidth
                 label="Message"
                 multiline

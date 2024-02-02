@@ -767,11 +767,11 @@ func TestCreateWithGitAuth(t *testing.T) {
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		ExternalAuthConfigs: []*externalauth.Config{{
-			OAuth2Config: &testutil.OAuth2Config{},
-			ID:           "github",
-			Regex:        regexp.MustCompile(`github\.com`),
-			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
-			DisplayName:  "GitHub",
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+			ID:                       "github",
+			Regex:                    regexp.MustCompile(`github\.com`),
+			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			DisplayName:              "GitHub",
 		}},
 		IncludeProvisionerDaemon: true,
 	})

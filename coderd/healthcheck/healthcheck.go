@@ -18,6 +18,7 @@ type Checker interface {
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
 	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
 	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport
+	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport
 }
 
 // @typescript-generate Report
@@ -32,49 +33,62 @@ type Report struct {
 	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []codersdk.HealthSection `json:"failing_sections"`
 
-	DERP           derphealth.Report    `json:"derp"`
-	AccessURL      AccessURLReport      `json:"access_url"`
-	Websocket      WebsocketReport      `json:"websocket"`
-	Database       DatabaseReport       `json:"database"`
-	WorkspaceProxy WorkspaceProxyReport `json:"workspace_proxy"`
+	DERP               derphealth.Report        `json:"derp"`
+	AccessURL          AccessURLReport          `json:"access_url"`
+	Websocket          WebsocketReport          `json:"websocket"`
+	Database           DatabaseReport           `json:"database"`
+	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
+	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
 
 	// The Coder version of the server that the report was generated on.
 	CoderVersion string `json:"coder_version"`
 }
 
 type ReportOptions struct {
-	AccessURL      AccessURLReportOptions
-	Database       DatabaseReportOptions
-	DerpHealth     derphealth.ReportOptions
-	Websocket      WebsocketReportOptions
-	WorkspaceProxy WorkspaceProxyReportOptions
+	AccessURL          AccessURLReportOptions
+	Database           DatabaseReportOptions
+	DerpHealth         derphealth.ReportOptions
+	Websocket          WebsocketReportOptions
+	WorkspaceProxy     WorkspaceProxyReportOptions
+	ProvisionerDaemons ProvisionerDaemonsReportDeps
 
 	Checker Checker
 }
 
 type defaultChecker struct{}
 
-func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) (report derphealth.Report) {
+func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report {
+	var report derphealth.Report
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) (report AccessURLReport) {
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport {
+	var report AccessURLReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) (report WebsocketReport) {
+func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport {
+	var report WebsocketReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) (report DatabaseReport) {
+func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport {
+	var report DatabaseReport
 	report.Run(ctx, opts)
 	return report
 }
 
-func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) (report WorkspaceProxyReport) {
+func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport {
+	var report WorkspaceProxyReport
+	report.Run(ctx, opts)
+	return report
+}
+
+func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport {
+	var report ProvisionerDaemonsReport
 	report.Run(ctx, opts)
 	return report
 }
@@ -149,25 +163,40 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		report.WorkspaceProxy = opts.Checker.WorkspaceProxy(ctx, &opts.WorkspaceProxy)
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.ProvisionerDaemons.Error = health.Errorf(health.CodeUnknown, "provisioner daemon report panic: %s", err)
+			}
+		}()
+
+		report.ProvisionerDaemons = opts.Checker.ProvisionerDaemons(ctx, &opts.ProvisionerDaemons)
+	}()
+
 	report.CoderVersion = buildinfo.Version()
 	wg.Wait()
 
 	report.Time = time.Now()
 	report.FailingSections = []codersdk.HealthSection{}
-	if !report.DERP.Healthy {
+	if report.DERP.Severity.Value() > health.SeverityWarning.Value() {
 		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDERP)
 	}
-	if !report.AccessURL.Healthy {
+	if report.AccessURL.Severity.Value() > health.SeverityOK.Value() {
 		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionAccessURL)
 	}
-	if !report.Websocket.Healthy {
+	if report.Websocket.Severity.Value() > health.SeverityWarning.Value() {
 		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWebsocket)
 	}
-	if !report.Database.Healthy {
+	if report.Database.Severity.Value() > health.SeverityWarning.Value() {
 		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDatabase)
 	}
-	if !report.WorkspaceProxy.Healthy {
+	if report.WorkspaceProxy.Severity.Value() > health.SeverityWarning.Value() {
 		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWorkspaceProxy)
+	}
+	if report.ProvisionerDaemons.Severity.Value() > health.SeverityWarning.Value() {
+		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionProvisionerDaemons)
 	}
 
 	report.Healthy = len(report.FailingSections) == 0
@@ -189,6 +218,9 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	}
 	if report.WorkspaceProxy.Severity.Value() > report.Severity.Value() {
 		report.Severity = report.WorkspaceProxy.Severity
+	}
+	if report.ProvisionerDaemons.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.ProvisionerDaemons.Severity
 	}
 	return &report
 }

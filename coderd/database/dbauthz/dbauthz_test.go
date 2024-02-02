@@ -364,7 +364,7 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 }
 
-func (s *MethodTestSuite) TestProvsionerJob() {
+func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
@@ -1052,6 +1052,17 @@ func (s *MethodTestSuite) TestUser() {
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u.UserDataRBACObject(), rbac.ActionUpdate).Returns(u)
 	}))
+	s.Run("GetUserWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(
+			database.GetUserWorkspaceBuildParametersParams{
+				OwnerID:    u.ID,
+				TemplateID: uuid.UUID{},
+			},
+		).Asserts(u.UserWorkspaceBuildParametersObject(), rbac.ActionRead).Returns(
+			[]database.GetUserWorkspaceBuildParametersRow{},
+		)
+	}))
 	s.Run("UpdateUserAppearanceSettings", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserAppearanceSettingsParams{
@@ -1549,6 +1560,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
+		ws1 := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws2 := dbgen.Workspace(s.T(), db, database.Workspace{})
+		check.Args(database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs: []uuid.UUID{ws1.ID, ws2.ID},
+		}).Asserts(rbac.ResourceWorkspace.All(), rbac.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateWorkspaceTTL", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		check.Args(database.UpdateWorkspaceTTLParams{
@@ -1570,6 +1588,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.ActivityBumpWorkspaceParams{
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 }
 
@@ -2198,6 +2226,44 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetUserLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead)
+	}))
+	s.Run("GetJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
+
+		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
+			AgentID:     agent.ID,
+			WorkspaceID: ws.ID,
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
+		})
+		require.NoError(s.T(), err)
+
+		expect := database.JfrogXrayScan{
+			WorkspaceID: ws.ID,
+			AgentID:     agent.ID,
+			Critical:    1,
+			High:        12,
+			Medium:      14,
+			ResultsUrl:  "http://hello",
+		}
+
+		check.Args(database.GetJFrogXrayScanByWorkspaceAndAgentIDParams{
+			WorkspaceID: ws.ID,
+			AgentID:     agent.ID,
+		}).Asserts(ws, rbac.ActionRead).Returns(expect)
+	}))
+	s.Run("UpsertJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: tpl.ID,
+		})
+		check.Args(database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
+			WorkspaceID: ws.ID,
+			AgentID:     uuid.New(),
+		}).Asserts(tpl, rbac.ActionCreate)
 	}))
 }
 

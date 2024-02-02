@@ -1,17 +1,17 @@
-import { useQuery } from "react-query";
-import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
-import { Region, WorkspaceProxy } from "api/typesGenerated";
 import {
   createContext,
-  FC,
-  PropsWithChildren,
+  type FC,
+  type PropsWithChildren,
   useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
+import { useQuery } from "react-query";
+import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
-import { usePermissions } from "hooks/usePermissions";
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.
@@ -310,11 +310,11 @@ const computeUsableURLS = (proxy?: Region): PreferredProxy => {
 // Local storage functions
 
 export const clearUserSelectedProxy = (): void => {
-  window.localStorage.removeItem("user-selected-proxy");
+  localStorage.removeItem("user-selected-proxy");
 };
 
 export const saveUserSelectedProxy = (saved: Region): void => {
-  window.localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
+  localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
 };
 
 export const loadUserSelectedProxy = (): Region | undefined => {

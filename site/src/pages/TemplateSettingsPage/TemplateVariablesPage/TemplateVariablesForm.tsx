@@ -74,7 +74,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
         if (templateVariable.sensitive) {
           fieldHelpers = getFieldHelpers(
             "user_variable_values[" + index + "].value",
-            <SensitiveVariableHelperText />,
+            { helperText: <SensitiveVariableHelperText /> },
           );
         } else {
           fieldHelpers = getFieldHelpers(

@@ -177,7 +177,7 @@ fatal() {
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			"${CODER_DEV_SHIM}" templates create "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi

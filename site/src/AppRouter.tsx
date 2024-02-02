@@ -1,28 +1,26 @@
-import { FC, lazy, Suspense } from "react";
+import { type FC, lazy, Suspense } from "react";
 import {
   Route,
   Routes,
   BrowserRouter as Router,
   Navigate,
 } from "react-router-dom";
-import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
-import { DeploySettingsLayout } from "./components/DeploySettingsLayout/DeploySettingsLayout";
+import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
-import { RequireAuth } from "./components/RequireAuth/RequireAuth";
-import { UsersLayout } from "./components/UsersLayout/UsersLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
+import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import themes from "theme";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -234,6 +232,9 @@ const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
 const WorkspaceProxyHealthPage = lazy(
   () => import("./pages/HealthPage/WorkspaceProxyPage"),
 );
+const ProvisionerDaemonsHealthPage = lazy(
+  () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
+);
 
 export const AppRouter: FC = () => {
   return (
@@ -369,7 +370,6 @@ export const AppRouter: FC = () => {
 
               {/* In order for the 404 page to work properly the routes that start with
               top level parameter must be fully qualified. */}
-              <Route path="/:username/:workspace" element={<WorkspacePage />} />
               <Route
                 path="/:username/:workspace/builds/:buildNumber"
                 element={<WorkspaceBuildPage />}
@@ -400,6 +400,10 @@ export const AppRouter: FC = () => {
                   path="workspace-proxy"
                   element={<WorkspaceProxyHealthPage />}
                 />
+                <Route
+                  path="provisioner-daemons"
+                  element={<ProvisionerDaemonsHealthPage />}
+                />
               </Route>
               {/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
@@ -408,17 +412,14 @@ export const AppRouter: FC = () => {
             </Route>
 
             {/* Pages that don't have the dashboard layout */}
+            <Route path="/:username/:workspace" element={<WorkspacePage />} />
             <Route
               path="/templates/:template/versions/:version/edit"
               element={<TemplateVersionEditorPage />}
             />
             <Route
               path="/:username/:workspace/terminal"
-              element={
-                <ThemeOverride theme={themes.dark}>
-                  <TerminalPage />
-                </ThemeOverride>
-              }
+              element={<TerminalPage />}
             />
             <Route path="/cli-auth" element={<CliAuthenticationPage />} />
             <Route path="/icons" element={<IconsPage />} />

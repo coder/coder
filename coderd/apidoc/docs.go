@@ -174,7 +174,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Applications Enterprise"
+                    "Enterprise"
                 ],
                 "summary": "Issue signed app token for reconnecting PTY",
                 "operationId": "issue-signed-app-token-for-reconnecting-pty",
@@ -920,7 +920,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "default": "application/x-tar",
-                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + `",
+                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + ` or ` + "`" + `application/zip` + "`" + `",
                         "name": "Content-Type",
                         "in": "header",
                         "required": true
@@ -1177,6 +1177,84 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserLatencyInsightsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/integrations/jfrog/xray-scan": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get JFrog XRay scan by workspace agent ID.",
+                "operationId": "get-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspace_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Post JFrog XRay scan by workspace agent ID.",
+                "operationId": "post-jfrog-xray-scan-by-workspace-agent-id",
+                "parameters": [
+                    {
+                        "description": "Post JFrog XRay scan request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.JFrogXrayScan"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -4064,6 +4142,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/autofill-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get autofill build parameters for user",
+                "operationId": "get-autofill-build-parameters-for-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "template_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserParameter"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/convert-login": {
             "post": {
                 "security": [
@@ -5744,44 +5866,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/legacy": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Agent is legacy",
-                "operationId": "agent-is-legacy",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace Agent ID",
-                        "name": "workspaceagent",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/wsproxysdk.AgentIsLegacyResponse"
-                        }
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "security": [
@@ -6999,6 +7083,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/favorite": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Favorite workspace by ID.",
+                "operationId": "favorite-workspace-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Unfavorite workspace by ID.",
+                "operationId": "unfavorite-workspace-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "security": [
@@ -8189,6 +8329,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "upgrade_message": {
+                    "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
+                    "type": "string"
+                },
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
@@ -8261,6 +8405,9 @@ const docTemplate = `{
                 "trial": {
                     "type": "boolean"
                 },
+                "trial_info": {
+                    "$ref": "#/definitions/codersdk.CreateFirstUserTrialInfo"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -8276,6 +8423,32 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.CreateFirstUserTrialInfo": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "developers": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "job_title": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
                 }
             }
         },
@@ -8704,8 +8877,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "date": {
-                    "type": "string",
-                    "format": "date-time"
+                    "description": "Date is a string formatted as 2024-01-31.\nTimezone and time information is not included.",
+                    "type": "string"
                 }
             }
         },
@@ -8874,6 +9047,9 @@ const docTemplate = `{
                 "cache_directory": {
                     "type": "string"
                 },
+                "cli_upgrade_message": {
+                    "type": "string"
+                },
                 "config": {
                     "type": "string"
                 },
@@ -9032,7 +9208,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_access_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "type": "string"
                 },
                 "write_config": {
                     "type": "boolean"
@@ -9108,16 +9284,13 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "workspace_actions",
-                "tailnet_pg_coordinator",
-                "single_tailnet",
-                "deployment_health_page"
+                "example"
             ],
+            "x-enum-comments": {
+                "ExperimentExample": "This isn't used for anything."
+            },
             "x-enum-varnames": [
-                "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
-                "ExperimentSingleTailnet",
-                "ExperimentDeploymentHealthPage"
+                "ExperimentExample"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9412,14 +9585,16 @@ const docTemplate = `{
                 "AccessURL",
                 "Websocket",
                 "Database",
-                "WorkspaceProxy"
+                "WorkspaceProxy",
+                "ProvisionerDaemons"
             ],
             "x-enum-varnames": [
                 "HealthSectionDERP",
                 "HealthSectionAccessURL",
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
-                "HealthSectionWorkspaceProxy"
+                "HealthSectionWorkspaceProxy",
+                "HealthSectionProvisionerDaemons"
             ]
         },
         "codersdk.HealthSettings": {
@@ -9497,6 +9672,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.JFrogXrayScan": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "critical": {
+                    "type": "integer"
+                },
+                "high": {
+                    "type": "integer"
+                },
+                "medium": {
+                    "type": "integer"
+                },
+                "results_url": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.JobErrorCode": {
             "type": "string",
             "enum": [
@@ -9531,7 +9731,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "icon": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "bug",
+                        "chat",
+                        "docs"
+                    ]
                 },
                 "name": {
                     "type": "string"
@@ -9655,6 +9860,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuth2AppEndpoints": {
+            "type": "object",
+            "properties": {
+                "authorization": {
+                    "type": "string"
+                },
+                "device_authorization": {
+                    "description": "DeviceAuth is optional.",
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -9700,6 +9920,14 @@ const docTemplate = `{
             "properties": {
                 "callback_url": {
                     "type": "string"
+                },
+                "endpoints": {
+                    "description": "Endpoints are included in the app response for easier discovery. The OAuth2\nspec does not have a defined place to find these (for comparison, OIDC has\na '/.well-known/openid-configuration' endpoint).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.OAuth2AppEndpoints"
+                        }
+                    ]
                 },
                 "icon": {
                     "type": "string"
@@ -9841,6 +10069,9 @@ const docTemplate = `{
                     }
                 },
                 "sign_in_text": {
+                    "type": "string"
+                },
+                "signups_disabled_text": {
                     "type": "string"
                 },
                 "user_role_field": {
@@ -10316,6 +10547,7 @@ const docTemplate = `{
                 "api_key",
                 "user",
                 "user_data",
+                "user_workspace_build_parameters",
                 "organization_member",
                 "license",
                 "deployment_config",
@@ -10341,6 +10573,7 @@ const docTemplate = `{
                 "ResourceAPIKey",
                 "ResourceUser",
                 "ResourceUserData",
+                "ResourceUserWorkspaceBuildParameters",
                 "ResourceOrganizationMember",
                 "ResourceLicense",
                 "ResourceDeploymentValues",
@@ -11072,6 +11305,9 @@ const docTemplate = `{
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -11478,6 +11714,9 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "name": {
+                    "type": "string"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11575,6 +11814,9 @@ const docTemplate = `{
                 },
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_ids": {
                     "type": "array",
@@ -11737,6 +11979,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UserQuietHoursScheduleConfig": {
             "type": "object",
             "properties": {
@@ -11861,6 +12114,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "favorite": {
+                    "type": "boolean"
+                },
                 "health": {
                     "description": "Health shows the health of the workspace and information about\nwhat is causing an unhealthy status.",
                     "allOf": [
@@ -11889,6 +12145,9 @@ const docTemplate = `{
                 },
                 "outdated": {
                     "type": "boolean"
+                },
+                "owner_avatar_url": {
+                    "type": "string"
                 },
                 "owner_id": {
                     "type": "string",
@@ -12467,6 +12726,9 @@ const docTemplate = `{
                 "workspace_name": {
                     "type": "string"
                 },
+                "workspace_owner_avatar_url": {
+                    "type": "string"
+                },
                 "workspace_owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -12961,7 +13223,10 @@ const docTemplate = `{
                 "EACS03",
                 "EACS04",
                 "EDERP01",
-                "EDERP02"
+                "EDERP02",
+                "EPD01",
+                "EPD02",
+                "EPD03"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -12979,7 +13244,10 @@ const docTemplate = `{
                 "CodeAccessURLFetch",
                 "CodeAccessURLNotOK",
                 "CodeDERPNodeUsesWebsocket",
-                "CodeDERPOneNodeUnhealthy"
+                "CodeDERPOneNodeUnhealthy",
+                "CodeProvisionerDaemonsNoProvisionerDaemons",
+                "CodeProvisionerDaemonVersionMismatch",
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
             ]
         },
         "health.Message": {
@@ -13096,6 +13364,46 @@ const docTemplate = `{
                 }
             }
         },
+        "healthcheck.ProvisionerDaemonsReport": {
+            "type": "object",
+            "properties": {
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReportItem"
+                    }
+                },
+                "severity": {
+                    "$ref": "#/definitions/health.Severity"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthcheck.ProvisionerDaemonsReportItem": {
+            "type": "object",
+            "properties": {
+                "provisioner_daemon": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
@@ -13122,6 +13430,9 @@ const docTemplate = `{
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"
+                },
+                "provisioner_daemons": {
+                    "$ref": "#/definitions/healthcheck.ProvisionerDaemonsReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
@@ -13532,17 +13843,6 @@ const docTemplate = `{
                 },
                 "workspace_id": {
                     "type": "string"
-                }
-            }
-        },
-        "wsproxysdk.AgentIsLegacyResponse": {
-            "type": "object",
-            "properties": {
-                "found": {
-                    "type": "boolean"
-                },
-                "legacy": {
-                    "type": "boolean"
                 }
             }
         },

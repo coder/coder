@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
@@ -37,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -1349,6 +1349,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 			make(chan *agentsdk.Stats, 50),
 			tailnet.NewCoordinator(logger),
 		)
+		defer client.Close()
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
@@ -1393,56 +1394,52 @@ func TestAgent_Startup(t *testing.T) {
 
 	t.Run("EmptyDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
-		require.Equal(t, "", client.GetStartup().ExpandedDirectory)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
+		require.Equal(t, "", startup.GetExpandedDirectory())
 	})
 
 	t.Run("HomeDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "~",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, startup.GetExpandedDirectory())
 	})
 
 	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "coder/coder",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.GetStartup().ExpandedDirectory)
+		require.Equal(t, filepath.Join(homeDir, "coder/coder"), startup.GetExpandedDirectory())
 	})
 
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: "$HOME",
 		}, 0)
-		assert.Eventually(t, func() bool {
-			return client.GetStartup().Version != ""
-		}, testutil.WaitShort, testutil.IntervalFast)
+		startup := testutil.RequireRecvCtx(ctx, t, client.GetStartup())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, startup.GetExpandedDirectory())
 	})
 }
 
@@ -1664,9 +1661,11 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	require.NotNil(t, originalDerpMap)
 
 	coordinator := tailnet.NewCoordinator(logger)
-	defer func() {
+	// use t.Cleanup so the coordinator closing doesn't deadlock with in-memory
+	// coordination
+	t.Cleanup(func() {
 		_ = coordinator.Close()
-	}()
+	})
 	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
@@ -1681,41 +1680,48 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		statsCh,
 		coordinator,
 	)
-	closer := agent.New(agent.Options{
+	t.Cleanup(func() {
+		t.Log("closing client")
+		client.Close()
+	})
+	uut := agent.New(agent.Options{
 		Client:                 client,
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: time.Minute,
 	})
-	defer func() {
-		_ = closer.Close()
-	}()
+	t.Cleanup(func() {
+		t.Log("closing agent")
+		_ = uut.Close()
+	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap) *codersdk.WorkspaceAgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *codersdk.WorkspaceAgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   derpMap,
-			Logger:    logger.Named("client"),
+			Logger:    logger.Named(name),
 		})
 		require.NoError(t, err)
-		clientConn, serverConn := net.Pipe()
-		serveClientDone := make(chan struct{})
 		t.Cleanup(func() {
-			_ = clientConn.Close()
-			_ = serverConn.Close()
+			t.Logf("closing conn %s", name)
 			_ = conn.Close()
-			<-serveClientDone
 		})
-		go func() {
-			defer close(serveClientDone)
-			err := coordinator.ServeClient(serverConn, uuid.New(), agentID)
-			assert.NoError(t, err)
-		}()
-		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-			return conn.UpdateNodes(nodes, false)
+		testCtx, testCtxCancel := context.WithCancel(context.Background())
+		t.Cleanup(testCtxCancel)
+		clientID := uuid.New()
+		coordination := tailnet.NewInMemoryCoordination(
+			testCtx, logger,
+			clientID, agentID,
+			coordinator, conn)
+		t.Cleanup(func() {
+			t.Logf("closing coordination %s", name)
+			err := coordination.Close()
+			if err != nil {
+				t.Logf("error closing in-memory coordination: %s", err.Error())
+			}
+			t.Logf("closed coordination %s", name)
 		})
-		conn.SetNodeCallback(sendNode)
 		// Force DERP.
 		conn.SetBlockEndpoints(true)
 
@@ -1724,6 +1730,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
 		})
 		t.Cleanup(func() {
+			t.Logf("closing sdkConn %s", name)
 			_ = sdkConn.Close()
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1734,7 +1741,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 		return sdkConn
 	}
-	conn1 := newClientConn(originalDerpMap)
+	conn1 := newClientConn(originalDerpMap, "client1")
 
 	// Change the DERP map.
 	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -1749,31 +1756,36 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	}
 
 	// Push a new DERP map to the agent.
-	err := client.PushDERPMapUpdate(agentsdk.DERPMapUpdate{
-		DERPMap: newDerpMap,
-	})
+	err := client.PushDERPMapUpdate(newDerpMap)
 	require.NoError(t, err)
+	t.Logf("pushed DERPMap update to agent")
 
 	require.Eventually(t, func() bool {
-		conn := closer.TailnetConn()
+		conn := uut.TailnetConn()
 		if conn == nil {
 			return false
 		}
 		regionIDs := conn.DERPMap().RegionIDs()
-		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+		preferredDERP := conn.Node().PreferredDERP
+		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
+	t.Logf("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
-	conn2 := newClientConn(newDerpMap)
+	conn2 := newClientConn(newDerpMap, "client2")
 	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+	t.Log("conn2 got the new DERPMap")
 
 	// If the first client gets a DERP map update, it should be able to
 	// reconnect just fine.
 	conn1.SetDERPMap(newDerpMap)
 	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	t.Log("set the new DERPMap on conn1")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	require.True(t, conn1.AwaitReachable(ctx))
+	t.Log("conn1 reached agent with new DERP")
 }
 
 func TestAgent_Speedtest(t *testing.T) {
@@ -1815,6 +1827,7 @@ func TestAgent_Reconnect(t *testing.T) {
 		statsCh,
 		coordinator,
 	)
+	defer client.Close()
 	initialized := atomic.Int32{}
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1851,6 +1864,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 		make(chan *agentsdk.Stats, 50),
 		coordinator,
 	)
+	defer client.Close()
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -2008,7 +2022,11 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := slogtest.Make(t, &slogtest.Options{
+		// Agent can drop errors when shutting down, and some, like the
+		// fasthttplistener connection closed error, are unexported.
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}
@@ -2021,6 +2039,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if metadata.WorkspaceName == "" {
 		metadata.WorkspaceName = "test-workspace"
 	}
+	if metadata.WorkspaceID == uuid.Nil {
+		metadata.WorkspaceID = uuid.New()
+	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
@@ -2028,6 +2049,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
 	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
+	t.Cleanup(c.Close)
 
 	options := agent.Options{
 		Client:                 c,
@@ -2050,22 +2072,22 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		Logger:    logger.Named("client"),
 	})
 	require.NoError(t, err)
-	clientConn, serverConn := net.Pipe()
-	serveClientDone := make(chan struct{})
 	t.Cleanup(func() {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
 		_ = conn.Close()
-		<-serveClientDone
 	})
-	go func() {
-		defer close(serveClientDone)
-		coordinator.ServeClient(serverConn, uuid.New(), metadata.AgentID)
-	}()
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
-		return conn.UpdateNodes(nodes, false)
+	testCtx, testCtxCancel := context.WithCancel(context.Background())
+	t.Cleanup(testCtxCancel)
+	clientID := uuid.New()
+	coordination := tailnet.NewInMemoryCoordination(
+		testCtx, logger,
+		clientID, metadata.AgentID,
+		coordinator, conn)
+	t.Cleanup(func() {
+		err := coordination.Close()
+		if err != nil {
+			t.Logf("error closing in-mem coordination: %s", err.Error())
+		}
 	})
-	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: metadata.AgentID,
 	})

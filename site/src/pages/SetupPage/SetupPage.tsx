@@ -4,7 +4,7 @@ import { useMutation } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { createFirstUser } from "api/queries/users";
-import { useAuth } from "contexts/AuthProvider/AuthProvider";
+import { useAuth } from "contexts/auth/useAuth";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { SetupPageView } from "./SetupPageView";
 

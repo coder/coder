@@ -1,4 +1,4 @@
-import { useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import Divider from "@mui/material/Divider";
@@ -17,7 +17,6 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { Header } from "components/DeploySettingsLayout/Header";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "components/Loader/Loader";
@@ -25,6 +24,7 @@ import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
+import { Header } from "../Header";
 
 export type MutatingResource = {
   updateApp: boolean;
@@ -139,16 +139,28 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
               onCancel={() => setShowDelete(false)}
             />
 
-            <h2 css={{ marginBottom: 0 }}>Client ID</h2>
-            <CopyableValue value={app.id}>
-              {app.id}{" "}
-              <CopyIcon
-                css={{
-                  width: 16,
-                  height: 16,
-                }}
-              />
-            </CopyableValue>
+            <dl css={styles.dataList}>
+              <dt>Client ID</dt>
+              <dd>
+                <CopyableValue value={app.id}>
+                  {app.id} <CopyIcon css={{ width: 16, height: 16 }} />
+                </CopyableValue>
+              </dd>
+              <dt>Authorization URL</dt>
+              <dd>
+                <CopyableValue value={app.endpoints.authorization}>
+                  {app.endpoints.authorization}{" "}
+                  <CopyIcon css={{ width: 16, height: 16 }} />
+                </CopyableValue>
+              </dd>
+              <dt>Token URL</dt>
+              <dd>
+                <CopyableValue value={app.endpoints.token}>
+                  {app.endpoints.token}{" "}
+                  <CopyIcon css={{ width: 16, height: 16 }} />
+                </CopyableValue>
+              </dd>
+            </dl>
 
             <Divider css={{ borderColor: theme.palette.divider }} />
 
@@ -303,3 +315,16 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
     </TableRow>
   );
 };
+
+const styles = {
+  dataList: {
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    "& > dt": {
+      fontWeight: "bold",
+    },
+    "& > dd": {
+      marginLeft: 10,
+    },
+  },
+} satisfies Record<string, Interpolation<Theme>>;

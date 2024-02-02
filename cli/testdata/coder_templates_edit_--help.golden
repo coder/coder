@@ -66,6 +66,11 @@ OPTIONS:
       --name string
           Edit the template name.
 
+      --private bool (default: false)
+          Disable the default behavior of granting template access to the
+          'everyone' group. The template permissions must be updated to allow
+          non-admin users to use this template.
+
       --require-active-version bool (default: false)
           Requires workspace builds to use the active template version. This
           setting does not apply to template admins. This is an enterprise-only

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/cors"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 const (
@@ -44,18 +44,18 @@ func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler
 	})
 }
 
-func WorkspaceAppCors(regex *regexp.Regexp, app httpapi.ApplicationURL) func(next http.Handler) http.Handler {
+func WorkspaceAppCors(regex *regexp.Regexp, app appurl.ApplicationURL) func(next http.Handler) http.Handler {
 	return cors.Handler(cors.Options{
 		AllowOriginFunc: func(r *http.Request, rawOrigin string) bool {
 			origin, err := url.Parse(rawOrigin)
 			if rawOrigin == "" || origin.Host == "" || err != nil {
 				return false
 			}
-			subdomain, ok := httpapi.ExecuteHostnamePattern(regex, origin.Host)
+			subdomain, ok := appurl.ExecuteHostnamePattern(regex, origin.Host)
 			if !ok {
 				return false
 			}
-			originApp, err := httpapi.ParseSubdomainAppURL(subdomain)
+			originApp, err := appurl.ParseSubdomainAppURL(subdomain)
 			if err != nil {
 				return false
 			}

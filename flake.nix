@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    drpc.url = "github:storj/drpc/v0.0.32";
+    drpc.url = "github:storj/drpc/v0.0.33";
   };
 
   outputs = { self, nixpkgs, flake-utils, drpc }:
@@ -13,6 +13,8 @@
         # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
         formatter = pkgs.nixpkgs-fmt;
+        nodejs = pkgs.nodejs-18_x;
+        yarn = pkgs.yarn.override { inherit nodejs; };
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -43,14 +45,11 @@
           kubernetes-helm
           less
           # Needed for many LD system libs!
-          libuuid
+          util-linux
           mockgen
           nfpm
           nodejs
-          nodePackages.pnpm
-          nodePackages.prettier
-          nodePackages.typescript
-          nodePackages.typescript-language-server
+          nodejs.pkgs.pnpm
           openssh
           openssl
           pango
@@ -76,10 +75,16 @@
           zsh
           zstd
         ];
+
+        allPackages = pkgs.buildEnv {
+          name = "all-packages";
+          paths = devShellPackages;
+        };
       in
       {
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
+        packages.all = allPackages;
       }
     );
 }

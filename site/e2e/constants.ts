@@ -1,7 +1,10 @@
 // Default port from the server
 export const defaultPort = 3000;
 export const prometheusPort = 2114;
-export const pprofPort = 6061;
+
+// Use alternate ports in case we're running in a Coder Workspace.
+export const agentPProfPort = 6061;
+export const coderdPProfPort = 6062;
 
 // Credentials for the first user
 export const username = "admin";

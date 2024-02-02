@@ -11,11 +11,11 @@ import (
 
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
@@ -814,56 +814,6 @@ func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expecte
 					return
 				}
 			}
-		}
-	}
-}
-
-func assertMultiAgentEventuallyHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
-	t.Helper()
-	for {
-		nodes, ok := ma.NextUpdate(ctx)
-		require.True(t, ok)
-		if len(nodes) != len(expected) {
-			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
-			continue
-		}
-
-		derps := make([]int, 0, len(nodes))
-		for _, n := range nodes {
-			derps = append(derps, n.PreferredDERP)
-		}
-		for _, e := range expected {
-			if !slices.Contains(derps, e) {
-				t.Logf("expected DERP %d to be in %v", e, derps)
-				continue
-			}
-			return
-		}
-	}
-}
-
-func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
-	t.Helper()
-	for {
-		nodes, ok := ma.NextUpdate(ctx)
-		if !ok {
-			return
-		}
-		if len(nodes) != len(expected) {
-			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
-			continue
-		}
-
-		derps := make([]int, 0, len(nodes))
-		for _, n := range nodes {
-			derps = append(derps, n.PreferredDERP)
-		}
-		for _, e := range expected {
-			if !slices.Contains(derps, e) {
-				t.Logf("expected DERP %d to be in %v", e, derps)
-				continue
-			}
-			return
 		}
 	}
 }

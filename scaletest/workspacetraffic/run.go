@@ -91,7 +91,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	command := fmt.Sprintf("dd if=/dev/stdin of=%s bs=%d status=none", output, bytesPerTick)
 
 	var conn *countReadWriteCloser
-	if r.cfg.SSH {
+	switch {
+	case r.cfg.App.Name != "":
+		logger.Info(ctx, "sending traffic to workspace app", slog.F("app", r.cfg.App.Name))
+		conn, err = appClientConn(ctx, r.client, r.cfg.App.URL)
+		if err != nil {
+			logger.Error(ctx, "connect to workspace app", slog.Error(err))
+			return xerrors.Errorf("connect to workspace app: %w", err)
+		}
+
+	case r.cfg.SSH:
 		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "ssh"))
 		// If echo is enabled, disable PTY to avoid double echo and
 		// reduce CPU usage.
@@ -101,7 +110,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 			logger.Error(ctx, "connect to workspace agent via ssh", slog.Error(err))
 			return xerrors.Errorf("connect to workspace via ssh: %w", err)
 		}
-	} else {
+
+	default:
 		logger.Info(ctx, "connecting to workspace agent", slog.F("method", "reconnectingpty"))
 		conn, err = connectRPTY(ctx, r.client, agentID, reconnect, command)
 		if err != nil {
@@ -114,8 +124,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	closeConn := func() error {
 		closeOnce.Do(func() {
 			closeErr = conn.Close()
-			if err != nil {
-				logger.Error(ctx, "close agent connection", slog.Error(err))
+			if closeErr != nil {
+				logger.Error(ctx, "close agent connection", slog.Error(closeErr))
 			}
 		})
 		return closeErr
@@ -142,7 +152,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 
 	// Read until connection is closed.
 	go func() {
-		rch := rch // Shadowed for reassignment.
 		logger.Debug(ctx, "reading from agent")
 		rch <- drain(conn)
 		logger.Debug(ctx, "done reading from agent")
@@ -151,7 +160,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 
 	// Write random data to the conn every tick.
 	go func() {
-		wch := wch // Shadowed for reassignment.
 		logger.Debug(ctx, "writing to agent")
 		wch <- writeRandomData(conn, bytesPerTick, tick.C)
 		logger.Debug(ctx, "done writing to agent")
@@ -160,16 +168,17 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 
 	var waitCloseTimeoutCh <-chan struct{}
 	deadlineCtxCh := deadlineCtx.Done()
+	wchRef, rchRef := wch, rch
 	for {
-		if wch == nil && rch == nil {
+		if wchRef == nil && rchRef == nil {
 			return nil
 		}
 
 		select {
 		case <-waitCloseTimeoutCh:
 			logger.Warn(ctx, "timed out waiting for read/write to complete",
-				slog.F("write_done", wch == nil),
-				slog.F("read_done", rch == nil),
+				slog.F("write_done", wchRef == nil),
+				slog.F("read_done", rchRef == nil),
 			)
 			return xerrors.Errorf("timed out waiting for read/write to complete: %w", ctx.Err())
 		case <-deadlineCtxCh:
@@ -181,16 +190,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 			waitCtx, cancel := context.WithTimeout(context.Background(), waitCloseTimeout)
 			defer cancel() //nolint:revive // Only called once.
 			waitCloseTimeoutCh = waitCtx.Done()
-		case err = <-wch:
+		case err = <-wchRef:
 			if err != nil {
 				return xerrors.Errorf("write to agent: %w", err)
 			}
-			wch = nil
-		case err = <-rch:
+			wchRef = nil
+		case err = <-rchRef:
 			if err != nil {
 				return xerrors.Errorf("read from agent: %w", err)
 			}
-			rch = nil
+			rchRef = nil
 		}
 	}
 }

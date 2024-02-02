@@ -889,7 +889,7 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 			Output:    "This build would exceed your quota. Failing.",
 			Stage:     stage,
 		})
-		return r.failedJobf("insufficient quota")
+		return r.failedWorkspaceBuildf("insufficient quota")
 	}
 	return nil
 }

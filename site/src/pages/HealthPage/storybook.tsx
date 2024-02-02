@@ -14,7 +14,7 @@ import {
   MockHealthSettings,
 } from "testHelpers/entities";
 import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
-import { DashboardProvider } from "components/Dashboard/DashboardProvider";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { HealthLayout } from "./HealthLayout";
 
 type MetaOptions = {
@@ -25,7 +25,7 @@ type MetaOptions = {
 
 export const generateMeta = ({ element, path, params }: MetaOptions): Meta => {
   return {
-    render: HealthLayout,
+    component: HealthLayout,
     parameters: {
       chromatic,
       layout: "fullscreen",

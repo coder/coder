@@ -1,15 +1,15 @@
-import { isNonInitialPage } from "components/PaginationWidget/utils";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
-import { AuditPageView } from "./AuditPageView";
+import { paginatedAudits } from "api/queries/audits";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useFilter } from "components/Filter/filter";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { paginatedAudits } from "api/queries/audits";
+import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
   const { audit_log: isAuditLogVisible } = useFeatureVisibility();

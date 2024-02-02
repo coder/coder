@@ -56,6 +56,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
+  "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
 }
@@ -157,6 +158,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -296,6 +298,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "signups_disabled_text": "string",
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],
@@ -343,7 +346,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }
@@ -401,19 +404,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "verbose": true,
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
+    "wildcard_access_url": "string",
     "write_config": true
   },
   "options": [
@@ -563,7 +554,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["workspace_actions"]
+["example"]
 ```
 
 ### Responses
@@ -600,7 +591,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 > 200 Response
 
 ```json
-["workspace_actions"]
+["example"]
 ```
 
 ### Responses

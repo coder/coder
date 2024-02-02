@@ -53,8 +53,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/pretty"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
@@ -75,11 +73,11 @@ import (
 	"github.com/coder/coder/v2/coderd/devtunnel"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -88,6 +86,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -98,6 +97,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/pretty"
 	"github.com/coder/retry"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
@@ -133,7 +133,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		Scopes:       vals.OIDC.Scopes,
 	}
 
-	var useCfg httpmw.OAuth2Config = oauthCfg
+	var useCfg promoauth.OAuth2Config = oauthCfg
 	if vals.OIDC.ClientKeyFile != "" {
 		// PKI authentication is done in the params. If a
 		// counter example is found, we can add a config option to
@@ -179,6 +179,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		UserRoleMapping:     vals.OIDC.UserRoleMapping.Value,
 		UserRolesDefault:    vals.OIDC.UserRolesDefault.GetSlice(),
 		SignInText:          vals.OIDC.SignInText.String(),
+		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 	}, nil
@@ -433,11 +434,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				if vals.WildcardAccessURL.String() == "" {
 					// Suffixed wildcard access URL.
-					u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
+					wu := fmt.Sprintf("*--%s", tunnel.URL.Hostname())
+					err = vals.WildcardAccessURL.Set(wu)
 					if err != nil {
-						return xerrors.Errorf("parse wildcard url: %w", err)
+						return xerrors.Errorf("set wildcard access url %q: %w", wu, err)
 					}
-					vals.WildcardAccessURL = clibase.URL(*u)
 				}
 			}
 
@@ -512,7 +513,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			appHostname := vals.WildcardAccessURL.String()
 			var appHostnameRegex *regexp.Regexp
 			if appHostname != "" {
-				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
+				appHostnameRegex, err = appurl.CompileHostnamePattern(appHostname)
 				if err != nil {
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
@@ -523,8 +524,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("read external auth providers from env: %w", err)
 			}
 
+			promRegistry := prometheus.NewRegistry()
+			oauthInstrument := promoauth.NewFactory(promRegistry)
 			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
 			externalAuthConfigs, err := externalauth.ConvertConfig(
+				oauthInstrument,
 				vals.ExternalAuthConfigs.Value,
 				vals.AccessURL.Value(),
 			)
@@ -571,7 +575,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// the DeploymentValues instead, this just serves to indicate the source of each
 				// option. This is just defensive to prevent accidentally leaking.
 				DeploymentOptions:           codersdk.DeploymentOptionsWithoutSecrets(opts),
-				PrometheusRegistry:          prometheus.NewRegistry(),
+				PrometheusRegistry:          promRegistry,
 				APIRateLimit:                int(vals.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
@@ -617,7 +621,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if vals.OAuth2.Github.ClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(vals.AccessURL.Value(),
+				options.GithubOAuth2Config, err = configureGithubOAuth2(
+					oauthInstrument,
+					vals.AccessURL.Value(),
 					vals.OAuth2.Github.ClientID.String(),
 					vals.OAuth2.Github.ClientSecret.String(),
 					vals.OAuth2.Github.AllowSignups.Value(),
@@ -636,6 +642,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
+				// This OIDC config is **not** being instrumented with the
+				// oauth2 instrument wrapper. If we implement the missing
+				// oidc methods, then we can instrument it.
+				// Missing:
+				//	- Userinfo
+				//	- Verify
 				oc, err := createOIDCConfig(ctx, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
@@ -648,7 +660,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
+				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
+				if err != nil {
+					return xerrors.Errorf("escaping postgres URL: %w", err)
+				}
+
+				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -657,9 +674,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = pubsub.New(ctx, sqlDB, vals.PostgresURL.String())
+				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
+				}
+				options.Pubsub = ps
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(ps)
 				}
 				defer options.Pubsub.Close()
 			}
@@ -1366,10 +1387,10 @@ func newProvisionerDaemon(
 		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
 
-	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, name)
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name)
 	}, &provisionerd.Options{
 		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
@@ -1732,7 +1753,7 @@ func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 }
 
 //nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
@@ -1757,12 +1778,6 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			Slug:         parts[1],
 		})
 	}
-	createClient := func(client *http.Client) (*github.Client, error) {
-		if enterpriseBaseURL != "" {
-			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
-		}
-		return github.NewClient(client), nil
-	}
 
 	endpoint := xgithub.Endpoint
 	if enterpriseBaseURL != "" {
@@ -1784,24 +1799,34 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 		}
 	}
 
-	return &coderd.GithubOAuth2Config{
-		OAuth2Config: &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Endpoint:     endpoint,
-			RedirectURL:  redirectURL.String(),
-			Scopes: []string{
-				"read:user",
-				"read:org",
-				"user:email",
-			},
+	instrumentedOauth := instrument.NewGithub("github-login", &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint:     endpoint,
+		RedirectURL:  redirectURL.String(),
+		Scopes: []string{
+			"read:user",
+			"read:org",
+			"user:email",
 		},
+	})
+
+	createClient := func(client *http.Client, source promoauth.Oauth2Source) (*github.Client, error) {
+		client = instrumentedOauth.InstrumentHTTPClient(client, source)
+		if enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		}
+		return github.NewClient(client), nil
+	}
+
+	return &coderd.GithubOAuth2Config{
+		OAuth2Config:       instrumentedOauth,
 		AllowSignups:       allowSignups,
 		AllowEveryone:      allowEveryone,
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIAuthUser)
 			if err != nil {
 				return nil, err
 			}
@@ -1809,7 +1834,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return user, err
 		},
 		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIListEmails)
 			if err != nil {
 				return nil, err
 			}
@@ -1817,7 +1842,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return emails, err
 		},
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIOrgMemberships)
 			if err != nil {
 				return nil, err
 			}
@@ -1830,7 +1855,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return memberships, err
 		},
 		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPITeamMemberships)
 			if err != nil {
 				return nil, err
 			}
@@ -2432,4 +2457,42 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		providers[providerNum] = provider
 	}
 	return providers, nil
+}
+
+// If the user provides a postgres URL with a password that contains special
+// characters, the URL will be invalid. We need to escape the password so that
+// the URL parse doesn't fail at the DB connector level.
+func escapePostgresURLUserInfo(v string) (string, error) {
+	_, err := url.Parse(v)
+	// I wish I could use errors.Is here, but this error is not declared as a
+	// variable in net/url. :(
+	if err != nil {
+		if strings.Contains(err.Error(), "net/url: invalid userinfo") {
+			// If the URL is invalid, we assume it is because the password contains
+			// special characters that need to be escaped.
+
+			// get everything before first @
+			parts := strings.SplitN(v, "@", 2)
+			if len(parts) != 2 {
+				return "", xerrors.Errorf("invalid postgres url with userinfo: %s", v)
+			}
+			start := parts[0]
+			// get password, which is the last item in start when split by :
+			startParts := strings.Split(start, ":")
+			password := startParts[len(startParts)-1]
+			// escape password, and replace the last item in the startParts slice
+			// with the escaped password.
+			//
+			// url.PathEscape is used here because url.QueryEscape
+			// will not escape spaces correctly.
+			newPassword := url.PathEscape(password)
+			startParts[len(startParts)-1] = newPassword
+			start = strings.Join(startParts, ":")
+			return start + "@" + parts[1], nil
+		}
+
+		return "", xerrors.Errorf("parse postgres url: %w", err)
+	}
+
+	return v, nil
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -132,11 +133,11 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
-	Verbose             clibase.Bool `json:"verbose,omitempty"`
-	AccessURL           clibase.URL  `json:"access_url,omitempty"`
-	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
-	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
-	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
+	Verbose             clibase.Bool   `json:"verbose,omitempty"`
+	AccessURL           clibase.URL    `json:"access_url,omitempty"`
+	WildcardAccessURL   clibase.String `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL    `json:"docs_url,omitempty"`
+	RedirectToAccessURL clibase.Bool   `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           clibase.Duration                     `json:"autobuild_poll_interval,omitempty"`
@@ -187,6 +188,7 @@ type DeploymentValues struct {
 	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	AllowWorkspaceRenames           clibase.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage               clibase.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -301,6 +303,7 @@ type OIDCConfig struct {
 	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText clibase.String                      `json:"signups_disabled_text" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -611,7 +614,19 @@ when required by your organization's security policy.`,
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
-			Value:       &c.WildcardAccessURL,
+			// Do not use a clibase.URL here. We are intentionally omitting the
+			// scheme part of the url (https://), so the standard url parsing
+			// will yield unexpected results.
+			//
+			// We have a validation function to ensure the wildcard url is correct,
+			// so use that instead.
+			Value: clibase.Validate(&c.WildcardAccessURL, func(value *clibase.String) error {
+				if value.Value() == "" {
+					return nil
+				}
+				_, err := appurl.CompileHostnamePattern(value.Value())
+				return err
+			}),
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
@@ -1252,6 +1267,15 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
 		},
+		{
+			Name:        "Signups disabled text",
+			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
+			Flag:        "oidc-signups-disabled-text",
+			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
+			Value:       &c.OIDC.SignupsDisabledText,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "signupsDisabledText",
+		},
 		// Telemetry settings
 		{
 			Name:        "Telemetry Enable",
@@ -1768,6 +1792,16 @@ when required by your organization's security policy.`,
 			Hidden: false,
 		},
 		{
+			Name:        "CLI Upgrade Message",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Flag:        "cli-upgrade-message",
+			Env:         "CODER_CLI_UPGRADE_MESSAGE",
+			YAML:        "cliUpgradeMessage",
+			Group:       &deploymentGroupClient,
+			Value:       &c.CLIUpgradeMessage,
+			Hidden:      false,
+		},
+		{
 			Name: "Write Config",
 			Description: `
 Write out the current server config as YAML to stdout.`,
@@ -1780,21 +1814,20 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name:        "Support Links",
 			Description: "Support links to display in the top right drop down menu.",
+			Env:         "CODER_SUPPORT_LINKS",
+			Flag:        "support-links",
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
-			// The support links are hidden until they are defined in the
-			// YAML.
-			Hidden: true,
+			Hidden:      false,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
-			// We need extra scrutiny to ensure this works, is documented, and
-			// tested before enabling.
-			YAML:   "externalAuthProviders",
-			Value:  &c.ExternalAuthConfigs,
-			Hidden: true,
+			YAML:        "externalAuthProviders",
+			Flag:        "external-auth-providers",
+			Value:       &c.ExternalAuthConfigs,
+			Hidden:      true,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
@@ -1891,7 +1924,7 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
@@ -2040,6 +2073,10 @@ type BuildInfoResponse struct {
 	// AgentAPIVersion is the current version of the Agent API (back versions
 	// MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
+
+	// UpgradeMessage is the message displayed to users when an outdated client
+	// is detected.
+	UpgradeMessage string `json:"upgrade_message"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -2066,7 +2103,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK || ExpectJSONMime(res) != nil {
 		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
 
@@ -2077,33 +2114,15 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// https://github.com/coder/coder/milestone/19
-	ExperimentWorkspaceActions Experiment = "workspace_actions"
-
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
-
-	// ExperimentSingleTailnet replaces workspace connections inside coderd to
-	// all use a single tailnet, instead of the previous behavior of creating a
-	// single tailnet for each agent.
-	ExperimentSingleTailnet Experiment = "single_tailnet"
-
-	// Deployment health page
-	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
-
 	// Add new experiments here!
-	// ExperimentExample Experiment = "example"
+	ExperimentExample Experiment = "example" // This isn't used for anything.
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentDeploymentHealthPage,
-	ExperimentSingleTailnet,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -2159,8 +2178,10 @@ type DAUsResponse struct {
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date" format:"date-time"`
-	Amount int       `json:"amount"`
+	// Date is a string formatted as 2024-01-31.
+	// Timezone and time information is not included.
+	Date   string `json:"date"`
+	Amount int    `json:"amount"`
 }
 
 type DAURequest struct {
@@ -2175,14 +2196,22 @@ func (d DAURequest) asRequestOption() RequestOption {
 	}
 }
 
-func TimezoneOffsetHour(loc *time.Location) int {
+// TimezoneOffsetHourWithTime is implemented to match the javascript 'getTimezoneOffset()' function.
+// This is the amount of time between this date evaluated in UTC and evaluated in the 'loc'
+// The trivial case of times being on the same day is:
+// 'time.Now().UTC().Hour() - time.Now().In(loc).Hour()'
+func TimezoneOffsetHourWithTime(now time.Time, loc *time.Location) int {
 	if loc == nil {
 		// Default to UTC time to be consistent across all callers.
 		loc = time.UTC
 	}
-	_, offsetSec := time.Now().In(loc).Zone()
-	// Convert to hours
-	return offsetSec / 60 / 60
+	_, offsetSec := now.In(loc).Zone()
+	// Convert to hours and flip the sign
+	return -1 * offsetSec / 60 / 60
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	return TimezoneOffsetHourWithTime(time.Now(), loc)
 }
 
 func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
@@ -2213,10 +2242,10 @@ type AppHostResponse struct {
 	Host string `json:"host"`
 }
 
-// AppHost returns the site-wide application wildcard hostname without the
-// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
-// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
-// "my-app--agent--workspace--username.apps.coder.com".
+// AppHost returns the site-wide application wildcard hostname
+// e.g. "*--apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username><app-host>", e.g.
+// "my-app--agent--workspace--username--apps.coder.com".
 //
 // If the app host is not set, the response will contain an empty string.
 func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {

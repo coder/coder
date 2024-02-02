@@ -49,10 +49,6 @@ const deleteUser = async () => {
   const deleteButton = screen.getByText(/Delete/);
   await user.click(deleteButton);
 
-  // Check if the confirm message is displayed
-  const confirmDialog = await screen.findByRole("dialog");
-  expect(confirmDialog).toHaveTextContent(`Are you sure you want to proceed?`);
-
   // Confirm with text input
   const textField = screen.getByLabelText("Name of the user to delete");
   const dialog = screen.getByRole("dialog");

@@ -31,11 +31,11 @@ export const deploymentGroupHasParent = (
   if (!group) {
     return false;
   }
-  if (group.parent) {
-    return deploymentGroupHasParent(group.parent, parent);
-  }
   if (group.name === parent) {
     return true;
+  }
+  if (group.parent) {
+    return deploymentGroupHasParent(group.parent, parent);
   }
   return false;
 };

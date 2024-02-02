@@ -103,6 +103,9 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	if xerrors.Is(err, sql.ErrNoRows) {
 		WriteWorkspaceApp404(p.Logger, p.DashboardURL, rw, r, &appReq, nil, err.Error())
 		return nil, "", false
+	} else if xerrors.Is(err, errWorkspaceStopped) {
+		WriteWorkspaceOffline(p.Logger, p.DashboardURL, rw, r, &appReq)
+		return nil, "", false
 	} else if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false

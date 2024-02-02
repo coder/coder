@@ -267,6 +267,54 @@ _One or more Workspace Proxies Unhealthy_
 **Solution:** Ensure that Coder can establish a connection to the configured
 workspace proxies.
 
+### EPD01
+
+_No Provisioner Daemons Available_
+
+**Problem:** No provisioner daemons are registered with Coder. No workspaces can
+be built until there is at least one provisioner daemon running.
+
+**Solution:**
+
+If you are using
+[External Provisioner Daemons](./provisioners.md#external-provisioners), ensure
+that they are able to successfully connect to Coder. Otherwise, ensure
+[`--provisioner-daemons`](../cli/server.md#provisioner-daemons) is set to a
+value greater than 0.
+
+> Note: This may be a transient issue if you are currently in the process of
+> updating your deployment.
+
+### EPD02
+
+_Provisioner Daemon Version Mismatch_
+
+**Problem:** One or more provisioner daemons are more than one major or minor
+version out of date with the main deployment. It is important that provisioner
+daemons are updated at the same time as the main deployment to minimize the risk
+of API incompatibility.
+
+**Solution:** Update the provisioner daemon to match the currently running
+version of Coder.
+
+> Note: This may be a transient issue if you are currently in the process of
+> updating your deployment.
+
+### EPD03
+
+_Provisioner Daemon API Version Mismatch_
+
+**Problem:** One or more provisioner daemons are using APIs that are marked as
+deprecated. These deprecated APIs may be removed in a future release of Coder,
+at which point the affected provisioner daemons will no longer be able to
+connect to Coder.
+
+**Solution:** Update the provisioner daemon to match the currently running
+version of Coder.
+
+> Note: This may be a transient issue if you are currently in the process of
+> updating your deployment.
+
 ## EUNKNOWN
 
 _Unknown Error_

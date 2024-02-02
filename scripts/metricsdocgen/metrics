@@ -1,3 +1,32 @@
+# HELP coderd_oauth2_external_requests_rate_limit_next_reset_unix Unix timestamp of the next interval
+# TYPE coderd_oauth2_external_requests_rate_limit_next_reset_unix gauge
+coderd_oauth2_external_requests_rate_limit_next_reset_unix{name="primary-github",resource="core"} 1.704835507e+09
+coderd_oauth2_external_requests_rate_limit_next_reset_unix{name="secondary-github",resource="core"} 1.704835507e+09
+# HELP coderd_oauth2_external_requests_rate_limit_remaining The remaining number of allowed requests in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_remaining gauge
+coderd_oauth2_external_requests_rate_limit_remaining{name="primary-github",resource="core"} 4852
+coderd_oauth2_external_requests_rate_limit_remaining{name="secondary-github",resource="core"} 4867
+# HELP coderd_oauth2_external_requests_rate_limit_reset_in_seconds Seconds until the next interval
+# TYPE coderd_oauth2_external_requests_rate_limit_reset_in_seconds gauge
+coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="primary-github",resource="core"} 63.617162731
+coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="secondary-github",resource="core"} 121.82186601
+# HELP coderd_oauth2_external_requests_rate_limit_total The total number of allowed requests per interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_total gauge
+coderd_oauth2_external_requests_rate_limit_total{name="primary-github",resource="core"} 5000
+coderd_oauth2_external_requests_rate_limit_total{name="secondary-github",resource="core"} 5000
+# HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_used gauge
+coderd_oauth2_external_requests_rate_limit_used{name="primary-github",resource="core"} 148
+coderd_oauth2_external_requests_rate_limit_used{name="secondary-github",resource="core"} 133
+# HELP coderd_oauth2_external_requests_total The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.
+# TYPE coderd_oauth2_external_requests_total counter
+coderd_oauth2_external_requests_total{name="primary-github",source="AppInstallations",status_code="200"} 12
+coderd_oauth2_external_requests_total{name="primary-github",source="Exchange",status_code="200"} 1
+coderd_oauth2_external_requests_total{name="primary-github",source="TokenSource",status_code="200"} 1
+coderd_oauth2_external_requests_total{name="primary-github",source="ValidateToken",status_code="200"} 16
+coderd_oauth2_external_requests_total{name="secondary-github",source="AppInstallations",status_code="403"} 4
+coderd_oauth2_external_requests_total{name="secondary-github",source="Exchange",status_code="200"} 2
+coderd_oauth2_external_requests_total{name="secondary-github",source="ValidateToken",status_code="200"} 5
 # HELP coderd_agents_apps Agent applications with statuses.
 # TYPE coderd_agents_apps gauge
 coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-1"} 1

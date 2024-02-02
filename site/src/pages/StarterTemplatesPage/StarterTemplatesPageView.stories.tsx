@@ -1,3 +1,4 @@
+import { chromatic } from "testHelpers/chromatic";
 import {
   mockApiError,
   MockTemplateExample,
@@ -9,6 +10,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof StarterTemplatesPageView> = {
   title: "pages/StarterTemplatesPage",
+  parameters: { chromatic },
   component: StarterTemplatesPageView,
 };
 

@@ -23,10 +23,25 @@ const Language = {
   },
 };
 
+interface GetFormHelperOptions {
+  helperText?: ReactNode;
+  /**
+   * backendFieldName remaps the name in the form, for when it doesn't match the
+   * name used by the backend
+   */
+  backendFieldName?: string;
+  /**
+   * maxLength is used for showing helper text on fields that have a limited length,
+   * which will let the user know how much space they have left, or how much they are
+   * over the limit. Zero and negative values will be ignored.
+   */
+  maxLength?: number;
+}
+
 interface FormHelpers {
   name: string;
-  onBlur: FocusEventHandler;
-  onChange: ChangeEventHandler;
+  onBlur: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+  onChange: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
   id: string;
   value?: string | number;
   error: boolean;
@@ -37,10 +52,14 @@ export const getFormHelpers =
   <TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
   (
     fieldName: keyof TFormValues | string,
-    helperText?: ReactNode,
-    // backendFieldName is used when the value in the form is named different from the backend
-    backendFieldName?: string,
+    options: GetFormHelperOptions = {},
   ): FormHelpers => {
+    const {
+      backendFieldName,
+      helperText: defaultHelperText,
+      maxLength,
+    } = options;
+    let helperText = defaultHelperText;
     const apiValidationErrors = isApiValidationError(error)
       ? (mapApiErrorToFieldErrors(
           error.response.data,
@@ -49,17 +68,39 @@ export const getFormHelpers =
     // Since the fieldName can be a path string like parameters[0].value we need to use getIn
     const touched = Boolean(getIn(form.touched, fieldName.toString()));
     const formError = getIn(form.errors, fieldName.toString());
-    // Since the field in the form can be diff from the backend, we need to
+    // Since the field in the form can be different from the backend, we need to
     // check for both when getting the error
     const apiField = backendFieldName ?? fieldName;
     const apiError = apiValidationErrors?.[apiField.toString()];
-    const errorToDisplay = apiError ?? formError;
+
+    const fieldProps = form.getFieldProps(fieldName);
+    const value = fieldProps.value;
+
+    let lengthError: ReactNode = null;
+    // Show a message if the input is approaching or over the maximum length.
+    if (
+      maxLength &&
+      maxLength > 0 &&
+      typeof value === "string" &&
+      value.length > maxLength - 30
+    ) {
+      helperText = `This cannot be longer than ${maxLength} characters. (${value.length}/${maxLength})`;
+      // Show it as an error, rather than a hint
+      if (value.length > maxLength) {
+        lengthError = helperText;
+      }
+    }
+
+    // API and regular validation errors should wait to be shown, but length errors should
+    // be more responsive.
+    const errorToDisplay =
+      (touched && apiError) || lengthError || (touched && formError);
 
     return {
-      ...form.getFieldProps(fieldName),
+      ...fieldProps,
       id: fieldName.toString(),
-      error: touched && Boolean(errorToDisplay),
-      helperText: touched ? errorToDisplay ?? helperText : helperText,
+      error: Boolean(errorToDisplay),
+      helperText: errorToDisplay || helperText,
     };
   };
 

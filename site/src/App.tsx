@@ -3,7 +3,7 @@ import { type FC, type ReactNode, useEffect, useState } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { AppRouter } from "./AppRouter";
 import { ThemeProvider } from "./contexts/ThemeProvider";
-import { AuthProvider } from "./contexts/AuthProvider/AuthProvider";
+import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import "./theme/globalFonts";

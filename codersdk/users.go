@@ -46,6 +46,7 @@ type MinimalUser struct {
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
+	Name       string    `json:"name"`
 	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
@@ -63,11 +64,38 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// @typescript-ignore LicensorTrialRequest
+type LicensorTrialRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
 type CreateFirstUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
-	Trial    bool   `json:"trial"`
+	Email     string                   `json:"email" validate:"required,email"`
+	Username  string                   `json:"username" validate:"required,username"`
+	Password  string                   `json:"password" validate:"required"`
+	Trial     bool                     `json:"trial"`
+	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+}
+
+type CreateFirstUserTrialInfo struct {
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -91,6 +119,7 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
@@ -190,6 +219,27 @@ type OIDCAuthMethod struct {
 	AuthMethod
 	SignInText string `json:"signInText"`
 	IconURL    string `json:"iconUrl"`
+}
+
+type UserParameter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// UserAutofillParameters returns all recently used parameters for the given user.
+func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var params []UserParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // HasFirstUser returns whether the first user has been created.

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -40,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
@@ -47,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
@@ -85,16 +88,12 @@ type Options struct {
 }
 
 type Client interface {
-	Manifest(ctx context.Context) (agentsdk.Manifest, error)
-	Listen(ctx context.Context) (net.Conn, error)
-	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
+	ConnectRPC(ctx context.Context) (drpc.Conn, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
-	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
-	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
-	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
+	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
 
 type Agent interface {
@@ -268,7 +267,6 @@ func (a *agent) init(ctx context.Context) {
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
-	go a.fetchServiceBannerLoop(ctx)
 	go a.manageProcessPriorityLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
@@ -661,22 +659,23 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
-func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
+func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient) error {
 	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-ticker.C:
-			serviceBanner, err := a.client.GetServiceBanner(ctx)
+			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
 			if err != nil {
 				if ctx.Err() != nil {
-					return
+					return ctx.Err()
 				}
 				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
-				continue
+				return err
 			}
+			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
 			a.serviceBanner.Store(&serviceBanner)
 		}
 	}
@@ -692,21 +691,40 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	serviceBanner, err := a.client.GetServiceBanner(ctx)
+	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
+	conn, err := a.client.ConnectRPC(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cErr := conn.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing drpc connection", slog.Error(err))
+		}
+	}()
+
+	aAPI := proto.NewDRPCAgentClient(conn)
+	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
 	if err != nil {
 		return xerrors.Errorf("fetch service banner: %w", err)
 	}
+	serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
 	a.serviceBanner.Store(&serviceBanner)
 
-	manifest, err := a.client.Manifest(ctx)
+	mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
-
+	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", mp))
+	manifest, err := agentsdk.ManifestFromProto(mp)
+	if err != nil {
+		a.logger.Critical(ctx, "failed to convert manifest", slog.F("manifest", mp), slog.Error(err))
+		return xerrors.Errorf("convert manifest: %w", err)
+	}
 	if manifest.AgentID == uuid.Nil {
 		return xerrors.New("nil agentID returned by manifest")
 	}
+	a.client.RewriteDERPMap(manifest.DERPMap)
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
@@ -717,13 +735,18 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("expand directory: %w", err)
 	}
-	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
+	subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
+	if err != nil {
+		a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
+		return xerrors.Errorf("failed to convert subsystems: %w", err)
+	}
+	_, err = aAPI.UpdateStartup(ctx, &proto.UpdateStartupRequest{Startup: &proto.Startup{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystems:        a.subsystems,
-	})
+		Subsystems:        subsys,
+	}})
 	if err != nil {
-		return xerrors.Errorf("update workspace agent version: %w", err)
+		return xerrors.Errorf("update workspace agent startup: %w", err)
 	}
 
 	oldManifest := a.manifest.Swap(&manifest)
@@ -784,7 +807,7 @@ func (a *agent) run(ctx context.Context) error {
 	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
 	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, manifest.Apps, a.client.PostAppHealth)(appReporterCtx)
+		a.logger, manifest.Apps, agentsdk.AppHealthPoster(aAPI))(appReporterCtx)
 
 	a.closeMutex.Lock()
 	network := a.network
@@ -823,7 +846,7 @@ func (a *agent) run(ctx context.Context) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running tailnet connection coordinator")
-		err := a.runCoordinator(egCtx, network)
+		err := a.runCoordinator(egCtx, conn, network)
 		if err != nil {
 			return xerrors.Errorf("run coordinator: %w", err)
 		}
@@ -832,9 +855,18 @@ func (a *agent) run(ctx context.Context) error {
 
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running derp map subscriber")
-		err := a.runDERPMapSubscriber(egCtx, network)
+		err := a.runDERPMapSubscriber(egCtx, conn, network)
 		if err != nil {
 			return xerrors.Errorf("run derp map subscriber: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running fetch server banner loop")
+		err := a.fetchServiceBannerLoop(egCtx, aAPI)
+		if err != nil {
+			return xerrors.Errorf("fetch server banner loop: %w", err)
 		}
 		return nil
 	})
@@ -1054,53 +1086,54 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
-func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	coordinator, err := a.client.Listen(ctx)
+func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+	defer a.logger.Debug(ctx, "disconnected from coordination RPC")
+	tClient := tailnetproto.NewDRPCTailnetClient(conn)
+	coordinate, err := tClient.Coordinate(ctx)
 	if err != nil {
-		return err
+		return xerrors.Errorf("failed to connect to the coordinate endpoint: %w", err)
 	}
-	defer coordinator.Close()
-	a.logger.Info(ctx, "connected to coordination endpoint")
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(nodes []*tailnet.Node) error {
-		return network.UpdateNodes(nodes, false)
-	})
-	network.SetNodeCallback(sendNodes)
+	defer func() {
+		cErr := coordinate.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing Coordinate client", slog.Error(err))
+		}
+	}()
+	a.logger.Info(ctx, "connected to coordination RPC")
+	coordination := tailnet.NewRemoteCoordination(a.logger, coordinate, network, uuid.Nil)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case err := <-errChan:
+	case err := <-coordination.Error():
 		return err
 	}
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
-func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn) error {
+func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+	defer a.logger.Debug(ctx, "disconnected from derp map RPC")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	updates, closer, err := a.client.DERPMapUpdates(ctx)
+	tClient := tailnetproto.NewDRPCTailnetClient(conn)
+	stream, err := tClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
-		return err
+		return xerrors.Errorf("stream DERP Maps: %w", err)
 	}
-	defer closer.Close()
-
-	a.logger.Info(ctx, "connected to derp map endpoint")
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case update := <-updates:
-			if update.Err != nil {
-				return update.Err
-			}
-			if update.DERPMap != nil && !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
-				a.logger.Info(ctx, "updating derp map due to detected changes")
-				network.SetDERPMap(update.DERPMap)
-			}
+	defer func() {
+		cErr := stream.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing DERPMap stream", slog.Error(err))
 		}
+	}()
+	a.logger.Info(ctx, "connected to derp map RPC")
+	for {
+		dmp, err := stream.Recv()
+		if err != nil {
+			return xerrors.Errorf("recv DERPMap error: %w", err)
+		}
+		dm := tailnet.DERPMapFromProto(dmp)
+		a.client.RewriteDERPMap(dm)
+		network.SetDERPMap(dm)
 	}
 }
 

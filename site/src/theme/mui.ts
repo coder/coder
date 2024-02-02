@@ -109,6 +109,14 @@ export const components = {
       },
       ["sizeXlarge" as any]: {
         height: BUTTON_XL_HEIGHT,
+
+        // With higher size we need to increase icon spacing.
+        "& .MuiButton-startIcon": {
+          marginRight: 12,
+        },
+        "& .MuiButton-endIcon": {
+          marginLeft: 12,
+        },
       },
       outlined: ({ theme }) => ({
         ":hover": {
@@ -143,9 +151,6 @@ export const components = {
         "& > .MuiSvgIcon-root": {
           fontSize: 13,
         },
-      },
-      startIcon: {
-        marginLeft: "-2px",
       },
     },
   },
@@ -198,11 +203,12 @@ export const components = {
       head: ({ theme }) => ({
         fontSize: 14,
         color: theme.palette.text.secondary,
-        fontWeight: 600,
+        fontWeight: 500,
         background: theme.palette.background.paper,
+        borderWidth: 2,
       }),
       root: ({ theme }) => ({
-        fontSize: 16,
+        fontSize: 14,
         background: theme.palette.background.paper,
         borderBottom: `1px solid ${theme.palette.divider}`,
         padding: "12px 8px",
@@ -220,11 +226,15 @@ export const components = {
   },
   MuiTableRow: {
     styleOverrides: {
-      root: {
+      root: ({ theme }) => ({
         "&:last-child .MuiTableCell-body": {
           borderBottom: 0,
         },
-      },
+
+        "&.MuiTableRow-hover:hover": {
+          backgroundColor: theme.palette.background.paper,
+        },
+      }),
     },
   },
   MuiLink: {
@@ -390,6 +400,10 @@ export const components = {
         "&.Mui-disabled": {
           color: tw.zinc[500],
         },
+
+        "& .MuiSvgIcon-fontSizeXsmall": {
+          fontSize: "1rem",
+        },
       },
     },
   },
@@ -410,7 +424,7 @@ export const components = {
       root: {
         // Not sure why but since the input has padding we don't need it here
         "& .MuiInputBase-root": {
-          padding: 0,
+          padding: "0px 0px 0px 8px",
         },
       },
     },

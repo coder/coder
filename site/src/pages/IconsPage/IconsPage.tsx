@@ -19,6 +19,10 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import icons from "theme/icons.json";
+import {
+  defaultParametersForBuiltinIcons,
+  parseImageParameters,
+} from "theme/externalImages";
 import { pageTitle } from "utils/page";
 
 const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]);
@@ -163,13 +167,19 @@ export const IconsPage: FC = () => {
                 <img
                   alt={icon.url}
                   src={icon.url}
-                  css={{
-                    width: 60,
-                    height: 60,
-                    objectFit: "contain",
-                    pointerEvents: "none",
-                    padding: 12,
-                  }}
+                  css={[
+                    {
+                      width: 60,
+                      height: 60,
+                      objectFit: "contain",
+                      pointerEvents: "none",
+                      padding: 12,
+                    },
+                    parseImageParameters(
+                      theme.externalImages,
+                      defaultParametersForBuiltinIcons.get(icon.url) ?? "",
+                    ),
+                  ]}
                 />
                 <figcaption
                   css={{

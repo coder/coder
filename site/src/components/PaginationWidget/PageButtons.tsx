@@ -1,6 +1,6 @@
-import { type FC, type PropsWithChildren } from "react";
 import Button from "@mui/material/Button";
 import { useTheme } from "@emotion/react";
+import { type FC, type ReactNode } from "react";
 
 type NumberedPageButtonProps = {
   pageNumber: number;
@@ -31,9 +31,10 @@ export const NumberedPageButton: FC<NumberedPageButtonProps> = ({
   );
 };
 
-type PlaceholderPageButtonProps = PropsWithChildren<{
+type PlaceholderPageButtonProps = {
   pagesOmitted: number;
-}>;
+  children?: ReactNode;
+};
 
 export const PlaceholderPageButton: FC<PlaceholderPageButtonProps> = ({
   pagesOmitted,
@@ -50,14 +51,14 @@ export const PlaceholderPageButton: FC<PlaceholderPageButtonProps> = ({
   );
 };
 
-type BasePageButtonProps = PropsWithChildren<{
+type BasePageButtonProps = {
+  children?: ReactNode;
+  onClick?: () => void;
   name: string;
   "aria-label": string;
-
-  onClick?: () => void;
   highlighted?: boolean;
   disabled?: boolean;
-}>;
+};
 
 const BasePageButton: FC<BasePageButtonProps> = ({
   children,
@@ -73,14 +74,14 @@ const BasePageButton: FC<BasePageButtonProps> = ({
     <Button
       css={
         highlighted && {
-          borderColor: theme.experimental.roles.active.outline,
-          backgroundColor: theme.experimental.roles.active.background,
+          borderColor: theme.roles.active.outline,
+          backgroundColor: theme.roles.active.background,
 
           // Override the hover state with active colors, but not hover
           // colors because clicking won't do anything.
           "&:hover": {
-            borderColor: theme.experimental.roles.active.outline,
-            backgroundColor: theme.experimental.roles.active.background,
+            borderColor: theme.roles.active.outline,
+            backgroundColor: theme.roles.active.background,
           },
         }
       }

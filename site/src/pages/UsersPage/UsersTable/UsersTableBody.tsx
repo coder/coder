@@ -62,9 +62,7 @@ interface UsersTableBodyProps {
   oidcRoleSyncEnabled: boolean;
 }
 
-export const UsersTableBody: FC<
-  React.PropsWithChildren<UsersTableBodyProps>
-> = ({
+export const UsersTableBody: FC<UsersTableBodyProps> = ({
   users,
   authMethods,
   roles,
@@ -177,7 +175,7 @@ export const UsersTableBody: FC<
               ]}
             >
               <div>{user.status}</div>
-              <LastSeen value={user.last_seen_at} css={{ fontSize: 12 }} />
+              <LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
             </TableCell>
 
             {canEditUsers && (

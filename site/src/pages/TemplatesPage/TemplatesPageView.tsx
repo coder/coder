@@ -39,7 +39,7 @@ import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import { Avatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
@@ -108,7 +108,9 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
           }
           subtitle={template.description}
           avatar={
-            hasIcon && <Avatar src={template.icon} variant="square" fitImage />
+            hasIcon && (
+              <ExternalAvatar variant="square" fitImage src={template.icon} />
+            )
           }
         />
       </TableCell>

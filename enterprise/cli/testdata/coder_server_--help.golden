@@ -55,6 +55,9 @@ OPTIONS:
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
+      --support-links struct[[]codersdk.LinkConfig], $CODER_SUPPORT_LINKS
+          Support links to display in the top right drop down menu.
+
       --update-check bool, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
@@ -62,6 +65,11 @@ OPTIONS:
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
+
+      --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
+          The upgrade message to display to users when a client/server mismatch
+          is detected. By default it instructs users to update using 'curl -L
+          https://coder.com/install.sh | sh'.
 
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
@@ -168,7 +176,7 @@ NETWORKING OPTIONS:
       --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
           Controls if the 'Secure' property is set on browser session cookies.
 
-      --wildcard-access-url url, $CODER_WILDCARD_ACCESS_URL
+      --wildcard-access-url string, $CODER_WILDCARD_ACCESS_URL
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 
@@ -418,6 +426,10 @@ OIDC OPTIONS:
 
       --oidc-icon-url url, $CODER_OIDC_ICON_URL
           URL pointing to the icon to use on the OpenID Connect login button.
+
+      --oidc-signups-disabled-text string, $CODER_OIDC_SIGNUPS_DISABLED_TEXT
+          The custom text to show on the error page informing about disabled
+          OIDC signups. Markdown format is supported.
 
 PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,

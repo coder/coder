@@ -289,7 +289,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
         css={[styles.status, member.status === "suspended" && styles.suspended]}
       >
         <div>{member.status}</div>
-        <LastSeen value={member.last_seen_at} css={{ fontSize: 12 }} />
+        <LastSeen at={member.last_seen_at} css={{ fontSize: 12 }} />
       </TableCell>
       <TableCell width="1%">
         {canUpdate && (

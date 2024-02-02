@@ -10,9 +10,9 @@ import {
   ActiveUserChart,
   ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
-import { Header } from "components/DeploySettingsLayout/Header";
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
+import { Header } from "../Header";
+import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";

@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import { type FC, useRef, useEffect } from "react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 
 interface WorkspaceBuildLogsSectionProps {
   logs?: ProvisionerJobLog[];
@@ -32,6 +32,7 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
         borderRadius: 8,
         border: `1px solid ${theme.palette.divider}`,
         overflow: "hidden",
+        background: theme.palette.background.default,
       }}
     >
       <header

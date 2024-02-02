@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
@@ -28,6 +29,16 @@ const meta: Meta<typeof TemplateVersionEditor> = {
     template: MockTemplate,
     templateVersion: MockTemplateVersion,
     defaultFileTree: MockTemplateVersionFileTree,
+    onPreview: action("onPreview"),
+    onPublish: action("onPublish"),
+    onConfirmPublish: action("onConfirmPublish"),
+    onCancelPublish: action("onCancelPublish"),
+    onCreateWorkspace: action("onCreateWorkspace"),
+    onSubmitMissingVariableValues: action("onSubmitMissingVariableValues"),
+    onCancelSubmitMissingVariableValues: action(
+      "onCancelSubmitMissingVariableValues",
+    ),
+    provisionerTags: { wibble: "wobble", wiggle: "woggle" },
   },
 };
 

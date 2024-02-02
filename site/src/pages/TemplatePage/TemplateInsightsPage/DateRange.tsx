@@ -49,10 +49,6 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
       key: "selection",
     },
   ]);
-  const currentRange = {
-    startDate: ranges[0].startDate as Date,
-    endDate: ranges[0].endDate as Date,
-  };
 
   return (
     <Popover>
@@ -60,11 +56,11 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
         <>
           <PopoverTrigger>
             <Button>
-              <span>{format(currentRange.startDate, "MMM d, Y")}</span>
+              <span>{format(value.startDate, "MMM d, Y")}</span>
               <ArrowRightAltOutlined
                 css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
               />
-              <span>{format(currentRange.endDate, "MMM d, Y")}</span>
+              <span>{format(value.endDate, "MMM d, Y")}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent>

@@ -1,10 +1,11 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import { ReactNode, type FC } from "react";
+import { type FC, type ReactNode } from "react";
 import type { AuthMethods } from "api/typesGenerated";
-import { PasswordSignInForm } from "./PasswordSignInForm";
-import { OAuthSignInForm } from "./OAuthSignInForm";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { getApplicationName } from "utils/appearance";
+import { PasswordSignInForm } from "./PasswordSignInForm";
+import { OAuthSignInForm } from "./OAuthSignInForm";
 
 export const Language = {
   emailLabel: "Email",
@@ -68,7 +69,7 @@ export interface SignInFormProps {
   onSubmit: (credentials: { email: string; password: string }) => void;
 }
 
-export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
+export const SignInForm: FC<SignInFormProps> = ({
   authMethods,
   redirectTo,
   isSigningIn,
@@ -80,10 +81,11 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   );
   const passwordEnabled = authMethods?.password.enabled ?? true;
+  const applicationName = getApplicationName();
 
   return (
     <div css={styles.root}>
-      <h1 css={styles.title}>Sign in</h1>
+      <h1 css={styles.title}>{applicationName}</h1>
 
       {Boolean(error) && (
         <div css={styles.alert}>

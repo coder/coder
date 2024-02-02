@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
+	"net/http"
 	"sync"
 	"time"
+
+	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/codersdk"
 
@@ -259,4 +263,119 @@ func (w *wrappedSSHConn) Read(p []byte) (n int, err error) {
 
 func (w *wrappedSSHConn) Write(p []byte) (n int, err error) {
 	return w.stdin.Write(p)
+}
+
+func appClientConn(ctx context.Context, client *codersdk.Client, url string) (*countReadWriteCloser, error) {
+	headers := http.Header{}
+	tokenHeader := codersdk.SessionTokenHeader
+	if client.SessionTokenHeader != "" {
+		tokenHeader = client.SessionTokenHeader
+	}
+	headers.Set(tokenHeader, client.SessionToken())
+
+	//nolint:bodyclose // The websocket conn manages the body.
+	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPClient: client.HTTPClient,
+		HTTPHeader: headers,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("websocket dial: %w", err)
+	}
+
+	netConn := websocketNetConn(conn, websocket.MessageBinary)
+
+	// Wrap the conn in a countReadWriteCloser so we can monitor bytes sent/rcvd.
+	crw := &countReadWriteCloser{rwc: netConn}
+	return crw, nil
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if a read or write error is encountered.
+type wsNetConn struct {
+	net.Conn
+
+	writeMu sync.Mutex
+	readMu  sync.Mutex
+
+	cancel  context.CancelFunc
+	closeMu sync.Mutex
+	closed  bool
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	if c.isClosed() {
+		return 0, io.EOF
+	}
+	n, err = c.Conn.Read(b)
+	if err != nil {
+		if c.isClosed() {
+			return n, io.EOF
+		}
+		return n, err
+	}
+	return n, nil
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if c.isClosed() {
+		return 0, io.EOF
+	}
+
+	for len(b) > 0 {
+		bb := b
+		if len(bb) > rptyJSONMaxDataSize {
+			bb = b[:rptyJSONMaxDataSize]
+		}
+		b = b[len(bb):]
+		nn, err := c.Conn.Write(bb)
+		n += nn
+		if err != nil {
+			if c.isClosed() {
+				return n, io.EOF
+			}
+			return n, err
+		}
+	}
+	return n, nil
+}
+
+func (c *wsNetConn) isClosed() bool {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.closed
+}
+
+func (c *wsNetConn) Close() error {
+	c.closeMu.Lock()
+	closed := c.closed
+	c.closed = true
+	c.closeMu.Unlock()
+
+	if closed {
+		return nil
+	}
+
+	// Cancel before acquiring locks to speed up teardown.
+	c.cancel()
+
+	c.readMu.Lock()
+	defer c.readMu.Unlock()
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	_ = c.Conn.Close()
+	return nil
+}
+
+func websocketNetConn(conn *websocket.Conn, msgType websocket.MessageType) net.Conn {
+	// Since `websocket.NetConn` binds to a context for the lifetime of the
+	// connection, we need to create a new context that can be canceled when
+	// the connection is closed.
+	ctx, cancel := context.WithCancel(context.Background())
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return &wsNetConn{cancel: cancel, Conn: nc}
 }

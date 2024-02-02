@@ -1,18 +1,18 @@
+import Button from "@mui/material/Button";
 import { useQuery, useQueryClient } from "react-query";
-import { usePermissions } from "hooks";
+import { isAxiosError } from "axios";
 import { type FC } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
-import { isAxiosError } from "axios";
-import Button from "@mui/material/Button";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
 import {
   externalAuthDevice,
   externalAuthProvider,
   exchangeExternalAuthDevice,
 } from "api/queries/externalAuth";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
+import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
   const { provider } = useParams() as { provider: string };
@@ -69,7 +69,8 @@ const ExternalAuthPage: FC = () => {
       // show an error there?
       return (
         <SignInLayout>
-          <Welcome message="Failed to validate oauth access token" />
+          <Welcome>Failed to validate oauth access token</Welcome>
+
           <p css={{ textAlign: "center" }}>
             Attempted to validate the user&apos;s oauth access token from the
             authentication flow. This situation may occur as a result of an

@@ -14,8 +14,8 @@ coder templates init [flags] [directory]
 
 ### --id
 
-|      |                             |
-| ---- | --------------------------- | --------- | ----------- | ----------- | -------- | ------ | ---------------- | --------- | ---------------- | ----------- | ---------- | -------------------- |
-| Type | <code>enum[aws-devcontainer | aws-linux | aws-windows | azure-linux | do-linux | docker | gcp-devcontainer | gcp-linux | gcp-vm-container | gcp-windows | kubernetes | nomad-docker]</code> |
+|      |                                                                                                                                                                                  |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type | <code>enum[aws-devcontainer\|aws-linux\|aws-windows\|azure-linux\|do-linux\|docker\|gcp-devcontainer\|gcp-linux\|gcp-vm-container\|gcp-windows\|kubernetes\|nomad-docker]</code> |
 
 Specify a given example template by ID.

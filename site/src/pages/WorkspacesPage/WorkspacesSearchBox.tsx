@@ -11,9 +11,7 @@ import {
   forwardRef,
   useId,
 } from "react";
-import SearchIcon from "@mui/icons-material/SearchOutlined";
-import { visuallyHidden } from "@mui/utils";
-import { useTheme } from "@emotion/react";
+import { Search, SearchInput } from "components/Menu/Search";
 
 interface SearchBoxProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -35,39 +33,12 @@ export const SearchBox = forwardRef(function SearchBox(
   } = props;
 
   const hookId = useId();
-  const theme = useTheme();
-
   const inputId = `${hookId}-${SearchBox.name}-input`;
 
   return (
-    <div
-      css={{
-        display: "flex",
-        flexFlow: "row nowrap",
-        alignItems: "center",
-        padding: "0 8px",
-        height: "40px",
-        borderBottom: `1px solid ${theme.palette.divider}`,
-      }}
-    >
-      <div css={{ width: 18 }}>
-        <SearchIcon
-          css={{
-            display: "block",
-            fontSize: "14px",
-            marginLeft: "auto",
-            marginRight: "auto",
-            color: theme.palette.text.secondary,
-          }}
-        />
-      </div>
-
-      <label css={{ ...visuallyHidden }} htmlFor={inputId}>
-        {label}
-      </label>
-
-      <input
-        type="text"
+    <Search>
+      <SearchInput
+        label={label}
         ref={ref}
         id={inputId}
         autoFocus
@@ -76,17 +47,7 @@ export const SearchBox = forwardRef(function SearchBox(
         {...attrs}
         onKeyDown={onKeyDown}
         onChange={(e) => onValueChange(e.target.value)}
-        css={{
-          height: "100%",
-          border: 0,
-          background: "none",
-          width: "100%",
-          outline: 0,
-          "&::placeholder": {
-            color: theme.palette.text.secondary,
-          },
-        }}
       />
-    </div>
+    </Search>
   );
 });

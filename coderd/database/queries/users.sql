@@ -78,7 +78,8 @@ SET
 	email = $2,
 	username = $3,
 	avatar_url = $4,
-	updated_at = $5
+	updated_at = $5,
+	name = $6
 WHERE
 	id = $1
 RETURNING *;

@@ -3,6 +3,7 @@ package httpmw
 import (
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/justinas/nosurf"
 	"golang.org/x/xerrors"
@@ -12,6 +13,8 @@ import (
 
 // CSRF is a middleware that verifies that a CSRF token is present in the request
 // for non-GET requests.
+// If enforce is false, then CSRF enforcement is disabled. We still want
+// to include the CSRF middleware because it will set the CSRF cookie.
 func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		mw := nosurf.New(next)
@@ -19,9 +22,15 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
+
+		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
+
 		// Exempt all requests that do not require CSRF protection.
 		// All GET requests are exempt by default.
 		mw.ExemptPath("/api/v2/csp/reports")
+
+		// This should not be required?
+		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
 
 		// Agent authenticated routes
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
@@ -36,6 +45,11 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
+			// Only enforce CSRF on API routes.
+			if !strings.HasPrefix(r.URL.Path, "/api") {
+				return true
+			}
+
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
 			//nolint:govet

@@ -152,7 +152,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, createUser.Email)
+		err = api.TrialGenerator(ctx, codersdk.LicensorTrialRequest{
+			Email:       createUser.Email,
+			FirstName:   createUser.TrialInfo.FirstName,
+			LastName:    createUser.TrialInfo.LastName,
+			PhoneNumber: createUser.TrialInfo.PhoneNumber,
+			JobTitle:    createUser.TrialInfo.JobTitle,
+			CompanyName: createUser.TrialInfo.CompanyName,
+			Country:     createUser.TrialInfo.Country,
+			Developers:  createUser.TrialInfo.Developers,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to generate trial",
@@ -560,6 +569,57 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
 }
 
+// Returns recent build parameters for the signed-in user.
+//
+// @Summary Get autofill build parameters for user
+// @ID get-autofill-build-parameters-for-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, username, or me"
+// @Param template_id query string true "Template ID"
+// @Success 200 {array} codersdk.UserParameter
+// @Router /users/{user}/autofill-parameters [get]
+func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	p := httpapi.NewQueryParamParser().Required("template_id")
+	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	params, err := api.Database.GetUserWorkspaceBuildParameters(
+		r.Context(),
+		database.GetUserWorkspaceBuildParametersParams{
+			OwnerID:    user.ID,
+			TemplateID: templateID,
+		},
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdkParams := []codersdk.UserParameter{}
+	for _, param := range params {
+		sdkParams = append(sdkParams, codersdk.UserParameter{
+			Name:  param.Name,
+			Value: param.Value,
+		})
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, sdkParams)
+}
+
 // Returns the user's login type. This only works if the api key for authorization
 // and the requested user match. Eg: 'me'
 //
@@ -647,6 +707,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
+		Name:      params.Name,
 		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
 		UpdatedAt: dbtime.Now(),
@@ -1261,13 +1322,13 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	return member.OrganizationIDs, nil
 }
 
-func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+func userByID(id uuid.UUID, users []database.User) (database.User, bool) {
 	for _, user := range users {
 		if id == user.ID {
-			return user.Username, true
+			return user, true
 		}
 	}
-	return "", false
+	return database.User{}, false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

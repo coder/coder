@@ -3,13 +3,13 @@ import TextField from "@mui/material/TextField";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
-import { Header } from "components/DeploySettingsLayout/Header";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { DividerWithText } from "pages/DeploySettingsPage/LicensesSettingsPage/DividerWithText";
+import { DividerWithText } from "./DividerWithText";
+import { Fieldset } from "../Fieldset";
+import { Header } from "../Header";
 
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void;

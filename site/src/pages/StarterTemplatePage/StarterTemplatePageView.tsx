@@ -15,6 +15,7 @@ import { Stack } from "components/Stack/Stack";
 import { Link } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { TemplateExample } from "api/typesGenerated";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 export interface StarterTemplatePageViewProps {
   starterTemplate?: TemplateExample;
@@ -78,7 +79,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               },
             }}
           >
-            <img src={starterTemplate.icon} alt="" />
+            <ExternalImage src={starterTemplate.icon} />
           </div>
           <div>
             <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>

@@ -1,8 +1,8 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
+import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
 import { ConfirmDialogType } from "./types";
-import { type Interpolation, type Theme } from "@emotion/react";
-import LoadingButton, { LoadingButtonProps } from "@mui/lab/LoadingButton";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
@@ -72,24 +72,24 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 const styles = {
   dangerButton: (theme) => ({
     "&.MuiButton-contained": {
-      backgroundColor: theme.experimental.roles.danger.fill,
-      borderColor: theme.experimental.roles.danger.outline,
+      backgroundColor: theme.roles.danger.fill.solid,
+      borderColor: theme.roles.danger.fill.outline,
 
       "&:not(.MuiLoadingButton-loading)": {
-        color: theme.experimental.roles.danger.text,
+        color: theme.roles.danger.fill.text,
       },
 
       "&:hover:not(:disabled)": {
-        backgroundColor: theme.experimental.roles.danger.disabled.fill,
-        borderColor: theme.experimental.roles.danger.disabled.outline,
+        backgroundColor: theme.roles.danger.hover.fill.solid,
+        borderColor: theme.roles.danger.hover.fill.outline,
       },
 
       "&.Mui-disabled": {
-        backgroundColor: theme.experimental.roles.danger.disabled.background,
-        borderColor: theme.experimental.roles.danger.disabled.outline,
+        backgroundColor: theme.roles.danger.disabled.background,
+        borderColor: theme.roles.danger.disabled.outline,
 
         "&:not(.MuiLoadingButton-loading)": {
-          color: theme.experimental.roles.danger.disabled.text,
+          color: theme.roles.danger.disabled.fill.text,
         },
       },
     },

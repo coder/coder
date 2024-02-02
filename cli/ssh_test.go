@@ -26,12 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -131,6 +133,71 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
+	t.Run("RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		authToken := uuid.NewString()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleMember())
+
+		echoResponses := &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		}
+
+		version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		// Update template version
+		version = coderdtest.UpdateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses, template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		err := ownerClient.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.NoError(t, err)
+
+		// SSH to the workspace which should auto-update and autostart it
+		inv, root := clitest.New(t, "ssh", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		// When the agent connects, the workspace was started, and we should
+		// have access to the shell.
+		_ = agenttest.New(t, client.URL, authToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+		pty.WriteLine("exit")
+		<-cmdDone
+
+		// Double-check if workspace's template version is up-to-date
+		workspace, err = client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		assert.Equal(t, version.ID, workspace.TemplateActiveVersionID)
+		assert.Equal(t, workspace.TemplateActiveVersionID, workspace.LatestBuild.TemplateVersionID)
+		assert.False(t, workspace.Outdated)
+	})
+
 	t.Run("ShowTroubleshootingURLAfterTimeout", func(t *testing.T) {
 		t.Parallel()
 
@@ -738,8 +805,8 @@ func TestSSH(t *testing.T) {
 		defer cancel()
 
 		tmpdir := tempDirUnixSocket(t)
-		agentSock := filepath.Join(tmpdir, "agent.sock")
-		l, err := net.Listen("unix", agentSock)
+		localSock := filepath.Join(tmpdir, "local.sock")
+		l, err := net.Listen("unix", localSock)
 		require.NoError(t, err)
 		defer l.Close()
 		remoteSock := filepath.Join(tmpdir, "remote.sock")
@@ -748,7 +815,7 @@ func TestSSH(t *testing.T) {
 			"ssh",
 			workspace.Name,
 			"--remote-forward",
-			fmt.Sprintf("%s:%s", remoteSock, agentSock),
+			fmt.Sprintf("%s:%s", remoteSock, localSock),
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
@@ -769,6 +836,214 @@ func TestSSH(t *testing.T) {
 		// And we're done.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+
+	// Test that we can forward a local unix socket to a remote unix socket and
+	// that new SSH sessions take over the socket without closing active socket
+	// connections.
+	t.Run("RemoteForwardUnixSocketMultipleSessionsOverwrite", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Wait super super long so this doesn't flake on -race test.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong*2)
+		defer cancel()
+
+		tmpdir := tempDirUnixSocket(t)
+
+		localSock := filepath.Join(tmpdir, "local.sock")
+		l, err := net.Listen("unix", localSock)
+		require.NoError(t, err)
+		defer l.Close()
+		testutil.Go(t, func() {
+			for {
+				fd, err := l.Accept()
+				if err != nil {
+					if !errors.Is(err, net.ErrClosed) {
+						assert.NoError(t, err, "listener accept failed")
+					}
+					return
+				}
+
+				testutil.Go(t, func() {
+					defer fd.Close()
+					agentssh.Bicopy(ctx, fd, fd)
+				})
+			}
+		})
+
+		remoteSock := filepath.Join(tmpdir, "remote.sock")
+
+		var done []func() error
+		for i := 0; i < 2; i++ {
+			id := fmt.Sprintf("ssh-%d", i)
+			inv, root := clitest.New(t,
+				"ssh",
+				workspace.Name,
+				"--remote-forward",
+				fmt.Sprintf("%s:%s", remoteSock, localSock),
+			)
+			inv.Logger = inv.Logger.Named(id)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+			inv.Stderr = pty.Output()
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err, "ssh command failed: %s", id)
+			})
+
+			// Since something was output, it should be safe to write input.
+			// This could show a prompt or "running startup scripts", so it's
+			// not indicative of the SSH connection being ready.
+			_ = pty.Peek(ctx, 1)
+
+			// Ensure the SSH connection is ready by testing the shell
+			// input/output.
+			pty.WriteLine("echo ping' 'pong")
+			pty.ExpectMatchContext(ctx, "ping pong")
+
+			d := &net.Dialer{}
+			fd, err := d.DialContext(ctx, "unix", remoteSock)
+			require.NoError(t, err, id)
+
+			// Ping / pong to ensure the socket is working.
+			_, err = fd.Write([]byte("hello world"))
+			require.NoError(t, err, id)
+
+			buf := make([]byte, 11)
+			_, err = fd.Read(buf)
+			require.NoError(t, err, id)
+			require.Equal(t, "hello world", string(buf), id)
+
+			done = append(done, func() error {
+				// Redo ping / pong to ensure that the socket
+				// connections still work.
+				_, err := fd.Write([]byte("hello world"))
+				assert.NoError(t, err, id)
+
+				buf := make([]byte, 11)
+				_, err = fd.Read(buf)
+				assert.NoError(t, err, id)
+				assert.Equal(t, "hello world", string(buf), id)
+
+				pty.WriteLine("exit")
+				<-cmdDone
+				return nil
+			})
+		}
+
+		var eg errgroup.Group
+		for _, d := range done {
+			eg.Go(d)
+		}
+		err = eg.Wait()
+		require.NoError(t, err)
+	})
+
+	// Test that we can remote forward multiple sockets, whether or not the
+	// local sockets exists at the time of establishing xthe SSH connection.
+	t.Run("RemoteForwardMultipleUnixSockets", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Wait super long so this doesn't flake on -race test.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
+
+		tmpdir := tempDirUnixSocket(t)
+
+		type testSocket struct {
+			local  string
+			remote string
+		}
+
+		args := []string{"ssh", workspace.Name}
+		var sockets []testSocket
+		for i := 0; i < 2; i++ {
+			localSock := filepath.Join(tmpdir, fmt.Sprintf("local-%d.sock", i))
+			remoteSock := filepath.Join(tmpdir, fmt.Sprintf("remote-%d.sock", i))
+			sockets = append(sockets, testSocket{
+				local:  localSock,
+				remote: remoteSock,
+			})
+			args = append(args, "--remote-forward", fmt.Sprintf("%s:%s", remoteSock, localSock))
+		}
+
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
+
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
+
+		// Since something was output, it should be safe to write input.
+		// This could show a prompt or "running startup scripts", so it's
+		// not indicative of the SSH connection being ready.
+		_ = pty.Peek(ctx, 1)
+
+		// Ensure the SSH connection is ready by testing the shell
+		// input/output.
+		pty.WriteLine("echo ping' 'pong")
+		pty.ExpectMatchContext(ctx, "ping pong")
+
+		for i, sock := range sockets {
+			i := i
+			// Start the listener on the "local machine".
+			l, err := net.Listen("unix", sock.local)
+			require.NoError(t, err)
+			defer l.Close() //nolint:revive // Defer is fine in this loop, we only run it twice.
+			testutil.Go(t, func() {
+				for {
+					fd, err := l.Accept()
+					if err != nil {
+						if !errors.Is(err, net.ErrClosed) {
+							assert.NoError(t, err, "listener accept failed", i)
+						}
+						return
+					}
+
+					testutil.Go(t, func() {
+						defer fd.Close()
+						agentssh.Bicopy(ctx, fd, fd)
+					})
+				}
+			})
+
+			// Dial the forwarded socket on the "remote machine".
+			d := &net.Dialer{}
+			fd, err := d.DialContext(ctx, "unix", sock.remote)
+			require.NoError(t, err, i)
+			defer fd.Close() //nolint:revive // Defer is fine in this loop, we only run it twice.
+
+			// Ping / pong to ensure the socket is working.
+			_, err = fd.Write([]byte("hello world"))
+			require.NoError(t, err, i)
+
+			buf := make([]byte, 11)
+			_, err = fd.Read(buf)
+			require.NoError(t, err, i)
+			require.Equal(t, "hello world", string(buf), i)
+		}
+
+		// And we're done.
+		pty.WriteLine("exit")
 	})
 
 	t.Run("FileLogging", func(t *testing.T) {

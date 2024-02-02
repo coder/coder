@@ -72,6 +72,9 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 			seed.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
 		}
 	}
+	if seed.UserACL == nil {
+		seed.UserACL = database.TemplateACL{}
+	}
 	err := db.InsertTemplate(genCtx, database.InsertTemplateParams{
 		ID:                           id,
 		CreatedAt:                    takeFirst(seed.CreatedAt, dbtime.Now()),

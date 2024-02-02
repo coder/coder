@@ -4,8 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,57 +14,11 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/tailnet/proto"
 
 	"golang.org/x/xerrors"
 )
-
-const (
-	CurrentMajor = 2
-	CurrentMinor = 0
-)
-
-var SupportedMajors = []int{2, 1}
-
-func ValidateVersion(version string) error {
-	major, minor, err := parseVersion(version)
-	if err != nil {
-		return err
-	}
-	if major > CurrentMajor {
-		return xerrors.Errorf("server is at version %d.%d, behind requested version %s",
-			CurrentMajor, CurrentMinor, version)
-	}
-	if major == CurrentMajor {
-		if minor > CurrentMinor {
-			return xerrors.Errorf("server is at version %d.%d, behind requested version %s",
-				CurrentMajor, CurrentMinor, version)
-		}
-		return nil
-	}
-	for _, mjr := range SupportedMajors {
-		if major == mjr {
-			return nil
-		}
-	}
-	return xerrors.Errorf("version %s is no longer supported", version)
-}
-
-func parseVersion(version string) (major int, minor int, err error) {
-	parts := strings.Split(version, ".")
-	if len(parts) != 2 {
-		return 0, 0, xerrors.Errorf("invalid version string: %s", version)
-	}
-	major, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid major version: %s", version)
-	}
-	minor, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, 0, xerrors.Errorf("invalid minor version: %s", version)
-	}
-	return major, minor, nil
-}
 
 type streamIDContextKey struct{}
 
@@ -87,8 +39,8 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 // ClientService is a tailnet coordination service that accepts a connection and version from a
 // tailnet client, and support versions 1.0 and 2.x of the Tailnet API protocol.
 type ClientService struct {
-	logger   slog.Logger
-	coordPtr *atomic.Pointer[Coordinator]
+	Logger   slog.Logger
+	CoordPtr *atomic.Pointer[Coordinator]
 	drpc     *drpcserver.Server
 }
 
@@ -102,7 +54,7 @@ func NewClientService(
 ) (
 	*ClientService, error,
 ) {
-	s := &ClientService{logger: logger, coordPtr: coordPtr}
+	s := &ClientService{Logger: logger, CoordPtr: coordPtr}
 	mux := drpcmux.New()
 	drpcService := &DRPCService{
 		CoordPtr:               coordPtr,
@@ -116,7 +68,9 @@ func NewClientService(
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if xerrors.Is(err, io.EOF) ||
+				xerrors.Is(err, context.Canceled) ||
+				xerrors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
@@ -127,34 +81,38 @@ func NewClientService(
 }
 
 func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	major, _, err := parseVersion(version)
+	major, _, err := apiversion.Parse(version)
 	if err != nil {
-		s.logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
+		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
 		return err
 	}
 	switch major {
 	case 1:
-		coord := *(s.coordPtr.Load())
+		coord := *(s.CoordPtr.Load())
 		return coord.ServeClient(conn, id, agent)
 	case 2:
-		config := yamux.DefaultConfig()
-		config.LogOutput = io.Discard
-		session, err := yamux.Server(conn, config)
-		if err != nil {
-			return xerrors.Errorf("yamux init failed: %w", err)
-		}
 		auth := ClientTunnelAuth{AgentID: agent}
 		streamID := StreamID{
 			Name: "client",
 			ID:   id,
 			Auth: auth,
 		}
-		ctx = WithStreamID(ctx, streamID)
-		return s.drpc.Serve(ctx, session)
+		return s.ServeConnV2(ctx, conn, streamID)
 	default:
-		s.logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
+		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
 		return xerrors.New("unsupported version")
 	}
+}
+
+func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID StreamID) error {
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(conn, config)
+	if err != nil {
+		return xerrors.Errorf("yamux init failed: %w", err)
+	}
+	ctx = WithStreamID(ctx, streamID)
+	return s.drpc.Serve(ctx, session)
 }
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
@@ -174,6 +132,10 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 	var lastDERPMap *tailcfg.DERPMap
 	for {
 		derpMap := s.DerpMapFn()
+		if derpMap == nil {
+			// in testing, we send nil to close the stream.
+			return io.EOF
+		}
 		if lastDERPMap == nil || !CompareDERPMaps(lastDERPMap, derpMap) {
 			protoDERPMap := DERPMapToProto(derpMap)
 			err := stream.Send(protoDERPMap)

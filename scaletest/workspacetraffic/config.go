@@ -31,6 +31,8 @@ type Config struct {
 	// to true will double the amount of data read from the agent for
 	// PTYs (e.g. reconnecting pty or SSH connections that request PTY).
 	Echo bool `json:"echo"`
+
+	App AppConfig `json:"app"`
 }
 
 func (c Config) Validate() error {
@@ -50,5 +52,14 @@ func (c Config) Validate() error {
 		return xerrors.Errorf("validate tick_interval: must be greater than zero")
 	}
 
+	if c.SSH && c.App.Name != "" {
+		return xerrors.Errorf("validate ssh: must be false when app is used")
+	}
+
 	return nil
+}
+
+type AppConfig struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }

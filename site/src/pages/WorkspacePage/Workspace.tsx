@@ -1,32 +1,27 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
-import { type FC, useEffect, useState } from "react";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
-import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Margins } from "components/Margins/Margins";
-import { Resources } from "components/Resources/Resources";
-import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
-import { AgentRow } from "components/Resources/AgentRow";
-import { useLocalStorage } from "hooks";
+import { AgentRow } from "modules/resources/AgentRow";
+import { useTab } from "hooks";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
-import { BuildsTable } from "./BuildsTable";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-
-export type WorkspaceError =
-  | "getBuildsError"
-  | "buildError"
-  | "cancellationError";
-
-export type WorkspaceErrors = Partial<Record<WorkspaceError, unknown>>;
+import { HistorySidebar } from "./HistorySidebar";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import { useTheme } from "@mui/material/styles";
+import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
+import HubOutlined from "@mui/icons-material/HubOutlined";
+import { ResourcesSidebar } from "./ResourcesSidebar";
+import { WorkspacePermissions } from "./permissions";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { ResourceMetadata } from "./ResourceMetadata";
 
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -38,34 +33,29 @@ export interface WorkspaceProps {
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleDormantActivate: () => void;
+  handleToggleFavorite: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
-  resources?: TypesGen.WorkspaceResource[];
-  canUpdateWorkspace: boolean;
-  updateMessage?: string;
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
-  workspaceErrors: WorkspaceErrors;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
-  template?: TypesGen.Template;
+  template: TypesGen.Template;
   canRetryDebugMode: boolean;
   handleBuildRetry: () => void;
   handleBuildRetryDebug: () => void;
   buildLogs?: React.ReactNode;
-  builds: TypesGen.WorkspaceBuild[] | undefined;
-  onLoadMoreBuilds: () => void;
-  isLoadingMoreBuilds: boolean;
-  hasMoreBuilds: boolean;
-  canAutostart: boolean;
+  latestVersion?: TypesGen.TemplateVersion;
+  permissions: WorkspacePermissions;
+  isOwner: boolean;
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
+export const Workspace: FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
   handleRestart,
@@ -75,15 +65,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleSettings,
   handleChangeVersion,
   handleDormantActivate,
+  handleToggleFavorite,
   workspace,
   isUpdating,
   isRestarting,
-  resources,
-  builds,
-  canUpdateWorkspace,
-  updateMessage,
   canChangeVersions,
-  workspaceErrors,
   hideSSHButton,
   hideVSCodeDesktopButton,
   buildInfo,
@@ -93,63 +79,47 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleBuildRetry,
   handleBuildRetryDebug,
   buildLogs,
-  onLoadMoreBuilds,
-  isLoadingMoreBuilds,
-  hasMoreBuilds,
-  canAutostart,
+  latestVersion,
+  permissions,
+  isOwner,
 }) => {
   const navigate = useNavigate();
-  const { saveLocal, getLocal } = useLocalStorage();
-
-  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
-
-  // 2023-11-15 - MES - This effect will be called every single render because
-  // "now" will always change and invalidate the dependency array. Need to
-  // figure out if this effect really should run every render (possibly meaning
-  // no dependency array at all), or how to get the array stabilized (ideal)
-  const now = dayjs();
-  useEffect(() => {
-    if (
-      workspace.latest_build.status !== "pending" ||
-      workspace.latest_build.job.queue_size === 0
-    ) {
-      if (!showAlertPendingInQueue) {
-        return;
-      }
-
-      const hideTimer = setTimeout(() => {
-        setShowAlertPendingInQueue(false);
-      }, 250);
-      return () => {
-        clearTimeout(hideTimer);
-      };
-    }
-
-    const t = Math.max(
-      0,
-      5000 - dayjs().diff(dayjs(workspace.latest_build.created_at)),
-    );
-    const showTimer = setTimeout(() => {
-      setShowAlertPendingInQueue(true);
-    }, t);
-
-    return () => {
-      clearTimeout(showTimer);
-    };
-  }, [workspace, now, showAlertPendingInQueue]);
-
-  const updateRequired =
-    (workspace.template_require_active_version ||
-      workspace.automatic_updates === "always") &&
-    workspace.outdated;
-  const autoStartFailing = workspace.autostart_schedule && !canAutostart;
-  const requiresManualUpdate = updateRequired && autoStartFailing;
+  const theme = useTheme();
 
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
+  const sidebarOption = useTab("sidebar", "");
+  const setSidebarOption = (newOption: string) => {
+    const { set, value } = sidebarOption;
+    if (value === newOption) {
+      set("");
+    } else {
+      set(newOption);
+    }
+  };
+
+  const resources = [...workspace.latest_build.resources].sort(
+    (a, b) => countAgents(b) - countAgents(a),
+  );
+  const resourcesNav = useResourcesNav(resources);
+  const selectedResource = resources.find(
+    (r) => resourceOptionValue(r) === resourcesNav.value,
+  );
+
   return (
-    <>
+    <div
+      css={{
+        flex: 1,
+        display: "grid",
+        gridTemplate: `
+          "topbar topbar topbar" auto
+          "leftbar sidebar content" 1fr / auto auto 1fr
+        `,
+        // We need this to make the sidebar scrollable
+        overflow: "hidden",
+      }}
+    >
       <WorkspaceTopbar
         workspace={workspace}
         handleStart={handleStart}
@@ -163,102 +133,78 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         handleBuildRetryDebug={handleBuildRetryDebug}
         handleChangeVersion={handleChangeVersion}
         handleDormantActivate={handleDormantActivate}
+        handleToggleFavorite={handleToggleFavorite}
         canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canChangeVersions}
         isUpdating={isUpdating}
         isRestarting={isRestarting}
-        canUpdateWorkspace={canUpdateWorkspace}
+        canUpdateWorkspace={permissions.updateWorkspace}
+        isOwner={isOwner}
+        template={template}
+        permissions={permissions}
+        latestVersion={latestVersion}
       />
 
-      <Margins css={styles.content}>
-        <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
-          {workspace.outdated &&
-            (requiresManualUpdate ? (
-              <Alert severity="warning">
-                <AlertTitle>
-                  Autostart has been disabled for your workspace.
-                </AlertTitle>
-                <AlertDetail>
-                  Autostart is unable to automatically update your workspace.
-                  Manually update your workspace to reenable Autostart.
-                </AlertDetail>
-              </Alert>
-            ) : (
-              <Alert severity="info">
-                <AlertTitle>
-                  An update is available for your workspace
-                </AlertTitle>
-                {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
-              </Alert>
-            ))}
+      <div
+        css={{
+          gridArea: "leftbar",
+          height: "100%",
+          overflowY: "auto",
+          borderRight: `1px solid ${theme.palette.divider}`,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <SidebarIconButton
+          isActive={sidebarOption.value === "resources"}
+          onClick={() => {
+            setSidebarOption("resources");
+          }}
+        >
+          <HubOutlined />
+        </SidebarIconButton>
+        <SidebarIconButton
+          isActive={sidebarOption.value === "history"}
+          onClick={() => {
+            setSidebarOption("history");
+          }}
+        >
+          <HistoryOutlined />
+        </SidebarIconButton>
+      </div>
 
-          {Boolean(workspaceErrors.buildError) && (
-            <ErrorAlert error={workspaceErrors.buildError} dismissible />
-          )}
+      {sidebarOption.value === "resources" && (
+        <ResourcesSidebar
+          failed={workspace.latest_build.status === "failed"}
+          resources={resources}
+          isSelected={resourcesNav.isSelected}
+          onChange={resourcesNav.select}
+        />
+      )}
+      {sidebarOption.value === "history" && (
+        <HistorySidebar workspace={workspace} />
+      )}
 
-          {Boolean(workspaceErrors.cancellationError) && (
-            <ErrorAlert error={workspaceErrors.cancellationError} dismissible />
-          )}
-
-          {workspace.latest_build.status === "running" &&
-            !workspace.health.healthy && (
-              <Alert
-                severity="warning"
-                actions={
-                  canUpdateWorkspace && (
-                    <Button
-                      variant="text"
-                      size="small"
-                      onClick={() => {
-                        handleRestart();
-                      }}
-                    >
-                      Restart
-                    </Button>
-                  )
-                }
-              >
-                <AlertTitle>Workspace is unhealthy</AlertTitle>
-                <AlertDetail>
-                  Your workspace is running but{" "}
-                  {workspace.health.failing_agents.length > 1
-                    ? `${workspace.health.failing_agents.length} agents are unhealthy`
-                    : `1 agent is unhealthy`}
-                  .
-                </AlertDetail>
-              </Alert>
-            )}
-
+      <div css={[styles.content, styles.dotsBackground]}>
+        {selectedResource && (
+          <ResourceMetadata
+            resource={selectedResource}
+            css={{ margin: "-32px -32px 0 -32px", marginBottom: 24 }}
+          />
+        )}
+        <div
+          css={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 24,
+            maxWidth: 24 * 50,
+            margin: "auto",
+          }}
+        >
           {workspace.latest_build.status === "deleted" && (
             <WorkspaceDeletedBanner
               handleClick={() => navigate(`/templates`)}
             />
-          )}
-          {/* <DormantWorkspaceBanner/> determines its own visibility */}
-          <DormantWorkspaceBanner
-            workspace={workspace}
-            shouldRedisplayBanner={
-              getLocal("dismissedWorkspace") !== workspace.id
-            }
-            onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
-          />
-
-          {showAlertPendingInQueue && (
-            <Alert severity="info">
-              <AlertTitle>Workspace build is pending</AlertTitle>
-              <AlertDetail>
-                <div css={styles.alertPendingInQueue}>
-                  This workspace build job is waiting for a provisioner to
-                  become available. If you have been waiting for an extended
-                  period of time, please contact your administrator for
-                  assistance.
-                </div>
-                <div>
-                  Position in queue:{" "}
-                  <strong>{workspace.latest_build.job.queue_position}</strong>
-                </div>
-              </AlertDetail>
-            </Alert>
           )}
 
           {workspace.latest_build.job.error && (
@@ -281,13 +227,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             </Alert>
           )}
 
-          {template?.deprecated && (
-            <Alert severity="warning">
-              <AlertTitle>Workspace using deprecated template</AlertTitle>
-              <AlertDetail>{template?.deprecation_message}</AlertDetail>
-            </Alert>
-          )}
-
           {transitionStats !== undefined && (
             <WorkspaceBuildProgress
               workspace={workspace}
@@ -297,59 +236,82 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           {buildLogs}
 
-          {typeof resources !== "undefined" && resources.length > 0 && (
-            <Resources
-              resources={resources}
-              agentRow={(agent) => (
+          {selectedResource && (
+            <section
+              css={{ display: "flex", flexDirection: "column", gap: 24 }}
+            >
+              {selectedResource.agents?.map((agent) => (
                 <AgentRow
                   key={agent.id}
                   agent={agent}
                   workspace={workspace}
                   sshPrefix={sshPrefix}
-                  showApps={canUpdateWorkspace}
-                  showBuiltinApps={canUpdateWorkspace}
+                  showApps={permissions.updateWorkspace}
+                  showBuiltinApps={permissions.updateWorkspace}
                   hideSSHButton={hideSSHButton}
                   hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                   serverVersion={buildInfo?.version || ""}
                   serverAPIVersion={buildInfo?.agent_api_version || ""}
                   onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
                 />
-              )}
-            />
-          )}
+              ))}
 
-          {workspaceErrors.getBuildsError ? (
-            <ErrorAlert error={workspaceErrors.getBuildsError} />
-          ) : (
-            <BuildsTable
-              builds={builds}
-              onLoadMoreBuilds={onLoadMoreBuilds}
-              isLoadingMoreBuilds={isLoadingMoreBuilds}
-              hasMoreBuilds={hasMoreBuilds}
-            />
+              {(!selectedResource.agents ||
+                selectedResource.agents?.length === 0) && (
+                <div
+                  css={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    width: "100%",
+                    height: "100%",
+                  }}
+                >
+                  <div>
+                    <h4 css={{ fontSize: 16, fontWeight: 500 }}>
+                      No agents are currently assigned to this resource.
+                    </h4>
+                  </div>
+                </div>
+              )}
+            </section>
           )}
-        </Stack>
-      </Margins>
-    </>
+        </div>
+      </div>
+    </div>
   );
+};
+
+const countAgents = (resource: TypesGen.WorkspaceResource) => {
+  return resource.agents ? resource.agents.length : 0;
 };
 
 const styles = {
   content: {
-    marginTop: 32,
+    padding: 32,
+    gridArea: "content",
+    overflowY: "auto",
+    position: "relative",
   },
+
+  dotsBackground: (theme) => ({
+    "--d": "1px",
+    background: `
+      radial-gradient(
+        circle at
+          var(--d)
+          var(--d),
+
+        ${theme.palette.dots} calc(var(--d) - 1px),
+        ${theme.palette.background.default} var(--d)
+      )
+      -2px -2px / 16px 16px
+    `,
+  }),
 
   actions: (theme) => ({
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
     },
   }),
-
-  firstColumnSpacer: {
-    flex: 2,
-  },
-
-  alertPendingInQueue: {
-    marginBottom: 12,
-  },
 } satisfies Record<string, Interpolation<Theme>>;

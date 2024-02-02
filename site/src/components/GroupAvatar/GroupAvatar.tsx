@@ -19,7 +19,7 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
       badgeContent={<Group />}
       classes={{ badge }}
     >
-      <Avatar src={avatarURL} background>
+      <Avatar background src={avatarURL}>
         {name}
       </Avatar>
     </Badge>

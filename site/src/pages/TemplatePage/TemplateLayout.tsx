@@ -13,12 +13,12 @@ import {
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { TemplatePageHeader } from "./TemplatePageHeader";
 import { TabLink, Tabs } from "components/Tabs/Tabs";
+import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
   templateId: string,

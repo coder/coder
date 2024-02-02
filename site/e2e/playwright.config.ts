@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import path from "path";
-import { defaultPort, gitAuth } from "./constants";
+import { defaultPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
@@ -103,6 +103,7 @@ export default defineConfig({
         gitAuth.webPort,
         gitAuth.validatePath,
       ),
+      CODER_PPROF_ADDRESS: "127.0.0.1:" + coderdPProfPort,
     },
     reuseExistingServer: false,
   },

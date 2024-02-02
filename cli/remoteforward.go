@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"regexp"
 	"strconv"
 
@@ -67,18 +66,12 @@ func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
 	return localAddr, remoteAddr, nil
 }
 
+// parseRemoteForwardUnixSocket parses a remote forward flag. Note that
+// we don't verify that the local socket path exists because the user
+// may create it later. This behavior matches OpenSSH.
 func parseRemoteForwardUnixSocket(matches []string) (net.Addr, net.Addr, error) {
 	remoteSocket := matches[1]
 	localSocket := matches[2]
-
-	fileInfo, err := os.Stat(localSocket)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if fileInfo.Mode()&os.ModeSocket == 0 {
-		return nil, nil, xerrors.New("File is not a Unix domain socket file")
-	}
 
 	remoteAddr := &net.UnixAddr{
 		Name: remoteSocket,

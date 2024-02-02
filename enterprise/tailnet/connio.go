@@ -2,7 +2,6 @@ package tailnet
 
 import (
 	"context"
-	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -104,19 +103,21 @@ func (c *connIO) recvLoop() {
 	}()
 	defer c.Close()
 	for {
-		req, err := agpl.RecvCtx(c.peerCtx, c.requests)
-		if err != nil {
-			if xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) ||
-				xerrors.Is(err, io.EOF) {
-				c.logger.Debug(c.coordCtx, "exiting io recvLoop", slog.Error(err))
-			} else {
-				c.logger.Error(c.coordCtx, "failed to receive request", slog.Error(err))
+		select {
+		case <-c.coordCtx.Done():
+			c.logger.Debug(c.coordCtx, "exiting io recvLoop; coordinator exit")
+			return
+		case <-c.peerCtx.Done():
+			c.logger.Debug(c.peerCtx, "exiting io recvLoop; peer context canceled")
+			return
+		case req, ok := <-c.requests:
+			if !ok {
+				c.logger.Debug(c.peerCtx, "exiting io recvLoop; requests chan closed")
+				return
 			}
-			return
-		}
-		if err := c.handleRequest(req); err != nil {
-			return
+			if err := c.handleRequest(req); err != nil {
+				return
+			}
 		}
 	}
 }

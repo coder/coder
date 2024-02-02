@@ -86,17 +86,17 @@ export const VersionRow: FC<VersionRowProps> = ({
               </Pill>
             )}
             {jobStatus === "pending" && (
-              <Pill role="status" type="warning">
+              <Pill role="status" type="inactive">
                 Pending&hellip;
               </Pill>
             )}
             {jobStatus === "running" && (
-              <Pill role="status" type="warning">
+              <Pill role="status" type="active">
                 Building&hellip;
               </Pill>
             )}
             {(jobStatus === "canceling" || jobStatus === "canceled") && (
-              <Pill role="status" type="neutral">
+              <Pill role="status" type="inactive">
                 Canceled
               </Pill>
             )}

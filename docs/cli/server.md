@@ -73,6 +73,16 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cli-upgrade-message
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
+| YAML        | <code>client.cliUpgradeMessage</code>   |
+
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+
 ### --cache-dir
 
 |             |                                     |
@@ -887,6 +897,16 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
 
+### --oidc-signups-disabled-text
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_OIDC_SIGNUPS_DISABLED_TEXT</code> |
+| YAML        | <code>oidc.signupsDisabledText</code>          |
+
+The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.
+
 ### --log-stackdriver
 
 |             |                                                    |
@@ -917,6 +937,16 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 | YAML        | <code>networking.tls.strictTransportSecurityOptions</code> |
 
 Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
+
+### --support-links
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>struct[[]codersdk.LinkConfig]</code> |
+| Environment | <code>$CODER_SUPPORT_LINKS</code>          |
+| YAML        | <code>supportLinks</code>                  |
+
+Support links to display in the top right drop down menu.
 
 ### --tls-address
 
@@ -1088,7 +1118,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
-| Type        | <code>url</code>                          |
+| Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
 | YAML        | <code>networking.wildcardAccessURL</code> |
 

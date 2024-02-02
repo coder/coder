@@ -11,7 +11,7 @@ import {
   iconValidator,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { LazyIconField } from "components/IconField/LazyIconField";
+import { IconField } from "components/IconField/IconField";
 import {
   FormFields,
   FormSection,
@@ -29,6 +29,8 @@ import {
 import { EnterpriseBadge } from "components/Badges/Badges";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+const MAX_DESCRIPTION_MESSAGE =
+  "Please enter a description that is no longer than 128 characters.";
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
@@ -36,7 +38,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     display_name: templateDisplayNameValidator("Display name"),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      "Please enter a description that is less than or equal to 128 characters.",
+      MAX_DESCRIPTION_MESSAGE,
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
@@ -77,6 +79,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         update_workspace_dormant_at: false,
         require_active_version: template.require_active_version,
         deprecation_message: template.deprecation_message,
+        disable_everyone_group_access: false,
       },
       validationSchema,
       onSubmit,
@@ -118,7 +121,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           />
 
           <TextField
-            {...getFieldHelpers("description")}
+            {...getFieldHelpers("description", {
+              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+            })}
             multiline
             disabled={isSubmitting}
             fullWidth
@@ -126,7 +131,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             rows={2}
           />
 
-          <LazyIconField
+          <IconField
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}

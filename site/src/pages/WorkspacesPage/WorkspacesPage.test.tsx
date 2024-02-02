@@ -4,6 +4,10 @@ import * as CreateDayString from "utils/createDayString";
 import {
   MockStoppedWorkspace,
   MockWorkspace,
+  MockDormantWorkspace,
+  MockDormantOutdatedWorkspace,
+  MockOutdatedWorkspace,
+  MockRunningOutdatedWorkspace,
   MockWorkspacesResponse,
 } from "testHelpers/entities";
 import {
@@ -80,6 +84,167 @@ describe("WorkspacesPage", () => {
     });
     expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[0].id);
     expect(deleteWorkspace).toHaveBeenCalledWith(workspaces[1].id);
+  });
+
+  describe("batch update", () => {
+    it("ignores up-to-date workspaces", async () => {
+      const workspaces = [
+        { ...MockWorkspace, id: "1" }, // running, not outdated. no warning.
+        { ...MockDormantWorkspace, id: "2" }, // dormant, not outdated. no warning.
+        { ...MockOutdatedWorkspace, id: "3" },
+        { ...MockOutdatedWorkspace, id: "4" },
+      ];
+      jest
+        .spyOn(API, "getWorkspaces")
+        .mockResolvedValue({ workspaces, count: workspaces.length });
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+      const user = userEvent.setup();
+      renderWithAuth(<WorkspacesPage />);
+      await waitForLoaderToBeRemoved();
+
+      for (const workspace of workspaces) {
+        await user.click(getWorkspaceCheckbox(workspace));
+      }
+
+      await user.click(screen.getByRole("button", { name: /actions/i }));
+      const updateButton = await screen.findByText(/update/i);
+      await user.click(updateButton);
+
+      // One click: no running workspaces warning, no dormant workspaces warning.
+      // There is a running workspace and a dormant workspace selected, but they
+      // are not outdated.
+      const confirmButton = await screen.findByTestId("confirm-button");
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent(/used by/i);
+      await user.click(confirmButton);
+
+      // `workspaces[0]` was up-to-date, and running
+      // `workspaces[1]` was dormant
+      await waitFor(() => {
+        expect(updateWorkspace).toHaveBeenCalledTimes(2);
+      });
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+    });
+
+    it("warns about and updates running workspaces", async () => {
+      const workspaces = [
+        { ...MockRunningOutdatedWorkspace, id: "1" },
+        { ...MockOutdatedWorkspace, id: "2" },
+        { ...MockOutdatedWorkspace, id: "3" },
+      ];
+      jest
+        .spyOn(API, "getWorkspaces")
+        .mockResolvedValue({ workspaces, count: workspaces.length });
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+      const user = userEvent.setup();
+      renderWithAuth(<WorkspacesPage />);
+      await waitForLoaderToBeRemoved();
+
+      for (const workspace of workspaces) {
+        await user.click(getWorkspaceCheckbox(workspace));
+      }
+
+      await user.click(screen.getByRole("button", { name: /actions/i }));
+      const updateButton = await screen.findByText(/update/i);
+      await user.click(updateButton);
+
+      // Two clicks: 1 running workspace, no dormant workspaces warning.
+      const confirmButton = await screen.findByTestId("confirm-button");
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent(/1 running workspace/i);
+      await user.click(confirmButton);
+      expect(dialog).toHaveTextContent(/used by/i);
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(updateWorkspace).toHaveBeenCalledTimes(3);
+      });
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+    });
+
+    it("warns about and ignores dormant workspaces", async () => {
+      const workspaces = [
+        { ...MockDormantOutdatedWorkspace, id: "1" },
+        { ...MockOutdatedWorkspace, id: "2" },
+        { ...MockOutdatedWorkspace, id: "3" },
+      ];
+      jest
+        .spyOn(API, "getWorkspaces")
+        .mockResolvedValue({ workspaces, count: workspaces.length });
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+      const user = userEvent.setup();
+      renderWithAuth(<WorkspacesPage />);
+      await waitForLoaderToBeRemoved();
+
+      for (const workspace of workspaces) {
+        await user.click(getWorkspaceCheckbox(workspace));
+      }
+
+      await user.click(screen.getByRole("button", { name: /actions/i }));
+      const updateButton = await screen.findByText(/update/i);
+      await user.click(updateButton);
+
+      // Two clicks: no running workspaces warning, 1 dormant workspace.
+      const confirmButton = await screen.findByTestId("confirm-button");
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent(/dormant/i);
+      await user.click(confirmButton);
+      expect(dialog).toHaveTextContent(/used by/i);
+      await user.click(confirmButton);
+
+      // `workspaces[0]` was dormant
+      await waitFor(() => {
+        expect(updateWorkspace).toHaveBeenCalledTimes(2);
+      });
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[1]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+    });
+
+    it("warns about running workspaces and then dormant workspaces", async () => {
+      const workspaces = [
+        { ...MockRunningOutdatedWorkspace, id: "1" },
+        { ...MockDormantOutdatedWorkspace, id: "2" },
+        { ...MockOutdatedWorkspace, id: "3" },
+        { ...MockOutdatedWorkspace, id: "4" },
+        { ...MockWorkspace, id: "5" },
+      ];
+      jest
+        .spyOn(API, "getWorkspaces")
+        .mockResolvedValue({ workspaces, count: workspaces.length });
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
+      const user = userEvent.setup();
+      renderWithAuth(<WorkspacesPage />);
+      await waitForLoaderToBeRemoved();
+
+      for (const workspace of workspaces) {
+        await user.click(getWorkspaceCheckbox(workspace));
+      }
+
+      await user.click(screen.getByRole("button", { name: /actions/i }));
+      const updateButton = await screen.findByText(/update/i);
+      await user.click(updateButton);
+
+      // Three clicks: 1 running workspace, 1 dormant workspace.
+      const confirmButton = await screen.findByTestId("confirm-button");
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent(/1 running workspace/i);
+      await user.click(confirmButton);
+      expect(dialog).toHaveTextContent(/dormant/i);
+      await user.click(confirmButton);
+      expect(dialog).toHaveTextContent(/used by/i);
+      await user.click(confirmButton);
+
+      // `workspaces[1]` was dormant, and `workspaces[4]` was up-to-date
+      await waitFor(() => {
+        expect(updateWorkspace).toHaveBeenCalledTimes(3);
+      });
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[0]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[2]);
+      expect(updateWorkspace).toHaveBeenCalledWith(workspaces[3]);
+    });
   });
 
   it("stops only the running and selected workspaces", async () => {

@@ -123,6 +123,10 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	cmd.Stdout = out
 	cmd.Stderr = stdErr
 
+	e.server.logger.Debug(ctx, "executing terraform command with JSON result",
+		slog.F("binary_path", e.binaryPath),
+		slog.F("args", args),
+	)
 	err := cmd.Start()
 	if err != nil {
 		return err
@@ -348,6 +352,10 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	cmd.Dir = e.workdir
 	cmd.Env = e.basicEnv()
 
+	e.server.logger.Debug(ctx, "executing terraform command graph",
+		slog.F("binary_path", e.binaryPath),
+		slog.F("args", "graph"),
+	)
 	err := cmd.Start()
 	if err != nil {
 		return "", err
