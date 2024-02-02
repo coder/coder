@@ -52,7 +52,7 @@ const (
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureOAuth2Provider             FeatureName = "oauth2_provider"
-	FeatureSharedPorts                FeatureName = "shared_ports"
+	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.

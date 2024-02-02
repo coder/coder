@@ -1,17 +1,17 @@
 # PortSharing
 
-## Update port sharing level
+## Update port share
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-sharing \
+curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaces/{workspace}/port-sharing`
+`POST /workspaces/{workspace}/port-share`
 
 > Body parameter
 
@@ -25,9 +25,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-sharing
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                               | Required | Description                       |
-| ------ | ---- | ------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------------- |
-| `body` | body | [codersdk.UpdateWorkspaceAgentPortShareLevelRequest](schemas.md#codersdkupdateworkspaceagentportsharelevelrequest) | true     | Update port sharing level request |
+| Name   | In   | Type                                                                                                     | Required | Description                       |
+| ------ | ---- | -------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| `body` | body | [codersdk.UpdateWorkspaceAgentPortShareRequest](schemas.md#codersdkupdateworkspaceagentportsharerequest) | true     | Update port sharing level request |
 
 ### Responses
 

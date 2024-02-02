@@ -11,20 +11,20 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Update port sharing level
-// @ID update-workspace-port-sharing-level
+// @Summary Update port share
+// @ID update-workspace-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags PortSharing
-// @Param request body codersdk.UpdateWorkspaceAgentPortShareLevelRequest true "Update port sharing level request"
+// @Param request body codersdk.UpdateWorkspaceAgentPortShareRequest true "Update port sharing level request"
 // @Success 200
-// @Router /workspaces/{workspace}/port-sharing [post]
-func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaces/{workspace}/port-share [post]
+func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	portSharer := *api.PortSharer.Load()
-	var req codersdk.UpdateWorkspaceAgentPortShareLevelRequest
+	var req codersdk.UpdateWorkspaceAgentPortShareRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -36,9 +36,9 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if req.ShareLevel > template.MaxPortSharingLevel {
+		if req.ShareLevel > codersdk.WorkspacePortShareLevel(template.MaxPortShareLevel) || req.ShareLevel < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Port sharing level not allowed.",
+				Message: "Port sharing level not allowed. Must be between 0 and 2.",
 			})
 			return
 		}
@@ -75,7 +75,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if req.ShareLevel == int32(codersdk.WorkspaceAgentPortShareLevelOwner) {
+		if req.ShareLevel == codersdk.WorkspaceAgentPortShareLevelOwner {
 			// If the port is not shared, and the user is trying to set it to owner,
 			// we don't need to do anything.
 			rw.WriteHeader(http.StatusOK)
@@ -86,7 +86,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 			WorkspaceID: workspace.ID,
 			AgentName:   req.AgentName,
 			Port:        req.Port,
-			ShareLevel:  req.ShareLevel,
+			ShareLevel:  int32(req.ShareLevel),
 		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -118,7 +118,7 @@ func (api *API) postWorkspacePortShareLevel(rw http.ResponseWriter, r *http.Requ
 		WorkspaceID: psl.WorkspaceID,
 		AgentName:   psl.AgentName,
 		Port:        psl.Port,
-		ShareLevel:  req.ShareLevel,
+		ShareLevel:  int32(req.ShareLevel),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
