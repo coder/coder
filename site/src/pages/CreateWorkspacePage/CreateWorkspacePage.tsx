@@ -1,3 +1,7 @@
+import { type FC, useCallback, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getUserParameters } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
@@ -6,7 +10,7 @@ import {
   templateVersionExternalAuth,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
-import {
+import type {
   TemplateVersionParameter,
   UserParameter,
   Workspace,
@@ -16,21 +20,12 @@ import { Loader } from "components/Loader/Loader";
 import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useCallback, useEffect, useMemo, useState, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import {
-  NumberDictionary,
-  animals,
-  colors,
-  uniqueNamesGenerator,
-} from "unique-names-generator";
 import { pageTitle } from "utils/page";
 import { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -46,14 +41,7 @@ const CreateWorkspacePage: FC = () => {
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
 
-  const defaultName = useMemo(() => {
-    const paramsName = searchParams.get("name");
-    if (mode === "duplicate" && paramsName) {
-      return `${paramsName}-copy`;
-    }
-
-    return paramsName ?? generateUniqueName();
-  }, [mode, searchParams]);
+  const defaultName = searchParams.get("name");
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -63,13 +51,11 @@ const CreateWorkspacePage: FC = () => {
 
   const templateQuery = useQuery(templateByName(organizationId, templateName));
 
-  const userParametersQuery = useQuery(
-    ["userParameters"],
-    () => getUserParameters(templateQuery.data!.id),
-    {
-      enabled: templateQuery.isSuccess,
-    },
-  );
+  const userParametersQuery = useQuery({
+    queryKey: ["userParameters"],
+    queryFn: () => getUserParameters(templateQuery.data!.id),
+    enabled: templateQuery.isSuccess,
+  });
 
   const permissionsQuery = useQuery(
     checkAuthorization({
@@ -122,7 +108,7 @@ const CreateWorkspacePage: FC = () => {
         templateName,
         organizationId,
         defaultBuildParameters: autofillParameters,
-        defaultName,
+        defaultName: defaultName ?? generateWorkspaceName(),
         versionId: realizedVersionId,
       });
 
@@ -267,16 +253,6 @@ const getAutofillParameters = (
     });
   });
   return buildValues;
-};
-
-const generateUniqueName = () => {
-  const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 });
-  return uniqueNamesGenerator({
-    dictionaries: [colors, animals, numberDictionary],
-    separator: "-",
-    length: 3,
-    style: "lowerCase",
-  });
 };
 
 export default CreateWorkspacePage;
