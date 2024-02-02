@@ -178,6 +178,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   }, [templateVersion]);
 
   const editorValue = getFileContent(activePath ?? "", fileTree) as string;
+  const isEditorValueBinary = isBinaryData(editorValue);
 
   // Auto scroll
   const buildLogsRef = useRef<HTMLDivElement>(null);
@@ -448,19 +449,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           >
             <div css={{ flex: 1, overflowY: "auto" }} data-chromatic="ignore">
               {activePath ? (
-                <MonacoEditor
-                  value={editorValue}
-                  path={activePath}
-                  onChange={(value) => {
-                    if (!activePath) {
-                      return;
-                    }
-                    setFileTree((fileTree) =>
-                      updateFile(activePath, value, fileTree),
-                    );
-                    setDirty(true);
-                  }}
-                />
+                isEditorValueBinary ? (
+                  <p>File type not supported</p>
+                ) : (
+                  <MonacoEditor
+                    value={editorValue}
+                    path={activePath}
+                    onChange={(value) => {
+                      if (!activePath) {
+                        return;
+                      }
+                      setFileTree((fileTree) =>
+                        updateFile(activePath, value, fileTree),
+                      );
+                      setDirty(true);
+                    }}
+                  />
+                )
               ) : (
                 <div>No file opened</div>
               )}
@@ -615,6 +620,29 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     </>
   );
 };
+
+function isBinaryData(s: string): boolean {
+  // Remove unicode characters from the string like emojis.
+  const asciiString = s.replace(/[\u007F-\uFFFF]/g, "");
+
+  // Create a set of all printable ASCII characters (and some control characters).
+  const textChars = new Set(
+    [7, 8, 9, 10, 12, 13, 27].concat(
+      Array.from({ length: 128 }, (_, i) => i + 32),
+    ),
+  );
+
+  const isBinaryString = (str: string): boolean => {
+    for (let i = 0; i < str.length; i++) {
+      if (!textChars.has(str.charCodeAt(i))) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return isBinaryString(asciiString);
+}
 
 const styles = {
   tab: (theme) => ({

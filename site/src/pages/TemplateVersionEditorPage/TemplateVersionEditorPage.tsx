@@ -25,10 +25,7 @@ import {
 import { file, uploadFile } from "api/queries/files";
 import { TarFileTypeCodes, TarReader, TarWriter } from "utils/tar";
 import { FileTree, traverse } from "utils/filetree";
-import {
-  createTemplateVersionFileTree,
-  isAllowedFile,
-} from "utils/templateVersion";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
@@ -253,7 +250,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
     };
 
     if (fileQuery.data) {
-      initializeFileTree(fileQuery.data).catch(() => {
+      initializeFileTree(fileQuery.data).catch((reason) => {
+        console.error(reason);
         displayError("Error on initializing the editor");
       });
     }
@@ -332,22 +330,20 @@ const generateVersionFiles = async (
 
   // Add previous non editable files
   for (const file of tarReader.fileInfo) {
-    if (!isAllowedFile(file.name)) {
-      if (file.type === TarFileTypeCodes.Dir) {
-        tar.addFolder(file.name, {
-          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-          mtime: file.mtime,
-          user: file.user,
-          group: file.group,
-        });
-      } else {
-        tar.addFile(file.name, tarReader.getTextFile(file.name) as string, {
-          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-          mtime: file.mtime,
-          user: file.user,
-          group: file.group,
-        });
-      }
+    if (file.type === TarFileTypeCodes.Dir) {
+      tar.addFolder(file.name, {
+        mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+        mtime: file.mtime,
+        user: file.user,
+        group: file.group,
+      });
+    } else {
+      tar.addFile(file.name, tarReader.getTextFile(file.name) as string, {
+        mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+        mtime: file.mtime,
+        user: file.user,
+        group: file.group,
+      });
     }
   }
   // Add the editable files

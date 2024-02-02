@@ -5,10 +5,10 @@ import { MarkdownIcon } from "components/Icons/MarkdownIcon";
 import { TerraformIcon } from "components/Icons/TerraformIcon";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import { UseTabResult, useTab } from "hooks/useTab";
-import { AllowedExtension, TemplateVersionFiles } from "utils/templateVersion";
+import { TemplateVersionFiles } from "utils/templateVersion";
 import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 
-const iconByExtension: Record<AllowedExtension, JSX.Element> = {
+const iconByExtension: Record<string, JSX.Element> = {
   tf: <TerraformIcon />,
   md: <MarkdownIcon />,
   mkd: <MarkdownIcon />,
@@ -27,7 +27,7 @@ const getExtension = (filename: string) => {
   return filename;
 };
 
-const languageByExtension: Record<AllowedExtension, string> = {
+const languageByExtension: Record<string, string> = {
   tf: "hcl",
   md: "markdown",
   mkd: "markdown",
@@ -61,7 +61,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
       <div css={styles.tabs}>
         {filenames.map((filename, index) => {
           const tabValue = index.toString();
-          const extension = getExtension(filename) as AllowedExtension;
+          const extension = getExtension(filename);
           const icon = iconByExtension[extension];
           const hasDiff =
             baseFiles &&
@@ -87,11 +87,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
       <SyntaxHighlighter
         value={currentFile}
         compareWith={previousFile}
-        language={
-          languageByExtension[
-            getExtension(selectedFilename) as AllowedExtension
-          ]
-        }
+        language={languageByExtension[getExtension(selectedFilename)]}
       />
     </div>
   );
