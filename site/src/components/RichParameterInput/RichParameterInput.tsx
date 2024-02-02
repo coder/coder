@@ -82,6 +82,7 @@ const styles = {
     width: 20,
     height: 20,
     display: "block",
+    flexShrink: 0,
 
     ".small &": {
       display: "none",
