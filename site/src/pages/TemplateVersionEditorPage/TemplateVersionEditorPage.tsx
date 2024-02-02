@@ -23,7 +23,7 @@ import {
   templateVersionVariables,
 } from "api/queries/templates";
 import { file, uploadFile } from "api/queries/files";
-import { TarFileTypeCodes, TarReader, TarWriter } from "utils/tar";
+import { TarReader, TarWriter } from "utils/tar";
 import { FileTree, traverse } from "utils/filetree";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -78,6 +78,13 @@ export const TemplateVersionEditorPage: FC = () => {
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
 
+  const navigateToVersion = (version: TemplateVersion) => {
+    return navigate(
+      `/templates/${templateName}/versions/${version.name}/edit`,
+      { replace: true },
+    );
+  };
+
   // Optimistically update the template version data job status to make the
   // build action feels faster
   const onBuildStart = () => {
@@ -97,6 +104,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const onBuildEnds = (newVersion: TemplateVersion) => {
     setCurrentVersionName(newVersion.name);
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
+    navigateToVersion(newVersion);
   };
 
   // Provisioner Tags
@@ -163,10 +171,7 @@ export const TemplateVersionEditorPage: FC = () => {
               templateVersionOptions.queryKey,
               publishedVersion,
             );
-            navigate(
-              `/templates/${templateName}/versions/${publishedVersion.name}/edit`,
-              { replace: true },
-            );
+            navigateToVersion(publishedVersion);
           }}
           isAskingPublishParameters={isPublishingDialogOpen}
           isPublishing={publishVersionMutation.isLoading}
@@ -328,37 +333,20 @@ const generateVersionFiles = async (
 ) => {
   const tar = new TarWriter();
 
-  // Add previous non editable files
-  for (const file of tarReader.fileInfo) {
-    if (file.type === TarFileTypeCodes.Dir) {
-      tar.addFolder(file.name, {
-        mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-        mtime: file.mtime,
-        user: file.user,
-        group: file.group,
-      });
-    } else {
-      tar.addFile(file.name, tarReader.getTextFile(file.name) as string, {
-        mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-        mtime: file.mtime,
-        user: file.user,
-        group: file.group,
-      });
-    }
-  }
-  // Add the editable files
   traverse(fileTree, (content, _filename, fullPath) => {
     // When a file is deleted. Don't add it to the tar.
     if (content === undefined) {
       return;
     }
 
+    const baseFileInfo = tarReader.fileInfo.find((i) => i.name === fullPath);
+
     if (typeof content === "string") {
-      tar.addFile(fullPath, content);
+      tar.addFile(fullPath, content, baseFileInfo);
       return;
     }
 
-    tar.addFolder(fullPath);
+    tar.addFolder(fullPath, baseFileInfo);
   });
   const blob = (await tar.write()) as Blob;
   return new File([blob], "template.tar");
