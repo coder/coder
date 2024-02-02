@@ -9,7 +9,8 @@ interface XRayScanAlertProps {
 }
 
 export const XRayScanAlert: FC<XRayScanAlertProps> = ({ scan }) => {
-  return (
+  const display = scan.critical > 0 || scan.high > 0 || scan.medium > 0;
+  return display ? (
     <div role="alert" css={styles.root}>
       <ExternalImage
         alt="JFrog logo"
@@ -50,6 +51,8 @@ export const XRayScanAlert: FC<XRayScanAlertProps> = ({ scan }) => {
         </Button>
       </div>
     </div>
+  ) : (
+    <></>
   );
 };
 
