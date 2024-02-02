@@ -88,7 +88,7 @@ describe(`${useWorkspaceDuplication.name}`, () => {
     const parsedParams = new URLSearchParams(router.state.location.search);
     const extraMetadataEntries = [
       ["mode", "duplicate"],
-      ["name", MockWorkspace.name],
+      ["name", `${MockWorkspace.name}-copy`],
       ["version", MockWorkspace.template_active_version_id],
     ] as const;
 
