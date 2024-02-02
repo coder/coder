@@ -5,7 +5,8 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FC } from "react";
 
 export const XRayScanAlert: FC<{ scan: JFrogXrayScan }> = ({ scan }) => {
-  return (
+  const display = scan.critical > 0 || scan.high > 0 || scan.medium > 0;
+  return display ? (
     <div role="alert" css={styles.root}>
       <ExternalImage
         alt="JFrog logo"
@@ -46,6 +47,8 @@ export const XRayScanAlert: FC<{ scan: JFrogXrayScan }> = ({ scan }) => {
         </Button>
       </div>
     </div>
+  ) : (
+    <></>
   );
 };
 
