@@ -32,7 +32,7 @@ locals {
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
-  repo_dir       = module.git-clone.repo_dir
+  repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
