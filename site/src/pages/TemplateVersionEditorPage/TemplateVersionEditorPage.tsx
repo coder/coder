@@ -37,16 +37,14 @@ type Params = {
 export const TemplateVersionEditorPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { version: initialVersionName, template: templateName } =
+  const { version: versionName, template: templateName } =
     useParams() as Params;
   const orgId = useOrganizationId();
-  const [currentVersionName, setCurrentVersionName] =
-    useState(initialVersionName);
   const templateQuery = useQuery(templateByName(orgId, templateName));
   const templateVersionOptions = templateVersionByName(
     orgId,
     templateName,
-    currentVersionName,
+    versionName,
   );
   const templateVersionQuery = useQuery({
     ...templateVersionOptions,
@@ -102,7 +100,6 @@ export const TemplateVersionEditorPage: FC = () => {
   };
 
   const onBuildEnds = (newVersion: TemplateVersion) => {
-    setCurrentVersionName(newVersion.name);
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
     navigateToVersion(newVersion);
   };
@@ -164,7 +161,6 @@ export const TemplateVersionEditorPage: FC = () => {
               ...templateVersionQuery.data,
               ...data,
             };
-            setCurrentVersionName(publishedVersion.name);
             setIsPublishingDialogOpen(false);
             setLastSuccessfulPublishedVersion(publishedVersion);
             queryClient.setQueryData(
@@ -195,7 +191,6 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           disableUpdate={
             templateVersionQuery.data.job.status !== "succeeded" ||
-            templateVersionQuery.data.name === initialVersionName ||
             templateVersionQuery.data.name ===
               lastSuccessfulPublishedVersion?.name
           }
