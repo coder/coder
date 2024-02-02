@@ -203,20 +203,27 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
           )}
 
           <div>
-            <PageHeaderTitle>
-              {template.display_name.length > 0
-                ? template.display_name
-                : template.name}
-            </PageHeaderTitle>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <PageHeaderTitle>
+                {template.display_name.length > 0
+                  ? template.display_name
+                  : template.name}
+              </PageHeaderTitle>
+              {template.deprecated && <Pill type="warning">Deprecated</Pill>}
+            </Stack>
 
-            {template.description !== "" && (
+            {template.deprecation_message !== "" ? (
               <PageHeaderSubtitle condensed>
-                {template.description}
+                {template.deprecation_message}
               </PageHeaderSubtitle>
+            ) : (
+              template.description !== "" && (
+                <PageHeaderSubtitle condensed>
+                  {template.description}
+                </PageHeaderSubtitle>
+              )
             )}
           </div>
-
-          {template.deprecated && <Pill type="warning">Deprecated</Pill>}
         </Stack>
       </PageHeader>
     </Margins>
