@@ -1,7 +1,7 @@
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
@@ -76,6 +76,20 @@ export const TemplateVersionEditorPage: FC = () => {
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
 
+  // File navigation
+  const [searchParams, setSearchParams] = useSearchParams();
+  // It can be undefined when a selected file is deleted
+  const activePath: string | undefined =
+    searchParams.get("path") ?? findInitialFile(fileTree ?? {});
+  const onActivePathChange = (path: string | undefined) => {
+    if (path) {
+      searchParams.set("path", path);
+    } else {
+      searchParams.delete("path");
+    }
+    setSearchParams(searchParams);
+  };
+
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
       `/templates/${templateName}/versions/${version.name}/edit`,
@@ -122,6 +136,8 @@ export const TemplateVersionEditorPage: FC = () => {
 
       {templateQuery.data && templateVersionQuery.data && fileTree ? (
         <TemplateVersionEditor
+          activePath={activePath}
+          onActivePathChange={onActivePathChange}
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
           defaultFileTree={fileTree}
@@ -370,6 +386,18 @@ const publishVersion = async (options: {
   }
 
   return Promise.all(publishActions);
+};
+
+const findInitialFile = (fileTree: FileTree): string | undefined => {
+  let initialFile: string | undefined;
+
+  traverse(fileTree, (content, filename, path) => {
+    if (filename.endsWith(".tf")) {
+      initialFile = path;
+    }
+  });
+
+  return initialFile;
 };
 
 export default TemplateVersionEditorPage;

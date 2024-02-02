@@ -30,7 +30,6 @@ import {
   isFolder,
   moveFile,
   removeFile,
-  traverse,
   updateFile,
 } from "utils/filetree";
 import {
@@ -83,19 +82,9 @@ export interface TemplateVersionEditorProps {
   defaultTab?: Tab;
   provisionerTags: Record<string, string>;
   onUpdateProvisionerTags: (tags: Record<string, string>) => void;
+  activePath: string | undefined;
+  onActivePathChange: (path: string | undefined) => void;
 }
-
-const findInitialFile = (fileTree: FileTree): string | undefined => {
-  let initialFile: string | undefined;
-
-  traverse(fileTree, (content, filename, path) => {
-    if (filename.endsWith(".tf")) {
-      initialFile = path;
-    }
-  });
-
-  return initialFile;
-};
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
@@ -121,6 +110,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   defaultTab,
   provisionerTags,
   onUpdateProvisionerTags,
+  activePath,
+  onActivePathChange,
 }) => {
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
@@ -129,9 +120,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
   const [renameFileOpen, setRenameFileOpen] = useState<string>();
   const [dirty, setDirty] = useState(false);
-  const [activePath, setActivePath] = useState<string | undefined>(() =>
-    findInitialFile(fileTree),
-  );
 
   const triggerPreview = useCallback(() => {
     onPreview(fileTree);
@@ -382,7 +370,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 checkExists={(path) => existsFile(path, fileTree)}
                 onConfirm={(path) => {
                   setFileTree((fileTree) => createFile(path, fileTree, ""));
-                  setActivePath(path);
+                  onActivePathChange(path);
                   setCreateFileOpen(false);
                   setDirty(true);
                 }}
@@ -397,7 +385,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   );
                   setDeleteFileOpen(undefined);
                   if (activePath === deleteFileOpen) {
-                    setActivePath(undefined);
+                    onActivePathChange(undefined);
                   }
                   setDirty(true);
                 }}
@@ -420,7 +408,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   setFileTree((fileTree) =>
                     moveFile(renameFileOpen, newPath, fileTree),
                   );
-                  setActivePath(newPath);
+                  onActivePathChange(newPath);
                   setRenameFileOpen(undefined);
                   setDirty(true);
                 }}
@@ -431,7 +419,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onDelete={(file) => setDeleteFileOpen(file)}
               onSelect={(filePath) => {
                 if (!isFolder(filePath, fileTree)) {
-                  setActivePath(filePath);
+                  onActivePathChange(filePath);
                 }
               }}
               onRename={(file) => setRenameFileOpen(file)}

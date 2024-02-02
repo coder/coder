@@ -151,6 +151,7 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
+      defaultExpanded={activePath ? expandablePaths(activePath) : []}
       defaultSelected={activePath}
     >
       {Object.keys(fileTree)
@@ -234,3 +235,12 @@ const FileTypeMarkdown: FC = () => (
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
 );
+
+const expandablePaths = (path: string) => {
+  const paths = path.split("/");
+  const result = [];
+  for (let i = 1; i < paths.length; i++) {
+    result.push(paths.slice(0, i).join("/"));
+  }
+  return result;
+};
