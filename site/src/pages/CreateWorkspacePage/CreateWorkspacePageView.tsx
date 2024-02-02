@@ -228,8 +228,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   <Button
                     variant="text"
                     css={styles.nameSuggestion}
-                    onClick={() => {
-                      form.setFieldValue("name", suggestedName);
+                    onClick={async () => {
+                      await form.setFieldValue("name", suggestedName);
                       rerollSuggestedName();
                     }}
                   >
