@@ -32,7 +32,8 @@ export const Deprecated: Story = {
     template: {
       ...MockTemplate,
       deprecated: true,
-      deprecation_message: "This template is not going to be used anymore.",
+      deprecation_message:
+        "This template is not going to be used anymore. [See details](#details).",
     },
   },
 };
