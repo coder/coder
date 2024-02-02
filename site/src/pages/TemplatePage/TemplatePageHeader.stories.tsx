@@ -26,3 +26,14 @@ export const CanNotUpdate: Story = {
     },
   },
 };
+
+export const Deprecated: Story = {
+  args: {
+    template: {
+      ...MockTemplate,
+      deprecated: true,
+      deprecation_message:
+        "This template is not going to be used anymore. [See details](#details).",
+    },
+  },
+};
