@@ -337,6 +337,9 @@ COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/include /usr/local/bin/include
 
+# Switch to teraswitch mirrors for faster package installs at runtime.
+RUN mv /etc/apt/sources.list.tsw /etc/apt/sources.list
+
 USER coder
 
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
