@@ -3,6 +3,7 @@ package coderd
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -29,6 +30,13 @@ func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.ShareLevel < 0 || req.ShareLevel > 2 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Port sharing level not allowed. Must be between 0 and 2.",
+		})
+		return
+	}
+
 	if portSharer.CanRestrictSharing() {
 		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
@@ -36,9 +44,9 @@ func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if req.ShareLevel > codersdk.WorkspacePortShareLevel(template.MaxPortShareLevel) || req.ShareLevel < 0 {
+		if req.ShareLevel > codersdk.WorkspaceAgentPortShareLevel(template.MaxPortShareLevel) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Port sharing level not allowed. Must be between 0 and 2.",
+				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than %d.", template.MaxPortShareLevel),
 			})
 			return
 		}
@@ -70,7 +78,7 @@ func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) 
 		Port:        req.Port,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
@@ -97,7 +105,7 @@ func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if codersdk.WorkspacePortShareLevel(psl.ShareLevel) == codersdk.WorkspaceAgentPortShareLevelOwner {
+	if codersdk.WorkspaceAgentPortShareLevel(psl.ShareLevel) == codersdk.WorkspaceAgentPortShareLevelOwner {
 		// If the port is shared, and the user is trying to set it to owner,
 		// we need to remove the existing share record.
 		err = api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -18,7 +17,7 @@ import (
 func TestWorkspacePortShare(t *testing.T) {
 	t.Parallel()
 
-	ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
@@ -36,18 +35,25 @@ func TestWorkspacePortShare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
+	// try to update port share with template max port share level 0
 	err := client.UpdateWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
 		AgentName:  agent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
 	})
-	require.NoError(t, err)
+	require.Error(t, err, "Port sharing level not allowed")
 
-	ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
-		WorkspaceID: workspace.ID,
-		AgentName:   agent.Name,
-		Port:        8080,
+	// update the template max port share level to public
+	var level int32 = 2
+	client.UpdateTemplateMeta(ctx, workspace.TemplateID, codersdk.UpdateTemplateMeta{
+		MaxPortShareLevel: &level,
+	})
+
+	// OK
+	err = client.UpdateWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+		AgentName:  agent.Name,
+		Port:       8080,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
 	})
 	require.NoError(t, err)
-	require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
 }
