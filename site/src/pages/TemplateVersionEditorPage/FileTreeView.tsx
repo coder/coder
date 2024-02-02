@@ -89,6 +89,7 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
               margin-left: 4px;
               font-size: 13px;
               color: inherit;
+              white-space: nowrap;
             }
 
             &.Mui-selected {
@@ -103,10 +104,11 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
 
           & .MuiTreeItem-group {
             margin-left: 0;
+            position: relative;
 
             // We need to find a better way to recursive padding here
             & .MuiTreeItem-content {
-              padding-left: calc(var(--level) * 40px);
+              padding-left: calc(8px + (var(--level) + 1) * 8px);
             }
           }
         `}
