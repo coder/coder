@@ -223,7 +223,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   fullWidth
                   label="Workspace Name"
                 />
-                <FormHelperText>
+                <FormHelperText data-chromatic="ignore">
                   Need a suggestion?{" "}
                   <Button
                     variant="text"
