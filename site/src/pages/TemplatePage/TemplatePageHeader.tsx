@@ -35,6 +35,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import Divider from "@mui/material/Divider";
 import { Pill } from "components/Pill/Pill";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 
 type TemplateMenuProps = {
   templateName: string;
@@ -214,7 +215,9 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 
             {template.deprecation_message !== "" ? (
               <PageHeaderSubtitle condensed>
-                {template.deprecation_message}
+                <MemoizedInlineMarkdown>
+                  {template.deprecation_message}
+                </MemoizedInlineMarkdown>
               </PageHeaderSubtitle>
             ) : (
               template.description !== "" && (
