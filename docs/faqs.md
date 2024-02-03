@@ -548,5 +548,5 @@ Host coder-jetbrains--*
   ServerAliveInterval 5
 ```
 
-Note that your SSH config file will be overwritten by the JetBrains Gateway client
-if it is re-authenticated to your Coder deployment.
+Note that your SSH config file will be overwritten by the JetBrains Gateway
+client if it is re-authenticated to your Coder deployment.
