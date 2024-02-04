@@ -530,3 +530,23 @@ prerequisites for Linux, please look at the VSCode docs.
 https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
 
 </details>
+
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How can I resolve disconnects when connected to Coder via JetBrains Gateway?</summary>
+
+If you leave your JetBrains IDE open for some time while connected to Coder, you
+may encounter a message similar to the below:
+
+```console
+No internet connection. Changes in the document might be lost. Trying to reconnect…
+```
+
+To resolve this, add this entry to your SSH host file on your local machine:
+
+```console
+Host coder-jetbrains--*
+  ServerAliveInterval 5
+```
+
+Note that your SSH config file will be overwritten by the JetBrains Gateway
+client if it is re-authenticated to your Coder deployment.
