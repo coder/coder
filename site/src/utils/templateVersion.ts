@@ -1,6 +1,7 @@
 import set from "lodash/set";
 import { FileTree } from "./filetree";
 import { TarFileTypeCodes, TarReader } from "./tar";
+import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 
 // Content by filename
 export type TemplateVersionFiles = Record<string, string>;
@@ -12,7 +13,12 @@ export const getTemplateVersionFiles = async (
   const tarReader = new TarReader();
   await tarReader.readFile(tarFile);
   for (const file of tarReader.fileInfo) {
-    files[file.name] = tarReader.getTextFile(file.name) as string;
+    if (file.type === TarFileTypeCodes.File) {
+      const content = tarReader.getTextFile(file.name) as string;
+      if (!isBinaryData(content)) {
+        files[file.name] = tarReader.getTextFile(file.name) as string;
+      }
+    }
   }
   return files;
 };

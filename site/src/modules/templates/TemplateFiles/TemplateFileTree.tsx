@@ -28,7 +28,7 @@ type ContextMenu = {
   clientY: number;
 };
 
-interface FileTreeViewProps {
+interface TemplateFilesTreeProps {
   onSelect: (path: string) => void;
   onDelete: (path: string) => void;
   onRename: (path: string) => void;
@@ -36,7 +36,7 @@ interface FileTreeViewProps {
   activePath?: string;
 }
 
-export const FileTreeView: FC<FileTreeViewProps> = ({
+export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
   fileTree,
   activePath,
   onDelete,

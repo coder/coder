@@ -1,186 +1,173 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { useEffect, type FC } from "react";
-import { DockerIcon } from "components/Icons/DockerIcon";
-import { MarkdownIcon } from "components/Icons/MarkdownIcon";
-import { TerraformIcon } from "components/Icons/TerraformIcon";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import { UseTabResult, useTab } from "hooks/useTab";
 import { TemplateVersionFiles } from "utils/templateVersion";
-import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
-
-const iconByExtension: Record<string, JSX.Element> = {
-  tf: <TerraformIcon />,
-  md: <MarkdownIcon />,
-  mkd: <MarkdownIcon />,
-  Dockerfile: <DockerIcon />,
-  protobuf: <InsertDriveFileOutlined />,
-  sh: <InsertDriveFileOutlined />,
-  tpl: <InsertDriveFileOutlined />,
-};
-
-const getExtension = (filename: string) => {
-  if (filename.includes(".")) {
-    const [_, extension] = filename.split(".");
-    return extension;
-  }
-
-  return filename;
-};
+import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
+import { Pill } from "components/Pill/Pill";
+import { Link } from "react-router-dom";
 
 const languageByExtension: Record<string, string> = {
   tf: "hcl",
+  hcl: "hcl",
   md: "markdown",
   mkd: "markdown",
   Dockerfile: "dockerfile",
-  sh: "bash",
+  sh: "shell",
   tpl: "tpl",
   protobuf: "protobuf",
+  nix: "dockerfile",
 };
-
 interface TemplateFilesProps {
   currentFiles: TemplateVersionFiles;
   /**
    * Files used to compare with current files
    */
   baseFiles?: TemplateVersionFiles;
-  tab: UseTabResult;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
   currentFiles,
   baseFiles,
-  tab,
 }) => {
   const filenames = Object.keys(currentFiles);
-  const selectedFilename = filenames[Number(tab.value)];
-  const currentFile = currentFiles[selectedFilename];
-  const previousFile = baseFiles && baseFiles[selectedFilename];
+  const theme = useTheme();
+  const filesWithDiff = filenames.filter(
+    (filename) => fileInfo(filename).hasDiff,
+  );
+
+  function fileInfo(filename: string) {
+    const value = currentFiles[filename].trim();
+    const previousValue = baseFiles ? baseFiles[filename].trim() : undefined;
+    const hasDiff = previousValue && value !== previousValue;
+
+    return {
+      value,
+      previousValue,
+      hasDiff,
+    };
+  }
 
   return (
-    <div css={styles.files}>
-      <div css={styles.tabs}>
-        {filenames.map((filename, index) => {
-          const tabValue = index.toString();
-          const extension = getExtension(filename);
-          const icon = iconByExtension[extension];
-          const hasDiff =
-            baseFiles &&
-            baseFiles[filename] &&
-            currentFiles[filename] !== baseFiles[filename];
+    <div>
+      {filesWithDiff.length > 0 && (
+        <div
+          css={{
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
+          <span
+            css={(theme) => ({
+              fontSize: 13,
+              fontWeight: 500,
+              color: theme.roles.warning.fill.outline,
+            })}
+          >
+            {filesWithDiff.length} files have changes
+          </span>
+          <ul
+            css={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {filesWithDiff.map((filename) => (
+              <li key={filename}>
+                <a
+                  href={`#${encodeURIComponent(filename)}`}
+                  css={{
+                    textDecoration: "none",
+                    color: theme.roles.warning.fill.text,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    backgroundColor: theme.roles.warning.background,
+                    display: "inline-block",
+                    padding: "0 8px",
+                    borderRadius: 4,
+                    border: `1px solid ${theme.roles.warning.fill.solid}`,
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {filename}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div css={styles.files}>
+        {[...filenames]
+          .sort((a, b) => a.localeCompare(b))
+          .map((filename) => {
+            const info = fileInfo(filename);
 
-          return (
-            <button
-              css={[styles.tab, tabValue === tab.value && styles.tabActive]}
-              onClick={() => {
-                tab.set(tabValue);
-              }}
-              key={filename}
-            >
-              {icon}
-              {filename}
-              {hasDiff && <div css={styles.tabDiff} />}
-            </button>
-          );
-        })}
+            return (
+              <div key={filename} css={styles.filePanel} id={filename}>
+                <header css={styles.fileHeader}>
+                  {filename}
+                  {info.hasDiff && (
+                    <RadioButtonCheckedOutlined
+                      css={{
+                        width: 14,
+                        height: 14,
+                        color: theme.roles.warning.fill.outline,
+                      }}
+                    />
+                  )}
+                </header>
+                <SyntaxHighlighter
+                  language={
+                    languageByExtension[filename.split(".").pop() ?? ""]
+                  }
+                  value={info.value}
+                  compareWith={info.previousValue}
+                  editorProps={{
+                    // 18 is the editor line height
+                    height: Math.min(numberOfLines(info.value) * 18, 560),
+                    onMount: (editor) => {
+                      editor.updateOptions({
+                        scrollBeyondLastLine: false,
+                      });
+                    },
+                  }}
+                />
+              </div>
+            );
+          })}
       </div>
-
-      <SyntaxHighlighter
-        value={currentFile}
-        compareWith={previousFile}
-        language={languageByExtension[getExtension(selectedFilename)]}
-      />
     </div>
   );
 };
 
-export const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
-  // Tabs The default tab is the tab that has main.tf but until we loads the
-  // files and check if main.tf exists we don't know which tab is the default
-  // one so we just use empty string
-  const tab = useTab("file", "");
-  const isLoaded = tab.value !== "";
-  useEffect(() => {
-    if (templateFiles && !isLoaded) {
-      const terraformFileIndex = Object.keys(templateFiles).indexOf("main.tf");
-      // If main.tf exists use the index if not just use the first tab
-      tab.set(terraformFileIndex !== -1 ? terraformFileIndex.toString() : "0");
-    }
-  }, [isLoaded, tab, templateFiles]);
-
-  return {
-    ...tab,
-    isLoaded,
-  };
+const numberOfLines = (content: string) => {
+  return content.split("\n").length;
 };
 
 const styles = {
-  tabs: (theme) => ({
+  files: {
     display: "flex",
-    alignItems: "baseline",
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    gap: 1,
-    overflowX: "auto",
-  }),
+    flexDirection: "column",
+    gap: 16,
+  },
 
-  tab: (theme) => ({
-    background: "transparent",
-    border: 0,
-    padding: "0 24px",
-    display: "flex",
-    alignItems: "center",
-    height: 48,
-    opacity: 0.85,
-    cursor: "pointer",
-    gap: 4,
-    position: "relative",
-    color: theme.palette.text.secondary,
-    whiteSpace: "nowrap",
-
-    "& svg": {
-      width: 22,
-      maxHeight: 16,
-    },
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  }),
-
-  tabActive: (theme) => ({
-    opacity: 1,
-    background: theme.palette.action.hover,
-    color: theme.palette.text.primary,
-
-    "&:after": {
-      content: '""',
-      display: "block",
-      height: 1,
-      width: "100%",
-      bottom: 0,
-      left: 0,
-      backgroundColor: theme.palette.primary.main,
-      position: "absolute",
-    },
-  }),
-
-  tabDiff: (theme) => ({
-    height: 6,
-    width: 6,
-    backgroundColor: theme.palette.warning.light,
-    borderRadius: "100%",
-    marginLeft: 4,
-  }),
-
-  codeWrapper: (theme) => ({
-    background: theme.palette.background.paper,
-  }),
-
-  files: (theme) => ({
+  filePanel: (theme) => ({
     borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
   }),
 
-  prism: {
-    borderRadius: 0,
-  },
+  fileHeader: (theme) => ({
+    padding: "8px 16px",
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    fontSize: 13,
+    fontWeight: 500,
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  }),
 } satisfies Record<string, Interpolation<Theme>>;

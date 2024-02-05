@@ -7,7 +7,7 @@ loader.config({ monaco });
 
 interface SyntaxHighlighterProps {
   value: string;
-  language: string;
+  language?: string;
   editorProps?: ComponentProps<typeof Editor> &
     ComponentProps<typeof DiffEditor>;
   compareWith?: string;
