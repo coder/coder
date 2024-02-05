@@ -569,10 +569,6 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 				"--header-command", "printf h1=v1",
 			},
-			echoResponse: &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgent(""),
-			},
 			wantErr: false,
 			wantConfig: wantConfig{
 				regexMatch: "--header-command \"printf h1=v1\" ssh",
@@ -584,10 +580,6 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 				"--header-command", "printf h1=v1 h2=\"v2\"",
 			},
-			echoResponse: &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgent(""),
-			},
 			wantErr: false,
 			wantConfig: wantConfig{
 				regexMatch: "--header-command \"printf h1=v1 h2=\\\\\"v2\\\\\"\" ssh",
@@ -598,10 +590,6 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			args: []string{
 				"--yes",
 				"--header-command", "printf h1=v1 h2='v2'",
-			},
-			echoResponse: &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgent(""),
 			},
 			wantErr: false,
 			wantConfig: wantConfig{
