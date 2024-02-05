@@ -12,8 +12,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Update port share
-// @ID update-workspace-port-share
+// @Summary Update workspace agent port share
+// @ID update-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
@@ -21,7 +21,7 @@ import (
 // @Param request body codersdk.UpdateWorkspaceAgentPortShareRequest true "Update port sharing level request"
 // @Success 200
 // @Router /workspaces/{workspace}/port-share [post]
-func (api *API) postWorkspacePortShare(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	portSharer := *api.PortSharer.Load()
