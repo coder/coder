@@ -1,6 +1,6 @@
 # PortSharing
 
-## Update port share
+## Update workspace agent port share
 
 ### Code samples
 
@@ -25,9 +25,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                                     | Required | Description                       |
-| ------ | ---- | -------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
-| `body` | body | [codersdk.UpdateWorkspaceAgentPortShareRequest](schemas.md#codersdkupdateworkspaceagentportsharerequest) | true     | Update port sharing level request |
+| Name        | In   | Type                                                                                                     | Required | Description                       |
+| ----------- | ---- | -------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
+| `body`      | body | [codersdk.UpdateWorkspaceAgentPortShareRequest](schemas.md#codersdkupdateworkspaceagentportsharerequest) | true     | Update port sharing level request |
 
 ### Responses
 

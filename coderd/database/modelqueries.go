@@ -90,7 +90,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.RequireActiveVersion,
 			&i.Deprecated,
 			&i.UseMaxTtl,
-			&i.MaxPortShareLevel,
+			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {

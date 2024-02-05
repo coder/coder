@@ -1329,7 +1329,7 @@ export interface UpdateUserQuietHoursScheduleRequest {
 export interface UpdateWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
-  readonly share_level: WorkspacePortShareLevel;
+  readonly share_level: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/workspaces.go
@@ -2156,6 +2156,12 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "starting",
 ];
 
+// From codersdk/workspaceportshare.go
+export type WorkspaceAgentPortShareLevel = 0 | 1 | 2;
+export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
+  0, 1, 2,
+];
+
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
 export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
@@ -2194,10 +2200,6 @@ export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
   "owner",
   "public",
 ];
-
-// From codersdk/workspaceportshare.go
-export type WorkspacePortShareLevel = 0 | 1 | 2;
-export const WorkspacePortShareLevels: WorkspacePortShareLevel[] = [0, 1, 2];
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

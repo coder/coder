@@ -44,9 +44,9 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if req.ShareLevel > codersdk.WorkspaceAgentPortShareLevel(template.MaxPortShareLevel) {
+		if req.ShareLevel > codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than %d.", template.MaxPortShareLevel),
+				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than %d.", template.MaxPortSharingLevel),
 			})
 			return
 		}
