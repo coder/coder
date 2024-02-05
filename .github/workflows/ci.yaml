@@ -131,7 +131,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: buildjet/cache@v3
+        uses: buildjet/cache@v4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -141,7 +141,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.17.2
+        uses: crate-ci/typos@v1.18.0
         with:
           config: .github/workflows/typos.toml
 
@@ -305,7 +305,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -353,7 +353,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -412,7 +412,7 @@ jobs:
         working-directory: site
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
