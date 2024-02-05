@@ -403,7 +403,8 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 		dialer = logDialer{
 			logCtx: ctx,
 			logger: p.logger,
-			d:      net.Dialer{},
+			// pq.defaultDialer uses a zero net.Dialer as well.
+			d: net.Dialer{},
 		}
 	)
 	p.pgListener = pq.NewDialListener(dialer, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
