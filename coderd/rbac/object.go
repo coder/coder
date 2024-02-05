@@ -220,11 +220,6 @@ var (
 	ResourceOAuth2ProviderAppSecret = Object{
 		Type: "oauth2_app_secrets",
 	}
-
-	// ResourceWorkspaceAgentPortShare is for sharing workspace agent ports.
-	ResourceWorkspaceAgentPortShare = Object{
-		Type: "workspace_agent_port_share",
-	}
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.
