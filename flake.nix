@@ -37,6 +37,7 @@
           go_1_21
           go-migrate
           golangci-lint
+          google-chrome
           gopls
           gotestsum
           jq
