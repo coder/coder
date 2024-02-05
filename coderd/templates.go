@@ -631,7 +631,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
-	maxPortShareLevel := template.MaxPortShareLevel
+	maxPortShareLevel := template.MaxPortSharingLevel
 	if req.MaxPortShareLevel != nil {
 		if *req.MaxPortShareLevel < 0 || *req.MaxPortShareLevel > 2 {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be between 0 and 2."})
@@ -671,7 +671,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
-			maxPortShareLevel == template.MaxPortShareLevel {
+			maxPortShareLevel == template.MaxPortSharingLevel {
 			return nil
 		}
 
@@ -911,6 +911,6 @@ func (api *API) convertTemplate(
 		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    template.MaxPortShareLevel,
+		MaxPortShareLevel:    template.MaxPortSharingLevel,
 	}
 }
