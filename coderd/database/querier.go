@@ -46,7 +46,6 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
-	CreateWorkspaceAgentPortShare(ctx context.Context, arg CreateWorkspaceAgentPortShareParams) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error
@@ -308,6 +307,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentLogSources(ctx context.Context, arg InsertWorkspaceAgentLogSourcesParams) ([]WorkspaceAgentLogSource, error)
 	InsertWorkspaceAgentLogs(ctx context.Context, arg InsertWorkspaceAgentLogsParams) ([]WorkspaceAgentLog, error)
 	InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error
+	InsertWorkspaceAgentPortShare(ctx context.Context, arg InsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error)
 	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error

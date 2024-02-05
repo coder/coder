@@ -90,7 +90,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		err = api.Database.CreateWorkspaceAgentPortShare(ctx, database.CreateWorkspaceAgentPortShareParams{
+		_, err = api.Database.InsertWorkspaceAgentPortShare(ctx, database.InsertWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   req.AgentName,
 			Port:        req.Port,

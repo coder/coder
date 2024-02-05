@@ -8136,27 +8136,6 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
-const createWorkspaceAgentPortShare = `-- name: CreateWorkspaceAgentPortShare :exec
-INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4)
-`
-
-type CreateWorkspaceAgentPortShareParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
-}
-
-func (q *sqlQuerier) CreateWorkspaceAgentPortShare(ctx context.Context, arg CreateWorkspaceAgentPortShareParams) error {
-	_, err := q.db.ExecContext(ctx, createWorkspaceAgentPortShare,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.Port,
-		arg.ShareLevel,
-	)
-	return err
-}
-
 const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
 DELETE FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
 `
@@ -8184,6 +8163,34 @@ type GetWorkspaceAgentPortShareParams struct {
 
 func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentPortShare, arg.WorkspaceID, arg.AgentName, arg.Port)
+	var i WorkspaceAgentPortShare
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.Port,
+		&i.ShareLevel,
+	)
+	return i, err
+}
+
+const insertWorkspaceAgentPortShare = `-- name: InsertWorkspaceAgentPortShare :one
+INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4) RETURNING workspace_id, agent_name, port, share_level
+`
+
+type InsertWorkspaceAgentPortShareParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	Port        int32     `db:"port" json:"port"`
+	ShareLevel  int32     `db:"share_level" json:"share_level"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentPortShare(ctx context.Context, arg InsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentPortShare,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+		arg.ShareLevel,
+	)
 	var i WorkspaceAgentPortShare
 	err := row.Scan(
 		&i.WorkspaceID,

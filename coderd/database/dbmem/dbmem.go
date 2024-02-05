@@ -1003,32 +1003,6 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) CreateWorkspaceAgentPortShare(_ context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for _, share := range q.workspaceAgentPortShares {
-		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
-			return xerrors.New("port share already exists")
-		}
-	}
-
-	//nolint:gosimple // I disagree
-	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, database.WorkspaceAgentPortShare{
-		WorkspaceID: arg.WorkspaceID,
-		AgentName:   arg.AgentName,
-		Port:        arg.Port,
-		ShareLevel:  arg.ShareLevel,
-	})
-
-	return nil
-}
-
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5755,6 +5729,33 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentPortShare(_ context.Context, arg database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			return database.WorkspaceAgentPortShare{}, xerrors.New("port share already exists")
+		}
+	}
+
+	//nolint:gosimple // casting objects is not a simplification imo.
+	ps := database.WorkspaceAgentPortShare{
+		WorkspaceID: arg.WorkspaceID,
+		AgentName:   arg.AgentName,
+		Port:        arg.Port,
+		ShareLevel:  arg.ShareLevel,
+	}
+	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, ps)
+
+	return ps, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

@@ -173,20 +173,6 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), arg0)
 }
 
-// CreateWorkspaceAgentPortShare mocks base method.
-func (m *MockStore) CreateWorkspaceAgentPortShare(arg0 context.Context, arg1 database.CreateWorkspaceAgentPortShareParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateWorkspaceAgentPortShare", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateWorkspaceAgentPortShare indicates an expected call of CreateWorkspaceAgentPortShare.
-func (mr *MockStoreMockRecorder) CreateWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).CreateWorkspaceAgentPortShare), arg0, arg1)
-}
-
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -3276,6 +3262,21 @@ func (m *MockStore) InsertWorkspaceAgentMetadata(arg0 context.Context, arg1 data
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), arg0, arg1)
+}
+
+// InsertWorkspaceAgentPortShare mocks base method.
+func (m *MockStore) InsertWorkspaceAgentPortShare(arg0 context.Context, arg1 database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentPortShare", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceAgentPortShare)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentPortShare indicates an expected call of InsertWorkspaceAgentPortShare.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentPortShare), arg0, arg1)
 }
 
 // InsertWorkspaceAgentScripts mocks base method.
