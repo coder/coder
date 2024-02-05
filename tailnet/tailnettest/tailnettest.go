@@ -249,3 +249,76 @@ func (m *TestMultiAgent) RequireEventuallyClosed(ctx context.Context) {
 		}
 	}
 }
+
+type FakeCoordinator struct {
+	CoordinateCalls  chan *FakeCoordinate
+	ServeClientCalls chan *FakeServeClient
+}
+
+func (*FakeCoordinator) ServeHTTPDebug(http.ResponseWriter, *http.Request) {
+	panic("unimplemented")
+}
+
+func (*FakeCoordinator) Node(uuid.UUID) *tailnet.Node {
+	panic("unimplemented")
+}
+
+func (f *FakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+	errCh := make(chan error)
+	f.ServeClientCalls <- &FakeServeClient{
+		Conn:  conn,
+		ID:    id,
+		Agent: agent,
+		ErrCh: errCh,
+	}
+	return <-errCh
+}
+
+func (*FakeCoordinator) ServeAgent(net.Conn, uuid.UUID, string) error {
+	panic("unimplemented")
+}
+
+func (*FakeCoordinator) Close() error {
+	panic("unimplemented")
+}
+
+func (*FakeCoordinator) ServeMultiAgent(uuid.UUID) tailnet.MultiAgentConn {
+	panic("unimplemented")
+}
+
+func (f *FakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+	reqs := make(chan *proto.CoordinateRequest, 100)
+	resps := make(chan *proto.CoordinateResponse, 100)
+	f.CoordinateCalls <- &FakeCoordinate{
+		Ctx:   ctx,
+		ID:    id,
+		Name:  name,
+		Auth:  a,
+		Reqs:  reqs,
+		Resps: resps,
+	}
+	return reqs, resps
+}
+
+func NewFakeCoordinator() *FakeCoordinator {
+	return &FakeCoordinator{
+		CoordinateCalls:  make(chan *FakeCoordinate, 100),
+		ServeClientCalls: make(chan *FakeServeClient, 100),
+	}
+}
+
+type FakeCoordinate struct {
+	Ctx   context.Context
+	ID    uuid.UUID
+	Name  string
+	Auth  tailnet.TunnelAuth
+	Reqs  chan *proto.CoordinateRequest
+	Resps chan *proto.CoordinateResponse
+}
+
+type FakeServeClient struct {
+	Conn  net.Conn
+	ID    uuid.UUID
+	Agent uuid.UUID
+	ErrCh chan error
+}
