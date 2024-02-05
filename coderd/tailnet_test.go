@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,8 +112,8 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		require.Eventually(t, func() bool {
 			metrics, err := registry.Gather()
 			assert.NoError(t, err)
-			return counterHasValue(t, metrics, 1, "coder_servertailnet_total_conns", a.id.String()) &&
-				gaugeHasValue(t, metrics, 1, "coder_servertailnet_open_conns", a.id.String())
+			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_tcp_connections_total") &&
+				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_tcp_connections")
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
@@ -366,46 +365,4 @@ func setupServerTailnetAgent(t *testing.T, agentNum int) ([]agentWithID, *coderd
 	})
 
 	return agents, serverTailnet
-}
-
-func gaugeHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
-	t.Helper()
-	for _, family := range metrics {
-		if family.GetName() != name {
-			continue
-		}
-		ms := family.GetMetric()
-	metricsLoop:
-		for _, m := range ms {
-			require.Equal(t, len(label), len(m.GetLabel()))
-			for i, lv := range label {
-				if lv != m.GetLabel()[i].GetValue() {
-					continue metricsLoop
-				}
-			}
-			return value == m.GetGauge().GetValue()
-		}
-	}
-	return false
-}
-
-func counterHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
-	t.Helper()
-	for _, family := range metrics {
-		if family.GetName() != name {
-			continue
-		}
-		ms := family.GetMetric()
-	metricsLoop:
-		for _, m := range ms {
-			require.Equal(t, len(label), len(m.GetLabel()))
-			for i, lv := range label {
-				if lv != m.GetLabel()[i].GetValue() {
-					continue metricsLoop
-				}
-			}
-			return value == m.GetCounter().GetValue()
-		}
-	}
-	return false
 }

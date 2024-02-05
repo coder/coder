@@ -98,18 +98,18 @@ func NewServerTailnet(
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
 		agentTickets:         map[uuid.UUID]map[uuid.UUID]struct{}{},
 		transport:            tailnetTransport.Clone(),
-		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		connsPerAgent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
-			Name:      "open_conns",
+			Name:      "open_tcp_connections",
 			Help:      "Total number of TCP connections currently open to workspace agents.",
-		}, []string{"agent_id"}),
-		totalConns: prometheus.NewCounterVec(prometheus.CounterOpts{
+		}),
+		totalConns: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
-			Name:      "total_conns",
+			Name:      "tcp_connections_total",
 			Help:      "Total number of TCP connections made to workspace agents.",
-		}, []string{"agent_id"}),
+		}),
 	}
 	tn.transport.DialContext = tn.dialContext
 	// These options are mostly just picked at random, and they can likely be
@@ -328,8 +328,8 @@ type ServerTailnet struct {
 
 	transport *http.Transport
 
-	connsPerAgent *prometheus.GaugeVec
-	totalConns    *prometheus.CounterVec
+	connsPerAgent prometheus.Gauge
+	totalConns    prometheus.Counter
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
@@ -380,8 +380,8 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 		return nil, err
 	}
 
-	s.connsPerAgent.With(prometheus.Labels{"agent_id": agentID.String()}).Inc()
-	s.totalConns.With(prometheus.Labels{"agent_id": agentID.String()}).Inc()
+	s.connsPerAgent.Inc()
+	s.totalConns.Inc()
 	return &instrumentedConn{
 		Conn:          nc,
 		agentID:       agentID,
@@ -498,12 +498,12 @@ type instrumentedConn struct {
 
 	agentID       uuid.UUID
 	closeOnce     sync.Once
-	connsPerAgent *prometheus.GaugeVec
+	connsPerAgent prometheus.Gauge
 }
 
 func (c *instrumentedConn) Close() error {
 	c.closeOnce.Do(func() {
-		c.connsPerAgent.With(prometheus.Labels{"agent_id": c.agentID.String()}).Dec()
+		c.connsPerAgent.Dec()
 	})
 	return c.Conn.Close()
 }
