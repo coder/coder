@@ -134,6 +134,7 @@ func (c *remoteCoordination) Close() (retErr error) {
 	if err != nil {
 		return xerrors.Errorf("send disconnect: %w", err)
 	}
+	c.logger.Debug(context.Background(), "sent disconnect")
 	return nil
 }
 
@@ -167,7 +168,7 @@ func (c *remoteCoordination) respLoop() {
 	}
 }
 
-// NewRemoteCoordination uses the provided protocol to coordinate the provided coordinee (usually a
+// NewRemoteCoordination uses the provided protocol to coordinate the provided coordinatee (usually a
 // Conn).  If the tunnelTarget is not uuid.Nil, then we add a tunnel to the peer (i.e. we are acting as
 // a client---agents should NOT set this!).
 func NewRemoteCoordination(logger slog.Logger,

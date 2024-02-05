@@ -12,9 +12,8 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -360,6 +359,15 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 	return agentConn, nil
 }
 
+// tailnetConn is the subset of the tailnet.Conn methods that tailnetAPIConnector uses.  It is
+// included so that we can fake it in testing.
+//
+// @typescript-ignore tailnetConn
+type tailnetConn interface {
+	tailnet.Coordinatee
+	SetDERPMap(derpMap *tailcfg.DERPMap)
+}
+
 // tailnetAPIConnector dials the tailnet API (v2+) and then uses the API with a tailnet.Conn to
 //
 // 1) run the Coordinate API and pass node information back and forth
@@ -370,13 +378,20 @@ func (c *Client) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, 
 //
 // @typescript-ignore tailnetAPIConnector
 type tailnetAPIConnector struct {
-	ctx    context.Context
+	// We keep track of two contexts: the main context from the caller, and a "graceful" context
+	// that we keep open slightly longer than the main context to give a chance to send the
+	// Disconnect message to the coordinator. That tells the coordinator that we really meant to
+	// disconnect instead of just losing network connectivity.
+	ctx               context.Context
+	gracefulCtx       context.Context
+	cancelGracefulCtx context.CancelFunc
+
 	logger slog.Logger
 
 	agentID       uuid.UUID
 	coordinateURL string
 	dialOptions   *websocket.DialOptions
-	conn          *tailnet.Conn
+	conn          tailnetConn
 
 	connected chan error
 	isFirst   bool
@@ -387,7 +402,7 @@ type tailnetAPIConnector struct {
 func runTailnetAPIConnector(
 	ctx context.Context, logger slog.Logger,
 	agentID uuid.UUID, coordinateURL string, dialOptions *websocket.DialOptions,
-	conn *tailnet.Conn,
+	conn tailnetConn,
 ) *tailnetAPIConnector {
 	tac := &tailnetAPIConnector{
 		ctx:           ctx,
@@ -399,8 +414,21 @@ func runTailnetAPIConnector(
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 	}
+	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
+	go tac.manageGracefulTimeout()
 	go tac.run()
 	return tac
+}
+
+// manageGracefulTimeout allows the gracefulContext to last 1 second longer than the main context
+// to allow a graceful disconnect.
+func (tac *tailnetAPIConnector) manageGracefulTimeout() {
+	defer tac.cancelGracefulCtx()
+	<-tac.ctx.Done()
+	select {
+	case <-tac.closed:
+	case <-time.After(time.Second):
+	}
 }
 
 func (tac *tailnetAPIConnector) run() {
@@ -437,7 +465,7 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		return nil, err
 	}
 	client, err := tailnet.NewDRPCClient(
-		websocket.NetConn(tac.ctx, ws, websocket.MessageBinary),
+		websocket.NetConn(tac.gracefulCtx, ws, websocket.MessageBinary),
 		tac.logger,
 	)
 	if err != nil {
@@ -464,65 +492,81 @@ func (tac *tailnetAPIConnector) coordinateAndDERPMap(client proto.DRPCTailnetCli
 			<-conn.Closed()
 		}
 	}()
-	eg, egCtx := errgroup.WithContext(tac.ctx)
-	eg.Go(func() error {
-		return tac.coordinate(egCtx, client)
-	})
-	eg.Go(func() error {
-		return tac.derpMap(egCtx, client)
-	})
-	err := eg.Wait()
-	if err != nil &&
-		!xerrors.Is(err, io.EOF) &&
-		!xerrors.Is(err, context.Canceled) &&
-		!xerrors.Is(err, context.DeadlineExceeded) {
-		tac.logger.Error(tac.ctx, "error while connected to tailnet v2+ API")
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		tac.coordinate(client)
+	}()
+	go func() {
+		defer wg.Done()
+		dErr := tac.derpMap(client)
+		if dErr != nil && tac.ctx.Err() == nil {
+			// The main context is still active, meaning that we want the tailnet data plane to stay
+			// up, even though we hit some error getting DERP maps on the control plane.  That means
+			// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
+			// close the underlying connection. This will trigger a retry of the control plane in
+			// run().
+			client.DRPCConn().Close()
+			// Note that derpMap() logs it own errors, we don't bother here.
+		}
+	}()
+	wg.Wait()
 }
 
-func (tac *tailnetAPIConnector) coordinate(ctx context.Context, client proto.DRPCTailnetClient) error {
-	coord, err := client.Coordinate(ctx)
+func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
+	// we use the gracefulCtx here so that we'll have time to send the graceful disconnect
+	coord, err := client.Coordinate(tac.gracefulCtx)
 	if err != nil {
-		return xerrors.Errorf("failed to connect to Coordinate RPC: %w", err)
+		tac.logger.Error(tac.ctx, "failed to connect to Coordinate RPC", slog.Error(err))
+		return
 	}
 	defer func() {
 		cErr := coord.Close()
 		if cErr != nil {
-			tac.logger.Debug(ctx, "error closing Coordinate RPC", slog.Error(cErr))
+			tac.logger.Debug(tac.ctx, "error closing Coordinate RPC", slog.Error(cErr))
 		}
 	}()
 	coordination := tailnet.NewRemoteCoordination(tac.logger, coord, tac.conn, tac.agentID)
-	tac.logger.Debug(ctx, "serving coordinator")
-	err = <-coordination.Error()
-	if err != nil &&
-		!xerrors.Is(err, io.EOF) &&
-		!xerrors.Is(err, context.Canceled) &&
-		!xerrors.Is(err, context.DeadlineExceeded) {
-		return xerrors.Errorf("remote coordination error: %w", err)
+	tac.logger.Debug(tac.ctx, "serving coordinator")
+	select {
+	case <-tac.ctx.Done():
+		tac.logger.Debug(tac.ctx, "main context canceled; do graceful disconnect")
+		crdErr := coordination.Close()
+		if crdErr != nil {
+			tac.logger.Error(tac.ctx, "failed to close remote coordination", slog.Error(err))
+		}
+	case err = <-coordination.Error():
+		if err != nil &&
+			!xerrors.Is(err, io.EOF) &&
+			!xerrors.Is(err, context.Canceled) &&
+			!xerrors.Is(err, context.DeadlineExceeded) {
+			tac.logger.Error(tac.ctx, "remote coordination error: %w", err)
+		}
 	}
-	return nil
 }
 
-func (tac *tailnetAPIConnector) derpMap(ctx context.Context, client proto.DRPCTailnetClient) error {
-	s, err := client.StreamDERPMaps(ctx, &proto.StreamDERPMapsRequest{})
+func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
+	s, err := client.StreamDERPMaps(tac.ctx, &proto.StreamDERPMapsRequest{})
 	if err != nil {
 		return xerrors.Errorf("failed to connect to StreamDERPMaps RPC: %w", err)
 	}
 	defer func() {
 		cErr := s.Close()
 		if cErr != nil {
-			tac.logger.Debug(ctx, "error closing StreamDERPMaps RPC", slog.Error(cErr))
+			tac.logger.Debug(tac.ctx, "error closing StreamDERPMaps RPC", slog.Error(cErr))
 		}
 	}()
 	for {
 		dmp, err := s.Recv()
 		if err != nil {
-			if xerrors.Is(err, io.EOF) || xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
-			return xerrors.Errorf("error receiving DERP Map: %w", err)
+			tac.logger.Error(tac.ctx, "error receiving DERP Map", slog.Error(err))
+			return err
 		}
-		tac.logger.Debug(ctx, "got new DERP Map", slog.F("derp_map", dmp))
+		tac.logger.Debug(tac.ctx, "got new DERP Map", slog.F("derp_map", dmp))
 		dm := tailnet.DERPMapFromProto(dmp)
 		tac.conn.SetDERPMap(dm)
 	}
