@@ -18,6 +18,7 @@ import (
 // @Accept json
 // @Produce json
 // @Tags PortSharing
+// @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAgentPortShareRequest true "Update port sharing level request"
 // @Success 200
 // @Router /workspaces/{workspace}/port-share [post]
