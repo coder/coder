@@ -59,7 +59,7 @@ func TestWorkspacePortShare(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+	ps, err := db.GetWorkspaceAgentPortShare(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), database.GetWorkspaceAgentPortShareParams{
 		WorkspaceID: r.Workspace.ID,
 		AgentName:   agents[0].Name,
 		Port:        8080,
