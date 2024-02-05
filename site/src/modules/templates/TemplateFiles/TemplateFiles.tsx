@@ -185,6 +185,7 @@ const styles = {
   filePanel: (theme) => ({
     borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
+    overflow: "hidden",
   }),
 
   fileHeader: (theme) => ({
