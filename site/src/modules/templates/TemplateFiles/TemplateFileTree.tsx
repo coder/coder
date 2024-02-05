@@ -30,10 +30,11 @@ type ContextMenu = {
 
 interface TemplateFilesTreeProps {
   onSelect: (path: string) => void;
-  onDelete: (path: string) => void;
-  onRename: (path: string) => void;
+  onDelete?: (path: string) => void;
+  onRename?: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
+  Label?: FC<{ path: string; filename: string; isFolder: boolean }>;
 }
 
 export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
@@ -42,6 +43,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
   onDelete,
   onRename,
   onSelect,
+  Label,
 }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
   const buildTreeItems = (
@@ -69,7 +71,13 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
       <TreeItem
         nodeId={currentPath}
         key={currentPath}
-        label={filename}
+        label={
+          Label ? (
+            <Label path={currentPath} filename={filename} isFolder={isFolder} />
+          ) : (
+            filename
+          )
+        }
         css={(theme) => css`
           overflow: hidden;
           user-select: none;
@@ -187,7 +195,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onRename(contextMenu.path);
+            onRename && onRename(contextMenu.path);
             setContextMenu(undefined);
           }}
         >
@@ -198,7 +206,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onDelete(contextMenu.path);
+            onDelete && onDelete(contextMenu.path);
             setContextMenu(undefined);
           }}
         >

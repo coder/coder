@@ -1,8 +1,11 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import { useMemo, type FC, useCallback } from "react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
+import { FileTree } from "utils/filetree";
+import set from "lodash/fp/set";
+import { TemplateFileTree } from "./TemplateFileTree";
 
 const languageByExtension: Record<string, string> = {
   tf: "hcl",
@@ -29,21 +32,34 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 }) => {
   const filenames = Object.keys(currentFiles);
   const theme = useTheme();
-  const filesWithDiff = filenames.filter(
-    (filename) => fileInfo(filename).hasDiff,
+
+  const fileInfo = useCallback(
+    (filename: string) => {
+      const value = currentFiles[filename].trim();
+      const previousValue = baseFiles ? baseFiles[filename].trim() : undefined;
+      const hasDiff = previousValue && value !== previousValue;
+
+      return {
+        value,
+        previousValue,
+        hasDiff,
+      };
+    },
+    [baseFiles, currentFiles],
   );
 
-  function fileInfo(filename: string) {
-    const value = currentFiles[filename].trim();
-    const previousValue = baseFiles ? baseFiles[filename].trim() : undefined;
-    const hasDiff = previousValue && value !== previousValue;
+  const filesWithDiff = filenames.filter(
+    (filename) => fileInfo(filename).hasDiff && false,
+  );
 
-    return {
-      value,
-      previousValue,
-      hasDiff,
-    };
-  }
+  const fileTree: FileTree = useMemo(() => {
+    let tree: FileTree = {};
+    for (const filename of filenames) {
+      const info = fileInfo(filename);
+      tree = set(filename.split("/"), info.value, tree);
+    }
+    return tree;
+  }, [fileInfo, filenames]);
 
   return (
     <div>
@@ -99,45 +115,74 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
           </ul>
         </div>
       )}
-      <div css={styles.files}>
-        {[...filenames]
-          .sort((a, b) => a.localeCompare(b))
-          .map((filename) => {
-            const info = fileInfo(filename);
+      <div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
+        <div css={styles.sidebar}>
+          <TemplateFileTree
+            fileTree={fileTree}
+            onSelect={function (path: string): void {
+              window.location.hash = path;
+            }}
+            Label={({ path, filename, isFolder }) => {
+              if (isFolder) {
+                return <>{filename}</>;
+              }
 
-            return (
-              <div key={filename} css={styles.filePanel} id={filename}>
-                <header css={styles.fileHeader}>
-                  {filename}
-                  {info.hasDiff && (
-                    <RadioButtonCheckedOutlined
-                      css={{
-                        width: 14,
-                        height: 14,
-                        color: theme.roles.warning.fill.outline,
-                      }}
-                    />
-                  )}
-                </header>
-                <SyntaxHighlighter
-                  language={
-                    languageByExtension[filename.split(".").pop() ?? ""]
-                  }
-                  value={info.value}
-                  compareWith={info.previousValue}
-                  editorProps={{
-                    // 18 is the editor line height
-                    height: Math.min(numberOfLines(info.value) * 18, 560),
-                    onMount: (editor) => {
-                      editor.updateOptions({
-                        scrollBeyondLastLine: false,
-                      });
-                    },
+              const hasDiff = fileInfo(path).hasDiff;
+              return (
+                <span
+                  css={{
+                    color: hasDiff
+                      ? theme.roles.warning.fill.outline
+                      : undefined,
                   }}
-                />
-              </div>
-            );
-          })}
+                >
+                  {filename}
+                </span>
+              );
+            }}
+          />
+        </div>
+
+        <div css={styles.files}>
+          {[...filenames]
+            .sort((a, b) => a.localeCompare(b))
+            .map((filename) => {
+              const info = fileInfo(filename);
+
+              return (
+                <div key={filename} css={styles.filePanel} id={filename}>
+                  <header css={styles.fileHeader}>
+                    {filename}
+                    {info.hasDiff && (
+                      <RadioButtonCheckedOutlined
+                        css={{
+                          width: 14,
+                          height: 14,
+                          color: theme.roles.warning.fill.outline,
+                        }}
+                      />
+                    )}
+                  </header>
+                  <SyntaxHighlighter
+                    language={
+                      languageByExtension[filename.split(".").pop() ?? ""]
+                    }
+                    value={info.value}
+                    compareWith={info.previousValue}
+                    editorProps={{
+                      // 18 is the editor line height
+                      height: Math.min(numberOfLines(info.value) * 18, 560),
+                      onMount: (editor) => {
+                        editor.updateOptions({
+                          scrollBeyondLastLine: false,
+                        });
+                      },
+                    }}
+                  />
+                </div>
+              );
+            })}
+        </div>
       </div>
     </div>
   );
@@ -148,10 +193,22 @@ const numberOfLines = (content: string) => {
 };
 
 const styles = {
+  sidebar: (theme) => ({
+    width: 240,
+    flexShrink: 0,
+    borderRadius: 8,
+    overflow: "auto",
+    border: `1px solid ${theme.palette.divider}`,
+    padding: "4px 0",
+    position: "sticky",
+    top: 32,
+  }),
+
   files: {
     display: "flex",
     flexDirection: "column",
     gap: 16,
+    flex: 1,
   },
 
   filePanel: (theme) => ({
