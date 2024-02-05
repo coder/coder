@@ -97,7 +97,12 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               />
             </Stats>
 
-            <TemplateFiles currentFiles={currentFiles} baseFiles={baseFiles} />
+            <TemplateFiles
+              currentFiles={currentFiles}
+              baseFiles={baseFiles}
+              templateName={templateName}
+              versionName={versionName}
+            />
           </>
         )}
       </Stack>

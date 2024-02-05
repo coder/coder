@@ -29,7 +29,12 @@ const TemplateFilesPage: FC = () => {
       </Helmet>
 
       {previousFiles && currentFiles ? (
-        <TemplateFiles currentFiles={currentFiles} baseFiles={previousFiles} />
+        <TemplateFiles
+          currentFiles={currentFiles}
+          baseFiles={previousFiles}
+          versionName={activeVersion.name}
+          templateName={template.name}
+        />
       ) : (
         <Loader />
       )}

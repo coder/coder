@@ -6,6 +6,8 @@ import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOu
 import { FileTree } from "utils/filetree";
 import set from "lodash/fp/set";
 import { TemplateFileTree } from "./TemplateFileTree";
+import { Link } from "react-router-dom";
+import EditOutlined from "@mui/icons-material/EditOutlined";
 
 const languageByExtension: Record<string, string> = {
   tf: "hcl",
@@ -24,11 +26,15 @@ interface TemplateFilesProps {
    * Files used to compare with current files
    */
   baseFiles?: TemplateVersionFiles;
+  versionName: string;
+  templateName: string;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
   currentFiles,
   baseFiles,
+  versionName,
+  templateName,
 }) => {
   const filenames = Object.keys(currentFiles);
   const theme = useTheme();
@@ -48,10 +54,6 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
     [baseFiles, currentFiles],
   );
 
-  const filesWithDiff = filenames.filter(
-    (filename) => fileInfo(filename).hasDiff && false,
-  );
-
   const fileTree: FileTree = useMemo(() => {
     let tree: FileTree = {};
     for (const filename of filenames) {
@@ -63,58 +65,6 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
   return (
     <div>
-      {filesWithDiff.length > 0 && (
-        <div
-          css={{
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            marginBottom: 24,
-          }}
-        >
-          <span
-            css={(theme) => ({
-              fontSize: 13,
-              fontWeight: 500,
-              color: theme.roles.warning.fill.outline,
-            })}
-          >
-            {filesWithDiff.length} files have changes
-          </span>
-          <ul
-            css={{
-              listStyle: "none",
-              margin: 0,
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            {filesWithDiff.map((filename) => (
-              <li key={filename}>
-                <a
-                  href={`#${encodeURIComponent(filename)}`}
-                  css={{
-                    textDecoration: "none",
-                    color: theme.roles.warning.fill.text,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    backgroundColor: theme.roles.warning.background,
-                    display: "inline-block",
-                    padding: "0 8px",
-                    borderRadius: 4,
-                    border: `1px solid ${theme.roles.warning.fill.solid}`,
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {filename}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       <div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
         <div css={styles.sidebar}>
           <TemplateFileTree
@@ -162,6 +112,27 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
                         }}
                       />
                     )}
+
+                    <div css={{ marginLeft: "auto" }}>
+                      <Link
+                        to={`/templates/${templateName}/versions/${versionName}/edit?path=${filename}`}
+                        css={{
+                          display: "flex",
+                          gap: 4,
+                          alignItems: "center",
+                          fontSize: 14,
+                          color: theme.palette.text.secondary,
+                          textDecoration: "none",
+
+                          "&:hover": {
+                            color: theme.palette.text.primary,
+                          },
+                        }}
+                      >
+                        <EditOutlined css={{ fontSize: "inherit" }} />
+                        Edit
+                      </Link>
+                    </div>
                   </header>
                   <SyntaxHighlighter
                     language={
