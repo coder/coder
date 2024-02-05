@@ -26,7 +26,7 @@ jobs:
       pull-requests: write
     steps:
       - name: auto-approve dependabot
-        uses: hmarr/auto-approve-action@v3
+        uses: hmarr/auto-approve-action@v4
         if: github.actor == 'dependabot[bot]'
 
   cla:
