@@ -67,7 +67,7 @@ export default {
     outline: colors.blue[400],
     text: colors.blue[50],
     fill: {
-      solid: colors.blue[600],
+      solid: colors.blue[500],
       outline: colors.blue[600],
       text: colors.white,
     },

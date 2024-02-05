@@ -1,12 +1,9 @@
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "react-query";
-import { type CreateWorkspaceMode } from "./CreateWorkspacePage";
-import {
-  type Workspace,
-  type WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import { useCallback } from "react";
+import { useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
+import { type CreateWorkspaceMode } from "./CreateWorkspacePage";
 
 function getDuplicationUrlParams(
   workspaceParams: readonly WorkspaceBuildParameter[],
@@ -23,7 +20,7 @@ function getDuplicationUrlParams(
   return new URLSearchParams({
     ...consolidatedParams,
     mode: "duplicate" satisfies CreateWorkspaceMode,
-    name: workspace.name,
+    name: `${workspace.name}-copy`,
     version: workspace.template_active_version_id,
   });
 }

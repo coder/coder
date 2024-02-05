@@ -48,6 +48,18 @@ export const CreateWorkspaceError: Story = {
   },
 };
 
+export const SpecificVersion: Story = {
+  args: {
+    versionId: "specific-version",
+  },
+};
+
+export const Duplicate: Story = {
+  args: {
+    mode: "duplicate",
+  },
+};
+
 export const Parameters: Story = {
   args: {
     parameters: [
