@@ -3,8 +3,6 @@ import { type FC } from "react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
-import { Pill } from "components/Pill/Pill";
-import { Link } from "react-router-dom";
 
 const languageByExtension: Record<string, string> = {
   tf: "hcl",
