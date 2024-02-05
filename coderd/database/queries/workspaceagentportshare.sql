@@ -1,5 +1,5 @@
--- name: CreateWorkspaceAgentPortShare :exec
-INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4);
+-- name: InsertWorkspaceAgentPortShare :one
+INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: GetWorkspaceAgentPortShare :one
 SELECT * FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3;

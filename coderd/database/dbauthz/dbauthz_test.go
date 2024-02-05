@@ -1601,6 +1601,14 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkspacePortSharing() {
+	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+}
+
 func (s *MethodTestSuite) TestExtraMethods() {
 	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{

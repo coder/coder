@@ -79,6 +79,13 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
+func (m metricsStore) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	ps, err := m.s.InsertWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("CreateWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return ps, err
+}
+
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -139,13 +146,6 @@ func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.CleanTailnetTunnels(ctx)
 	m.queryLatencies.WithLabelValues("CleanTailnetTunnels").Observe(time.Since(start).Seconds())
-	return r0
-}
-
-func (m metricsStore) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
-	start := time.Now()
-	r0 := m.s.CreateWorkspaceAgentPortShare(ctx, arg)
-	m.queryLatencies.WithLabelValues("CreateWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1556,6 +1556,13 @@ func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg data
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) InsertWorkspaceAgentPortShare(ctx context.Context, arg database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	ps, err := m.s.InsertWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return ps, err
 }
 
 func (m metricsStore) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

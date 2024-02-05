@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -132,6 +133,17 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
+}
+
+func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
+	ps, err := db.InsertWorkspaceAgentPortShare(genCtx, database.InsertWorkspaceAgentPortShareParams{
+		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
+		Port:        takeFirst(orig.Port, 8080),
+		ShareLevel:  takeFirst(orig.ShareLevel, int32(codersdk.WorkspaceAgentPortShareLevelPublic)),
+	})
+	require.NoError(t, err, "insert workspace agent")
+	return ps
 }
 
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
