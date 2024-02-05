@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1602,10 +1603,49 @@ func (s *MethodTestSuite) TestWorkspace() {
 }
 
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
-	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		ps.Port = 8081
+		//nolint:gosimple // casting is not a simplification
+		check.Args(database.InsertWorkspaceAgentPortShareParams{
+			WorkspaceID: ps.WorkspaceID,
+			AgentName:   ps.AgentName,
+			Port:        ps.Port,
+			ShareLevel:  ps.ShareLevel,
+		}).Asserts(ws, rbac.ActionUpdate).Returns(ps)
+	}))
+	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: ps.WorkspaceID,
+			AgentName:   ps.AgentName,
+			Port:        ps.Port,
+		}).Asserts(ws, rbac.ActionRead).Returns(ps)
+	}))
+	s.Run("UpdateWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(database.UpdateWorkspaceAgentPortShareParams{
+			WorkspaceID: ps.WorkspaceID,
+			AgentName:   ps.AgentName,
+			Port:        ps.Port,
+			ShareLevel:  int32(codersdk.WorkspaceAgentPortShareLevelAuthenticated),
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(database.DeleteWorkspaceAgentPortShareParams{
+			WorkspaceID: ps.WorkspaceID,
+			AgentName:   ps.AgentName,
+			Port:        ps.Port,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 }
 
