@@ -473,7 +473,9 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		err = m.updateConnectionTimes(ctx)
 		if err != nil {
 			reason = err.Error()
-			m.logger.Error(ctx, "failed to update agent connection times", slog.Error(err))
+			if !database.IsQueryCanceledError(err) {
+				m.logger.Error(ctx, "failed to update agent connection times", slog.Error(err))
+			}
 			return
 		}
 		if connectionStatusChanged {
