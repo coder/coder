@@ -1,6 +1,6 @@
 import { rest } from "msw";
 import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionsToCheck } from "components/AuthProvider/permissions";
+import { permissionsToCheck } from "contexts/auth/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 import fs from "fs";
@@ -82,6 +82,12 @@ export const handlers = [
       ctx.json([M.MockTemplateVersion2, M.MockTemplateVersion]),
     );
   }),
+  rest.patch(
+    "/api/v2/templates/:templateId/versions",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json({}));
+    },
+  ),
   rest.patch("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate));
   }),
@@ -182,7 +188,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockAPIKey));
   }),
   rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockAuthMethods));
+    return res(ctx.status(200), ctx.json(M.MockAuthMethodsPasswordOnly));
   }),
   rest.get("/api/v2/users/roles", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockSiteRoles));
@@ -354,7 +360,16 @@ export const handlers = [
   rest.get(
     "/api/v2/workspacebuilds/:workspaceBuildId/parameters",
     (_, res, ctx) => {
-      return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]));
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockWorkspaceBuildParameter1,
+          M.MockWorkspaceBuildParameter2,
+          M.MockWorkspaceBuildParameter3,
+          M.MockWorkspaceBuildParameter4,
+          M.MockWorkspaceBuildParameter5,
+        ]),
+      );
     },
   ),
 

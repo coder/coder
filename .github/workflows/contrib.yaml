@@ -26,7 +26,7 @@ jobs:
       pull-requests: write
     steps:
       - name: auto-approve dependabot
-        uses: hmarr/auto-approve-action@v3
+        uses: hmarr/auto-approve-action@v4
         if: github.actor == 'dependabot[bot]'
 
   cla:
@@ -55,7 +55,7 @@ jobs:
     if: ${{ github.event_name == 'pull_request_target' && success() && !github.event.pull_request.draft }}
     steps:
       - name: release-labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           # This script ensures PR title and labels are in sync:
           #

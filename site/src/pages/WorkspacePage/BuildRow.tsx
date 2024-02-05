@@ -1,5 +1,6 @@
 import TableCell from "@mui/material/TableCell";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
@@ -21,7 +22,7 @@ const transitionMessages = {
   delete: "deleted",
 };
 
-export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
+export const BuildRow: FC<BuildRowProps> = ({ build }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build);
   const navigate = useNavigate();
   const clickableProps = useClickable<HTMLTableRowElement>(() =>
@@ -58,7 +59,11 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
                 </span>
               </Stack>
 
-              <Stack direction="row" spacing={1}>
+              <Stack
+                direction="row"
+                spacing={1}
+                css={{ "& strong": { fontWeight: 600 } }}
+              >
                 <span css={styles.buildInfo}>
                   Reason: <strong>{build.reason}</strong>
                 </span>
@@ -81,9 +86,9 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
 };
 
 const styles = {
-  buildWrapper: (theme) => ({
-    padding: theme.spacing(2, 4),
-  }),
+  buildWrapper: {
+    padding: "16px 32px",
+  },
 
   buildCell: {
     padding: "0 !important",
@@ -94,6 +99,9 @@ const styles = {
   buildSummary: (theme) => ({
     ...(theme.typography.body1 as CSSObject),
     fontFamily: "inherit",
+    "& strong": {
+      fontWeight: 600,
+    },
   }),
 
   buildInfo: (theme) => ({

@@ -8,7 +8,6 @@ workspaces can include any Terraform resource. See our
 The following resources may help as you're deploying Coder.
 
 - [Coder packages: one-click install on cloud providers](https://github.com/coder/packages)
-- [Run Coder as a system service](../install/packages.md)
 - [Deploy Coder offline](../install/offline.md)
 - [Supported resources (Terraform registry)](https://registry.terraform.io)
 - [Writing custom templates](../templates/index.md)

@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE workspace_agent_logs SET LOGGED;
 
 -- Revert the workspace_agents table to its former state
@@ -19,5 +17,3 @@ ALTER TABLE workspace_agent_logs DROP COLUMN log_source_id;
 -- Drop the newly created tables
 DROP TABLE workspace_agent_scripts;
 DROP TABLE workspace_agent_log_sources;
-
-COMMIT;

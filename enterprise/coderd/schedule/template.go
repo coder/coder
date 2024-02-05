@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
 	"sync/atomic"
 	"time"
 
@@ -21,12 +22,6 @@ import (
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
 // has all fields implemented for enterprise customers.
 type EnterpriseTemplateScheduleStore struct {
-	// UseAutostopRequirement decides whether the AutostopRequirement field
-	// should be used instead of the MaxTTL field for determining the max
-	// deadline of a workspace build. This value is determined by a feature
-	// flag, licensing, and whether a default user quiet hours schedule is set.
-	UseAutostopRequirement atomic.Bool
-
 	// UserQuietHoursScheduleStore is used when recalculating build deadlines on
 	// update.
 	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
@@ -51,7 +46,7 @@ func (s *EnterpriseTemplateScheduleStore) now() time.Time {
 }
 
 // Get implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
+func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -77,11 +72,11 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 	}
 
 	return agpl.TemplateScheduleOptions{
-		UserAutostartEnabled:   tpl.AllowUserAutostart,
-		UserAutostopEnabled:    tpl.AllowUserAutostop,
-		DefaultTTL:             time.Duration(tpl.DefaultTTL),
-		MaxTTL:                 time.Duration(tpl.MaxTTL),
-		UseAutostopRequirement: s.UseAutostopRequirement.Load(),
+		UserAutostartEnabled: tpl.AllowUserAutostart,
+		UserAutostopEnabled:  tpl.AllowUserAutostop,
+		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		MaxTTL:               time.Duration(tpl.MaxTTL),
+		UseMaxTTL:            tpl.UseMaxTtl,
 		AutostopRequirement: agpl.TemplateAutostopRequirement{
 			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
 			Weeks:      tpl.AutostopRequirementWeeks,
@@ -108,6 +103,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		opts.UseMaxTTL != tpl.UseMaxTtl &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
 		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
@@ -142,6 +138,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			AllowUserAutostart:            opts.UserAutostartEnabled,
 			AllowUserAutostop:             opts.UserAutostopEnabled,
 			DefaultTTL:                    int64(opts.DefaultTTL),
+			UseMaxTtl:                     opts.UseMaxTTL,
 			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
@@ -184,7 +181,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			}
 		}
 
-		// TODO: update all workspace max_deadlines to be within new bounds
 		template, err = tx.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)
@@ -192,11 +188,9 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		// Recalculate max_deadline and deadline for all running workspace
 		// builds on this template.
-		if s.UseAutostopRequirement.Load() {
-			err = s.updateWorkspaceBuilds(ctx, tx, template)
-			if err != nil {
-				return xerrors.Errorf("update workspace builds: %w", err)
-			}
+		err = s.updateWorkspaceBuilds(ctx, tx, template)
+		if err != nil {
+			return xerrors.Errorf("update workspace builds: %w", err)
 		}
 
 		return nil
@@ -218,6 +212,9 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	builds, err := db.GetActiveWorkspaceBuildsByTemplateID(ctx, template.ID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return xerrors.Errorf("get active workspace builds: %w", err)
 	}

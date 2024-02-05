@@ -170,6 +170,10 @@ func (p *otherProcess) Kill() error {
 	return p.cmd.Process.Kill()
 }
 
+func (p *otherProcess) Signal(sig os.Signal) error {
+	return p.cmd.Process.Signal(sig)
+}
+
 func (p *otherProcess) waitInternal() {
 	// The GC can garbage collect the TTY FD before the command
 	// has finished running. See:

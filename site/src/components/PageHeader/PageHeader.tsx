@@ -4,9 +4,10 @@ import { Stack } from "../Stack/Stack";
 export interface PageHeaderProps {
   actions?: ReactNode;
   className?: string;
+  children?: ReactNode;
 }
 
-export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
+export const PageHeader: FC<PageHeaderProps> = ({
   children,
   actions,
   className,
@@ -17,9 +18,9 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
       css={(theme) => ({
         display: "flex",
         alignItems: "center",
-        paddingTop: theme.spacing(6),
-        paddingBottom: theme.spacing(6),
-        gap: theme.spacing(4),
+        paddingTop: 48,
+        paddingBottom: 48,
+        gap: 32,
 
         [theme.breakpoints.down("md")]: {
           flexDirection: "column",
@@ -48,37 +49,41 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
   );
 };
 
-export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
-  children,
-}) => {
+export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
   return (
     <h1
-      css={(theme) => ({
-        fontSize: theme.spacing(3),
+      css={{
+        fontSize: 24,
         fontWeight: 400,
         margin: 0,
         display: "flex",
         alignItems: "center",
         lineHeight: "140%",
-      })}
+      }}
     >
       {children}
     </h1>
   );
 };
 
-export const PageHeaderSubtitle: FC<
-  PropsWithChildren<{ condensed?: boolean }>
-> = ({ children, condensed }) => {
+interface PageHeaderSubtitleProps {
+  children?: ReactNode;
+  condensed?: boolean;
+}
+
+export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
+  children,
+  condensed,
+}) => {
   return (
     <h2
       css={(theme) => ({
-        fontSize: theme.spacing(2),
+        fontSize: 16,
         color: theme.palette.text.secondary,
         fontWeight: 400,
         display: "block",
         margin: 0,
-        marginTop: condensed ? theme.spacing(0.5) : theme.spacing(1),
+        marginTop: condensed ? 4 : 8,
         lineHeight: "140%",
       })}
     >

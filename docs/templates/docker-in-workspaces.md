@@ -253,8 +253,8 @@ Before using Podman, please review the following documentation:
 3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based
    systems), you might need to disable SELinux or set it to permissive mode.
 
-4. Import our
-   [kubernetes-with-podman](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-with-podman)
+4. Use this
+   [kubernetes-with-podman](https://github.com/coder/community-templates/tree/main/kubernetes-podman)
    example template, or make your own.
 
    ```shell

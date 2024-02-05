@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -19,8 +21,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -93,7 +96,7 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("FalseIfTokenSourceFails", func(t *testing.T) {
 		t.Parallel()
 		config := &externalauth.Config{
-			OAuth2Config: &testutil.OAuth2Config{
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{
 				TokenSourceFunc: func() (*oauth2.Token, error) {
 					return nil, xerrors.New("failure")
 				},
@@ -223,7 +226,7 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("Updates", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbfake.New()
+		db := dbmem.New()
 		validateCalls := 0
 		refreshCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
@@ -265,7 +268,7 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("WithExtra", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbfake.New()
+		db := dbmem.New()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithMutateToken(func(token map[string]interface{}) {
@@ -298,8 +301,45 @@ func TestRefreshToken(t *testing.T) {
 	})
 }
 
+func TestExchangeWithClientSecret(t *testing.T) {
+	t.Parallel()
+	instrument := promoauth.NewFactory(prometheus.NewRegistry())
+	// This ensures a provider that requires the custom
+	// client secret exchange works.
+	configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+		// JFrog just happens to require this custom type.
+
+		Type:         codersdk.EnhancedExternalAuthProviderJFrog.String(),
+		ClientID:     "id",
+		ClientSecret: "secret",
+	}}, &url.URL{})
+	require.NoError(t, err)
+	config := configs[0]
+
+	client := &http.Client{
+		Transport: roundTripper(func(req *http.Request) (*http.Response, error) {
+			require.Equal(t, "Bearer secret", req.Header.Get("Authorization"))
+			rec := httptest.NewRecorder()
+			rec.WriteHeader(http.StatusOK)
+			body, err := json.Marshal(&oauth2.Token{
+				AccessToken: "bananas",
+			})
+			if err != nil {
+				return nil, err
+			}
+			_, err = rec.Write(body)
+			return rec.Result(), err
+		}),
+	}
+
+	_, err = config.Exchange(context.WithValue(context.Background(), oauth2.HTTPClient, client), "code")
+	require.NoError(t, err)
+}
+
 func TestConvertYAML(t *testing.T) {
 	t.Parallel()
+
+	instrument := promoauth.NewFactory(prometheus.NewRegistry())
 	for _, tc := range []struct {
 		Name   string
 		Input  []codersdk.ExternalAuthConfig
@@ -352,7 +392,7 @@ func TestConvertYAML(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			output, err := externalauth.ConvertConfig(tc.Input, &url.URL{})
+			output, err := externalauth.ConvertConfig(instrument, tc.Input, &url.URL{})
 			if tc.Error != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.Error)
@@ -364,7 +404,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
-		config, err := externalauth.ConvertConfig([]codersdk.ExternalAuthConfig{{
+		config, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
@@ -398,10 +438,12 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		append([]oidctest.FakeIDPOpt{}, settings.FakeIDPOpts...)...,
 	)
 
+	f := promoauth.NewFactory(prometheus.NewRegistry())
 	config := &externalauth.Config{
-		OAuth2Config: fake.OIDCConfig(t, nil, settings.CoderOIDCConfigOpts...),
-		ID:           providerID,
-		ValidateURL:  fake.WellknownConfig().UserInfoURL,
+		InstrumentedOAuth2Config: f.New("test-oauth2",
+			fake.OIDCConfig(t, nil, settings.CoderOIDCConfigOpts...)),
+		ID:          providerID,
+		ValidateURL: fake.WellknownConfig().UserInfoURL,
 	}
 	settings.ExternalAuthOpt(config)
 
@@ -437,4 +479,10 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 	}
 
 	return fake, config, link
+}
+
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }

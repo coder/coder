@@ -1,0 +1,16 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin dl.google.com
+Pin-Priority: 1
+
+Package: google-chrome-stable
+Pin: origin dl.google.com
+Pin-Priority: 500
+
+Package: google-chrome-beta
+Pin: origin dl.google.com
+Pin-Priority: 500
+
+Package: google-chrome-unstable
+Pin: origin dl.google.com
+Pin-Priority: 500

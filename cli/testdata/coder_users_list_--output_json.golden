@@ -2,6 +2,7 @@
   {
     "id": "[first user ID]",
     "username": "testuser",
+    "name": "",
     "email": "testuser@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",
@@ -16,11 +17,13 @@
       }
     ],
     "avatar_url": "",
-    "login_type": "password"
+    "login_type": "password",
+    "theme_preference": ""
   },
   {
     "id": "[second user ID]",
     "username": "testuser2",
+    "name": "",
     "email": "testuser2@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",
@@ -30,6 +33,7 @@
     ],
     "roles": [],
     "avatar_url": "",
-    "login_type": "password"
+    "login_type": "password",
+    "theme_preference": ""
   }
 ]

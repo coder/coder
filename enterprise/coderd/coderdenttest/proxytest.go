@@ -19,7 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
@@ -37,6 +37,9 @@ type ProxyOptions struct {
 
 	// ProxyURL is optional
 	ProxyURL *url.URL
+
+	// FlushStats is optional
+	FlushStats chan chan<- struct{}
 }
 
 // NewWorkspaceProxy will configure a wsproxy.Server with the given options.
@@ -96,7 +99,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
 		var err error
-		appHostnameRegex, err = httpapi.CompileHostnamePattern(options.AppHostname)
+		appHostnameRegex, err = appurl.CompileHostnamePattern(options.AppHostname)
 		require.NoError(t, err)
 	}
 
@@ -113,6 +116,9 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	// Inherit collector options from coderd, but keep the wsproxy reporter.
 	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
 	statsCollectorOptions.Reporter = nil
+	if options.FlushStats != nil {
+		statsCollectorOptions.Flush = options.FlushStats
+	}
 
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),

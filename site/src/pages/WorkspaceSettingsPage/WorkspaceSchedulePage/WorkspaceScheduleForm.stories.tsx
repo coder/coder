@@ -19,8 +19,17 @@ const meta: Meta<typeof WorkspaceScheduleForm> = {
   title: "pages/WorkspaceSettingsPage/WorkspaceScheduleForm",
   component: WorkspaceScheduleForm,
   args: {
-    enableAutoStart: true,
-    enableAutoStop: true,
+    allowTemplateAutoStart: true,
+    allowTemplateAutoStop: true,
+    allowedTemplateAutoStartDays: [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ],
   },
 };
 
@@ -42,8 +51,8 @@ export const AllDisabled: Story = {
       autostopEnabled: false,
       ttl: emptyTTL,
     },
-    enableAutoStart: false,
-    enableAutoStop: false,
+    allowTemplateAutoStart: false,
+    allowTemplateAutoStop: false,
   },
 };
 
@@ -55,7 +64,7 @@ export const Autostart: Story = {
       autostopEnabled: false,
       ttl: emptyTTL,
     },
-    enableAutoStop: false,
+    allowTemplateAutoStop: false,
   },
 };
 

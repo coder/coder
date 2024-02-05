@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -197,6 +199,12 @@ connectLoop:
 		client, err := p.clientDialer(p.closeContext)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				return
+			}
+			var sdkErr *codersdk.Error
+			// If something is wrong with our auth, stop trying to connect.
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
+				p.opts.Logger.Error(p.closeContext, "not authorized to dial coderd", slog.Error(err))
 				return
 			}
 			if p.isClosed() {

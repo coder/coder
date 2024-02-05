@@ -146,9 +146,8 @@ jf tf p --namespace=main --provider=docker --tag=v0.0.1
 ### Example template
 
 We have an example template
-[here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/remote)
-that uses our [JFrog Docker](../platforms/jfrog.md) template as the underlying
-module.
+[here](https://github.com/coder/coder/tree/main/examples/jfrog/remote) that uses
+our [JFrog Docker](../platforms/jfrog.md) template as the underlying module.
 
 ### Next up
 

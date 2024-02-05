@@ -15,7 +15,7 @@ import (
 func TestRename(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, AllowWorkspaceRenames: true})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
@@ -27,9 +27,7 @@ func TestRename(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	// Only append one letter because it's easy to exceed maximum length:
-	// E.g. "compassionate-chandrasekhar82" + "t".
-	want := workspace.Name + "t"
+	want := coderdtest.RandomUsername(t)
 	inv, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t)

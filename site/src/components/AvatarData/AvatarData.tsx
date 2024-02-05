@@ -1,11 +1,11 @@
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { useTheme } from "@emotion/react";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 
 export interface AvatarDataProps {
-  title: string | JSX.Element;
-  subtitle?: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
   src?: string;
   avatar?: React.ReactNode;
 }
@@ -28,7 +28,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
       direction="row"
       alignItems="center"
       css={{
-        minHeight: theme.spacing(5), // Make it predictable for the skeleton
+        minHeight: 40, // Make it predictable for the skeleton
         width: "100%",
         lineHeight: "150%",
       }}
@@ -52,7 +52,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
         {subtitle && (
           <span
             css={{
-              fontSize: 12,
+              fontSize: 13,
               color: theme.palette.text.secondary,
               lineHeight: "150%",
               maxWidth: 540,

@@ -1,5 +1,3 @@
-BEGIN;
-
 DROP VIEW template_with_users;
 
 ALTER TABLE templates RENAME COLUMN autostop_requirement_days_of_week TO restart_requirement_days_of_week;
@@ -21,5 +19,3 @@ AS
 	    templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

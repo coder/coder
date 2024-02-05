@@ -1,9 +1,10 @@
-import { useMe } from "hooks";
-import { BaseOption } from "./options";
+import { type FC } from "react";
 import { getUsers } from "api/api";
-import { UseFilterMenuOptions, useFilterMenu } from "./menu";
+import { useMe } from "contexts/auth/useMe";
+import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UseFilterMenuOptions, useFilterMenu } from "./menu";
+import { BaseOption } from "./options";
 
 export type UserOption = BaseOption & {
   avatarUrl?: string;
@@ -67,7 +68,11 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-export const UserMenu = (menu: UserFilterMenu) => {
+interface UserMenuProps {
+  menu: UserFilterMenu;
+}
+
+export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
   return (
     <FilterSearchMenu
       id="users-menu"
@@ -85,13 +90,12 @@ export const UserMenu = (menu: UserFilterMenu) => {
   );
 };
 
-const UserOptionItem = ({
-  option,
-  isSelected,
-}: {
+interface UserOptionItemProps {
   option: UserOption;
   isSelected?: boolean;
-}) => {
+}
+
+const UserOptionItem: FC<UserOptionItemProps> = ({ option, isSelected }) => {
   return (
     <OptionItem
       option={option}
@@ -100,7 +104,7 @@ const UserOptionItem = ({
         <UserAvatar
           username={option.label}
           avatarURL={option.avatarUrl}
-          sx={{ width: 16, height: 16, fontSize: 8 }}
+          css={{ width: 16, height: 16, fontSize: 8 }}
         />
       }
     />

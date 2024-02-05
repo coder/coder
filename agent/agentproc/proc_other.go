@@ -7,18 +7,18 @@ import (
 	"github.com/spf13/afero"
 )
 
-func (p *Process) Niceness(sc Syscaller) (int, error) {
+func (*Process) Niceness(Syscaller) (int, error) {
 	return 0, errUnimplemented
 }
 
-func (p *Process) SetNiceness(sc Syscaller, score int) error {
+func (*Process) SetNiceness(Syscaller, int) error {
 	return errUnimplemented
 }
 
-func (p *Process) Cmd() string {
+func (*Process) Cmd() string {
 	return ""
 }
 
-func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
+func List(afero.Fs, Syscaller) ([]*Process, error) {
 	return nil, errUnimplemented
 }

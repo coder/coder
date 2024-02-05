@@ -5,6 +5,7 @@ package pty_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -43,6 +44,18 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe"))
 		err := ps.Kill()
+		assert.NoError(t, err)
+		err = ps.Wait()
+		var exitErr *exec.ExitError
+		require.True(t, xerrors.As(err, &exitErr))
+		assert.NotEqual(t, 0, exitErr.ExitCode())
+		err = ptty.Close()
+		require.NoError(t, err)
+	})
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe"))
+		err := ps.Signal(os.Interrupt) // Actually does kill.
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError

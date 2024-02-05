@@ -1,17 +1,17 @@
-import { useMe } from "hooks/useMe";
-import { ComponentProps, FC } from "react";
-import { Section } from "components/SettingsLayout/Section";
-import { SecurityForm } from "./SettingsSecurityForm";
+import { type ComponentProps, type FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { getUserLoginType } from "api/api";
+import { authMethods, updatePassword } from "api/queries/users";
+import { useMe } from "contexts/auth/useMe";
+import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Section } from "../Section";
+import { SecurityForm } from "./SecurityForm";
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
 } from "./SingleSignOnSection";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { authMethods, updatePassword } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const SecurityPage: FC = () => {
   const me = useMe();
@@ -57,16 +57,18 @@ export const SecurityPage: FC = () => {
   );
 };
 
-export const SecurityPageView = ({
-  security,
-  oidc,
-}: {
+interface SecurityPageViewProps {
   security: {
     form: ComponentProps<typeof SecurityForm>;
   };
   oidc?: {
     section: ComponentProps<typeof SingleSignOnSection>;
   };
+}
+
+export const SecurityPageView: FC<SecurityPageViewProps> = ({
+  security,
+  oidc,
 }) => {
   return (
     <Stack spacing={6}>

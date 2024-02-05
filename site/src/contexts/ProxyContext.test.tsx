@@ -19,7 +19,7 @@ import { screen } from "@testing-library/react";
 import { server } from "testHelpers/server";
 import { rest } from "msw";
 import { Region } from "api/typesGenerated";
-import "testHelpers/localstorage";
+import "testHelpers/localStorage";
 import userEvent from "@testing-library/user-event";
 
 // Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
@@ -187,7 +187,7 @@ interface ProxyContextSelectionTest {
 
 describe("ProxyContextSelection", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    localStorage.clear();
   });
 
   // A way to simulate a user clearing the proxy selection.

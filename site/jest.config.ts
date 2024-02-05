@@ -35,6 +35,7 @@ module.exports = {
       moduleDirectories: ["node_modules", "<rootDir>/src"],
       moduleNameMapper: {
         "\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",
+        "^@fontsource": "<rootDir>/src/testHelpers/styleMock.ts",
       },
     },
     {

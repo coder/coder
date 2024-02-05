@@ -7,6 +7,9 @@ interface TestType {
   untouchedBadField: string;
   touchedGoodField: string;
   touchedBadField: string;
+  maxLengthOk: string;
+  maxLengthClose: string;
+  maxLengthOver: string;
 }
 
 const mockHandleChange = jest.fn();
@@ -17,21 +20,36 @@ const form = {
     untouchedBadField: "oops!",
     touchedGoodField: undefined,
     touchedBadField: "oops!",
+    maxLengthOk: undefined,
+    maxLengthClose: undefined,
+    maxLengthOver: undefined,
   },
   touched: {
     untouchedGoodField: false,
     untouchedBadField: false,
     touchedGoodField: true,
     touchedBadField: true,
+    maxLengthOk: false,
+    maxLengthClose: false,
+    maxLengthOver: false,
+  },
+  values: {
+    untouchedGoodField: "",
+    untouchedBadField: "",
+    touchedGoodField: "",
+    touchedBadField: "",
+    maxLengthOk: "",
+    maxLengthClose: "a".repeat(32),
+    maxLengthOver: "a".repeat(33),
   },
   handleChange: mockHandleChange,
   handleBlur: jest.fn(),
-  getFieldProps: (name: string) => {
+  getFieldProps: (name: keyof TestType) => {
     return {
       name,
       onBlur: jest.fn(),
       onChange: jest.fn(),
-      value: "",
+      value: form.values[name] ?? "",
     };
   },
 } as unknown as FormikContextType<TestType>;
@@ -46,6 +64,15 @@ describe("form util functions", () => {
       const untouchedBadResult = getFieldHelpers("untouchedBadField");
       const touchedGoodResult = getFieldHelpers("touchedGoodField");
       const touchedBadResult = getFieldHelpers("touchedBadField");
+      const maxLengthOk = getFieldHelpers("maxLengthOk", {
+        maxLength: 32,
+      });
+      const maxLengthClose = getFieldHelpers("maxLengthClose", {
+        maxLength: 32,
+      });
+      const maxLengthOver = getFieldHelpers("maxLengthOver", {
+        maxLength: 32,
+      });
       it("populates the 'field props'", () => {
         expect(untouchedGoodResult.name).toEqual("untouchedGoodField");
         expect(untouchedGoodResult.onBlur).toBeDefined();
@@ -56,16 +83,28 @@ describe("form util functions", () => {
         expect(untouchedGoodResult.id).toEqual("untouchedGoodField");
       });
       it("sets error to true if touched and invalid", () => {
-        expect(untouchedGoodResult.error).toBeFalsy;
-        expect(untouchedBadResult.error).toBeFalsy;
-        expect(touchedGoodResult.error).toBeFalsy;
-        expect(touchedBadResult.error).toBeTruthy;
+        expect(untouchedGoodResult.error).toBeFalsy();
+        expect(untouchedBadResult.error).toBeFalsy();
+        expect(touchedGoodResult.error).toBeFalsy();
+        expect(touchedBadResult.error).toBeTruthy();
       });
       it("sets helperText to the error message if touched and invalid", () => {
-        expect(untouchedGoodResult.helperText).toBeUndefined;
-        expect(untouchedBadResult.helperText).toBeUndefined;
-        expect(touchedGoodResult.helperText).toBeUndefined;
+        expect(untouchedGoodResult.helperText).toBeUndefined();
+        expect(untouchedBadResult.helperText).toBeUndefined();
+        expect(touchedGoodResult.helperText).toBeUndefined();
         expect(touchedBadResult.helperText).toEqual("oops!");
+      });
+      it("allows short entries", () => {
+        expect(maxLengthOk.error).toBe(false);
+        expect(maxLengthOk.helperText).toBeUndefined();
+      });
+      it("warns on entries close to the limit", () => {
+        expect(maxLengthClose.error).toBe(false);
+        expect(maxLengthClose.helperText).toBeDefined();
+      });
+      it("reports an error for entries that are too long", () => {
+        expect(maxLengthOver.error).toBe(true);
+        expect(maxLengthOver.helperText).toBeDefined();
       });
     });
     describe("with API errors", () => {
@@ -129,7 +168,7 @@ describe("form util functions", () => {
     });
 
     it("allows a 32-letter name", () => {
-      const input = Array(32).fill("a").join("");
+      const input = "a".repeat(32);
       const validate = () => nameSchema.validateSync(input);
       expect(validate).not.toThrow();
     });
@@ -145,7 +184,7 @@ describe("form util functions", () => {
     });
 
     it("disallows a 33-letter name", () => {
-      const input = Array(33).fill("a").join("");
+      const input = "a".repeat(33);
       const validate = () => nameSchema.validateSync(input);
       expect(validate).toThrow();
     });

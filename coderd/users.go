@@ -28,6 +28,47 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// userDebugOIDC returns the OIDC debug context for the user.
+// Not going to expose this via swagger as the return payload is not guaranteed
+// to be consistent between releases.
+//
+// @Summary Debug OIDC context for a user
+// @ID debug-oidc-context-for-a-user
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 200 "Success"
+// @Param user path string true "User ID, name, or me"
+// @Router /debug/{user}/debug-link [get]
+// @x-apidocgen {"skip": true}
+func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	link, err := api.Database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user links.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// This will encode properly because it is a json.RawMessage.
+	httpapi.Write(ctx, rw, http.StatusOK, link.DebugContext)
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
@@ -111,7 +152,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, createUser.Email)
+		err = api.TrialGenerator(ctx, codersdk.LicensorTrialRequest{
+			Email:       createUser.Email,
+			FirstName:   createUser.TrialInfo.FirstName,
+			LastName:    createUser.TrialInfo.LastName,
+			PhoneNumber: createUser.TrialInfo.PhoneNumber,
+			JobTitle:    createUser.TrialInfo.JobTitle,
+			CompanyName: createUser.TrialInfo.CompanyName,
+			Country:     createUser.TrialInfo.Country,
+			Developers:  createUser.TrialInfo.Developers,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to generate trial",
@@ -519,6 +569,57 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
 }
 
+// Returns recent build parameters for the signed-in user.
+//
+// @Summary Get autofill build parameters for user
+// @ID get-autofill-build-parameters-for-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, username, or me"
+// @Param template_id query string true "Template ID"
+// @Success 200 {array} codersdk.UserParameter
+// @Router /users/{user}/autofill-parameters [get]
+func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	p := httpapi.NewQueryParamParser().Required("template_id")
+	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
+	p.ErrorExcessParams(r.URL.Query())
+	if len(p.Errors) > 0 {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	params, err := api.Database.GetUserWorkspaceBuildParameters(
+		r.Context(),
+		database.GetUserWorkspaceBuildParametersParams{
+			OwnerID:    user.ID,
+			TemplateID: templateID,
+		},
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdkParams := []codersdk.UserParameter{}
+	for _, param := range params {
+		sdkParams = append(sdkParams, codersdk.UserParameter{
+			Name:  param.Name,
+			Value: param.Value,
+		})
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, sdkParams)
+}
+
 // Returns the user's login type. This only works if the api key for authorization
 // and the requested user match. Eg: 'me'
 //
@@ -585,15 +686,12 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		responseErrors := []codersdk.ValidationError{}
-		if existentUser.Username == params.Username {
-			responseErrors = append(responseErrors, codersdk.ValidationError{
-				Field:  "username",
-				Detail: "this value is already in use and should be unique",
-			})
-		}
+		responseErrors := []codersdk.ValidationError{{
+			Field:  "username",
+			Detail: "This username is already in use.",
+		}}
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message:     "User already exists.",
+			Message:     "A user with this username already exists.",
 			Validations: responseErrors,
 		})
 		return
@@ -609,6 +707,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
+		Name:      params.Name,
 		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
 		UpdatedAt: dbtime.Now(),
@@ -721,6 +820,52 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
 	}
+}
+
+// @Summary Update user appearance settings
+// @ID update-user-appearance-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserAppearanceSettingsRequest true "New appearance settings"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/appearance [put]
+func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+	)
+
+	var params codersdk.UpdateUserAppearanceSettingsRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updatedUser, err := api.Database.UpdateUserAppearanceSettings(ctx, database.UpdateUserAppearanceSettingsParams{
+		ID:              user.ID,
+		ThemePreference: params.ThemePreference,
+		UpdatedAt:       dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
 // @Summary Update user password
@@ -1177,13 +1322,13 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	return member.OrganizationIDs, nil
 }
 
-func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+func userByID(id uuid.UUID, users []database.User) (database.User, bool) {
 	for _, user := range users {
 		if id == user.ID {
-			return user.Username, true
+			return user, true
 		}
 	}
-	return "", false
+	return database.User{}, false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

@@ -47,7 +47,7 @@ func TestCheckWarnings(t *testing.T) {
 
 		var buf bytes.Buffer
 		inv.Stderr = &buf
-		clitest.SetupConfig(t, client, conf)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // owners should see this
 
 		err := inv.Run()
 		require.NoError(t, err)

@@ -55,6 +55,33 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertRoles(t, "alice", []string{})
 		})
 
+		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
+		// 1 role exists.
+		t.Run("SingleRoleString", func(t *testing.T) {
+			t.Parallel()
+
+			const oidcRoleName = "TemplateAuthor"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.UserRoleField = "roles"
+					cfg.UserRoleMapping = map[string][]string{
+						oidcRoleName: {rbac.RoleTemplateAdmin()},
+					}
+				},
+			})
+
+			// User starts with the owner role
+			_, resp := runner.Login(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				// This is sent as a **string** intentionally instead
+				// of an array.
+				"roles": oidcRoleName,
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin()})
+		})
+
 		// A user has some roles, then on an oauth refresh will lose said
 		// roles from an updated claim.
 		t.Run("NewUserAndRemoveRolesOnRefresh", func(t *testing.T) {
@@ -334,6 +361,63 @@ func TestUserOIDC(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
 		})
+
+		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
+		// 1 group exists.
+		t.Run("SingleRoleGroup", func(t *testing.T) {
+			t.Parallel()
+
+			const groupClaim = "custom-groups"
+			const groupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+					cfg.CreateMissingGroups = true
+				},
+			})
+
+			// User starts with the owner role
+			_, resp := runner.Login(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				// This is sent as a **string** intentionally instead
+				// of an array.
+				groupClaim: groupName,
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
+		})
+
+		t.Run("GroupAllowList", func(t *testing.T) {
+			t.Parallel()
+
+			const groupClaim = "custom-groups"
+			const allowedGroup = "foo"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+					cfg.GroupAllowList = map[string]bool{allowedGroup: true}
+				},
+			})
+
+			// Test forbidden
+			_, resp := runner.AttemptLogin(t, jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{"not-allowed"},
+			})
+			require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+			// Test allowed
+			client, _ := runner.Login(t, jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{allowedGroup},
+			})
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_, err := client.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("Refresh", func(t *testing.T) {
@@ -608,7 +692,8 @@ type oidcTestRunner struct {
 
 	// Login will call the OIDC flow with an unauthenticated client.
 	// The IDP will return the idToken claims.
-	Login func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
+	Login        func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
+	AttemptLogin func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
 	// ForceRefresh will use an authenticated codersdk.Client, and force their
 	// OIDC token to be expired and require a refresh. The refresh will use the claims provided.
 	// It just calls the /users/me endpoint to trigger the refresh.
@@ -698,10 +783,11 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	helper := oidctest.NewLoginHelper(owner, fake)
 
 	return &oidcTestRunner{
-		AdminClient: owner,
-		AdminUser:   admin,
-		API:         api,
-		Login:       helper.Login,
+		AdminClient:  owner,
+		AdminUser:    admin,
+		API:          api,
+		Login:        helper.Login,
+		AttemptLogin: helper.AttemptLogin,
 		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) {
 			helper.ForceRefresh(t, api.Database, client, idToken)
 		},

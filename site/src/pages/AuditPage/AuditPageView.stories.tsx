@@ -1,7 +1,14 @@
 import { Meta, StoryObj } from "@storybook/react";
+import { type ComponentProps } from "react";
+import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
+import {
+  mockInitialRenderResult,
+  mockSuccessResult,
+} from "components/PaginationWidget/PaginationContainer.mocks";
+import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import { AuditPageView } from "./AuditPageView";
-import { ComponentProps } from "react";
+
 import {
   MockMenu,
   getDefaultFilterProps,
@@ -28,9 +35,6 @@ const meta: Meta<typeof AuditPageView> = {
   component: AuditPageView,
   args: {
     auditLogs: [MockAuditLog, MockAuditLog2],
-    count: 1000,
-    page: 1,
-    limit: 25,
     isAuditLogVisible: true,
     filterProps: defaultFilterProps,
   },
@@ -39,39 +43,46 @@ const meta: Meta<typeof AuditPageView> = {
 export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
-export const AuditPage: Story = {};
-
-export const Loading = {
+export const AuditPage: Story = {
+  parameters: { chromatic: chromaticWithTablet },
   args: {
-    auditLogs: undefined,
-    count: undefined,
-    isNonInitialPage: false,
+    auditsQuery: mockSuccessResult,
   },
 };
 
-export const EmptyPage = {
+export const Loading: Story = {
+  args: {
+    auditLogs: undefined,
+    isNonInitialPage: false,
+    auditsQuery: mockInitialRenderResult,
+  },
+};
+
+export const EmptyPage: Story = {
   args: {
     auditLogs: [],
     isNonInitialPage: true,
+    auditsQuery: {
+      ...mockSuccessResult,
+      totalRecords: 0,
+    } as UsePaginatedQueryResult,
   },
 };
 
-export const NoLogs = {
+export const NoLogs: Story = {
   args: {
     auditLogs: [],
-    count: 0,
     isNonInitialPage: false,
+    auditsQuery: {
+      ...mockSuccessResult,
+      totalRecords: 0,
+    } as UsePaginatedQueryResult,
   },
 };
 
-export const NotVisible = {
+export const NotVisible: Story = {
   args: {
     isAuditLogVisible: false,
-  },
-};
-
-export const AuditPageSmallViewport = {
-  parameters: {
-    chromatic: { viewports: [600] },
+    auditsQuery: mockInitialRenderResult,
   },
 };

@@ -128,7 +128,7 @@ Navigate to the `./azure-linux` folder where you created your template and run
 the following command to put the template on your Coder instance.
 
 ```shell
-coder templates create
+coder templates push
 ```
 
 Congrats! You can now navigate to your Coder dashboard and use this Linux on

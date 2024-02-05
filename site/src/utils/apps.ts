@@ -20,7 +20,10 @@ export const createAppLinkHref = (
     agent.name
   }/apps/${encodeURIComponent(appSlug)}/`;
   if (app.command) {
-    href = `${preferredPathBase}/@${username}/${workspace.name}.${
+    // Terminal links are relative. The terminal page knows how
+    // to select the correct workspace proxy for the websocket
+    // connection.
+    href = `/@${username}/${workspace.name}.${
       agent.name
     }/terminal?command=${encodeURIComponent(app.command)}`;
   }

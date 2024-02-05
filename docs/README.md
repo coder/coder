@@ -105,4 +105,4 @@ Azure, Google Cloud, Kubernetes, and more.
 ## Up next
 
 - Learn about [Templates](./templates/index.md)
-- [Install Coder](./install/install.sh.md)
+- [Install Coder](./install/index.md#install-coder)

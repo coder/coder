@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 const (
@@ -117,11 +118,25 @@ func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error
 				batch.Requests = batch.Requests[:0]
 			}
 		}
-		if len(batch.UserID) > 0 {
-			err := tx.InsertWorkspaceAppStats(ctx, batch)
-			if err != nil {
-				return err
-			}
+		if len(batch.UserID) == 0 {
+			return nil
+		}
+
+		if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
+			return err
+		}
+
+		// TODO: We currently measure workspace usage based on when we get stats from it.
+		// There are currently two paths for this:
+		// 1) From SSH -> workspace agent stats POSTed from agent
+		// 2) From workspace apps / rpty -> workspace app stats (from coderd / wsproxy)
+		// Ideally we would have a single code path for this.
+		uniqueIDs := slice.Unique(batch.WorkspaceID)
+		if err := tx.BatchUpdateWorkspaceLastUsedAt(ctx, database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs:        uniqueIDs,
+			LastUsedAt: dbtime.Now(), // This isn't 100% accurate, but it's good enough.
+		}); err != nil {
+			return err
 		}
 
 		return nil
@@ -234,6 +249,7 @@ func (sc *StatsCollector) Collect(report StatsReport) {
 		}
 		delete(sc.statsBySessionID, report.SessionID)
 	}
+	sc.opts.Logger.Debug(sc.ctx, "collected workspace app stats", slog.F("report", report))
 }
 
 // rollup performs stats rollup for sessions that fall within the

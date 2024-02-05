@@ -1,16 +1,13 @@
 import { useTheme } from "@emotion/react";
 import { type Group } from "api/typesGenerated";
-
 import { Stack } from "components/Stack/Stack";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
-
 import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import GroupIcon from "@mui/icons-material/Group";
-
 import {
   Popover,
   PopoverTrigger,
@@ -51,10 +48,10 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
               <Stack
                 spacing={0}
                 direction="row"
-                css={{ columnGap: theme.spacing(1), alignItems: "center" }}
+                css={{ columnGap: 8, alignItems: "center" }}
               >
                 <GroupIcon
-                  sx={{
+                  css={{
                     width: "1rem",
                     height: "1rem",
                     opacity: userGroups.length > 0 ? 0.8 : 0.5,
@@ -68,7 +65,23 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
             </Button>
           </PopoverTrigger>
 
-          <PopoverContent disableScrollLock disableRestoreFocus>
+          <PopoverContent
+            disableScrollLock
+            disableRestoreFocus
+            css={{
+              ".MuiPaper-root": {
+                minWidth: "auto",
+              },
+            }}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "center",
+            }}
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "center",
+            }}
+          >
             <OverflowY maxHeight={400}>
               <List
                 component="ul"
@@ -76,8 +89,8 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                   display: "flex",
                   flexFlow: "column nowrap",
                   fontSize: theme.typography.body2.fontSize,
-                  padding: theme.spacing(0.5, 0.25),
-                  gap: theme.spacing(0),
+                  padding: "4px 2px",
+                  gap: 0,
                 }}
               >
                 {userGroups.map((group) => {
@@ -86,7 +99,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                     <ListItem
                       key={group.id}
                       css={{
-                        columnGap: theme.spacing(1.25),
+                        columnGap: 10,
                         alignItems: "center",
                       }}
                     >

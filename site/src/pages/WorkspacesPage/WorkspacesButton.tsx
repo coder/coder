@@ -1,18 +1,16 @@
-import { type PropsWithChildren, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { type Template } from "api/typesGenerated";
 import { type UseQueryResult } from "react-query";
 import {
   Link as RouterLink,
   LinkProps as RouterLinkProps,
 } from "react-router-dom";
-import Box from "@mui/system/Box";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import { Loader } from "components/Loader/Loader";
 import { OverflowY } from "components/OverflowY/OverflowY";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
 import { SearchBox } from "./WorkspacesSearchBox";
 import {
@@ -20,22 +18,23 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { SearchEmpty, searchStyles } from "components/Menu/Search";
 
 const ICON_SIZE = 18;
-const COLUMN_GAP = 1.5;
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
-type WorkspacesButtonProps = PropsWithChildren<{
+interface WorkspacesButtonProps {
+  children?: ReactNode;
   templatesFetchStatus: TemplatesQuery["status"];
   templates: TemplatesQuery["data"];
-}>;
+}
 
-export function WorkspacesButton({
+export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
   children,
   templatesFetchStatus,
   templates,
-}: WorkspacesButtonProps) {
+}) => {
   // Dataset should always be small enough that client-side filtering should be
   // good enough. Can swap out down the line if it becomes an issue
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,17 +43,15 @@ export function WorkspacesButton({
   let emptyState: ReactNode = undefined;
   if (templates?.length === 0) {
     emptyState = (
-      <EmptyState
-        message="No templates yet"
-        cta={
-          <Link to="/templates" component={RouterLink}>
-            Create one now.
-          </Link>
-        }
-      />
+      <SearchEmpty>
+        No templates yet.{" "}
+        <Link to="/templates" component={RouterLink}>
+          Create one now.
+        </Link>
+      </SearchEmpty>
     );
   } else if (processed.length === 0) {
-    emptyState = <EmptyState message="No templates match your text" />;
+    emptyState = <SearchEmpty>No templates found</SearchEmpty>;
   }
 
   return (
@@ -64,21 +61,27 @@ export function WorkspacesButton({
           {children}
         </Button>
       </PopoverTrigger>
-      <PopoverContent horizontal="right">
+      <PopoverContent
+        horizontal="right"
+        css={{
+          ".MuiPaper-root": searchStyles.content,
+        }}
+      >
         <SearchBox
           value={searchTerm}
           onValueChange={(newValue) => setSearchTerm(newValue)}
           placeholder="Type/select a workspace template"
           label="Template select for workspace"
-          sx={{ flexShrink: 0, columnGap: COLUMN_GAP }}
+          css={{ flexShrink: 0, columnGap: 12 }}
         />
 
         <OverflowY
           maxHeight={380}
-          sx={{
+          css={{
             display: "flex",
             flexDirection: "column",
-            paddingY: 1,
+            paddingTop: "8px",
+            paddingBottom: "8px",
           }}
         >
           {templatesFetchStatus === "loading" ? (
@@ -94,9 +97,9 @@ export function WorkspacesButton({
           )}
         </OverflowY>
 
-        <Box
+        <div
           css={(theme) => ({
-            padding: theme.spacing(1, 0),
+            padding: "8px 0",
             borderTop: `1px solid ${theme.palette.divider}`,
           })}
         >
@@ -105,35 +108,38 @@ export function WorkspacesButton({
             css={(theme) => ({
               display: "flex",
               alignItems: "center",
-              columnGap: theme.spacing(COLUMN_GAP),
-
+              columnGap: 12,
               color: theme.palette.primary.main,
             })}
           >
             <OpenIcon css={{ width: 14, height: 14 }} />
             <span>See all templates</span>
           </PopoverLink>
-        </Box>
+        </div>
       </PopoverContent>
     </Popover>
   );
+};
+
+interface WorkspaceResultsRowProps {
+  template: Template;
 }
 
-function WorkspaceResultsRow({ template }: { template: Template }) {
+const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
   return (
     <PopoverLink
       to={`/templates/${template.name}/workspace`}
-      css={(theme) => ({
+      css={{
         display: "flex",
-        gap: theme.spacing(COLUMN_GAP),
+        gap: 12,
         alignItems: "center",
-      })}
+      }}
     >
       <Avatar
         src={template.icon}
         fitImage
         alt={template.display_name || "Coder template"}
-        sx={{
+        css={{
           width: `${ICON_SIZE}px`,
           height: `${ICON_SIZE}px`,
           fontSize: `${ICON_SIZE * 0.5}px`,
@@ -143,7 +149,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
         {template.display_name || "-"}
       </Avatar>
 
-      <Box
+      <div
         css={(theme) => ({
           color: theme.palette.text.primary,
           display: "flex",
@@ -171,18 +177,18 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
           developer
           {template.active_user_count === 1 ? "" : "s"}
         </span>
-      </Box>
+      </div>
     </PopoverLink>
   );
-}
+};
 
-function PopoverLink(props: RouterLinkProps) {
+const PopoverLink: FC<RouterLinkProps> = ({ children, ...linkProps }) => {
   return (
     <RouterLink
-      {...props}
+      {...linkProps}
       css={(theme) => ({
         color: theme.palette.text.primary,
-        padding: theme.spacing(1, 2),
+        padding: "8px 16px",
         fontSize: 14,
         outline: "none",
         textDecoration: "none",
@@ -194,9 +200,11 @@ function PopoverLink(props: RouterLinkProps) {
           backgroundColor: theme.palette.action.hover,
         },
       })}
-    />
+    >
+      {children}
+    </RouterLink>
   );
-}
+};
 
 function sortTemplatesByUsersDesc(
   templates: readonly Template[],

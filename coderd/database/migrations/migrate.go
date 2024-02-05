@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"golang.org/x/xerrors"
@@ -27,22 +26,16 @@ func setup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 
 	// migration_cursor is a v1 migration table. If this exists, we're on v1.
 	// Do no run v2 migrations on a v1 database!
-	row := db.QueryRowContext(ctx, "SELECT * FROM migration_cursor;")
-	if row.Err() == nil {
-		return nil, nil, xerrors.Errorf("currently connected to a Coder v1 database, aborting database setup")
+	row := db.QueryRowContext(ctx, "SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'migration_cursor';")
+	var v1Exists int
+	if row.Scan(&v1Exists) == nil {
+		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	// there is a postgres.WithInstance() method that takes the DB instance,
-	// but, when you close the resulting Migrate, it closes the DB, which
-	// we don't want.  Instead, create just a connection that will get closed
-	// when migration is done.
-	conn, err := db.Conn(ctx)
+	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
+	err = dbDriver.ensureVersionTable()
 	if err != nil {
-		return nil, nil, xerrors.Errorf("postgres connection: %w", err)
-	}
-	dbDriver, err := postgres.WithConnection(ctx, conn, &postgres.Config{})
-	if err != nil {
-		return nil, nil, xerrors.Errorf("wrap postgres connection: %w", err)
+		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
 	}
 
 	m, err := migrate.NewWithInstance("", sourceDriver, "", dbDriver)

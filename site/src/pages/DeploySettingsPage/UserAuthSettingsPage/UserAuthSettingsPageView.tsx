@@ -1,12 +1,8 @@
-import { ClibaseOption } from "api/typesGenerated";
-import {
-  Badges,
-  DisabledBadge,
-  EnabledBadge,
-} from "components/DeploySettingsLayout/Badges";
-import { Header } from "components/DeploySettingsLayout/Header";
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
+import type { ClibaseOption } from "api/typesGenerated";
+import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
+import { Header } from "../Header";
+import OptionsTable from "../OptionsTable";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,

@@ -136,9 +136,9 @@ func TestDERPHeaders(t *testing.T) {
 	})
 
 	var (
-		admin     = coderdtest.CreateFirstUser(t, client)
-		member, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		workspace = runAgent(t, client, member)
+		admin              = coderdtest.CreateFirstUser(t, client)
+		member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace          = runAgent(t, client, memberUser.ID, newOptions.Database)
 	)
 
 	// Inject custom /derp handler so we can inspect the headers.

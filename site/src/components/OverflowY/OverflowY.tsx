@@ -1,18 +1,21 @@
 /**
  * @file Provides reusable vertical overflow behavior.
  */
-import { type ReactNode } from "react";
-import { type SystemStyleObject } from "@mui/system";
-import Box from "@mui/system/Box";
+import { type FC, type ReactNode } from "react";
 
-type Props = {
-  children: ReactNode;
+type OverflowYProps = {
+  children?: ReactNode;
+  className?: string;
   height?: number;
   maxHeight?: number;
-  sx?: SystemStyleObject;
 };
 
-export function OverflowY({ children, height, maxHeight, sx }: Props) {
+export const OverflowY: FC<OverflowYProps> = ({
+  children,
+  height,
+  maxHeight,
+  ...attrs
+}) => {
   const computedHeight = height === undefined ? "100%" : `${height}px`;
 
   // Doing Math.max check to catch cases where height is accidentally larger
@@ -23,17 +26,17 @@ export function OverflowY({ children, height, maxHeight, sx }: Props) {
       : `${Math.max(height ?? 0, maxHeight)}px`;
 
   return (
-    <Box
-      sx={{
+    <div
+      css={{
         width: "100%",
         height: computedHeight,
         maxHeight: computedMaxHeight,
         overflowY: "auto",
         flexShrink: 1,
-        ...sx,
       }}
+      {...attrs}
     >
       {children}
-    </Box>
+    </div>
   );
-}
+};

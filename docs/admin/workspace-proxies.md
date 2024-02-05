@@ -1,13 +1,5 @@
 # Workspace Proxies
 
-> Workspace proxies are in an
-> [experimental state](../contributing/feature-stages.md#experimental-features)
-> and the behavior is subject to change. Use
-> [GitHub issues](https://github.com/coder/coder) to leave feedback. This
-> experiment must be specifically enabled with the `--experiments="moons"`
-> option on both coderd and the workspace proxy. If you have all experiements
-> enabled, you have to add moons as well. `--experiments="*,moons"`
-
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
 Coder's networking does a best effort to make direct connections to a workspace.
@@ -129,10 +121,6 @@ coder:
     # Example: *.east.coderd.example.com
     - name: CODER_WILDCARD_ACCESS_URL
       value: "*.<app_hostname_of_proxy>"
-
-    # enables new paid features that are in alpha state
-    - name: CODER_EXPERIMENTS
-      value: "*,moons"
 
   tls:
     secretNames:

@@ -133,9 +133,9 @@ const styles = {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: ${theme.shape.borderRadius}px;
+    border-radius: 8px;
     border: 2px dashed ${theme.palette.divider};
-    padding: ${theme.spacing(6)};
+    padding: 48px;
     cursor: pointer;
 
     &:hover {
@@ -148,18 +148,18 @@ const styles = {
     opacity: 0.75,
   },
 
-  icon: (theme) => ({
-    fontSize: theme.spacing(8),
-  }),
+  icon: {
+    fontSize: 64,
+  },
 
-  title: (theme) => ({
-    fontSize: theme.spacing(2),
-  }),
+  title: {
+    fontSize: 16,
+  },
 
   description: (theme) => ({
     color: theme.palette.text.secondary,
     textAlign: "center",
-    maxWidth: theme.spacing(50),
+    maxWidth: 400,
   }),
 
   input: {
@@ -167,9 +167,9 @@ const styles = {
   },
 
   file: (theme) => ({
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
-    padding: theme.spacing(2),
+    padding: 16,
     background: theme.palette.background.paper,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

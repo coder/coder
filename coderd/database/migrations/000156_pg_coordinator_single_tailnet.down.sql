@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE
 	tailnet_clients
 ADD COLUMN
@@ -35,5 +33,3 @@ BEGIN
 	END IF;
 END;
 $$;
-
-COMMIT;

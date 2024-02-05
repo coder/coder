@@ -97,12 +97,6 @@ WHERE id IN (
 	WHERE tailnet_client_subscriptions.agent_id = $1
 );
 
--- name: GetAllTailnetClients :many
-SELECT sqlc.embed(tailnet_clients), array_agg(tailnet_client_subscriptions.agent_id)::uuid[] as agent_ids
-FROM tailnet_clients
-LEFT JOIN tailnet_client_subscriptions
-ON tailnet_clients.id = tailnet_client_subscriptions.client_id;
-
 -- name: UpsertTailnetCoordinator :one
 INSERT INTO
 	tailnet_coordinators (
@@ -121,3 +115,105 @@ RETURNING *;
 DELETE
 FROM tailnet_coordinators
 WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
+
+-- name: CleanTailnetLostPeers :exec
+DELETE
+FROM tailnet_peers
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND status = 'lost'::tailnet_status;
+
+-- name: CleanTailnetTunnels :exec
+DELETE FROM tailnet_tunnels
+WHERE updated_at < now() - INTERVAL '24 HOURS' AND
+      NOT EXISTS (
+        SELECT 1 FROM tailnet_peers
+        WHERE id = tailnet_tunnels.src_id AND coordinator_id = tailnet_tunnels.coordinator_id
+      );
+
+-- name: UpsertTailnetPeer :one
+INSERT INTO
+	tailnet_peers (
+	id,
+	coordinator_id,
+	node,
+	status,
+	updated_at
+)
+VALUES
+	($1, $2, $3, $4, now() at time zone 'utc')
+ON CONFLICT (id, coordinator_id)
+DO UPDATE SET
+	id = $1,
+	coordinator_id = $2,
+	node = $3,
+	status = $4,
+	updated_at = now() at time zone 'utc'
+RETURNING *;
+
+-- name: DeleteTailnetPeer :one
+DELETE
+FROM tailnet_peers
+WHERE id = $1 and coordinator_id = $2
+RETURNING id, coordinator_id;
+
+-- name: GetTailnetPeers :many
+SELECT * FROM tailnet_peers WHERE id = $1;
+
+-- name: UpsertTailnetTunnel :one
+INSERT INTO
+	tailnet_tunnels (
+	coordinator_id,
+	src_id,
+	dst_id,
+	updated_at
+)
+VALUES
+	($1, $2, $3, now() at time zone 'utc')
+ON CONFLICT (coordinator_id, src_id, dst_id)
+DO UPDATE SET
+	coordinator_id = $1,
+	src_id = $2,
+	dst_id = $3,
+	updated_at = now() at time zone 'utc'
+RETURNING *;
+
+-- name: DeleteTailnetTunnel :one
+DELETE
+FROM tailnet_tunnels
+WHERE coordinator_id = $1 and src_id = $2 and dst_id = $3
+RETURNING coordinator_id, src_id, dst_id;
+
+-- name: DeleteAllTailnetTunnels :exec
+DELETE
+FROM tailnet_tunnels
+WHERE coordinator_id = $1 and src_id = $2;
+
+-- name: GetTailnetTunnelPeerIDs :many
+SELECT dst_id as peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels
+WHERE tailnet_tunnels.src_id = $1
+UNION
+SELECT src_id as peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels
+WHERE tailnet_tunnels.dst_id = $1;
+
+-- name: GetTailnetTunnelPeerBindings :many
+SELECT tailnet_tunnels.dst_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
+FROM tailnet_tunnels
+INNER JOIN tailnet_peers ON tailnet_tunnels.dst_id = tailnet_peers.id
+WHERE tailnet_tunnels.src_id = $1
+UNION
+SELECT tailnet_tunnels.src_id as peer_id, tailnet_peers.coordinator_id, tailnet_peers.updated_at, tailnet_peers.node, tailnet_peers.status
+FROM tailnet_tunnels
+INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
+WHERE tailnet_tunnels.dst_id = $1;
+
+-- For PG Coordinator HTMLDebug
+
+-- name: GetAllTailnetCoordinators :many
+SELECT * FROM tailnet_coordinators;
+
+-- name: GetAllTailnetPeers :many
+SELECT * FROM tailnet_peers;
+
+-- name: GetAllTailnetTunnels :many
+SELECT * FROM tailnet_tunnels;

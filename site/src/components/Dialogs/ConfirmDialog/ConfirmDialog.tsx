@@ -1,10 +1,10 @@
 import DialogActions from "@mui/material/DialogActions";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type PropsWithChildren, type ReactNode } from "react";
+import { type FC, type ReactNode } from "react";
 import {
   Dialog,
   DialogActionButtons,
-  DialogActionButtonsProps,
+  type DialogActionButtonsProps,
 } from "../Dialog";
 import type { ConfirmDialogType } from "../types";
 
@@ -32,10 +32,7 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
 };
 
 export interface ConfirmDialogProps
-  extends Omit<
-    DialogActionButtonsProps,
-    "color" | "confirmDialog" | "onCancel"
-  > {
+  extends Omit<DialogActionButtonsProps, "color" | "onCancel"> {
   readonly description?: ReactNode;
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
@@ -61,22 +58,22 @@ const styles = {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
       width: "100%",
-      maxWidth: theme.spacing(55),
+      maxWidth: 440,
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
+      padding: "0 40px 40px",
     },
   }),
   dialogContent: (theme) => ({
     color: theme.palette.text.secondary,
-    padding: theme.spacing(5),
+    padding: "40px 40px 20px",
   }),
   dialogTitle: (theme) => ({
     margin: 0,
-    marginBottom: theme.spacing(2),
+    marginBottom: 16,
     color: theme.palette.text.primary,
     fontWeight: 400,
-    fontSize: theme.spacing(2.5),
+    fontSize: 20,
   }),
   dialogDescription: (theme) => ({
     color: theme.palette.text.secondary,
@@ -92,7 +89,7 @@ const styles = {
     },
 
     "& > p": {
-      margin: theme.spacing(1, 0),
+      margin: "8px 0",
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
@@ -101,7 +98,7 @@ const styles = {
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
  */
-export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
+export const ConfirmDialog: FC<ConfirmDialogProps> = ({
   cancelText,
   confirmLoading,
   confirmText,
@@ -135,7 +132,6 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
       <DialogActions>
         <DialogActionButtons
           cancelText={cancelText}
-          confirmDialog
           confirmLoading={confirmLoading}
           confirmText={confirmText || defaults.confirmText}
           disabled={disabled}

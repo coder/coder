@@ -38,6 +38,18 @@ export default defineConfig({
   },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
+    headers: {
+      // This header corresponds to "src/api/api.ts"'s hardcoded FE token.
+      // This is the secret side of the CSRF double cookie submit method.
+      // This should be sent on **every** response from the webserver.
+      //
+      // This is required because in production, the Golang webserver generates
+      // this "Set-Cookie" header. The Vite webserver needs to replicate this
+      // behavior. Instead of implementing CSRF though, we just use static
+      // values for simplicity.
+      "Set-Cookie":
+        "csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
+    },
     proxy: {
       "/api": {
         ws: true,
@@ -72,14 +84,13 @@ export default defineConfig({
     alias: {
       api: path.resolve(__dirname, "./src/api"),
       components: path.resolve(__dirname, "./src/components"),
-      hooks: path.resolve(__dirname, "./src/hooks"),
       contexts: path.resolve(__dirname, "./src/contexts"),
-      i18n: path.resolve(__dirname, "./src/i18n"),
+      hooks: path.resolve(__dirname, "./src/hooks"),
+      modules: path.resolve(__dirname, "./src/modules"),
       pages: path.resolve(__dirname, "./src/pages"),
       testHelpers: path.resolve(__dirname, "./src/testHelpers"),
       theme: path.resolve(__dirname, "./src/theme"),
       utils: path.resolve(__dirname, "./src/utils"),
-      xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },
 });

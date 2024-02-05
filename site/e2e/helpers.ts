@@ -15,12 +15,16 @@ import {
   Resource,
   RichParameter,
 } from "./provisionerGenerated";
-import { prometheusPort, pprofPort } from "./constants";
+import { prometheusPort, agentPProfPort } from "./constants";
 import { port } from "./playwright.config";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
-import { WorkspaceBuildParameter } from "api/typesGenerated";
+import {
+  WorkspaceBuildParameter,
+  UpdateTemplateMeta,
+} from "api/typesGenerated";
 import axios from "axios";
+import capitalize from "lodash/capitalize";
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -43,12 +47,9 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name);
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
   return name;
 };
 
@@ -193,12 +194,9 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
 
   await page.getByTestId("workspace-stop-button").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Stopped",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Stopped", {
+    state: "visible",
+  });
 };
 
 export const buildWorkspaceWithParameters = async (
@@ -221,12 +219,9 @@ export const buildWorkspaceWithParameters = async (
     await page.getByTestId("confirm-button").click();
   }
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 // startAgent runs the coder agent with the provided token.
@@ -311,7 +306,7 @@ export const startAgentWithCommand = async (
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
-      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + pprofPort,
+      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + agentPProfPort,
       CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
     },
   });
@@ -381,8 +376,8 @@ type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
     ? RecursivePartial<U>[]
     : T[P] extends object | undefined
-    ? RecursivePartial<T[P]>
-    : T[P];
+      ? RecursivePartial<T[P]>
+      : T[P];
 };
 
 interface EchoProvisionerResponses {
@@ -465,7 +460,7 @@ const createTemplateVersionTar = async (
               } as App;
             });
           }
-          return {
+          const agentResource = {
             apps: [],
             architecture: "amd64",
             connectionTimeoutSeconds: 300,
@@ -473,6 +468,7 @@ const createTemplateVersionTar = async (
             env: {},
             id: randomUUID(),
             metadata: [],
+            extraEnvs: [],
             scripts: [],
             motdFile: "",
             name: "dev",
@@ -486,6 +482,23 @@ const createTemplateVersionTar = async (
             token: randomUUID(),
             ...agent,
           } as Agent;
+
+          try {
+            Agent.encode(agentResource);
+          } catch (e) {
+            let m = `Error: agentResource encode failed, missing defaults?`;
+            if (e instanceof Error) {
+              if (!e.stack?.includes(e.message)) {
+                m += `\n${e.name}: ${e.message}`;
+              }
+              m += `\n${e.stack}`;
+            } else {
+              m += `\n${e}`;
+            }
+            throw new Error(m);
+          }
+
+          return agentResource;
         },
       );
     }
@@ -642,14 +655,14 @@ export const fillParameters = async (
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
       );
-      await parameterField.check();
+      await parameterField.click();
     } else if (richParameter.type === "list(string)") {
       throw new Error("not implemented yet"); // FIXME
     } else {
@@ -709,6 +722,30 @@ export const updateTemplate = async (
   await uploaded.wait();
 };
 
+export const updateTemplateSettings = async (
+  page: Page,
+  templateName: string,
+  templateSettingValues: Pick<
+    UpdateTemplateMeta,
+    "name" | "display_name" | "description"
+  >,
+) => {
+  await page.goto(`/templates/${templateName}/settings`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(`/templates/${templateName}/settings`);
+
+  for (const [key, value] of Object.entries(templateSettingValues)) {
+    const labelText = capitalize(key).replace("_", " ");
+    await page.getByLabel(labelText, { exact: true }).fill(value);
+  }
+
+  await page.getByTestId("form-submit").click();
+
+  const name = templateSettingValues.name ?? templateName;
+  await expect(page).toHaveURL(`/templates/${name}`);
+};
+
 export const updateWorkspace = async (
   page: Page,
   workspaceName: string,
@@ -726,12 +763,9 @@ export const updateWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };
 
 export const updateWorkspaceParameters = async (
@@ -750,10 +784,7 @@ export const updateWorkspaceParameters = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await page.waitForSelector(
-    "span[data-testid='build-status'] >> text=Running",
-    {
-      state: "visible",
-    },
-  );
+  await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+    state: "visible",
+  });
 };

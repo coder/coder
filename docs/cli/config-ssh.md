@@ -34,6 +34,16 @@ workspaces:
 
 Optionally specify the absolute path to the coder binary used in ProxyCommand. By default, the binary invoking this command ('config ssh') is used.
 
+### --disable-autostart
+
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_CONFIGSSH_DISABLE_AUTOSTART</code> |
+| Default     | <code>false</code>                              |
+
+Disable starting the workspace automatically when connecting via SSH.
+
 ### -n, --dry-run
 
 |             |                                 |
@@ -83,8 +93,8 @@ Specifies whether or not to keep options from previous run of config-ssh.
 ### --wait
 
 |             |                                    |
-| ----------- | ---------------------------------- | --- | ------------ |
-| Type        | <code>enum[yes                     | no  | auto]</code> |
+| ----------- | ---------------------------------- |
+| Type        | <code>enum[yes\|no\|auto]</code>   |
 | Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
 | Default     | <code>auto</code>                  |
 

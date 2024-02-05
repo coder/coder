@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -37,6 +38,9 @@ import (
 
 func TestDeploymentInsights(t *testing.T) {
 	t.Parallel()
+
+	clientTz, err := time.LoadLocation("America/Chicago")
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon:    true,
@@ -63,7 +67,7 @@ func TestDeploymentInsights(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	daus, err := client.DeploymentDAUs(context.Background(), codersdk.TimezoneOffsetHour(time.UTC))
+	daus, err := client.DeploymentDAUs(context.Background(), codersdk.TimezoneOffsetHour(clientTz))
 	require.NoError(t, err)
 
 	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
@@ -83,22 +87,23 @@ func TestDeploymentInsights(t *testing.T) {
 	_ = sshConn.Close()
 
 	wantDAUs := &codersdk.DAUsResponse{
+		TZHourOffset: codersdk.TimezoneOffsetHour(clientTz),
 		Entries: []codersdk.DAUEntry{
 			{
-				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Date:   time.Now().In(clientTz).Format("2006-01-02"),
 				Amount: 1,
 			},
 		},
 	}
 	require.Eventuallyf(t, func() bool {
-		daus, err = client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(time.UTC))
+		daus, err = client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
 		require.NoError(t, err)
 		return len(daus.Entries) > 0
 	},
 		testutil.WaitShort, testutil.IntervalFast,
 		"deployment daus never loaded",
 	)
-	gotDAUs, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(time.UTC))
+	gotDAUs, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
 	require.NoError(t, err)
 	require.Equal(t, gotDAUs, wantDAUs)
 
@@ -303,12 +308,6 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	_, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 }
 
 func TestUserActivityInsights_BadRequest(t *testing.T) {
@@ -332,13 +331,6 @@ func TestUserActivityInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	// Send insights request
-	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 }
 
 func TestTemplateInsights_Golden(t *testing.T) {
@@ -671,12 +663,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
 						ConnectionCount:             connectionCount,
-						SessionCountVSCode:          stat.sessionCountVSCode,
-						SessionCountJetBrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
-						SessionCountSSH:             stat.sessionCountSSH,
+						SessionCountVscode:          stat.sessionCountVSCode,
+						SessionCountJetbrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+						SessionCountSsh:             stat.sessionCountSSH,
 					})
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
@@ -1558,12 +1550,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
 						ConnectionCount:             connectionCount,
-						SessionCountVSCode:          stat.sessionCountVSCode,
-						SessionCountJetBrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
-						SessionCountSSH:             stat.sessionCountSSH,
+						SessionCountVscode:          stat.sessionCountVSCode,
+						SessionCountJetbrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+						SessionCountSsh:             stat.sessionCountSSH,
 					})
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
@@ -2053,12 +2045,6 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
-
-	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-		StartTime: today.AddDate(0, 0, -7),
-		EndTime:   today.Add(-time.Hour),
-	})
-	assert.Error(t, err, "want error for end time partial day when not today")
 
 	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
 		StartTime: today.AddDate(0, 0, -1),

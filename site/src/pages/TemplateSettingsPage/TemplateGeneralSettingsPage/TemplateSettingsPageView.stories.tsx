@@ -1,12 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError, MockTemplate } from "testHelpers/entities";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {
   title: "pages/TemplateSettingsPage",
   component: TemplateSettingsPageView,
   args: {
     template: MockTemplate,
+    accessControlEnabled: true,
   },
 };
 
@@ -29,5 +30,11 @@ export const SaveTemplateSettingsError: Story = {
     initialTouched: {
       allow_user_cancel_workspace_jobs: true,
     },
+  },
+};
+
+export const NoEntitlements: Story = {
+  args: {
+    accessControlEnabled: false,
   },
 };

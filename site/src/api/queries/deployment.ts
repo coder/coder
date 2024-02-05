@@ -21,9 +21,9 @@ export const deploymentStats = () => {
   };
 };
 
-export const health = () => {
+export const deploymentSSHConfig = () => {
   return {
-    queryKey: ["deployment", "health"],
-    queryFn: API.getHealth,
+    queryKey: ["deployment", "sshConfig"],
+    queryFn: API.getDeploymentSSHConfig,
   };
 };

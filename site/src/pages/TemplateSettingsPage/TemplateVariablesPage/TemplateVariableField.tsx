@@ -59,8 +59,8 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
         templateVersionVariable.type === "number"
           ? "number"
           : templateVersionVariable.sensitive
-          ? "password"
-          : "string"
+            ? "password"
+            : "string"
       }
       disabled={disabled}
       autoFocus

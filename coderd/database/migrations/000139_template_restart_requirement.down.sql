@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Delete the new version of the template_with_users view to remove the column
 -- dependency.
 DROP VIEW template_with_users;
@@ -25,5 +23,3 @@ AS
 	ON
 	    templates.created_by = visible_users.id;
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

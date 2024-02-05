@@ -1,14 +1,14 @@
-import { makeStyles } from "@mui/styles";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import TreeView from "@mui/lab/TreeView";
 import TreeItem from "@mui/lab/TreeItem";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { CSSProperties, FC, useState } from "react";
+import { type CSSProperties, type FC, useState } from "react";
+import { css } from "@emotion/react";
 import { FileTree } from "utils/filetree";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { colors } from "theme/colors";
+import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
   const contentA = fileTree[a];
@@ -28,23 +28,33 @@ type ContextMenu = {
   clientY: number;
 };
 
-export const FileTreeView: FC<{
+interface FileTreeViewProps {
   onSelect: (path: string) => void;
   onDelete: (path: string) => void;
   onRename: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
-}> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
-  const styles = useStyles();
-  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
+}
 
+export const FileTreeView: FC<FileTreeViewProps> = ({
+  fileTree,
+  activePath,
+  onDelete,
+  onRename,
+  onSelect,
+}) => {
+  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
   const buildTreeItems = (
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-    let icon: JSX.Element | null = null;
+    const isFolder = typeof content === "object";
+    let icon: JSX.Element | null = isFolder ? null : (
+      <FormatAlignLeftOutlined />
+    );
+
     if (filename.endsWith(".tf")) {
       icon = <FileTypeTerraform />;
     }
@@ -52,7 +62,7 @@ export const FileTreeView: FC<{
       icon = <FileTypeMarkdown />;
     }
     if (filename.endsWith("Dockerfile")) {
-      icon = <FileTypeDockerfile />;
+      icon = <DockerIcon />;
     }
 
     return (
@@ -60,9 +70,46 @@ export const FileTreeView: FC<{
         nodeId={currentPath}
         key={currentPath}
         label={filename}
-        className={`${styles.fileTreeItem} ${
-          currentPath === activePath ? "active" : ""
-        }`}
+        css={(theme) => css`
+          overflow: hidden;
+          user-select: none;
+
+          & > .MuiTreeItem-content {
+            padding: 2px 16px;
+            color: ${theme.palette.text.secondary};
+            height: 32px;
+
+            & svg {
+              width: 12px;
+              height: 12px;
+              color: ${theme.palette.text.secondary};
+            }
+
+            & > .MuiTreeItem-label {
+              margin-left: 4px;
+              font-size: 13px;
+              color: inherit;
+            }
+
+            &.Mui-selected {
+              color: ${theme.roles.active.text};
+              background: ${theme.roles.active.background};
+            }
+
+            &.Mui-focused {
+              box-shadow: inset 0 0 0 1px ${theme.palette.primary.main};
+            }
+          }
+
+          & .MuiTreeItem-group {
+            margin-left: 0;
+
+            // We need to find a better way to recursive padding here
+            & .MuiTreeItem-content {
+              padding-left: calc(var(--level) * 40px);
+            }
+          }
+        `}
         onClick={() => {
           onSelect(currentPath);
         }}
@@ -86,16 +133,13 @@ export const FileTreeView: FC<{
           } as CSSProperties
         }
       >
-        {typeof content === "object" ? (
+        {isFolder &&
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
               const child = content[filename];
               return buildTreeItems(filename, child, currentPath);
-            })
-        ) : (
-          <></>
-        )}
+            })}
       </TreeItem>
     );
   };
@@ -105,6 +149,7 @@ export const FileTreeView: FC<{
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
+      defaultSelected={activePath}
     >
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
@@ -161,61 +206,7 @@ export const FileTreeView: FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  fileTreeItem: {
-    overflow: "hidden",
-    userSelect: "none",
-
-    "&:focus:not(.active) > .MuiTreeItem-content": {
-      background: theme.palette.action.hover,
-      color: theme.palette.text.primary,
-    },
-
-    "&:not(:focus):not(.active) > .MuiTreeItem-content:hover": {
-      background: theme.palette.action.hover,
-      color: theme.palette.text.primary,
-    },
-
-    "& > .MuiTreeItem-content": {
-      padding: theme.spacing(0.25, 2),
-      color: theme.palette.text.secondary,
-
-      "& svg": {
-        width: 16,
-        height: 16,
-      },
-
-      "& > .MuiTreeItem-label": {
-        marginLeft: 4,
-        fontSize: 13,
-        color: "inherit",
-      },
-    },
-
-    "&.active": {
-      "& > .MuiTreeItem-content": {
-        color: theme.palette.text.primary,
-        background: colors.gray[13],
-        pointerEvents: "none",
-      },
-    },
-
-    "& .MuiTreeItem-group": {
-      marginLeft: 0,
-
-      // We need to find a better way to recursive padding here
-      "& .MuiTreeItem-content": {
-        paddingLeft: `calc(var(--level) * ${theme.spacing(5)})`,
-      },
-    },
-  },
-  editor: {
-    flex: 1,
-  },
-  preview: {},
-}));
-
-const FileTypeTerraform = () => (
+const FileTypeTerraform: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">
     <title>file_type_terraform</title>
     <polygon points="12.042 6.858 20.071 11.448 20.071 20.462 12.042 15.868 12.042 6.858 12.042 6.858" />
@@ -225,7 +216,7 @@ const FileTypeTerraform = () => (
   </svg>
 );
 
-const FileTypeMarkdown = () => (
+const FileTypeMarkdown: FC = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838">
     <rect
       x="2.5"
@@ -241,5 +232,3 @@ const FileTypeMarkdown = () => (
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
 );
-
-const FileTypeDockerfile = () => <DockerIcon />;

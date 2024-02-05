@@ -1,43 +1,37 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
-import { ComponentProps, FC, PropsWithChildren } from "react"
-import { combineClasses } from "utils/combineClasses"
+import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import { type FC, type HTMLAttributes, type ReactNode } from "react";
 
-export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
-  const styles = useStyles()
+export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
+  children,
+  ...attrs
+}) => {
   return (
-    <Box
-      {...props}
-      className={combineClasses([styles.stats, props.className])}
-    />
-  )
+    <div css={styles.stats} {...attrs}>
+      {children}
+    </div>
+  );
+};
+
+interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+  label: string;
+  value: ReactNode;
 }
 
-export const StatsItem: FC<
-  {
-    label: string
-    value: string | number | JSX.Element
-  } & ComponentProps<typeof Box>
-> = ({ label, value, ...divProps }) => {
-  const styles = useStyles()
-
+export const StatsItem: FC<StatsItemProps> = ({ label, value, ...attrs }) => {
   return (
-    <Box
-      {...divProps}
-      className={combineClasses([styles.statItem, divProps.className])}
-    >
-      <span className={styles.statsLabel}>{label}:</span>
-      <span className={styles.statsValue}>{value}</span>
-    </Box>
-  )
-}
+    <div css={styles.statItem} {...attrs}>
+      <span css={styles.statsLabel}>{label}:</span>
+      <span css={styles.statsValue}>{value}</span>
+    </div>
+  );
+};
 
-const useStyles = makeStyles((theme) => ({
-  stats: {
-    ...theme.typography.body2,
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
-    borderRadius: theme.shape.borderRadius,
+const styles = {
+  stats: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
+    paddingLeft: 16,
+    paddingRight: 16,
+    borderRadius: 8,
     border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
@@ -47,30 +41,30 @@ const useStyles = makeStyles((theme) => ({
 
     [theme.breakpoints.down("md")]: {
       display: "block",
-      padding: theme.spacing(2),
+      padding: 16,
     },
-  },
+  }),
 
-  statItem: {
-    padding: theme.spacing(1.75),
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
+  statItem: (theme) => ({
+    padding: 14,
+    paddingLeft: 16,
+    paddingRight: 16,
     display: "flex",
     alignItems: "baseline",
-    gap: theme.spacing(1),
+    gap: 8,
 
     [theme.breakpoints.down("md")]: {
-      padding: theme.spacing(1),
+      padding: 8,
     },
-  },
+  }),
 
   statsLabel: {
     display: "block",
     wordWrap: "break-word",
   },
 
-  statsValue: {
-    marginTop: theme.spacing(0.25),
+  statsValue: (theme) => ({
+    marginTop: 2,
     display: "flex",
     wordWrap: "break-word",
     color: theme.palette.text.primary,
@@ -85,5 +79,5 @@ const useStyles = makeStyles((theme) => ({
         textDecoration: "underline",
       },
     },
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

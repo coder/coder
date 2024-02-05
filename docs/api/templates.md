@@ -52,6 +52,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deprecated": true,
+    "deprecation_message": "string",
     "description": "string",
     "display_name": "string",
     "failure_ttl_ms": 0,
@@ -64,7 +66,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_max_ttl": true
   }
 ]
 ```
@@ -101,6 +104,8 @@ Status Code **200**
 | `» created_by_id`                                                                     | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» created_by_name`                                                                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» default_ttl_ms`                                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecated`                                                                        | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecation_message`                                                               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» description`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» display_name`                                                                      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» failure_ttl_ms`                                                                    | integer                                                                                  | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
@@ -114,6 +119,7 @@ Status Code **200**
 | `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» time_til_dormant_ms`                                                               | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» updated_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» use_max_ttl`                                                                       | boolean                                                                                  | false    |              | Use max ttl picks whether to use the deprecated max TTL for the template or the new autostop requirement.                                                                                                                                                                                                      |
 
 #### Enumerated Values
 
@@ -205,6 +211,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -217,7 +225,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -341,6 +350,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -353,7 +364,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -653,6 +665,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -665,7 +679,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -772,6 +787,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deprecated": true,
+  "deprecation_message": "string",
   "description": "string",
   "display_name": "string",
   "failure_ttl_ms": 0,
@@ -784,7 +801,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "use_max_ttl": true
 }
 ```
 
@@ -824,7 +842,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   "entries": [
     {
       "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
+      "date": "string"
     }
   ],
   "tz_hour_offset": 0
@@ -1704,6 +1722,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -1824,6 +1843,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -2120,6 +2140,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -2240,6 +2261,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |

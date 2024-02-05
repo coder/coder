@@ -24,11 +24,16 @@ type Template struct {
 	Provisioner     ProvisionerType `json:"provisioner" enums:"terraform"`
 	ActiveVersionID uuid.UUID       `json:"active_version_id" format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount  int                    `json:"active_user_count"`
-	BuildTimeStats   TemplateBuildTimeStats `json:"build_time_stats"`
-	Description      string                 `json:"description"`
-	Icon             string                 `json:"icon"`
-	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
+	ActiveUserCount    int                    `json:"active_user_count"`
+	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
+	Description        string                 `json:"description"`
+	Deprecated         bool                   `json:"deprecated"`
+	DeprecationMessage string                 `json:"deprecation_message"`
+	Icon               string                 `json:"icon"`
+	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
+	// UseMaxTTL picks whether to use the deprecated max TTL for the template or
+	// the new autostop requirement.
+	UseMaxTTL bool `json:"use_max_ttl"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
@@ -204,10 +209,12 @@ type UpdateTemplateMeta struct {
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
+	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
@@ -229,6 +236,17 @@ type UpdateTemplateMeta struct {
 	// use the active version of the template. This option has no
 	// effect on template admins.
 	RequireActiveVersion bool `json:"require_active_version"`
+	// DeprecationMessage if set, will mark the template as deprecated and block
+	// any new workspaces from using this template.
+	// If passed an empty string, will remove the deprecated message, making
+	// the template usable for new workspaces again.
+	DeprecationMessage *string `json:"deprecation_message"`
+	// DisableEveryoneGroupAccess allows optionally disabling the default
+	// behavior of granting the 'everyone' group access to use the template.
+	// If this is set to true, the template will not be available to all users,
+	// and must be explicitly granted to users or groups in the permissions settings
+	// of the template.
+	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
 }
 
 type TemplateExample struct {
@@ -245,7 +263,7 @@ type TemplateExample struct {
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
-		return Template{}, nil
+		return Template{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {

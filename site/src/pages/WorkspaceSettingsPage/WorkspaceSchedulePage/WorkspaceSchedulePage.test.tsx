@@ -275,7 +275,7 @@ describe("WorkspaceSchedulePage", () => {
       await user.click(autostopToggle);
       // find helper text that describes the mock template's 24 hour default
       const autostopHelperText = await screen.findByText(
-        "Your workspace will shut down a day after",
+        "Your workspace will shut down 1 day after",
         { exact: false },
       );
       expect(autostopHelperText).toBeDefined();

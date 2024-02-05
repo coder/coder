@@ -150,7 +150,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]tableLicense{}, []string{"UUID", "Expires At", "Uploaded At", "Features"}),
+			cliui.TableFormat([]tableLicense{}, []string{"ID", "UUID", "Expires At", "Uploaded At", "Features"}),
 			func(data any) (any, error) {
 				list, ok := data.([]codersdk.License)
 				if !ok {

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/pion/udp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -26,8 +25,9 @@ import (
 
 func (r *RootCmd) portForward() *clibase.Cmd {
 	var (
-		tcpForwards []string // <port>:<port>
-		udpForwards []string // <port>:<port>
+		tcpForwards      []string // <port>:<port>
+		udpForwards      []string // <port>:<port>
+		disableAutostart bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -76,7 +76,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -98,9 +98,9 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var logger slog.Logger
+			logger := inv.Logger
 			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
@@ -120,6 +120,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				wg                = new(sync.WaitGroup)
 				listeners         = make([]net.Listener, len(specs))
 				closeAllListeners = func() {
+					logger.Debug(ctx, "closing all listeners")
 					for _, l := range listeners {
 						if l == nil {
 							continue
@@ -131,8 +132,9 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			defer closeAllListeners()
 
 			for i, spec := range specs {
-				l, err := listenAndPortForward(ctx, inv, conn, wg, spec)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec, logger)
 				if err != nil {
+					logger.Error(ctx, "failed to listen", slog.F("spec", spec), slog.Error(err))
 					return err
 				}
 				listeners[i] = l
@@ -150,8 +152,10 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 
 				select {
 				case <-ctx.Done():
+					logger.Debug(ctx, "command context expired waiting for signal", slog.Error(ctx.Err()))
 					closeErr = ctx.Err()
-				case <-sigs:
+				case sig := <-sigs:
+					logger.Debug(ctx, "received signal", slog.F("signal", sig))
 					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
 				}
 
@@ -160,6 +164,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			}()
 
 			conn.AwaitReachable(ctx)
+			logger.Debug(ctx, "read to accept connections to forward")
 			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 			wg.Wait()
 			return closeErr
@@ -180,44 +185,28 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
 			Value:       clibase.StringArrayOf(&udpForwards),
 		},
+		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
 	}
 
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(
+	ctx context.Context,
+	inv *clibase.Invocation,
+	conn *codersdk.WorkspaceAgentConn,
+	wg *sync.WaitGroup,
+	spec portForwardSpec,
+	logger slog.Logger,
+) (net.Listener, error) {
+	logger = logger.With(slog.F("network", spec.listenNetwork), slog.F("address", spec.listenAddress))
 	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
-	var (
-		l   net.Listener
-		err error
-	)
-	switch spec.listenNetwork {
-	case "tcp":
-		l, err = net.Listen(spec.listenNetwork, spec.listenAddress)
-	case "udp":
-		var host, port string
-		host, port, err = net.SplitHostPort(spec.listenAddress)
-		if err != nil {
-			return nil, xerrors.Errorf("split %q: %w", spec.listenAddress, err)
-		}
-
-		var portInt int
-		portInt, err = strconv.Atoi(port)
-		if err != nil {
-			return nil, xerrors.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
-		}
-
-		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{
-			IP:   net.ParseIP(host),
-			Port: portInt,
-		})
-	default:
-		return nil, xerrors.Errorf("unknown listen network %q", spec.listenNetwork)
-	}
+	l, err := inv.Net.Listen(spec.listenNetwork, spec.listenAddress)
 	if err != nil {
 		return nil, xerrors.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
 	}
+	logger.Debug(ctx, "listening")
 
 	wg.Add(1)
 	go func(spec portForwardSpec) {
@@ -227,12 +216,14 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 			if err != nil {
 				// Silently ignore net.ErrClosed errors.
 				if xerrors.Is(err, net.ErrClosed) {
+					logger.Debug(ctx, "listener closed")
 					return
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
 				_, _ = fmt.Fprintln(inv.Stderr, "Killing listener")
 				return
 			}
+			logger.Debug(ctx, "accepted connection", slog.F("remote_addr", netConn.RemoteAddr()))
 
 			go func(netConn net.Conn) {
 				defer netConn.Close()
@@ -242,8 +233,10 @@ func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *co
 					return
 				}
 				defer remoteConn.Close()
+				logger.Debug(ctx, "dialed remote", slog.F("remote_addr", netConn.RemoteAddr()))
 
 				agentssh.Bicopy(ctx, netConn, remoteConn)
+				logger.Debug(ctx, "connection closing", slog.F("remote_addr", netConn.RemoteAddr()))
 			}(netConn)
 		}
 	}(spec)

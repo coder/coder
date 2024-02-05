@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { useDebouncedFunction, useDebouncedValue } from "./debounce";
 
 beforeAll(() => {
@@ -45,7 +45,6 @@ describe(`${useDebouncedValue.name}`, () => {
     const { result } = renderDebouncedValue(value, 2000);
 
     expect(result.current).toBe(value);
-    expect.hasAssertions();
   });
 
   it("Should not immediately resync state as the hook re-renders with new value argument", async () => {
@@ -64,7 +63,6 @@ describe(`${useDebouncedValue.name}`, () => {
 
     await jest.advanceTimersByTimeAsync(time - 100);
     expect(result.current).toEqual(0);
-    expect.hasAssertions();
   });
 
   it("Should resync after specified milliseconds pass with no change to arguments", async () => {
@@ -76,9 +74,7 @@ describe(`${useDebouncedValue.name}`, () => {
 
     rerender({ value: !initialValue, time });
     await jest.runAllTimersAsync();
-
-    expect(result.current).toEqual(true);
-    expect.hasAssertions();
+    await waitFor(() => expect(result.current).toEqual(true));
   });
 });
 
@@ -97,7 +93,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       expect(oldDebounced).toBe(newDebounced);
       expect(oldCancel).toBe(newCancel);
-      expect.hasAssertions();
     });
 
     it("Resets any pending debounces if the timer argument changes", async () => {
@@ -117,7 +112,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       await jest.runAllTimersAsync();
       expect(count).toEqual(0);
-      expect.hasAssertions();
     });
   });
 
@@ -132,7 +126,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       await jest.runOnlyPendingTimersAsync();
       expect(value).toBe(true);
-      expect.hasAssertions();
     });
 
     it("Always uses the most recent callback argument passed in (even if it switches while a debounce is queued)", async () => {
@@ -153,7 +146,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       await jest.runAllTimersAsync();
       expect(count).toEqual(9999);
-      expect.hasAssertions();
     });
 
     it("Should reset the debounce timer with repeated calls to the method", async () => {
@@ -170,7 +162,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       await jest.runAllTimersAsync();
       expect(count).toBe(1);
-      expect.hasAssertions();
     });
   });
 
@@ -187,7 +178,6 @@ describe(`${useDebouncedFunction.name}`, () => {
 
       await jest.runAllTimersAsync();
       expect(count).toEqual(0);
-      expect.hasAssertions();
     });
   });
 });

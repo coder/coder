@@ -4,6 +4,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import type { Meta, StoryObj } from "@storybook/react";
+import { chromatic } from "testHelpers/chromatic";
 import {
   MockAuditLog,
   MockAuditLog2,
@@ -12,7 +14,6 @@ import {
   MockAuditLogGitSSH,
 } from "testHelpers/entities";
 import { AuditLogRow } from "./AuditLogRow";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AuditLogRow> = {
   title: "pages/AuditPage/AuditLogRow",
@@ -48,6 +49,7 @@ export const NoDiff: Story = {
 };
 
 export const WithDiff: Story = {
+  parameters: { chromatic },
   args: {
     auditLog: MockAuditLog2,
     defaultIsDiffOpen: true,
@@ -55,6 +57,7 @@ export const WithDiff: Story = {
 };
 
 export const WithLongDiffRow: Story = {
+  parameters: { chromatic },
   args: {
     auditLog: {
       ...MockAuditLog2,

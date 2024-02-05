@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS workspace_agent_startup_logs (
     agent_id uuid NOT NULL REFERENCES workspace_agents (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
@@ -14,5 +12,3 @@ ALTER TABLE workspace_agents ADD COLUMN startup_logs_overflowed boolean NOT NULL
 
 COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
 COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
-
-COMMIT;

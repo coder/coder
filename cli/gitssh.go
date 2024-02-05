@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -30,7 +29,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 
 			// Catch interrupt signals to ensure the temporary private
 			// key file is cleaned up on most cases.
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			// Early check so errors are reported immediately.

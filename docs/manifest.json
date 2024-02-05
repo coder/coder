@@ -22,29 +22,9 @@
       "icon_path": "./images/icons/download.svg",
       "children": [
         {
-          "title": "Install script",
-          "description": "One-line install script for macOS and Linux",
-          "path": "./install/install.sh.md"
-        },
-        {
-          "title": "System packages",
-          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine",
-          "path": "./install/packages.md"
-        },
-        {
-          "title": "macOS",
-          "description": "Install Coder using our Homebrew tap",
-          "path": "./install/macos.md"
-        },
-        {
           "title": "Kubernetes",
           "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"
-        },
-        {
-          "title": "OpenShift",
-          "description": "Install Coder on OpenShift",
-          "path": "./install/openshift.md"
         },
         {
           "title": "Docker",
@@ -52,14 +32,9 @@
           "path": "./install/docker.md"
         },
         {
-          "title": "Windows",
-          "description": "Install Coder on Windows",
-          "path": "./install/windows.md"
-        },
-        {
-          "title": "Standalone binaries",
-          "description": "Download binaries for macOS, Windows, and Linux",
-          "path": "./install/binary.md"
+          "title": "OpenShift",
+          "description": "Install Coder on OpenShift",
+          "path": "./install/openshift.md"
         },
         {
           "title": "Offline deployments",
@@ -75,6 +50,11 @@
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
+        },
+        {
+          "title": "1-click install",
+          "description": "Install Coder on a cloud provider with a single click",
+          "path": "./install/1-click.md"
         }
       ]
     },
@@ -107,11 +87,6 @@
           "description": "Set up Coder on a GCP Compute Engine VM",
           "path": "./platforms/gcp.md",
           "icon_path": "./images/google-cloud.svg"
-        },
-        {
-          "title": "JFrog",
-          "description": "Integrate Coder with JFrog",
-          "path": "./platforms/jfrog.md"
         },
         {
           "title": "Kubernetes",
@@ -202,11 +177,33 @@
               "title": "Resource metadata",
               "description": "Show information in the workspace about template resources",
               "path": "./templates/resource-metadata.md"
+            }
+          ]
+        },
+        {
+          "title": "Parameters",
+          "description": "Prompt the user for additional information about a workspace",
+          "path": "./templates/parameters.md"
+        },
+        {
+          "title": "Administering templates",
+          "description": "Configuration settings for template admins",
+          "path": "./templates/configuration.md",
+          "children": [
+            {
+              "title": "General settings",
+              "description": "Configure name, display info, and update polices",
+              "path": "./templates/general-settings.md"
             },
             {
-              "title": "Parameters",
-              "description": "Prompt the user for additional information about a workspace",
-              "path": "./templates/parameters.md"
+              "title": "Permissions",
+              "description": "Configure who can access a template",
+              "path": "./templates/permissions.md"
+            },
+            {
+              "title": "Workspace Scheduling",
+              "description": "Configure when workspaces start, stop, and delete",
+              "path": "./templates/schedule.md"
             }
           ]
         },
@@ -238,6 +235,11 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
+        },
+        {
+          "title": "Workspace Scheduling",
+          "description": "Set workspace scheduling policies",
+          "path": "./templates/schedule.md"
         },
         {
           "title": "Icons",
@@ -433,6 +435,12 @@
           "path": "./admin/encryption.md",
           "icon_path": "./images/icons/lock.svg",
           "state": "enterprise"
+        },
+        {
+          "title": "Deployment Health",
+          "description": "Learn how to monitor the health of your Coder deployment",
+          "path": "./admin/healthcheck.md",
+          "icon_path": "./images/icons/health.svg"
         }
       ]
     },
@@ -492,10 +500,6 @@
         {
           "title": "Applications",
           "path": "./api/applications.md"
-        },
-        {
-          "title": "Applications Enterprise",
-          "path": "./api/applications enterprise.md"
         },
         {
           "title": "Audit",
@@ -570,6 +574,11 @@
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
+          "title": "autoupdate",
+          "description": "Toggle auto-update policy for a workspace",
+          "path": "cli/autoupdate.md"
+        },
+        {
           "title": "coder",
           "path": "cli.md"
         },
@@ -602,6 +611,11 @@
           "title": "external-auth access-token",
           "description": "Print auth for an external provider",
           "path": "cli/external-auth_access-token.md"
+        },
+        {
+          "title": "favorite",
+          "description": "Add a workspace to your favorites",
+          "path": "cli/favorite.md"
         },
         {
           "title": "features",
@@ -678,6 +692,16 @@
           "path": "cli/netcheck.md"
         },
         {
+          "title": "open",
+          "description": "Open a workspace",
+          "path": "cli/open.md"
+        },
+        {
+          "title": "open vscode",
+          "description": "Open a workspace in VS Code Desktop",
+          "path": "cli/open_vscode.md"
+        },
+        {
           "title": "ping",
           "description": "Ping a workspace",
           "path": "cli/ping.md"
@@ -729,7 +753,7 @@
         },
         {
           "title": "schedule show",
-          "description": "Show workspace schedule",
+          "description": "Show workspace schedules",
           "path": "cli/schedule_show.md"
         },
         {
@@ -854,7 +878,7 @@
         },
         {
           "title": "templates create",
-          "description": "Create a template from the current directory or as specified by flag",
+          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
         },
         {
@@ -884,7 +908,7 @@
         },
         {
           "title": "templates push",
-          "description": "Push a new template version from the current directory or as specified by flag",
+          "description": "Create or update a template from the current directory or as specified by flag",
           "path": "cli/templates_push.md"
         },
         {
@@ -926,6 +950,11 @@
           "title": "tokens remove",
           "description": "Delete a token",
           "path": "cli/tokens_remove.md"
+        },
+        {
+          "title": "unfavorite",
+          "description": "Remove a workspace from your favorites",
+          "path": "cli/unfavorite.md"
         },
         {
           "title": "update",
@@ -982,6 +1011,45 @@
           "title": "API tokens of deleted users not invalidated",
           "description": "Fixed in v0.23.0 (Apr 25, 2023)",
           "path": "./security/0001_user_apikeys_invalidation.md"
+        }
+      ]
+    },
+    {
+      "title": "FAQs",
+      "description": "Frequently asked questions",
+      "path": "./faqs.md",
+      "icon_path": "./images/icons/info.svg"
+    },
+    {
+      "title": "Guides",
+      "description": "Employee-authored tutorials",
+      "path": "./guides/index.md",
+      "icon_path": "./images/icons/notes.svg",
+      "children": [
+        {
+          "title": "Configuring Okta",
+          "description": "Custom claims/scopes with Okta for group/role sync",
+          "path": "./guides/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./guides/gcp-to-aws.md"
+        },
+        {
+          "title": "JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./guides/artifactory-integration.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./guides/image-pull-secret.md"
+        },
+        {
+          "title": "Azure Federation",
+          "description": "Federating Coder to Azure",
+          "path": "./guides/azure-federation.md"
         }
       ]
     }

@@ -1,24 +1,23 @@
-import { ReactNode } from "react";
+import { cx } from "@emotion/css";
+import { type FC, type PropsWithChildren } from "react";
 import { NavLink, NavLinkProps } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
 import { Margins } from "components/Margins/Margins";
-import { css } from "@emotion/css";
-import { useTheme } from "@mui/material/styles";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
-export const Tabs = ({ children }: { children: ReactNode }) => {
+export const Tabs: FC<PropsWithChildren> = ({ children }) => {
   return (
     <div
       css={(theme) => ({
         borderBottom: `1px solid ${theme.palette.divider}`,
-        marginBottom: theme.spacing(5),
+        marginBottom: 40,
       })}
     >
       <Margins
-        css={(theme) => ({
+        css={{
           display: "flex",
           alignItems: "center",
-          gap: theme.spacing(0.25),
-        })}
+          gap: 2,
+        }}
       >
         {children}
       </Margins>
@@ -26,22 +25,43 @@ export const Tabs = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const TabLink = (props: NavLinkProps) => {
-  const theme = useTheme();
+interface TabLinkProps extends NavLinkProps {
+  className?: string;
+}
 
-  const baseTabLink = css`
+export const TabLink: FC<TabLinkProps> = ({
+  className,
+  children,
+  ...linkProps
+}) => {
+  const tabLink = useClassName(classNames.tabLink, []);
+  const activeTabLink = useClassName(classNames.activeTabLink, []);
+
+  return (
+    <NavLink
+      className={({ isActive }) =>
+        cx([tabLink, isActive && activeTabLink, className])
+      }
+      {...linkProps}
+    >
+      {children}
+    </NavLink>
+  );
+};
+
+const classNames = {
+  tabLink: (css, theme) => css`
     text-decoration: none;
     color: ${theme.palette.text.secondary};
     font-size: 14px;
     display: block;
-    padding: ${theme.spacing(0, 2, 2)};
+    padding: 0 16px 16px;
 
     &:hover {
       color: ${theme.palette.text.primary};
     }
-  `;
-
-  const activeTabLink = css`
+  `,
+  activeTabLink: (css, theme) => css`
     color: ${theme.palette.text.primary};
     position: relative;
 
@@ -51,21 +71,8 @@ export const TabLink = (props: NavLinkProps) => {
       bottom: 0;
       height: 2px;
       width: 100%;
-      background: ${theme.palette.secondary.dark};
+      background: ${theme.palette.primary.main};
       position: absolute;
     }
-  `;
-
-  return (
-    <NavLink
-      className={({ isActive }) =>
-        combineClasses([
-          baseTabLink,
-          isActive ? activeTabLink : undefined,
-          props.className as string,
-        ])
-      }
-      {...props}
-    />
-  );
-};
+  `,
+} satisfies Record<string, ClassName>;

@@ -1,21 +1,24 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import { EditSquare } from "components/Icons/EditSquare";
-import { FC } from "react";
-import { makeStyles } from "@mui/styles";
+import { type FC } from "react";
 import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
 import UserIcon from "@mui/icons-material/PersonOutline";
 import { Role } from "api/typesGenerated";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
 const roleDescriptions: Record<string, string> = {
   owner:
@@ -27,22 +30,28 @@ const roleDescriptions: Record<string, string> = {
     "Everybody is a member. This is a shared and default role for all users.",
 };
 
-const Option: React.FC<{
+interface OptionProps {
   value: string;
   name: string;
   description: string;
   isChecked: boolean;
   onChange: (roleName: string) => void;
-}> = ({ value, name, description, isChecked, onChange }) => {
-  const styles = useStyles();
+}
 
+const Option: FC<OptionProps> = ({
+  value,
+  name,
+  description,
+  isChecked,
+  onChange,
+}) => {
   return (
-    <label htmlFor={name} className={styles.option}>
+    <label htmlFor={name} css={styles.option}>
       <Stack direction="row" alignItems="flex-start">
         <Checkbox
           id={name}
           size="small"
-          className={styles.checkbox}
+          css={styles.checkbox}
           value={value}
           checked={isChecked}
           onChange={(e) => {
@@ -51,7 +60,7 @@ const Option: React.FC<{
         />
         <Stack spacing={0}>
           <strong>{name}</strong>
-          <span className={styles.optionDescription}>{description}</span>
+          <span css={styles.optionDescription}>{description}</span>
         </Stack>
       </Stack>
     </label>
@@ -77,7 +86,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   userLoginType,
   oidcRoleSync,
 }) => {
-  const styles = useStyles();
+  const paper = useClassName(classNames.paper, []);
 
   const handleChange = (roleName: string) => {
     if (selectedRoleNames.has(roleName)) {
@@ -94,11 +103,14 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
   if (!canSetRoles) {
     return (
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-        <HelpTooltipText>
-          Roles for this user are controlled by the OIDC identity provider.
-        </HelpTooltipText>
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+          <HelpTooltipText>
+            Roles for this user are controlled by the OIDC identity provider.
+          </HelpTooltipText>
+        </HelpTooltipContent>
       </HelpTooltip>
     );
   }
@@ -108,20 +120,20 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
       <PopoverTrigger>
         <IconButton
           size="small"
-          className={styles.editButton}
+          css={styles.editButton}
           title="Edit user roles"
         >
           <EditSquare />
         </IconButton>
       </PopoverTrigger>
 
-      <PopoverContent classes={{ paper: styles.popoverPaper }}>
+      <PopoverContent classes={{ paper }}>
         <fieldset
-          className={styles.fieldset}
+          css={styles.fieldset}
           disabled={isLoading}
           title="Available roles"
         >
-          <Stack className={styles.options} spacing={3}>
+          <Stack css={styles.options} spacing={3}>
             {roles.map((role) => (
               <Option
                 key={role.name}
@@ -134,12 +146,12 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
             ))}
           </Stack>
         </fieldset>
-        <div className={styles.footer}>
+        <div css={styles.footer}>
           <Stack direction="row" alignItems="flex-start">
-            <UserIcon className={styles.userIcon} />
+            <UserIcon css={styles.userIcon} />
             <Stack spacing={0}>
               <strong>Member</strong>
-              <span className={styles.optionDescription}>
+              <span css={styles.optionDescription}>
                 {roleDescriptions.member}
               </span>
             </Stack>
@@ -150,13 +162,21 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  editButton: {
+const classNames = {
+  paper: (css, theme) => css`
+    width: 360px;
+    margin-top: 8px;
+    background: ${theme.palette.background.paper};
+  `,
+} satisfies Record<string, ClassName>;
+
+const styles = {
+  editButton: (theme) => ({
     color: theme.palette.text.secondary,
 
     "& .MuiSvgIcon-root": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
+      width: 16,
+      height: 16,
       position: "relative",
       top: -2, // Align the pencil square
     },
@@ -165,12 +185,7 @@ const useStyles = makeStyles((theme) => ({
       color: theme.palette.text.primary,
       backgroundColor: "transparent",
     },
-  },
-  popoverPaper: {
-    width: theme.spacing(45),
-    marginTop: theme.spacing(1),
-    background: theme.palette.background.paperLight,
-  },
+  }),
   fieldset: {
     border: 0,
     margin: 0,
@@ -181,7 +196,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   options: {
-    padding: theme.spacing(3),
+    padding: 24,
   },
   option: {
     cursor: "pointer",
@@ -193,24 +208,24 @@ const useStyles = makeStyles((theme) => ({
     top: 1, // Alignment
 
     "& svg": {
-      width: theme.spacing(2.5),
-      height: theme.spacing(2.5),
+      width: 20,
+      height: 20,
     },
   },
-  optionDescription: {
+  optionDescription: (theme) => ({
     fontSize: 13,
     color: theme.palette.text.secondary,
     lineHeight: "160%",
-  },
-  footer: {
-    padding: theme.spacing(3),
+  }),
+  footer: (theme) => ({
+    padding: 24,
     backgroundColor: theme.palette.background.paper,
     borderTop: `1px solid ${theme.palette.divider}`,
     fontSize: 14,
-  },
-  userIcon: {
-    width: theme.spacing(2.5), // Same as the checkbox
-    height: theme.spacing(2.5),
+  }),
+  userIcon: (theme) => ({
+    width: 20, // Same as the checkbox
+    height: 20,
     color: theme.palette.primary.main,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

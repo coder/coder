@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog/sloggers/slogtest"

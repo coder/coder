@@ -7,7 +7,7 @@ import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
+import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -35,21 +35,25 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
   return featuredExamples;
 };
 
-export const EmptyTemplates: FC<{
+interface EmptyTemplatesProps {
   canCreateTemplates: boolean;
   examples: TemplateExample[];
-}> = ({ canCreateTemplates, examples }) => {
+}
+
+export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+  canCreateTemplates,
+  examples,
+}) => {
   const featuredExamples = findFeaturedExamples(examples);
 
   if (canCreateTemplates) {
     return (
       <TableEmpty
-        message="Create a Template"
+        message="Create your first template"
         description={
           <>
             Templates are written in Terraform and describe the infrastructure
-            for workspaces (e.g., docker_container, aws_instance,
-            kubernetes_pod). Select a starter template below or
+            for workspaces. You can start using a starter template below or{" "}
             <Link
               href={docs("/templates/tutorial")}
               target="_blank"
@@ -64,11 +68,7 @@ export const EmptyTemplates: FC<{
           <Stack alignItems="center" spacing={4}>
             <div css={styles.featuredExamples}>
               {featuredExamples.map((example) => (
-                <TemplateExampleCard
-                  example={example}
-                  key={example.id}
-                  css={styles.template}
-                />
+                <TemplateExampleCard example={example} key={example.id} />
               ))}
             </div>
 
@@ -76,7 +76,7 @@ export const EmptyTemplates: FC<{
               size="small"
               component={RouterLink}
               to="/starter-templates"
-              css={styles.viewAllButton}
+              css={{ borderRadius: 9999 }}
             >
               View all starter templates
             </Button>
@@ -91,7 +91,7 @@ export const EmptyTemplates: FC<{
       css={styles.withImage}
       message="Create a Template"
       description="Contact your Coder administrator to create a template. You can share the code below."
-      cta={<CodeExample code="coder templates init" />}
+      cta={<CodeExample secret={false} code="coder templates init" />}
       image={
         <div css={styles.emptyImage}>
           <img src="/featured/templates.webp" alt="" />
@@ -106,34 +106,21 @@ const styles = {
     paddingBottom: 0,
   },
 
-  emptyImage: (theme) => ({
+  emptyImage: {
     maxWidth: "50%",
-    height: theme.spacing(40),
+    height: 320,
     overflow: "hidden",
     opacity: 0.85,
 
     "& img": {
       maxWidth: "100%",
     },
-  }),
+  },
 
-  featuredExamples: (theme) => ({
-    maxWidth: theme.spacing(100),
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
-    gridAutoRows: "min-content",
-  }),
-
-  template: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
-
-    "&:hover": {
-      backgroundColor: theme.palette.divider,
-    },
-  }),
-
-  viewAllButton: {
-    borderRadius: 9999,
+  featuredExamples: {
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 16,
   },
 } satisfies Record<string, Interpolation<Theme>>;

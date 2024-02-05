@@ -1,8 +1,7 @@
-import { makeStyles, useTheme } from "@mui/styles";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { colors } from "theme/colors";
 import { v4 as uuidv4 } from "uuid";
 import * as XTerm from "xterm";
 import { WebglAddon } from "xterm-addon-webgl";
@@ -14,9 +13,7 @@ import "xterm/css/xterm.css";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { useProxy } from "contexts/ProxyContext";
-import Box from "@mui/material/Box";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { Region } from "api/typesGenerated";
+import type { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { openMaybePortForwardedURL } from "utils/portForward";
@@ -36,6 +33,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -44,9 +43,12 @@ export const Language = {
 };
 
 const TerminalPage: FC = () => {
+  // Maybe one day we'll support a light themed terminal, but terminal coloring
+  // is notably a pain because of assumptions certain programs might make about your
+  // background color.
+  const theme = themes.dark;
   const navigate = useNavigate();
-  const styles = useStyles();
-  const { proxy } = useProxy();
+  const { proxy, proxyLatencies } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
   const xtermRef = useRef<HTMLDivElement>(null);
@@ -69,12 +71,8 @@ const TerminalPage: FC = () => {
   const workspaceAgent = workspace.data
     ? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
     : undefined;
-  const dashboard = useDashboard();
-  const proxyContext = useProxy();
-  const selectedProxy = proxyContext.proxy.proxy;
-  const latency = selectedProxy
-    ? proxyContext.proxyLatencies[selectedProxy.id]
-    : undefined;
+  const selectedProxy = proxy.proxy;
+  const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
   const lifecycleState = workspaceAgent?.lifecycle_state;
   const prevLifecycleState = useRef(lifecycleState);
@@ -115,7 +113,7 @@ const TerminalPage: FC = () => {
       fontFamily: MONOSPACE_FONT_FAMILY,
       fontSize: 16,
       theme: {
-        background: colors.gray[16],
+        background: theme.palette.background.default,
       },
     });
     if (renderer === "webgl") {
@@ -151,7 +149,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, config.isLoading, xtermRef, handleWebLinkRef]);
+  }, [theme, renderer, config.isLoading, xtermRef, handleWebLinkRef]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
@@ -196,7 +194,8 @@ const TerminalPage: FC = () => {
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
-        Language.workspaceAgentErrorMessagePrefix + "no agent found with ID",
+        Language.workspaceAgentErrorMessagePrefix +
+          "no agent found with ID, is the workspace started?",
       );
       return;
     }
@@ -300,7 +299,7 @@ const TerminalPage: FC = () => {
   ]);
 
   return (
-    <>
+    <ThemeOverride theme={theme}>
       <Helmet>
         <title>
           {workspace.data
@@ -310,78 +309,76 @@ const TerminalPage: FC = () => {
             : ""}
         </title>
       </Helmet>
-      <Box display="flex" flexDirection="column" height="100vh">
+      <div css={{ display: "flex", flexDirection: "column", height: "100vh" }}>
         {lifecycleState === "start_error" && <ErrorScriptAlert />}
         {lifecycleState === "starting" && <LoadingScriptsAlert />}
         {lifecycleState === "ready" &&
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
         {terminalState === "disconnected" && <DisconnectedAlert />}
-        <div
-          className={styles.terminal}
-          ref={xtermRef}
-          data-testid="terminal"
-        />
-        {dashboard.experiments.includes("moons") &&
-          selectedProxy &&
-          latency && (
-            <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
-          )}
-      </Box>
-    </>
+        <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
+        {selectedProxy && latency && (
+          <BottomBar proxy={selectedProxy} latency={latency.latencyMS} />
+        )}
+      </div>
+    </ThemeOverride>
   );
 };
 
-const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
+interface BottomBarProps {
+  proxy: Region;
+  latency?: number;
+}
+
+const BottomBar: FC<BottomBarProps> = ({ proxy, latency }) => {
   const theme = useTheme();
   const color = getLatencyColor(theme, latency);
 
   return (
-    <Box
-      sx={{
-        padding: theme.spacing(0, 2),
-        background: (theme) => theme.palette.background.paper,
+    <div
+      css={{
+        padding: "0 16px",
+        background: theme.palette.background.paper,
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-end",
         fontSize: 12,
-        borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+        borderTop: `1px solid ${theme.palette.divider}`,
       }}
     >
       <Popover mode="hover">
         <PopoverTrigger>
-          <Box
-            component="button"
+          <button
             aria-label="Terminal latency"
             aria-haspopup="true"
-            sx={{
+            css={{
               background: "none",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 1,
+              gap: 8,
               border: 0,
-              padding: theme.spacing(1),
+              padding: 8,
             }}
           >
-            <Box
-              sx={{
+            <div
+              css={{
                 height: 6,
                 width: 6,
                 backgroundColor: color,
                 border: 0,
-                borderRadius: 9999,
+                borderRadius: 3,
               }}
             />
             <ProxyStatusLatency latency={latency} />
-          </Box>
+          </button>
         </PopoverTrigger>
         <PopoverContent
           id="latency-popover"
           disableRestoreFocus
-          sx={{
+          css={{
             pointerEvents: "none",
             "& .MuiPaper-root": {
-              padding: (theme) => theme.spacing(1, 2),
+              padding: "8px 16px",
             },
           }}
           anchorOrigin={{
@@ -393,68 +390,43 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
             horizontal: "right",
           }}
         >
-          <Box
-            sx={{
+          <div
+            css={{
               fontSize: 13,
-              color: (theme) => theme.palette.text.secondary,
+              color: theme.palette.text.secondary,
               fontWeight: 500,
             }}
           >
             Selected proxy
-          </Box>
-          <Box
-            sx={{ fontSize: 14, display: "flex", gap: 3, alignItems: "center" }}
+          </div>
+          <div
+            css={{
+              fontSize: 14,
+              display: "flex",
+              gap: 3,
+              alignItems: "center",
+            }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box width={12} height={12} lineHeight={0}>
-                <Box
-                  component="img"
+            <div css={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <div css={{ width: 12, height: 12, lineHeight: 0 }}>
+                <img
                   src={proxy.icon_url}
                   alt=""
-                  sx={{ objectFit: "contain" }}
-                  width="100%"
-                  height="100%"
+                  css={{ objectFit: "contain", width: "100%", height: "100%" }}
                 />
-              </Box>
+              </div>
               {proxy.display_name}
-            </Box>
+            </div>
             <ProxyStatusLatency latency={latency} />
-          </Box>
+          </div>
         </PopoverContent>
       </Popover>
-    </Box>
+    </div>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  overlay: {
-    position: "absolute",
-    pointerEvents: "none",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    right: 0,
-    zIndex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    display: "flex",
-    color: "white",
-    fontSize: 16,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    backdropFilter: "blur(4px)",
-    "&.connected": {
-      opacity: 0,
-    },
-  },
-  overlayText: {
-    fontSize: 16,
-    fontWeight: 600,
-  },
-  overlaySubtext: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-  terminal: {
+const styles = {
+  terminal: (theme) => ({
     width: "100vw",
     overflow: "hidden",
     backgroundColor: theme.palette.background.paper,
@@ -480,36 +452,7 @@ const useStyles = makeStyles((theme) => ({
       minHeight: 20,
       backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
-  },
-  alert: {
-    display: "flex",
-    background: theme.palette.background.paperLight,
-    alignItems: "center",
-    padding: theme.spacing(2),
-    gap: theme.spacing(2),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    ...theme.typography.body2,
-  },
-  alertIcon: {
-    color: theme.palette.warning.light,
-    fontSize: theme.spacing(3),
-  },
-  alertError: {
-    "& $alertIcon": {
-      color: theme.palette.error.light,
-    },
-  },
-  alertTitle: {
-    fontWeight: 600,
-    color: theme.palette.text.primary,
-  },
-  alertMessage: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-  alertActions: {
-    marginLeft: "auto",
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default TerminalPage;

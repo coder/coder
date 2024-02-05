@@ -1,7 +1,6 @@
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import { type FC, type PropsWithChildren } from "react";
+import { type FC } from "react";
 import { useTheme } from "@emotion/react";
 import type { GitSSHKey } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
@@ -11,15 +10,13 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 export interface SSHKeysPageViewProps {
   isLoading: boolean;
   getSSHKeyError?: unknown;
-  regenerateSSHKeyError?: unknown;
   sshKey?: GitSSHKey;
   onRegenerateClick: () => void;
 }
 
-export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
+export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
   isLoading,
   getSSHKeyError,
-  regenerateSSHKeyError,
   sshKey,
   onRegenerateClick,
 }) => {
@@ -27,9 +24,9 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
 
   if (isLoading) {
     return (
-      <Box p={4}>
+      <div css={{ padding: 32 }}>
         <CircularProgress size={26} />
-      </Box>
+      </div>
     );
   }
 
@@ -38,9 +35,7 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
       {Boolean(getSSHKeyError) && <ErrorAlert error={getSSHKeyError} />}
-      {Boolean(regenerateSSHKeyError) && (
-        <ErrorAlert error={regenerateSSHKeyError} dismissible />
-      )}
+
       {sshKey && (
         <>
           <p
@@ -66,7 +61,7 @@ export const SSHKeysPageView: FC<PropsWithChildren<SSHKeysPageViewProps>> = ({
             </code>
             .
           </p>
-          <CodeExample code={sshKey.public_key.trim()} />
+          <CodeExample secret={false} code={sshKey.public_key.trim()} />
           <div>
             <Button onClick={onRegenerateClick} data-testid="regenerate">
               Regenerate&hellip;

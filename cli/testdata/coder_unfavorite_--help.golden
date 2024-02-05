@@ -1,0 +1,11 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder unfavorite <workspace>
+
+  Remove a workspace from your favorites
+
+  Aliases: unfav, unfavourite
+
+———
+Run `coder --help` for a list of global options.

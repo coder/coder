@@ -5,7 +5,7 @@ import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 import { useMutation } from "react-query";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { patchWorkspace } from "api/api";
+import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
 import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 
 const WorkspaceSettingsPage = () => {
@@ -17,9 +17,17 @@ const WorkspaceSettingsPage = () => {
   const username = params.username.replace("@", "");
   const workspace = useWorkspaceSettings();
   const navigate = useNavigate();
+
   const mutation = useMutation({
-    mutationFn: (formValues: WorkspaceSettingsFormValues) =>
-      patchWorkspace(workspace.id, { name: formValues.name }),
+    mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
+      await Promise.all([
+        patchWorkspace(workspace.id, { name: formValues.name }),
+        updateWorkspaceAutomaticUpdates(
+          workspace.id,
+          formValues.automatic_updates,
+        ),
+      ]);
+    },
     onSuccess: (_, formValues) => {
       displaySuccess("Workspace updated successfully");
       navigate(`/@${username}/${formValues.name}/settings`);
@@ -34,10 +42,9 @@ const WorkspaceSettingsPage = () => {
 
       <WorkspaceSettingsPageView
         error={mutation.error}
-        isSubmitting={mutation.isLoading}
         workspace={workspace}
         onCancel={() => navigate(`/@${username}/${workspaceName}`)}
-        onSubmit={mutation.mutate}
+        onSubmit={mutation.mutateAsync}
       />
     </>
   );

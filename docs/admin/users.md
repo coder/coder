@@ -68,6 +68,9 @@ back into the Coder environment. This level of control ensures that
 administrators can enforce security measures and handle any compliance-related
 issues promptly.
 
+Similar to dormant users, suspended users do not count towards the total number
+of licensed seats.
+
 ## Create a user
 
 To create a user with the web UI:

@@ -1,5 +1,3 @@
-BEGIN;
-
 DROP VIEW template_with_users;
 
 ALTER TABLE templates
@@ -23,5 +21,3 @@ FROM
 			templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

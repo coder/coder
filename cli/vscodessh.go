@@ -21,6 +21,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -34,8 +36,10 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
+		logDir              string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
+		waitEnum            string
 	)
 	cmd := &clibase.Cmd{
 		// A SSH config entry is added by the VS Code extension that
@@ -97,47 +101,70 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 			owner := parts[1]
 			name := parts[2]
-
-			workspace, err := client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
-			if err != nil {
-				return xerrors.Errorf("find workspace: %w", err)
+			if len(parts) > 3 {
+				name += "." + parts[3]
 			}
 
-			var agent codersdk.WorkspaceAgent
-			var found bool
-			for _, resource := range workspace.LatestBuild.Resources {
-				if len(resource.Agents) == 0 {
-					continue
-				}
-				for _, resourceAgent := range resource.Agents {
-					// If an agent name isn't included we default to
-					// the first agent!
-					if len(parts) != 4 {
-						agent = resourceAgent
-						found = true
+			// Set autostart to false because it's assumed the VS Code extension
+			// will call this command after the workspace is started.
+			autostart := false
+
+			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, owner, name)
+			if err != nil {
+				return xerrors.Errorf("find workspace and agent: %w", err)
+			}
+
+			// Select the startup script behavior based on template configuration or flags.
+			var wait bool
+			switch waitEnum {
+			case "yes":
+				wait = true
+			case "no":
+				wait = false
+			case "auto":
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
 						break
 					}
-					if resourceAgent.Name != parts[3] {
-						continue
-					}
-					agent = resourceAgent
-					found = true
-					break
 				}
-				if found {
-					break
+			default:
+				return xerrors.Errorf("unknown wait value %q", waitEnum)
+			}
+
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch:     client.WorkspaceAgent,
+				FetchLogs: client.WorkspaceAgentLogsAfter,
+				Wait:      wait,
+			})
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return cliui.Canceled
 				}
 			}
 
-			var logger slog.Logger
-			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
-			}
+			// The VS Code extension obtains the PID of the SSH process to
+			// read files to display logs and network info.
+			//
+			// We get the parent PID because it's assumed `ssh` is calling this
+			// command via the ProxyCommand SSH option.
+			pid := os.Getppid()
 
+			logger := inv.Logger
+			if logDir != "" {
+				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", pid))
+				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
+				if err != nil {
+					return xerrors.Errorf("open log file %q: %w", logFilePath, err)
+				}
+				dc := cliutil.DiscardAfterClose(logFile)
+				defer dc.Close()
+				logger = logger.AppendSinks(sloghuman.Sink(dc)).Leveled(slog.LevelDebug)
+			}
 			if r.disableDirect {
-				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				logger.Info(ctx, "direct connections disabled")
 			}
-			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
+			agentConn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
 				Logger:         logger,
 				BlockEndpoints: r.disableDirect,
 			})
@@ -166,7 +193,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			//
 			// We get the parent PID because it's assumed `ssh` is calling this
 			// command via the ProxyCommand SSH option.
-			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", os.Getppid()))
+			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", pid))
 
 			statsErrChan := make(chan error, 1)
 			cb := func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
@@ -214,6 +241,11 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			Value:       clibase.StringOf(&networkInfoDir),
 		},
 		{
+			Flag:        "log-dir",
+			Description: "Specifies a directory to write logs to.",
+			Value:       clibase.StringOf(&logDir),
+		},
+		{
 			Flag:        "session-token-file",
 			Description: "Specifies a file that contains a session token.",
 			Value:       clibase.StringOf(&sessionTokenFile),
@@ -228,6 +260,12 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
 			Value:       clibase.DurationOf(&networkInfoInterval),
+		},
+		{
+			Flag:        "wait",
+			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
+			Default:     "auto",
+			Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
 		},
 	}
 	return cmd

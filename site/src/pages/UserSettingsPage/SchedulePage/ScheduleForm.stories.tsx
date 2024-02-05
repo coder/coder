@@ -8,6 +8,7 @@ const defaultArgs = {
   initialValues: {
     raw_schedule: "CRON_TZ=Australia/Sydney 0 2 * * *",
     user_set: false,
+    user_can_set: true,
     time: "02:00",
     timezone: "Australia/Sydney",
     next: "2023-09-05T02:00:00+10:00",
@@ -33,6 +34,7 @@ export const ExampleUserSet: Story = {
     initialValues: {
       raw_schedule: "CRON_TZ=America/Chicago 0 2 * * *",
       user_set: true,
+      user_can_set: true,
       time: "02:00",
       timezone: "America/Chicago",
       next: "2023-09-05T02:00:00-05:00",

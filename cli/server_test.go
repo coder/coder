@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -683,6 +684,12 @@ func TestServer(t *testing.T) {
 						require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 						require.Equal(t, c.expectRedirect, resp.Header.Get("Location"))
 					}
+
+					// We should never redirect DERP
+					respDERP, err := client.Request(ctx, http.MethodGet, "/derp", nil)
+					require.NoError(t, err)
+					defer respDERP.Body.Close()
+					require.Equal(t, http.StatusUpgradeRequired, respDERP.StatusCode)
 				}
 
 				// Verify TLS
@@ -1546,6 +1553,18 @@ func TestServer(t *testing.T) {
 				// ValueSource is not going to be correct on the `want`, so just
 				// match that field.
 				wantConfig.Options[i].ValueSource = gotConfig.Options[i].ValueSource
+
+				// If there is a wrapped value with a validator, unwrap it.
+				// The underlying doesn't compare well since it compares go pointers,
+				// and not the actual value.
+				if validator, isValidator := wantConfig.Options[i].Value.(interface{ Underlying() pflag.Value }); isValidator {
+					wantConfig.Options[i].Value = validator.Underlying()
+				}
+
+				if validator, isValidator := gotConfig.Options[i].Value.(interface{ Underlying() pflag.Value }); isValidator {
+					gotConfig.Options[i].Value = validator.Underlying()
+				}
+
 				assert.Equal(
 					t, wantConfig.Options[i],
 					gotConfig.Options[i],
@@ -1754,4 +1773,23 @@ func TestConnectToPostgres(t *testing.T) {
 		_ = sqlDB.Close()
 	})
 	require.NoError(t, sqlDB.PingContext(ctx))
+}
+
+func TestServer_InvalidDERP(t *testing.T) {
+	t.Parallel()
+
+	// Try to start a server with the built-in DERP server disabled and no
+	// external DERP map.
+	inv, _ := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--derp-server-enable=false",
+		"--derp-server-stun-addresses", "disable",
+		"--block-direct-connections",
+	)
+	err := inv.Run()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
 }

@@ -1,6 +1,5 @@
-import Typography from "@mui/material/Typography";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type PropsWithChildren } from "react";
-import { css, useTheme } from "@emotion/react";
 import { CoderIcon } from "../Icons/CoderIcon";
 
 const Language = {
@@ -11,44 +10,39 @@ const Language = {
   ),
 };
 
-export const Welcome: FC<
-  PropsWithChildren<{ message?: JSX.Element | string }>
-> = ({ message = Language.defaultMessage }) => {
-  const theme = useTheme();
-
+export const Welcome: FC<PropsWithChildren> = ({ children }) => {
   return (
     <div>
-      <div
-        css={{
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
-        <CoderIcon
-          css={{
-            color: theme.palette.text.primary,
-            fontSize: theme.spacing(8),
-          }}
-        />
+      <div css={styles.container}>
+        <CoderIcon css={styles.icon} />
       </div>
-      <Typography
-        css={css`
-          text-align: center;
-          font-size: ${theme.spacing(4)};
-          font-weight: 400;
-          margin: 0;
-          margin-bottom: ${theme.spacing(2)};
-          margin-top: ${theme.spacing(2)};
-          line-height: 1.25;
-
-          & strong {
-            font-weight: 600;
-          }
-        `}
-        variant="h1"
-      >
-        {message}
-      </Typography>
+      <h1 css={styles.header}>{children || Language.defaultMessage}</h1>
     </div>
   );
 };
+
+const styles = {
+  container: {
+    display: "flex",
+    justifyContent: "center",
+  },
+
+  icon: (theme) => ({
+    color: theme.palette.text.primary,
+    fontSize: 64,
+  }),
+
+  header: {
+    textAlign: "center",
+    fontSize: 32,
+    fontWeight: 400,
+    margin: 0,
+    marginTop: 16,
+    marginBottom: 32,
+    lineHeight: 1.25,
+
+    "& strong": {
+      fontWeight: 600,
+    },
+  },
+} satisfies Record<string, Interpolation<Theme>>;

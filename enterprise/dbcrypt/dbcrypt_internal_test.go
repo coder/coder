@@ -5,12 +5,13 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -55,6 +56,7 @@ func TestUserLinks(t *testing.T) {
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
+			DebugContext:      json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)

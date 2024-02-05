@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -35,22 +36,22 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                   FeatureName = "user_limit"
-	FeatureAuditLog                    FeatureName = "audit_log"
-	FeatureBrowserOnly                 FeatureName = "browser_only"
-	FeatureSCIM                        FeatureName = "scim"
-	FeatureTemplateRBAC                FeatureName = "template_rbac"
-	FeatureUserRoleManagement          FeatureName = "user_role_management"
-	FeatureHighAvailability            FeatureName = "high_availability"
-	FeatureMultipleExternalAuth        FeatureName = "multiple_external_auth"
-	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                  FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
-	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
-	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
-	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
-	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
-	FeatureAccessControl               FeatureName = "access_control"
+	FeatureUserLimit                  FeatureName = "user_limit"
+	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureBrowserOnly                FeatureName = "browser_only"
+	FeatureSCIM                       FeatureName = "scim"
+	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureUserRoleManagement         FeatureName = "user_role_management"
+	FeatureHighAvailability           FeatureName = "high_availability"
+	FeatureMultipleExternalAuth       FeatureName = "multiple_external_auth"
+	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                 FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
+	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
+	FeatureAccessControl              FeatureName = "access_control"
+	FeatureOAuth2Provider             FeatureName = "oauth2_provider"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -65,13 +66,12 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
 	FeatureExternalTokenEncryption,
-	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
+	FeatureOAuth2Provider,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -81,6 +81,8 @@ func (n FeatureName) Humanize() string {
 		return "Template RBAC"
 	case FeatureSCIM:
 		return "SCIM"
+	case FeatureOAuth2Provider:
+		return "OAuth Provider"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -95,6 +97,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
+		FeatureHighAvailability:           true,
 	}[n]
 }
 
@@ -130,11 +133,11 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
-	Verbose             clibase.Bool `json:"verbose,omitempty"`
-	AccessURL           clibase.URL  `json:"access_url,omitempty"`
-	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
-	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
-	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
+	Verbose             clibase.Bool   `json:"verbose,omitempty"`
+	AccessURL           clibase.URL    `json:"access_url,omitempty"`
+	WildcardAccessURL   clibase.String `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL    `json:"docs_url,omitempty"`
+	RedirectToAccessURL clibase.Bool   `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           clibase.Duration                     `json:"autobuild_poll_interval,omitempty"`
@@ -183,6 +186,9 @@ type DeploymentValues struct {
 	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
+	AllowWorkspaceRenames           clibase.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage               clibase.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -289,6 +295,7 @@ type OIDCConfig struct {
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
 	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
 	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList      clibase.StringArray                 `json:"group_allow_list" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -296,6 +303,7 @@ type OIDCConfig struct {
 	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText clibase.String                      `json:"signups_disabled_text" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -305,16 +313,18 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address        clibase.HostPort    `json:"address" typescript:",notnull"`
-	RedirectHTTP   clibase.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles      clibase.StringArray `json:"cert_file" typescript:",notnull"`
-	ClientAuth     clibase.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   clibase.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       clibase.StringArray `json:"key_file" typescript:",notnull"`
-	MinVersion     clibase.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile clibase.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  clibase.String      `json:"client_key_file" typescript:",notnull"`
+	Enable               clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address              clibase.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP         clibase.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles            clibase.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth           clibase.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile         clibase.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles             clibase.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion           clibase.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile       clibase.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile        clibase.String      `json:"client_key_file" typescript:",notnull"`
+	SupportedCiphers     clibase.StringArray `json:"supported_ciphers" typescript:",notnull"`
+	AllowInsecureCiphers clibase.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
 
 type TraceConfig struct {
@@ -326,33 +336,33 @@ type TraceConfig struct {
 
 type ExternalAuthConfig struct {
 	// Type is the type of external auth config.
-	Type         string `json:"type"`
-	ClientID     string `json:"client_id"`
+	Type         string `json:"type" yaml:"type"`
+	ClientID     string `json:"client_id" yaml:"client_id"`
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id"`
-	AuthURL             string   `json:"auth_url"`
-	TokenURL            string   `json:"token_url"`
-	ValidateURL         string   `json:"validate_url"`
-	AppInstallURL       string   `json:"app_install_url"`
-	AppInstallationsURL string   `json:"app_installations_url"`
-	NoRefresh           bool     `json:"no_refresh"`
-	Scopes              []string `json:"scopes"`
-	ExtraTokenKeys      []string `json:"extra_token_keys"`
-	DeviceFlow          bool     `json:"device_flow"`
-	DeviceCodeURL       string   `json:"device_code_url"`
+	ID                  string   `json:"id" yaml:"id"`
+	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
+	TokenURL            string   `json:"token_url" yaml:"token_url"`
+	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
+	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
+	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
+	Scopes              []string `json:"scopes" yaml:"scopes"`
+	ExtraTokenKeys      []string `json:"extra_token_keys" yaml:"extra_token_keys"`
+	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
+	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
 	// And sending it to the Coder server to match against the Regex.
-	Regex string `json:"regex"`
+	Regex string `json:"regex" yaml:"regex"`
 	// DisplayName is shown in the UI to identify the auth config.
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name" yaml:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
-	DisplayIcon string `json:"display_icon"`
+	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
 }
 
 type ProvisionerConfig struct {
@@ -388,14 +398,22 @@ type DangerousConfig struct {
 
 type UserQuietHoursScheduleConfig struct {
 	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
+	AllowUserCustom clibase.Bool   `json:"allow_user_custom" typescript:",notnull"`
 	// TODO: add WindowDuration and the ability to postpone max_deadline by this
 	// amount
 	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
 }
 
+// HealthcheckConfig contains configuration for healthchecks.
+type HealthcheckConfig struct {
+	Refresh           clibase.Duration `json:"refresh" typescript:",notnull"`
+	ThresholdDatabase clibase.Duration `json:"threshold_database" typescript:",notnull"`
+}
+
 const (
-	annotationEnterpriseKey = "enterprise"
-	annotationSecretKey     = "secret"
+	annotationFormatDuration = "format_duration"
+	annotationEnterpriseKey  = "enterprise"
+	annotationSecretKey      = "secret"
 	// annotationExternalProxies is used to mark options that are used by workspace
 	// proxies. This is used to filter out options that are not relevant.
 	annotationExternalProxies = "external_workspace_proxies"
@@ -486,6 +504,11 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Logging",
 			YAML:   "logging",
+		}
+		deploymentGroupIntrospectionHealthcheck = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Health Check",
+			YAML:   "healthcheck",
 		}
 		deploymentGroupOAuth2 = clibase.Group{
 			Name:        "OAuth2",
@@ -591,7 +614,19 @@ when required by your organization's security policy.`,
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
-			Value:       &c.WildcardAccessURL,
+			// Do not use a clibase.URL here. We are intentionally omitting the
+			// scheme part of the url (https://), so the standard url parsing
+			// will yield unexpected results.
+			//
+			// We have a validation function to ensure the wildcard url is correct,
+			// so use that instead.
+			Value: clibase.Validate(&c.WildcardAccessURL, func(value *clibase.String) error {
+				if value.Value() == "" {
+					return nil
+				}
+				_, err := appurl.CompileHostnamePattern(value.Value())
+				return err
+			}),
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
@@ -616,6 +651,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
 			YAML:        "autobuildPollInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Job Hang Detector Interval",
@@ -626,6 +662,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.JobHangDetectorInterval,
 			YAML:        "jobHangDetectorInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		httpAddress,
 		tlsBindAddress,
@@ -738,6 +775,28 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "TLS Ciphers",
+			Description: "Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
+			Flag:        "tls-ciphers",
+			Env:         "CODER_TLS_CIPHERS",
+			Default:     "",
+			Value:       &c.TLS.SupportedCiphers,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "tlsCiphers",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "TLS Allow Insecure Ciphers",
+			Description: "By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.",
+			Flag:        "tls-allow-insecure-ciphers",
+			Env:         "CODER_TLS_ALLOW_INSECURE_CIPHERS",
+			Default:     "false",
+			Value:       &c.TLS.AllowInsecureCiphers,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "tlsAllowInsecureCiphers",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Derp settings
@@ -1148,6 +1207,16 @@ when required by your organization's security policy.`,
 			YAML:        "groupRegexFilter",
 		},
 		{
+			Name:        "OIDC Allowed Groups",
+			Description: "If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.",
+			Flag:        "oidc-allowed-groups",
+			Env:         "CODER_OIDC_ALLOWED_GROUPS",
+			Default:     "",
+			Value:       &c.OIDC.GroupAllowList,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupAllowed",
+		},
+		{
 			Name:        "OIDC User Role Field",
 			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
 			Flag:        "oidc-user-role-field",
@@ -1197,6 +1266,15 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.IconURL,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
+		},
+		{
+			Name:        "Signups disabled text",
+			Description: "The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.",
+			Flag:        "oidc-signups-disabled-text",
+			Env:         "CODER_OIDC_SIGNUPS_DISABLED_TEXT",
+			Value:       &c.OIDC.SignupsDisabledText,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "signupsDisabledText",
 		},
 		// Telemetry settings
 		{
@@ -1297,6 +1375,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Poll Jitter",
@@ -1307,6 +1386,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollJitter,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollJitter",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Force Cancel Interval",
@@ -1317,6 +1397,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
@@ -1466,10 +1547,11 @@ when required by your organization's security policy.`,
 			// The default value is essentially "forever", so just use 100 years.
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
-			Default: ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
-			Value:   &c.MaxTokenLifetime,
-			Group:   &deploymentGroupNetworkingHTTP,
-			YAML:    "maxTokenLifetime",
+			Default:     ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
+			Value:       &c.MaxTokenLifetime,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxTokenLifetime",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -1575,8 +1657,9 @@ when required by your organization's security policy.`,
 			Flag:        "metrics-cache-refresh-interval",
 			Env:         "CODER_METRICS_CACHE_REFRESH_INTERVAL",
 			Hidden:      true,
-			Default:     time.Hour.String(),
+			Default:     (4 * time.Hour).String(),
 			Value:       &c.MetricsCacheRefreshInterval,
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Stat Refresh Interval",
@@ -1586,6 +1669,7 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Fallback Troubleshooting URL",
@@ -1652,6 +1736,7 @@ when required by your organization's security policy.`,
 			Value:       &c.SessionDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Disable Session Expiry Refresh",
@@ -1707,6 +1792,16 @@ when required by your organization's security policy.`,
 			Hidden: false,
 		},
 		{
+			Name:        "CLI Upgrade Message",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Flag:        "cli-upgrade-message",
+			Env:         "CODER_CLI_UPGRADE_MESSAGE",
+			YAML:        "cliUpgradeMessage",
+			Group:       &deploymentGroupClient,
+			Value:       &c.CLIUpgradeMessage,
+			Hidden:      false,
+		},
+		{
 			Name: "Write Config",
 			Description: `
 Write out the current server config as YAML to stdout.`,
@@ -1719,21 +1814,20 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name:        "Support Links",
 			Description: "Support links to display in the top right drop down menu.",
+			Env:         "CODER_SUPPORT_LINKS",
+			Flag:        "support-links",
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
-			// The support links are hidden until they are defined in the
-			// YAML.
-			Hidden: true,
+			Hidden:      false,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
-			// We need extra scrutiny to ensure this works, is documented, and
-			// tested before enabling.
-			// YAML:        "gitAuthProviders",
-			Value:  &c.ExternalAuthConfigs,
-			Hidden: true,
+			YAML:        "externalAuthProviders",
+			Flag:        "external-auth-providers",
+			Value:       &c.ExternalAuthConfigs,
+			Hidden:      true,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
@@ -1754,16 +1848,27 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
-			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
 			Flag:        "default-quiet-hours-schedule",
 			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
-			Default:     "",
+			Default:     "CRON_TZ=UTC 0 0 * * *",
 			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
+		},
+		{
+			Name:        "Allow Custom Quiet Hours",
+			Description: "Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.",
+			Flag:        "allow-custom-quiet-hours",
+			Env:         "CODER_ALLOW_CUSTOM_QUIET_HOURS",
+			Default:     "true",
+			Value:       &c.UserQuietHoursSchedule.AllowUserCustom,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "allowCustomQuietHours",
 		},
 		{
 			Name:        "Web Terminal Renderer",
@@ -1774,6 +1879,38 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.WebTerminalRenderer,
 			Group:       &deploymentGroupClient,
 			YAML:        "webTerminalRenderer",
+		},
+		{
+			Name:        "Allow Workspace Renames",
+			Description: "DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.",
+			Flag:        "allow-workspace-renames",
+			Env:         "CODER_ALLOW_WORKSPACE_RENAMES",
+			Default:     "false",
+			Value:       &c.AllowWorkspaceRenames,
+			YAML:        "allowWorkspaceRenames",
+		},
+		// Healthcheck Options
+		{
+			Name:        "Health Check Refresh",
+			Description: "Refresh interval for healthchecks.",
+			Flag:        "health-check-refresh",
+			Env:         "CODER_HEALTH_CHECK_REFRESH",
+			Default:     (10 * time.Minute).String(),
+			Value:       &c.Healthcheck.Refresh,
+			Group:       &deploymentGroupIntrospectionHealthcheck,
+			YAML:        "refresh",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Health Check Threshold: Database",
+			Description: "The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.",
+			Flag:        "health-check-threshold-database",
+			Env:         "CODER_HEALTH_CHECK_THRESHOLD_DATABASE",
+			Default:     (15 * time.Millisecond).String(),
+			Value:       &c.Healthcheck.ThresholdDatabase,
+			Group:       &deploymentGroupIntrospectionHealthcheck,
+			YAML:        "thresholdDatabase",
+			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 	}
 
@@ -1787,7 +1924,7 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
@@ -1932,6 +2069,14 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
+
+	// AgentAPIVersion is the current version of the Agent API (back versions
+	// MAY still be supported).
+	AgentAPIVersion string `json:"agent_api_version"`
+
+	// UpgradeMessage is the message displayed to users when an outdated client
+	// is detected.
+	UpgradeMessage string `json:"upgrade_message"`
 }
 
 type WorkspaceProxyBuildInfo struct {
@@ -1958,7 +2103,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK || ExpectJSONMime(res) != nil {
 		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
 
@@ -1969,55 +2114,15 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
-	// feature is not yet complete in functionality.
-	ExperimentMoons Experiment = "moons"
-
-	// https://github.com/coder/coder/milestone/19
-	ExperimentWorkspaceActions Experiment = "workspace_actions"
-
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
-
-	// ExperimentSingleTailnet replaces workspace connections inside coderd to
-	// all use a single tailnet, instead of the previous behavior of creating a
-	// single tailnet for each agent.
-	ExperimentSingleTailnet Experiment = "single_tailnet"
-
-	// ExperimentTemplateAutostopRequirement allows template admins to have more
-	// control over when workspaces created on a template are required to
-	// stop, and allows users to ensure these restarts never happen during their
-	// business hours.
-	//
-	// This will replace the MaxTTL setting on templates.
-	//
-	// Enables:
-	// - User quiet hours schedule settings
-	// - Template autostop requirement settings
-	// - Changes the max_deadline algorithm to use autostop requirement and user
-	//   quiet hours instead of max_ttl.
-	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
-
-	// Deployment health page
-	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
-
-	// ExperimentDashboardTheme mutates the dashboard to use a new, dark color scheme.
-	ExperimentDashboardTheme Experiment = "dashboard_theme"
-
-	ExperimentTemplateUpdatePolicies Experiment = "template_update_policies"
 	// Add new experiments here!
-	// ExperimentExample Experiment = "example"
+	ExperimentExample Experiment = "example" // This isn't used for anything.
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentDeploymentHealthPage,
-	ExperimentSingleTailnet,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -2073,8 +2178,10 @@ type DAUsResponse struct {
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date" format:"date-time"`
-	Amount int       `json:"amount"`
+	// Date is a string formatted as 2024-01-31.
+	// Timezone and time information is not included.
+	Date   string `json:"date"`
+	Amount int    `json:"amount"`
 }
 
 type DAURequest struct {
@@ -2089,14 +2196,22 @@ func (d DAURequest) asRequestOption() RequestOption {
 	}
 }
 
-func TimezoneOffsetHour(loc *time.Location) int {
+// TimezoneOffsetHourWithTime is implemented to match the javascript 'getTimezoneOffset()' function.
+// This is the amount of time between this date evaluated in UTC and evaluated in the 'loc'
+// The trivial case of times being on the same day is:
+// 'time.Now().UTC().Hour() - time.Now().In(loc).Hour()'
+func TimezoneOffsetHourWithTime(now time.Time, loc *time.Location) int {
 	if loc == nil {
 		// Default to UTC time to be consistent across all callers.
 		loc = time.UTC
 	}
-	_, offsetSec := time.Now().In(loc).Zone()
-	// Convert to hours
-	return offsetSec / 60 / 60
+	_, offsetSec := now.In(loc).Zone()
+	// Convert to hours and flip the sign
+	return -1 * offsetSec / 60 / 60
+}
+
+func TimezoneOffsetHour(loc *time.Location) int {
+	return TimezoneOffsetHourWithTime(time.Now(), loc)
 }
 
 func (c *Client) DeploymentDAUsLocalTZ(ctx context.Context) (*DAUsResponse, error) {
@@ -2127,10 +2242,10 @@ type AppHostResponse struct {
 	Host string `json:"host"`
 }
 
-// AppHost returns the site-wide application wildcard hostname without the
-// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
-// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
-// "my-app--agent--workspace--username.apps.coder.com".
+// AppHost returns the site-wide application wildcard hostname
+// e.g. "*--apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username><app-host>", e.g.
+// "my-app--agent--workspace--username--apps.coder.com".
 //
 // If the app host is not set, the response will contain an empty string.
 func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {

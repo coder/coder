@@ -43,6 +43,9 @@ rules:
     - update
     - watch
 {{- end }}
+{{- with .Values.coder.serviceAccount.extraRules }}
+{{ toYaml . | nindent 2 }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

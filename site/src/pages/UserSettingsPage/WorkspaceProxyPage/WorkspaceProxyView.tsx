@@ -4,15 +4,15 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import { type FC } from "react";
+import type { Region } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { FC } from "react";
-import { Region } from "api/typesGenerated";
-import { ProxyRow } from "./WorkspaceProxyRow";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ProxyRow } from "./WorkspaceProxyRow";
 
 export interface WorkspaceProxyViewProps {
   proxies?: Region[];
@@ -24,9 +24,7 @@ export interface WorkspaceProxyViewProps {
   selectProxyError?: unknown;
 }
 
-export const WorkspaceProxyView: FC<
-  React.PropsWithChildren<WorkspaceProxyViewProps>
-> = ({
+export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
   proxies,
   proxyLatencies,
   getWorkspaceProxiesError,
@@ -47,7 +45,7 @@ export const WorkspaceProxyView: FC<
               <TableCell width="40%">Proxy</TableCell>
               <TableCell width="30%">URL</TableCell>
               <TableCell width="10%">Status</TableCell>
-              <TableCell width="20%" sx={{ textAlign: "right" }}>
+              <TableCell width="20%" css={{ textAlign: "right" }}>
                 Latency
               </TableCell>
             </TableRow>

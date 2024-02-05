@@ -34,7 +34,6 @@ important ones:
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
-- [XState](https://xstate.js.org/docs/) for handling complex state flows
 - [axios](https://github.com/axios/axios) as fetching lib
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
 - [Jest](https://jestjs.io/) for integration testing
@@ -53,12 +52,12 @@ conventions to help people to navigate through it.
   - **@types** - Custom types for dependencies that don't have defined types
     (largely code that has no server-side equivalent)
   - **api** - API code as function calls and types
+    - **queries** - react-query queries and mutations
   - **components** - UI components
   - **hooks** - Hooks that can be used across the application
   - **pages** - Page components
   - **testHelpers** - Helper functions to help with integration tests
   - **util** - Helper functions that can be used across the application
-  - **xServices** - XState machines used to handle complex state representations
 - **static** - Static UI assets like images, fonts, icons, etc
 
 ## Routing
@@ -94,23 +93,51 @@ a `*.stories.ts` file.
 
 ## Fetching data
 
-We use
-[TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview)(previously
-known as react-query) to fetch data from the API. We also use
-[XState](https://xstate.js.org/docs/) to handle complex flows with multiple
-states and transitions.
-
-> ℹ️ We recently changed how we are going to fetch data from the server so you
-> will see a lot of fetches being made using XState machines but feel free to
-> refactor it if you are already touching those files.
+We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
+to fetch data from the API. The queries and mutation should be placed inside of
+the api/queries folder when it is possible.
 
 ### Where to fetch data
 
-Finding the right place to fetch data in React apps is the million-dollar
-question, but we decided to make it only in the page components and pass the
-props down to the views. This makes it easier to find where data is being loaded
-and easy to test using Storybook. So you will see components like `UsersPage`
-and `UsersPageView`.
+In the past, our approach involved creating separate components for page and
+view, where the page component served as a container responsible for fetching
+data and passing it down to the view.
+
+For instance, when developing a page to display users, we would have a
+`UsersPage` component with a corresponding `UsersPageView`. The `UsersPage`
+would handle API calls, while the `UsersPageView` managed the presentational
+logic.
+
+Over time, however, we encountered challenges with this approach, particularly
+in terms of excessive props drilling. To address this, we opted to fetch data in
+proximity to its usage. Taking the example of displaying users, in the past, if
+we were creating a header component for that page, we would have needed to fetch
+the data in the page component and pass it down through the hierarchy
+(`UsersPage -> UsersPageView -> UsersHeader`). Now, with libraries such as
+`react-query`, data fetching can be performed directly in the `UsersHeader`
+component, allowing UI elements to declare and consume their data-fetching
+dependencies directly, while preventing duplicate server requests
+([more info](https://github.com/TanStack/query/discussions/608#discussioncomment-29735)).
+
+To simplify visual testing of scenarios where components are responsible for
+fetching data, you can easily set the queries' value using `parameters.queries`
+within the component's story.
+
+```tsx
+export const WithQuota: Story = {
+  parameters: {
+    queries: [
+      {
+        key: getWorkspaceQuotaQueryKey(MockUser.username),
+        data: {
+          credits_consumed: 2,
+          budget: 40,
+        },
+      },
+    ],
+  },
+};
+```
 
 ### API
 
@@ -217,6 +244,23 @@ to test if the page is being rendered correctly, you should consider using the
 > ℹ️ For scenarios where you need to be authenticated, you can use
 > `test.use({ storageState: getStatePath("authState") })`.
 
+For ease of debugging, it's possible to run a Playwright test in headful mode
+running a Playwright server on your local machine, and executing the test inside
+your workspace.
+
+You can either run `scripts/remote_playwright.sh` from `coder/coder` on your
+local machine, or execute the following command if you don't have the repo
+available:
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/coder/coder/main/scripts/remote_playwright.sh) [workspace]
+```
+
+The `scripts/remote_playwright.sh` script will start a Playwright server on your
+local machine and forward the necessary ports to your workspace. At the end of
+the script, you will land _inside_ your workspace with environment variables set
+so you can simply execute the test (`pnpm run playwright:test`).
+
 ### Integration
 
 Test user interactions like "Click in a button shows a dialog", "Submit the form
@@ -227,12 +271,15 @@ another page, you should probably consider using the **E2E** approach.
 
 ### Visual testing
 
-Test components without user interaction like testing if a page view is rendered
-correctly depending on some parameters, if the button is showing a spinner if
-the `loading` props are passing, etc. This should always be your first option
-since it is way easier to maintain. For this, we use
+We use visual tests to test components without user interaction like testing if
+a page/component is rendered correctly depending on some parameters, if a button
+is showing a spinner, if `loading` props are passed correctly, etc. This should
+always be your first option since it is way easier to maintain. For this, we use
 [Storybook](https://storybook.js.org/) and
 [Chromatic](https://www.chromatic.com/).
+
+> ℹ️ To learn more about testing components that fetch API data, refer to the
+> [**Where to fetch data**](#where-to-fetch-data) section.
 
 ### What should I test?
 

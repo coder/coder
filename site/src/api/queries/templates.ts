@@ -15,6 +15,7 @@ import {
   type QueryOptions,
 } from "react-query";
 import { delay } from "utils/delay";
+import { getTemplateVersionFiles } from "utils/templateVersion";
 
 export const templateByNameKey = (orgId: string, name: string) => [
   orgId,
@@ -33,12 +34,16 @@ export const templateByName = (
   };
 };
 
-const getTemplatesQueryKey = (orgId: string) => [orgId, "templates"];
+const getTemplatesQueryKey = (orgId: string, deprecated?: boolean) => [
+  orgId,
+  "templates",
+  deprecated,
+];
 
-export const templates = (orgId: string) => {
+export const templates = (orgId: string, deprecated?: boolean) => {
   return {
-    queryKey: getTemplatesQueryKey(orgId),
-    queryFn: () => API.getTemplates(orgId),
+    queryKey: getTemplatesQueryKey(orgId, deprecated),
+    queryFn: () => API.getTemplates(orgId, { deprecated }),
   };
 };
 
@@ -122,10 +127,25 @@ export const templateVersions = (templateId: string) => {
   };
 };
 
+export const templateVersionVariablesKey = (versionId: string) => [
+  "templateVersion",
+  versionId,
+  "variables",
+];
+
 export const templateVersionVariables = (versionId: string) => {
   return {
-    queryKey: ["templateVersion", versionId, "variables"],
+    queryKey: templateVersionVariablesKey(versionId),
     queryFn: () => API.getTemplateVersionVariables(versionId),
+  };
+};
+
+export const createTemplateVersion = (orgId: string) => {
+  return {
+    mutationFn: async (request: CreateTemplateVersionRequest) => {
+      const newVersion = await API.createTemplateVersion(orgId, request);
+      return newVersion;
+    },
   };
 };
 
@@ -213,6 +233,45 @@ export const richParameters = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "richParameters"],
     queryFn: () => API.getTemplateVersionRichParameters(versionId),
+  };
+};
+
+export const resources = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "resources"],
+    queryFn: () => API.getTemplateVersionResources(versionId),
+  };
+};
+
+export const templateFiles = (fileId: string) => {
+  return {
+    queryKey: ["templateFiles", fileId],
+    queryFn: async () => {
+      const tarFile = await API.getFile(fileId);
+      return getTemplateVersionFiles(tarFile);
+    },
+  };
+};
+
+export const previousTemplateVersion = (
+  organizationId: string,
+  templateName: string,
+  versionName: string,
+) => {
+  return {
+    queryKey: [
+      "templateVersion",
+      organizationId,
+      templateName,
+      versionName,
+      "previous",
+    ],
+    queryFn: () =>
+      API.getPreviousTemplateVersionByName(
+        organizationId,
+        templateName,
+        versionName,
+      ),
   };
 };
 

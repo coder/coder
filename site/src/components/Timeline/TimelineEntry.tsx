@@ -1,59 +1,47 @@
-import { makeStyles } from "@mui/styles";
-import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { type PropsWithChildren, forwardRef } from "react";
-import { combineClasses } from "utils/combineClasses";
+import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { forwardRef } from "react";
 
-type TimelineEntryProps = PropsWithChildren<
-  TableRowProps & {
-    clickable?: boolean;
-  }
->;
+interface TimelineEntryProps extends TableRowProps {
+  clickable?: boolean;
+}
 
-export const TimelineEntry = forwardRef(function TimelineEntry(
-  { children, clickable = true, ...props }: TimelineEntryProps,
-  ref?: React.ForwardedRef<HTMLTableRowElement>,
-) {
-  const styles = useStyles();
-
+export const TimelineEntry = forwardRef<
+  HTMLTableRowElement,
+  TimelineEntryProps
+>(function TimelineEntry({ children, clickable = true, ...props }, ref) {
   return (
     <TableRow
       ref={ref}
-      className={combineClasses({
-        [styles.timelineEntry]: true,
-        [styles.clickable]: clickable,
-      })}
+      css={(theme) => [
+        {
+          position: "relative",
+          "&:focus": {
+            outlineStyle: "solid",
+            outlineOffset: -1,
+            outlineWidth: 2,
+            outlineColor: theme.palette.primary.main,
+          },
+          "& td:before": {
+            position: "absolute",
+            left: 50,
+            display: "block",
+            content: "''",
+            height: "100%",
+            width: 2,
+            background: theme.palette.divider,
+          },
+        },
+        clickable && {
+          cursor: "pointer",
+
+          "&:hover": {
+            backgroundColor: theme.palette.action.hover,
+          },
+        },
+      ]}
       {...props}
     >
       {children}
     </TableRow>
   );
 });
-
-const useStyles = makeStyles((theme) => ({
-  clickable: {
-    cursor: "pointer",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-
-  timelineEntry: {
-    position: "relative",
-    "&:focus": {
-      outlineStyle: "solid",
-      outlineOffset: -1,
-      outlineWidth: 2,
-      outlineColor: theme.palette.secondary.dark,
-    },
-    "& td:before": {
-      position: "absolute",
-      left: 50,
-      display: "block",
-      content: "''",
-      height: "100%",
-      width: 2,
-      background: theme.palette.divider,
-    },
-  },
-}));

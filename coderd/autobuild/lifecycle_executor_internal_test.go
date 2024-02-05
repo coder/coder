@@ -25,6 +25,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 
 	// 5s after the autostart in UTC.
 	okTick := time.Date(2021, 1, 1, 20, 0, 5, 0, localLocation).UTC()
+	okUser := database.User{Status: database.UserStatusActive}
 	okWorkspace := database.Workspace{
 		DormantAt: sql.NullTime{Valid: false},
 		AutostartSchedule: sql.NullString{
@@ -57,6 +58,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 
 	testCases := []struct {
 		Name             string
+		User             database.User
 		Workspace        database.Workspace
 		Build            database.WorkspaceBuild
 		Job              database.ProvisionerJob
@@ -67,6 +69,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 	}{
 		{
 			Name:             "Ok",
+			User:             okUser,
 			Workspace:        okWorkspace,
 			Build:            okBuild,
 			Job:              okJob,
@@ -75,7 +78,18 @@ func Test_isEligibleForAutostart(t *testing.T) {
 			ExpectedResponse: true,
 		},
 		{
+			Name:             "SuspendedUser",
+			User:             database.User{Status: database.UserStatusSuspended},
+			Workspace:        okWorkspace,
+			Build:            okBuild,
+			Job:              okJob,
+			TemplateSchedule: okTemplateSchedule,
+			Tick:             okTick,
+			ExpectedResponse: false,
+		},
+		{
 			Name:      "AutostartOnlyDayEnabled",
+			User:      okUser,
 			Workspace: okWorkspace,
 			Build:     okBuild,
 			Job:       okJob,
@@ -91,6 +105,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 		},
 		{
 			Name:      "AutostartOnlyDayDisabled",
+			User:      okUser,
 			Workspace: okWorkspace,
 			Build:     okBuild,
 			Job:       okJob,
@@ -106,6 +121,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 		},
 		{
 			Name:      "AutostartAllDaysDisabled",
+			User:      okUser,
 			Workspace: okWorkspace,
 			Build:     okBuild,
 			Job:       okJob,
@@ -121,6 +137,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 		},
 		{
 			Name:      "BuildTransitionNotStop",
+			User:      okUser,
 			Workspace: okWorkspace,
 			Build: func(b database.WorkspaceBuild) database.WorkspaceBuild {
 				cpy := b
@@ -139,7 +156,7 @@ func Test_isEligibleForAutostart(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			autostart := isEligibleForAutostart(c.Workspace, c.Build, c.Job, c.TemplateSchedule, c.Tick)
+			autostart := isEligibleForAutostart(c.User, c.Workspace, c.Build, c.Job, c.TemplateSchedule, c.Tick)
 			require.Equal(t, c.ExpectedResponse, autostart, "autostart not expected")
 		})
 	}

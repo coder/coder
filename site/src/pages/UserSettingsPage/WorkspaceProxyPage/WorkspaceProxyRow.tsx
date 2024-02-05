@@ -1,23 +1,27 @@
-import { Region, WorkspaceProxy } from "api/typesGenerated";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Avatar } from "components/Avatar/Avatar";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import { FC, ReactNode } from "react";
+import { useTheme } from "@emotion/react";
+import type { FC, ReactNode } from "react";
 import {
   HealthyBadge,
   NotHealthyBadge,
   NotReachableBadge,
   NotRegisteredBadge,
-} from "components/DeploySettingsLayout/Badges";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
+} from "components/Badges/Badges";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { getLatencyColor } from "utils/latency";
-import Box from "@mui/material/Box";
 
-export const ProxyRow: FC<{
+interface ProxyRowProps {
   latency?: ProxyLatencyReport;
   proxy: Region;
-}> = ({ proxy, latency }) => {
+}
+
+export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
+  const theme = useTheme();
+
   // If we have a more specific proxy status, use that.
   // All users can see healthy/unhealthy, some can see more.
   let statusBadge = <ProxyStatus proxy={proxy} />;
@@ -56,16 +60,15 @@ export const ProxyRow: FC<{
           />
         </TableCell>
 
-        <TableCell sx={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
-        <TableCell sx={{ fontSize: 14 }}>{statusBadge}</TableCell>
+        <TableCell css={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
+        <TableCell css={{ fontSize: 14 }}>{statusBadge}</TableCell>
         <TableCell
-          sx={{
+          css={{
             fontSize: 14,
             textAlign: "right",
-            color: (theme) =>
-              latency
-                ? getLatencyColor(theme, latency.latencyMS)
-                : theme.palette.text.secondary,
+            color: latency
+              ? getLatencyColor(theme, latency.latencyMS)
+              : theme.palette.text.secondary,
           }}
         >
           {latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
@@ -75,7 +78,7 @@ export const ProxyRow: FC<{
         <TableRow>
           <TableCell
             colSpan={4}
-            sx={{ padding: "0px !important", borderBottom: 0 }}
+            css={{ padding: "0 !important", borderBottom: 0 }}
           >
             <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
           </TableCell>
@@ -85,30 +88,22 @@ export const ProxyRow: FC<{
   );
 };
 
-const ProxyMessagesRow: FC<{
+interface ProxyMessagesRowProps {
   proxy: WorkspaceProxy;
-}> = ({ proxy }) => {
+}
+
+const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
+  const theme = useTheme();
+
   return (
     <>
       <ProxyMessagesList
-        title={
-          <Box
-            component="span"
-            sx={{ color: (theme) => theme.palette.error.light }}
-          >
-            Errors
-          </Box>
-        }
+        title={<span css={{ color: theme.palette.error.light }}>Errors</span>}
         messages={proxy.status?.report?.errors}
       />
       <ProxyMessagesList
         title={
-          <Box
-            component="span"
-            sx={{ color: (theme) => theme.palette.warning.light }}
-          >
-            Warnings
-          </Box>
+          <span css={{ color: theme.palette.warning.light }}>Warnings</span>
         }
         messages={proxy.status?.report?.warnings}
       />
@@ -116,53 +111,58 @@ const ProxyMessagesRow: FC<{
   );
 };
 
-const ProxyMessagesList: FC<{
+interface ProxyMessagesListProps {
   title: ReactNode;
   messages?: string[];
-}> = ({ title, messages }) => {
+}
+
+const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
+  const theme = useTheme();
+
   if (!messages) {
     return <></>;
   }
 
   return (
-    <Box
-      sx={{
-        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-        backgroundColor: (theme) => theme.palette.background.default,
-        p: (theme) => theme.spacing(2, 3),
+    <div
+      css={{
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.default,
+        padding: "16px 24px",
       }}
     >
-      <Box
+      <div
         id="nested-list-subheader"
-        sx={{
-          mb: 0.5,
+        css={{
+          marginBottom: 4,
           fontSize: 13,
           fontWeight: 600,
         }}
       >
         {title}
-      </Box>
+      </div>
       {messages.map((error, index) => (
-        <Box
-          component="pre"
-          key={"message" + index}
-          sx={{
-            margin: (theme) => theme.spacing(0, 0, 1),
+        <pre
+          key={index}
+          css={{
+            margin: "0 0 8px",
             fontSize: 14,
             whiteSpace: "pre-wrap",
           }}
         >
           {error}
-        </Box>
+        </pre>
       ))}
-    </Box>
+    </div>
   );
 };
 
-// DetailedProxyStatus allows a more precise status to be displayed.
-const DetailedProxyStatus: FC<{
+interface DetailedProxyStatusProps {
   proxy: WorkspaceProxy;
-}> = ({ proxy }) => {
+}
+
+// DetailedProxyStatus allows a more precise status to be displayed.
+const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
   if (!proxy.status) {
     // If the status is null/undefined/not provided, just go with the boolean "healthy" value.
     return <ProxyStatus proxy={proxy} />;
@@ -187,10 +187,12 @@ const DetailedProxyStatus: FC<{
   }
 };
 
-// ProxyStatus will only show "healthy" or "not healthy" status.
-const ProxyStatus: FC<{
+interface ProxyStatusProps {
   proxy: Region;
-}> = ({ proxy }) => {
+}
+
+// ProxyStatus will only show "healthy" or "not healthy" status.
+const ProxyStatus: FC<ProxyStatusProps> = ({ proxy }) => {
   let icon = <NotHealthyBadge />;
   if (proxy.healthy) {
     icon = <HealthyBadge derpOnly={false} />;

@@ -51,6 +51,7 @@ func setScimAuth(key []byte) func(*http.Request) {
 	}
 }
 
+//nolint:gocritic // SCIM authenticates via a special header and bypasses internal RBAC.
 func TestScim(t *testing.T) {
 	t.Parallel()
 

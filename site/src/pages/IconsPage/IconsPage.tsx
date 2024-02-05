@@ -2,7 +2,6 @@ import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import SearchIcon from "@mui/icons-material/SearchOutlined";
 import ClearIcon from "@mui/icons-material/CloseOutlined";
@@ -20,6 +19,10 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import icons from "theme/icons.json";
+import {
+  defaultParametersForBuiltinIcons,
+  parseImageParameters,
+} from "theme/externalImages";
 import { pageTitle } from "utils/page";
 
 const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]);
@@ -80,9 +83,9 @@ export const IconsPage: FC = () => {
             <Tooltip
               placement="bottom-end"
               title={
-                <Box
+                <p
                   css={{
-                    padding: theme.spacing(1),
+                    padding: 8,
                     fontSize: 13,
                     lineHeight: 1.5,
                   }}
@@ -91,7 +94,7 @@ export const IconsPage: FC = () => {
                   public GitHub repository. Just keep in mind that it should be
                   relevant to many Coder users, and redistributable under a
                   permissive license.
-                </Box>
+                </p>
               }
             >
               <Link href="https://github.com/coder/coder/tree/main/site/static/icon">
@@ -126,7 +129,7 @@ export const IconsPage: FC = () => {
             startAdornment: (
               <InputAdornment position="start">
                 <SearchIcon
-                  sx={{
+                  css={{
                     fontSize: 14,
                     color: theme.palette.text.secondary,
                   }}
@@ -140,7 +143,7 @@ export const IconsPage: FC = () => {
                     size="small"
                     onClick={() => setSearchInputText("")}
                   >
-                    <ClearIcon sx={{ fontSize: 14 }} />
+                    <ClearIcon css={{ fontSize: 14 }} />
                   </IconButton>
                 </Tooltip>
               </InputAdornment>
@@ -153,24 +156,30 @@ export const IconsPage: FC = () => {
           wrap="wrap"
           spacing={1}
           justifyContent="center"
-          css={(theme) => ({ marginTop: theme.spacing(4) })}
+          css={{ marginTop: 32 }}
         >
           {searchedIcons.length === 0 && (
             <EmptyState message="No results matched your search" />
           )}
           {searchedIcons.map((icon) => (
             <CopyableValue key={icon.url} value={icon.url} placement="bottom">
-              <Stack alignItems="center" css={{ margin: theme.spacing(1.5) }}>
+              <Stack alignItems="center" css={{ margin: 12 }}>
                 <img
                   alt={icon.url}
                   src={icon.url}
-                  css={{
-                    width: 60,
-                    height: 60,
-                    objectFit: "contain",
-                    pointerEvents: "none",
-                    padding: theme.spacing(1.5),
-                  }}
+                  css={[
+                    {
+                      width: 60,
+                      height: 60,
+                      objectFit: "contain",
+                      pointerEvents: "none",
+                      padding: 12,
+                    },
+                    parseImageParameters(
+                      theme.externalImages,
+                      defaultParametersForBuiltinIcons.get(icon.url) ?? "",
+                    ),
+                  ]}
                 />
                 <figcaption
                   css={{

@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
@@ -450,4 +452,23 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+type FakeAccessControlStore struct{}
+
+func (FakeAccessControlStore) GetTemplateAccessControl(t database.Template) dbauthz.TemplateAccessControl {
+	return dbauthz.TemplateAccessControl{
+		RequireActiveVersion: t.RequireActiveVersion,
+	}
+}
+
+func (FakeAccessControlStore) SetTemplateAccessControl(context.Context, database.Store, uuid.UUID, dbauthz.TemplateAccessControl) error {
+	panic("not implemented")
+}
+
+func AccessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var tacs dbauthz.AccessControlStore = FakeAccessControlStore{}
+	acs.Store(&tacs)
+	return acs
 }

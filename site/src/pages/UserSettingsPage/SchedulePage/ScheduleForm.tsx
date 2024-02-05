@@ -1,20 +1,20 @@
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import LoadingButton from "@mui/lab/LoadingButton";
 import { FormikContextType, useFormik } from "formik";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Form, FormFields } from "components/Form/Form";
-import {
+import type {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,
 } from "api/typesGenerated";
-import MenuItem from "@mui/material/MenuItem";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Form, FormFields } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import { timeZones, getPreferredTimezone } from "utils/timeZones";
 import { Alert } from "components/Alert/Alert";
 import { timeToCron, quietHoursDisplay, validTime } from "utils/schedule";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { timeZones, getPreferredTimezone } from "utils/timeZones";
 
 export interface ScheduleFormValues {
   time: string;
@@ -45,7 +45,7 @@ export interface ScheduleFormProps {
   now?: Date;
 }
 
-export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
+export const ScheduleForm: FC<ScheduleFormProps> = ({
   isLoading,
   initialValues,
   submitError,
@@ -93,17 +93,24 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
           </Alert>
         )}
 
+        {!initialValues.user_can_set && (
+          <Alert severity="error">
+            Your administrator has disabled the ability to set a custom quiet
+            hours schedule.
+          </Alert>
+        )}
+
         <Stack direction="row">
           <TextField
             {...getFieldHelpers("time")}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             label="Start time"
             type="time"
             fullWidth
           />
           <TextField
             {...getFieldHelpers("timezone")}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             label="Timezone"
             select
             fullWidth
@@ -126,7 +133,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         <div>
           <LoadingButton
             loading={isLoading}
-            disabled={isLoading}
+            disabled={isLoading || !initialValues.user_can_set}
             type="submit"
             variant="contained"
           >

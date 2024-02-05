@@ -1,25 +1,27 @@
-import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
 import { MultiTextField } from "./MultiTextField";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { AutofillSource } from "utils/richParameters";
+import { Pill } from "components/Pill/Pill";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
 };
 
 const styles = {
-  label: (theme) => ({
-    marginBottom: theme.spacing(0.5),
-  }),
+  label: {
+    marginBottom: 4,
+  },
   labelCaption: (theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
@@ -32,7 +34,11 @@ const styles = {
   labelPrimary: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.primary,
-    fontWeight: 600,
+    fontWeight: 500,
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
 
     "& p": {
       margin: 0,
@@ -43,10 +49,10 @@ const styles = {
       fontSize: 14,
     },
   }),
-  labelImmutable: (theme) => ({
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
-    color: colors.yellow[7],
+  optionalLabel: (theme) => ({
+    fontSize: 14,
+    color: theme.palette.text.disabled,
+    fontWeight: 500,
   }),
   textField: {
     ".small & .MuiInputBase-root": {
@@ -55,32 +61,33 @@ const styles = {
       borderRadius: 6,
     },
   },
-  radioGroup: (theme) => ({
+  radioGroup: {
     ".small & .MuiFormControlLabel-label": {
       fontSize: 14,
     },
     ".small & .MuiRadio-root": {
-      padding: theme.spacing(0.75, "9px"), // 8px + 1px border
+      padding: "6px 9px", // 8px + 1px border
     },
     ".small & .MuiRadio-root svg": {
       width: 16,
       height: 16,
     },
-  }),
-  checkbox: (theme) => ({
+  },
+  checkbox: {
     display: "flex",
     alignItems: "center",
-    gap: theme.spacing(1),
-  }),
-  labelIconWrapper: (theme) => ({
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
+    gap: 8,
+  },
+  labelIconWrapper: {
+    width: 20,
+    height: 20,
     display: "block",
+    flexShrink: 0,
 
     ".small &": {
       display: "none",
     },
-  }),
+  },
   labelIcon: {
     width: "100%",
     height: "100%",
@@ -108,12 +115,31 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
     ? parameter.display_name
     : parameter.name;
 
+  const labelPrimary = (
+    <span css={styles.labelPrimary}>
+      {displayName}
+
+      {!parameter.required && (
+        <Tooltip title="If no value is specified, the system will default to the value set by the administrator.">
+          <span css={styles.optionalLabel}>(optional)</span>
+        </Tooltip>
+      )}
+      {!parameter.mutable && (
+        <Tooltip title="This value cannot be modified after the workspace has been created.">
+          <Pill type="warning" icon={<ErrorOutline />}>
+            Immutable
+          </Pill>
+        </Tooltip>
+      )}
+    </span>
+  );
+
   return (
     <label htmlFor={parameter.name}>
       <Stack direction="row" alignItems="center">
         {parameter.icon && (
           <span css={styles.labelIconWrapper}>
-            <img
+            <ExternalImage
               css={styles.labelIcon}
               alt="Parameter icon"
               src={parameter.icon}
@@ -123,13 +149,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0}>
-            <span css={styles.labelPrimary}>{displayName}</span>
+            {labelPrimary}
             <MemoizedMarkdown css={styles.labelCaption}>
               {parameter.description}
             </MemoizedMarkdown>
           </Stack>
         ) : (
-          <span css={styles.labelPrimary}>{displayName}</span>
+          labelPrimary
         )}
       </Stack>
     </label>
@@ -143,6 +169,7 @@ export type RichParameterInputProps = Omit<
   "size" | "onChange"
 > & {
   parameter: TemplateVersionParameter;
+  autofillSource?: AutofillSource;
   onChange: (value: string) => void;
   size?: Size;
 };
@@ -150,6 +177,7 @@ export type RichParameterInputProps = Omit<
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   parameter,
   size = "medium",
+  autofillSource,
   ...fieldProps
 }) => {
   return (
@@ -160,14 +188,25 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       data-testid={`parameter-field-${parameter.name}`}
     >
       <ParameterLabel parameter={parameter} />
-      <Box sx={{ display: "flex", flexDirection: "column" }}>
+      <div css={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
-      </Box>
+        {autofillSource && autofillSource !== "active_build" && (
+          <div css={{ marginTop: 4, fontSize: 12 }}>
+            🪄 Autofilled:{" "}
+            {
+              {
+                ["url"]: "value supplied by URL.",
+                ["user_history"]: "recently used value.",
+              }[autofillSource]
+            }
+          </div>
+        )}
+      </div>
     </Stack>
   );
 };
 
-const RichParameterField: React.FC<RichParameterInputProps> = ({
+const RichParameterField: FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
@@ -175,7 +214,6 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   size,
   ...props
 }) => {
-  const theme = useTheme();
   const small = size === "small";
 
   if (isBoolean(parameter)) {
@@ -221,7 +259,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             label={
               <Stack direction="row" alignItems="center">
                 {option.icon && (
-                  <img
+                  <ExternalImage
                     css={styles.optionIcon}
                     src={option.icon}
                     alt="Parameter icon"
@@ -232,9 +270,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                     spacing={small ? 1 : 0}
                     alignItems={small ? "center" : undefined}
                     direction={small ? "row" : "column"}
-                    css={{
-                      padding: small ? undefined : `${theme.spacing(0.5)} 0`,
-                    }}
+                    css={{ padding: small ? undefined : "4px 0" }}
                   >
                     {small ? (
                       <Tooltip
@@ -244,7 +280,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                           </MemoizedMarkdown>
                         }
                       >
-                        <Box>{option.name}</Box>
+                        <div>{option.name}</div>
                       </Tooltip>
                     ) : (
                       <>

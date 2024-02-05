@@ -10,11 +10,7 @@ import (
 )
 
 func (r *RootCmd) update() *clibase.Cmd {
-	var (
-		alwaysPrompt bool
-
-		parameterFlags workspaceParameterFlags
-	)
+	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -31,58 +27,16 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.promptBuildOptions && len(parameterFlags.buildOptions) == 0 {
+			if !workspace.Outdated && !parameterFlags.promptRichParameters && !parameterFlags.promptBuildOptions && len(parameterFlags.buildOptions) == 0 {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
 
-			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
 			if err != nil {
-				return err
+				return xerrors.Errorf("start workspace: %w", err)
 			}
 
-			template, err := client.Template(inv.Context(), workspace.TemplateID)
-			if err != nil {
-				return err
-			}
-
-			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
-			if err != nil {
-				return xerrors.Errorf("can't parse given parameter values: %w", err)
-			}
-
-			buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:           WorkspaceUpdate,
-				Template:         template,
-				NewWorkspaceName: workspace.Name,
-				WorkspaceID:      workspace.LatestBuild.ID,
-
-				LastBuildParameters: lastBuildParameters,
-
-				PromptBuildOptions: parameterFlags.promptBuildOptions,
-				BuildOptions:       buildOptions,
-
-				PromptRichParameters: alwaysPrompt,
-				RichParameters:       cliRichParameters,
-				RichParameterFile:    parameterFlags.richParameterFile,
-			})
-			if err != nil {
-				return err
-			}
-
-			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID:   template.ActiveVersionID,
-				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParameters,
-			})
-			if err != nil {
-				return err
-			}
 			logs, closer, err := client.WorkspaceBuildLogsAfter(inv.Context(), build.ID, 0)
 			if err != nil {
 				return err
@@ -99,14 +53,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
-		{
-			Flag:        "always-prompt",
-			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
-			Value:       clibase.BoolOf(&alwaysPrompt),
-		},
-	}
-	cmd.Options = append(cmd.Options, parameterFlags.cliBuildOptions()...)
-	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
 	return cmd
 }

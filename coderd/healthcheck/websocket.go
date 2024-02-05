@@ -11,29 +11,43 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
+
+// @typescript-generate WebsocketReport
+type WebsocketReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy   bool            `json:"healthy"`
+	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
+	Warnings  []string        `json:"warnings"`
+	Dismissed bool            `json:"dismissed"`
+
+	Body  string  `json:"body"`
+	Code  int     `json:"code"`
+	Error *string `json:"error"`
+}
 
 type WebsocketReportOptions struct {
 	APIKey     string
 	AccessURL  *url.URL
 	HTTPClient *http.Client
-}
 
-// @typescript-generate WebsocketReport
-type WebsocketReport struct {
-	Healthy bool    `json:"healthy"`
-	Body    string  `json:"body"`
-	Code    int     `json:"code"`
-	Error   *string `json:"error"`
+	Dismissed bool
 }
 
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	r.Severity = health.SeverityOK
+	r.Warnings = []string{}
+	r.Dismissed = opts.Dismissed
+
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("parse access url: %w", err))
+		r.Severity = health.SeverityError
 		return
 	}
 	if u.Scheme == "https" {
@@ -61,6 +75,8 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	}
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("websocket dial: %w", err))
+		r.Error = health.Errorf(health.CodeWebsocketDial, "websocket dial: %s", err)
+		r.Severity = health.SeverityError
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
@@ -69,23 +85,27 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		msg := strconv.Itoa(i)
 		err := c.Write(ctx, websocket.MessageText, []byte(msg))
 		if err != nil {
-			r.Error = convertError(xerrors.Errorf("write message: %w", err))
+			r.Error = health.Errorf(health.CodeWebsocketEcho, "write message: %s", err)
+			r.Severity = health.SeverityError
 			return
 		}
 
 		ty, got, err := c.Read(ctx)
 		if err != nil {
-			r.Error = convertError(xerrors.Errorf("read message: %w", err))
+			r.Error = health.Errorf(health.CodeWebsocketEcho, "read message: %s", err)
+			r.Severity = health.SeverityError
 			return
 		}
 
 		if ty != websocket.MessageText {
-			r.Error = convertError(xerrors.Errorf("received incorrect message type: %v", ty))
+			r.Error = health.Errorf(health.CodeWebsocketMsg, "received incorrect message type: %v", ty)
+			r.Severity = health.SeverityError
 			return
 		}
 
 		if string(got) != msg {
-			r.Error = convertError(xerrors.Errorf("received incorrect message: wanted %q, got %q", msg, string(got)))
+			r.Error = health.Errorf(health.CodeWebsocketMsg, "received incorrect message: wanted %q, got %q", msg, string(got))
+			r.Severity = health.SeverityError
 			return
 		}
 	}

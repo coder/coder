@@ -1,10 +1,12 @@
 package workspaceapps
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
 
@@ -87,6 +89,31 @@ func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.Respo
 		Title:        "Application Unavailable",
 		Description:  msg,
 		RetryEnabled: true,
+		DashboardURL: accessURL.String(),
+	})
+}
+
+// WriteWorkspaceOffline writes a HTML 400 error page for a workspace app. If
+// appReq is not nil, it will be used to log the request details at debug level.
+func WriteWorkspaceOffline(log slog.Logger, accessURL *url.URL, rw http.ResponseWriter, r *http.Request, appReq *Request) {
+	if appReq != nil {
+		slog.Helper()
+		log.Debug(r.Context(),
+			"workspace app unavailable: workspace stopped",
+			slog.F("username_or_id", appReq.UsernameOrID),
+			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
+			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
+			slog.F("agent_name_or_id", appReq.AgentNameOrID),
+			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+			slog.F("hostname_prefix", appReq.Prefix),
+		)
+	}
+
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:       http.StatusBadRequest,
+		Title:        "Workspace Offline",
+		Description:  fmt.Sprintf("Last workspace transition was to the %q state. Start the workspace to access its applications.", codersdk.WorkspaceTransitionStop),
+		RetryEnabled: false,
 		DashboardURL: accessURL.String(),
 	})
 }

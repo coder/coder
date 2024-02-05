@@ -223,8 +223,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		defaultTTL time.Duration
-		// TODO(@dean): remove max_ttl once autostop_requirement is ready
+		defaultTTL                     time.Duration
 		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostartRequirementDaysOfWeek []string
@@ -284,6 +283,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if createTemplate.MaxTTLMillis != nil {
 		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+	if maxTTL != 0 && len(autostopRequirementDaysOfWeek) > 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
 	}
 	if autostopRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
@@ -364,6 +366,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
+			UseMaxTTL:            maxTTL > 0,
 			DefaultTTL:           defaultTTL,
 			MaxTTL:               maxTTL,
 			// Some of these values are enterprise-only, but the
@@ -437,6 +440,24 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
+	p := httpapi.NewQueryParamParser()
+	values := r.URL.Query()
+
+	deprecated := sql.NullBool{}
+	if values.Has("deprecated") {
+		deprecated = sql.NullBool{
+			Bool:  p.Boolean(values, false, "deprecated"),
+			Valid: true,
+		}
+	}
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query params.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
 	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -449,6 +470,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	// Filter templates based on rbac permissions
 	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
 		OrganizationID: organization.ID,
+		Deprecated:     deprecated,
 	}, prepared)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -549,6 +571,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
 	}
+	if req.MaxTTLMillis != 0 && req.AutostopRequirement != nil && len(req.AutostopRequirement.DaysOfWeek) > 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
+	}
+	useMaxTTL := req.MaxTTLMillis > 0
 	if req.AutostopRequirement == nil {
 		req.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
@@ -584,6 +610,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
+	// Defaults to the existing.
+	deprecationMessage := template.Deprecated
+	if req.DeprecationMessage != nil {
+		deprecationMessage = *req.DeprecationMessage
+	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
 	// to ensure an uninformed user does not send an unintentionally
@@ -617,6 +648,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			useMaxTTL == scheduleOpts.UseMaxTTL &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
@@ -624,7 +656,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequireActiveVersion == template.RequireActiveVersion {
+			req.RequireActiveVersion == template.RequireActiveVersion &&
+			(deprecationMessage == template.Deprecated) {
 			return nil
 		}
 
@@ -632,6 +665,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		name := req.Name
 		if name == "" {
 			name = template.Name
+		}
+
+		groupACL := template.GroupACL
+		if req.DisableEveryoneGroupAccess {
+			delete(groupACL, template.OrganizationID.String())
 		}
 
 		var err error
@@ -643,14 +681,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Description:                  req.Description,
 			Icon:                         req.Icon,
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
+			GroupACL:                     groupACL,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion {
+		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
+				Deprecated:           deprecationMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
@@ -669,6 +709,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			useMaxTTL != scheduleOpts.UseMaxTTL ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
@@ -685,6 +726,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostartEnabled: req.AllowUserAutostart,
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
+				UseMaxTTL:            useMaxTTL,
 				MaxTTL:               maxTTL,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeekParsed,
@@ -804,7 +846,13 @@ func (api *API) convertTemplates(templates []database.Template) []codersdk.Templ
 func (api *API) convertTemplate(
 	template database.Template,
 ) codersdk.Template {
-	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
+	templateAccessControl := (*(api.Options.AccessControlStore.Load())).GetTemplateAccessControl(template)
+
+	owners := 0
+	o, ok := api.metricsCache.TemplateWorkspaceOwners(template.ID)
+	if ok {
+		owners = o
+	}
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
@@ -822,11 +870,12 @@ func (api *API) convertTemplate(
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:                template.ActiveVersionID,
-		ActiveUserCount:                activeCount,
+		ActiveUserCount:                owners,
 		BuildTimeStats:                 buildTimeStats,
 		Description:                    template.Description,
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		UseMaxTTL:                      template.UseMaxTtl,
 		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,
@@ -843,6 +892,9 @@ func (api *API) convertTemplate(
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
-		RequireActiveVersion: template.RequireActiveVersion,
+		// These values depend on entitlements and come from the templateAccessControl
+		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
+		Deprecated:           templateAccessControl.IsDeprecated(),
+		DeprecationMessage:   templateAccessControl.Deprecated,
 	}
 }

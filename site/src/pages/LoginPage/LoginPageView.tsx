@@ -1,15 +1,17 @@
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
 import { useLocation } from "react-router-dom";
-import { SignInForm } from "./SignInForm";
-import { retrieveRedirect } from "utils/redirect";
-import { CoderIcon } from "components/Icons/CoderIcon";
+import type { AuthMethods } from "api/typesGenerated";
 import { getApplicationName, getLogoURL } from "utils/appearance";
-import { AuthMethods } from "api/typesGenerated";
+import { retrieveRedirect } from "utils/redirect";
+import { Loader } from "components/Loader/Loader";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { SignInForm } from "./SignInForm";
 
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
   error: unknown;
+  isLoading: boolean;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -17,15 +19,15 @@ export interface LoginPageViewProps {
 export const LoginPageView: FC<LoginPageViewProps> = ({
   authMethods,
   error,
+  isLoading,
   isSigningIn,
   onSignIn,
 }) => {
   const location = useLocation();
   const redirectTo = retrieveRedirect(location.search);
-  const styles = useStyles();
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
-  const info = new URLSearchParams(location.search).get("info") || undefined;
+  const message = new URLSearchParams(location.search).get("message");
   const applicationName = getApplicationName();
   const logoURL = getLogoURL();
   const applicationLogo = logoURL ? (
@@ -41,22 +43,26 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       }}
     />
   ) : (
-    <CoderIcon fill="white" opacity={1} className={styles.icon} />
+    <CoderIcon fill="white" opacity={1} css={styles.icon} />
   );
 
   return (
-    <div className={styles.root}>
-      <div className={styles.container}>
+    <div css={styles.root}>
+      <div css={styles.container}>
         {applicationLogo}
-        <SignInForm
-          authMethods={authMethods}
-          redirectTo={redirectTo}
-          isSigningIn={isSigningIn}
-          error={error}
-          info={info}
-          onSubmit={onSignIn}
-        />
-        <footer className={styles.footer}>
+        {isLoading ? (
+          <Loader />
+        ) : (
+          <SignInForm
+            authMethods={authMethods}
+            redirectTo={redirectTo}
+            isSigningIn={isSigningIn}
+            error={error}
+            message={message}
+            onSubmit={onSignIn}
+          />
+        )}
+        <footer css={styles.footer}>
           Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
         </footer>
       </div>
@@ -64,9 +70,9 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   root: {
-    padding: theme.spacing(3),
+    padding: 24,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -76,20 +82,20 @@ const useStyles = makeStyles((theme) => ({
 
   container: {
     width: "100%",
-    maxWidth: 385,
+    maxWidth: 320,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: theme.spacing(2),
+    gap: 16,
   },
 
   icon: {
-    fontSize: theme.spacing(8),
+    fontSize: 64,
   },
 
-  footer: {
+  footer: (theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(3),
-  },
-}));
+    marginTop: 24,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

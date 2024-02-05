@@ -1,7 +1,7 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
+import { useDeploySettings } from "../DeploySettingsLayout";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const UserAuthSettingsPage: FC = () => {

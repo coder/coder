@@ -11,8 +11,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/codersdk"
@@ -67,19 +67,19 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 8, 27),
+					Date:   metricscache.OnlyDate(date(2022, 8, 27)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 28),
+					Date:   metricscache.OnlyDate(date(2022, 8, 28)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 8, 29),
+					Date:   metricscache.OnlyDate(date(2022, 8, 29)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 8, 30),
+					Date:   metricscache.OnlyDate(date(2022, 8, 30)),
 					Amount: 1,
 				},
 			}, 1},
@@ -95,15 +95,15 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 8, 27),
+					Date:   metricscache.OnlyDate(date(2022, 8, 27)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 28),
+					Date:   metricscache.OnlyDate(date(2022, 8, 28)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 29),
+					Date:   metricscache.OnlyDate(date(2022, 8, 29)),
 					Amount: 1,
 				},
 			}, 1},
@@ -121,42 +121,42 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 3),
+					Date:   metricscache.OnlyDate(date(2022, 1, 3)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 4),
+					Date:   metricscache.OnlyDate(date(2022, 1, 4)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 1, 5),
+					Date:   metricscache.OnlyDate(date(2022, 1, 5)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 6),
+					Date:   metricscache.OnlyDate(date(2022, 1, 6)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 7),
+					Date:   metricscache.OnlyDate(date(2022, 1, 7)),
 					Amount: 2,
 				},
 			}, 2},
 		},
 		{
 			name:     "tzOffset",
-			tzOffset: 1,
+			tzOffset: 3,
 			args: args{
 				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 2, 1)),
-					statRow(tiger, dateH(2022, 1, 2, 1)),
+					statRow(zebra, dateH(2022, 1, 2, 3)),
+					statRow(tiger, dateH(2022, 1, 2, 3)),
 					// With offset these should be in the previous day
 					statRow(zebra, dateH(2022, 1, 2, 0)),
 					statRow(tiger, dateH(2022, 1, 2, 0)),
@@ -164,17 +164,17 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			}, 2},
 			dauWant: []codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			},
@@ -192,13 +192,13 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			dauWant: []codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			}, 2},
@@ -210,7 +210,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				db    = dbfake.New()
+				db    = dbmem.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 					TemplateDAUs: testutil.IntervalFast,
 				})
@@ -252,6 +252,74 @@ func TestCache_TemplateUsers(t *testing.T) {
 			require.Equal(t, tt.tplWant.uniqueUsers, gotUniqueUsers)
 		})
 	}
+}
+
+func TestCache_TemplateWorkspaceOwners(t *testing.T) {
+	t.Parallel()
+	var ()
+
+	var (
+		db    = dbmem.New()
+		cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+			TemplateDAUs: testutil.IntervalFast,
+		})
+	)
+
+	defer cache.Close()
+
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		Provisioner: database.ProvisionerTypeEcho,
+	})
+	require.Eventuallyf(t, func() bool {
+		count, ok := cache.TemplateWorkspaceOwners(template.ID)
+		return ok && count == 0
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 0 owners",
+	)
+
+	dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user1.ID,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 1
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 1 owner",
+	)
+
+	workspace2 := dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user2.ID,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 2
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 2 owners",
+	)
+
+	// 3rd workspace should not be counted since we have the same owner as workspace2.
+	dbgen.Workspace(t, db, database.Workspace{
+		TemplateID: template.ID,
+		OwnerID:    user1.ID,
+	})
+
+	db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      workspace2.ID,
+		Deleted: true,
+	})
+
+	require.Eventuallyf(t, func() bool {
+		count, _ := cache.TemplateWorkspaceOwners(template.ID)
+		return count == 1
+	}, testutil.WaitShort, testutil.IntervalMedium,
+		"TemplateWorkspaceOwners never populated 1 owner after delete",
+	)
 }
 
 func clockTime(t time.Time, hour, minute, sec int) time.Time {
@@ -342,7 +410,7 @@ func TestCache_BuildTime(t *testing.T) {
 			ctx := context.Background()
 
 			var (
-				db    = dbfake.New()
+				db    = dbmem.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 					TemplateDAUs: testutil.IntervalFast,
 				})
@@ -436,7 +504,7 @@ func TestCache_BuildTime(t *testing.T) {
 
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db := dbmem.New()
 	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
 	})

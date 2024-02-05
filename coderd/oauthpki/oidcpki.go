@@ -20,7 +20,7 @@ import (
 	"golang.org/x/oauth2/jws"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/promoauth"
 )
 
 // Config uses jwt assertions over client_secret for oauth2 authentication of
@@ -33,7 +33,7 @@ import (
 //
 //	https://datatracker.ietf.org/doc/html/rfc7523
 type Config struct {
-	cfg httpmw.OAuth2Config
+	cfg promoauth.OAuth2Config
 
 	// These values should match those provided in the oauth2.Config.
 	// Because the inner config is an interface, we need to duplicate these
@@ -57,7 +57,7 @@ type ConfigParams struct {
 	PemEncodedKey  []byte
 	PemEncodedCert []byte
 
-	Config httpmw.OAuth2Config
+	Config promoauth.OAuth2Config
 }
 
 // NewOauth2PKIConfig creates the oauth2 config for PKI based auth. It requires the certificate and it's private key.
@@ -180,6 +180,8 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 	cli := http.DefaultClient
 	if v, ok := src.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		// This client should be the instrumented client already. So no need to
+		// handle this manually.
 		cli = v
 	}
 

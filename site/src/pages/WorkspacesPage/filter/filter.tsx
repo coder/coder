@@ -1,10 +1,7 @@
-import { FC } from "react";
-import Box from "@mui/material/Box";
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
-import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { Palette, PaletteColor } from "@mui/material/styles";
-import { TemplateFilterMenu, StatusFilterMenu } from "./menus";
-import { TemplateOption, StatusOption } from "./options";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 import {
   Filter,
   FilterMenu,
@@ -14,15 +11,18 @@ import {
   SearchFieldSkeleton,
   useFilter,
 } from "components/Filter/filter";
-import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
+import type { TemplateFilterMenu, StatusFilterMenu } from "./menus";
+import type { TemplateOption, StatusOption } from "./options";
 
 export const workspaceFilterQuery = {
   me: "owner:me",
   all: "",
   running: "status:running",
   failed: "status:failed",
-  dormant: "is-dormant:true",
+  dormant: "dormant:true",
+  outdated: "outdated:true",
 };
 
 type FilterPreset = {
@@ -49,6 +49,10 @@ const PRESET_FILTERS: FilterPreset[] = [
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
   },
+  {
+    query: workspaceFilterQuery.outdated,
+    name: "Outdated workspaces",
+  },
 ];
 
 // Defined outside component so that the array doesn't get reconstructed each render
@@ -70,13 +74,15 @@ type WorkspaceFilterProps = {
   };
 };
 
-export const WorkspacesFilter = ({
+export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
   filter,
   error,
   menus,
-}: WorkspaceFilterProps) => {
-  const actionsEnabled = useIsWorkspaceActionsEnabled();
-  const presets = actionsEnabled ? PRESETS_WITH_DORMANT : PRESET_FILTERS;
+}) => {
+  const { entitlements } = useDashboard();
+  const presets = entitlements.features["advanced_template_scheduling"].enabled
+    ? PRESETS_WITH_DORMANT
+    : PRESET_FILTERS;
 
   return (
     <Filter
@@ -87,7 +93,7 @@ export const WorkspacesFilter = ({
       learnMoreLink={docs("/workspaces#workspace-filtering")}
       options={
         <>
-          {menus.user && <UserMenu {...menus.user} />}
+          {menus.user && <UserMenu menu={menus.user} />}
           <TemplateMenu {...menus.template} />
           <StatusMenu {...menus.status} />
         </>
@@ -122,12 +128,14 @@ const TemplateMenu = (menu: TemplateFilterMenu) => {
   );
 };
 
-const TemplateOptionItem = ({
-  option,
-  isSelected,
-}: {
+interface TemplateOptionItemProps {
   option: TemplateOption;
   isSelected?: boolean;
+}
+
+const TemplateOptionItem: FC<TemplateOptionItemProps> = ({
+  option,
+  isSelected,
 }) => {
   return (
     <OptionItem
@@ -137,16 +145,23 @@ const TemplateOptionItem = ({
         <TemplateAvatar
           templateName={option.label}
           icon={option.icon}
-          sx={{ width: 14, height: 14, fontSize: 8 }}
+          css={{ width: 14, height: 14, fontSize: 8 }}
         />
       }
     />
   );
 };
 
-const TemplateAvatar: FC<
-  AvatarProps & { templateName: string; icon?: string }
-> = ({ templateName, icon, ...avatarProps }) => {
+interface TemplateAvatarProps extends AvatarProps {
+  templateName: string;
+  icon?: string;
+}
+
+const TemplateAvatar: FC<TemplateAvatarProps> = ({
+  templateName,
+  icon,
+  ...avatarProps
+}) => {
   return icon ? (
     <Avatar src={icon} variant="square" fitImage {...avatarProps} />
   ) : (
@@ -172,13 +187,12 @@ const StatusMenu = (menu: StatusFilterMenu) => {
   );
 };
 
-const StatusOptionItem = ({
-  option,
-  isSelected,
-}: {
+interface StatusOptionItem {
   option: StatusOption;
   isSelected?: boolean;
-}) => {
+}
+
+const StatusOptionItem: FC<StatusOptionItem> = ({ option, isSelected }) => {
   return (
     <OptionItem
       option={option}
@@ -188,15 +202,20 @@ const StatusOptionItem = ({
   );
 };
 
-const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
+interface StatusIndicatorProps {
+  option: StatusOption;
+}
+
+const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
+  const theme = useTheme();
+
   return (
-    <Box
-      height={8}
-      width={8}
-      borderRadius={9999}
-      sx={{
-        backgroundColor: (theme) =>
-          (theme.palette[option.color as keyof Palette] as PaletteColor).light,
+    <div
+      css={{
+        height: 8,
+        width: 8,
+        borderRadius: 4,
+        backgroundColor: theme.roles[option.color].fill.solid,
       }}
     />
   );

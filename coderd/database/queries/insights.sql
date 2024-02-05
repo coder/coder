@@ -218,6 +218,53 @@ SELECT
 FROM app_stats_by_user_and_agent
 GROUP BY access_method, slug_or_port, display_name, icon, is_app;
 
+-- name: GetTemplateAppInsightsByTemplate :many
+WITH app_stats_by_user_and_agent AS (
+	SELECT
+		s.start_time,
+		60 as seconds,
+		w.template_id,
+		was.user_id,
+		was.agent_id,
+		was.slug_or_port,
+		wa.display_name,
+		(wa.slug IS NOT NULL)::boolean AS is_app
+	FROM workspace_app_stats was
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+	)
+	-- We do a left join here because we want to include user IDs that have used
+	-- e.g. ports when counting active users.
+	LEFT JOIN workspace_apps wa ON (
+		wa.agent_id = was.agent_id
+		AND wa.slug = was.slug_or_port
+	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
+	WHERE
+		s.start_time >= @start_time::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.slug_or_port, wa.display_name, wa.slug
+)
+
+SELECT
+	template_id,
+	display_name,
+	slug_or_port,
+	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+WHERE is_app IS TRUE
+GROUP BY template_id, display_name, slug_or_port;
+
 -- name: GetTemplateInsightsByInterval :many
 -- GetTemplateInsightsByInterval returns all intervals between start and end
 -- time, if end time is a partial interval, it will be included in the results and

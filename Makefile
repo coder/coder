@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 # All the shell files in the repo, excluding ignored files.
@@ -428,7 +428,8 @@ lint/ts:
 
 lint/go:
 	./scripts/check_enterprise_imports.sh
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/Dockerfile | cut -d '=' -f 2)
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver
 	golangci-lint run
 .PHONY: lint/go
 
@@ -448,13 +449,15 @@ lint/helm:
 DB_GEN_FILES := \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbfake/dbfake.go \
+	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	coderd/database/dump.sql \
@@ -472,13 +475,18 @@ gen: \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
 	site/src/theme/icons.json \
-	examples/examples.gen.json
+	examples/examples.gen.json \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/multiagentmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
+		tailnet/proto/tailnet.pb.go \
+		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		coderd/database/dump.sql \
@@ -497,6 +505,9 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
+		tailnet/tailnettest/coordinatormock.go \
+		tailnet/tailnettest/coordinateemock.go \
+		tailnet/tailnettest/multiagentmock.go \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -523,6 +534,25 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
+	go generate ./tailnet/tailnettest/
+
+tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./tailnet/proto/tailnet.proto
+
+agent/proto/agent.pb.go: agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/proto/agent.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -567,7 +597,7 @@ docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
-docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
+docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	pnpm run format:write:only ./docs/admin/audit-logs.md
 
@@ -575,7 +605,16 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden provisioner/terraform/testdata/.gen-golden
+update-golden-files: \
+	cli/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	scripts/ci-report/testdata/.gen-golden \
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden \
+	coderd/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
@@ -584,6 +623,14 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
 	go test ./enterprise/cli -run="TestEnterpriseCommandHelp" -update
+	touch "$@"
+
+tailnet/testdata/.gen-golden: $(wildcard tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard tailnet/*_test.go)
+	go test ./tailnet -run="TestDebugTemplate" -update
+	touch "$@"
+
+enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/*.golden.html) $(GO_SRC_FILES) $(wildcard enterprise/tailnet/*_test.go)
+	go test ./enterprise/tailnet -run="TestDebugTemplate" -update
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
@@ -669,6 +716,33 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 test:
 	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
+
+# sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
+# dependency for any sqlc-cloud related targets.
+sqlc-cloud-is-setup:
+	if [[ "$(SQLC_AUTH_TOKEN)" == "" ]]; then
+		echo "ERROR: 'SQLC_AUTH_TOKEN' must be set to auth with sqlc cloud before running verify." 1>&2
+		exit 1
+	fi
+.PHONY: sqlc-cloud-is-setup
+
+sqlc-push: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc push"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
+.PHONY: sqlc-push
+
+sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
+	echo "--- sqlc verify"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
+.PHONY: sqlc-verify
+
+sqlc-vet: test-postgres-docker
+	echo "--- sqlc vet"
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
+.PHONY: sqlc-vet
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).

@@ -62,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -71,8 +70,10 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionerd"
@@ -106,7 +107,7 @@ type Options struct {
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	ExternalAuthConfigs   []*externalauth.Config
-	TrialGenerator        func(context.Context, string) error
+	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
@@ -143,12 +144,21 @@ type Options struct {
 	StatsBatcher *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+	AllowWorkspaceRenames              bool
+	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
 func New(t testing.TB, options *Options) *codersdk.Client {
 	client, _ := newWithCloser(t, options)
 	return client
+}
+
+// NewWithDatabase constructs a codersdk client connected to an in-memory API instance.
+// The database is returned to provide direct data manipulation for tests.
+func NewWithDatabase(t testing.TB, options *Options) (*codersdk.Client, database.Store) {
+	client, _, api := NewWithAPI(t, options)
+	return client, api.Database
 }
 
 // NewWithProvisionerCloser returns a client as well as a handle to close
@@ -220,6 +230,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+
+	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
+
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
 	// nolint:gocritic // Setting up unit test data inside test helper
@@ -258,10 +274,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
-
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -360,7 +372,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
 		var err error
-		appHostnameRegex, err = httpapi.CompileHostnamePattern(options.AppHostname)
+		appHostnameRegex, err = appurl.CompileHostnamePattern(options.AppHostname)
 		require.NoError(t, err)
 	}
 
@@ -439,6 +451,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
 			StatsBatcher:                       options.StatsBatcher,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
+			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
+			NewTicker:                          options.NewTicker,
 		}
 }
 
@@ -503,7 +517,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	// seems t.TempDir() is not safe to call from a different goroutine
 	workDir := t.TempDir()
 
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = echoClient.Close()
@@ -520,8 +534,8 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
+	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, "test")
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
@@ -538,7 +552,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 }
 
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
-	echoClient, echoServer := provisionersdk.MemTransportPipe()
+	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	t.Cleanup(func() {
@@ -558,6 +572,8 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,
@@ -605,6 +621,25 @@ func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uui
 
 func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
+}
+
+// AuthzUserSubject does not include the user's groups.
+func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
+	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	// Member role is always implied
+	roles = append(roles, rbac.RoleMember())
+	for _, r := range user.Roles {
+		roles = append(roles, r.Name)
+	}
+	// We assume only 1 org exists
+	roles = append(roles, rbac.RoleOrgMember(orgID))
+
+	return rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  roles,
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
 }
 
 func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
@@ -682,7 +717,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			siteRoles = append(siteRoles, r.Name)
 		}
 
-		_, err := client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
@@ -702,7 +737,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 // with testing.
 func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
-	data, err := echo.Tar(res)
+	data, err := echo.TarWithOptions(context.Background(), client.Logger(), res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
@@ -729,6 +764,8 @@ func CreateWorkspaceBuild(
 	transition database.WorkspaceTransition,
 	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
+	t.Helper()
+
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
 	}
@@ -755,6 +792,25 @@ func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUI
 	return template
 }
 
+// CreateGroup creates a group with the given name and members.
+func CreateGroup(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, name string, members ...codersdk.User) codersdk.Group {
+	t.Helper()
+	group, err := client.CreateGroup(context.Background(), organizationID, codersdk.CreateGroupRequest{
+		Name: name,
+	})
+	require.NoError(t, err, "failed to create group")
+	memberIDs := make([]string, 0)
+	for _, member := range members {
+		memberIDs = append(memberIDs, member.ID.String())
+	}
+	group, err = client.PatchGroup(context.Background(), group.ID, codersdk.PatchGroupRequest{
+		AddUsers: memberIDs,
+	})
+
+	require.NoError(t, err, "failed to add members to group")
+	return group
+}
+
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
 func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
@@ -778,6 +834,14 @@ func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, template
 		ID: versionID,
 	})
 	require.NoError(t, err)
+}
+
+// UpdateTemplateMeta updates the template meta for the given template.
+func UpdateTemplateMeta(t testing.TB, client *codersdk.Client, templateID uuid.UUID, meta codersdk.UpdateTemplateMeta) codersdk.Template {
+	t.Helper()
+	updated, err := client.UpdateTemplateMeta(context.Background(), templateID, meta)
+	require.NoError(t, err)
+	return updated
 }
 
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
@@ -851,23 +915,67 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 // AwaitWorkspaceAgents waits for all resources with agents to be connected. If
 // specific agents are provided, it will wait for those agents to be connected
 // but will not fail if other agents are not connected.
+//
+// Deprecated: Use NewWorkspaceAgentWaiter
 func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
-	t.Helper()
+	return NewWorkspaceAgentWaiter(t, client, workspaceID).AgentNames(agentNames).Wait()
+}
 
-	agentNamesMap := make(map[string]struct{}, len(agentNames))
-	for _, name := range agentNames {
+// WorkspaceAgentWaiter waits for all resources with agents to be connected. If
+// specific agents are provided using AgentNames(), it will wait for those agents
+// to be connected but will not fail if other agents are not connected.
+type WorkspaceAgentWaiter struct {
+	t                testing.TB
+	client           *codersdk.Client
+	workspaceID      uuid.UUID
+	agentNames       []string
+	resourcesMatcher func([]codersdk.WorkspaceResource) bool
+}
+
+// NewWorkspaceAgentWaiter returns an object that waits for agents to connect when
+// you call Wait() on it.
+func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) WorkspaceAgentWaiter {
+	return WorkspaceAgentWaiter{
+		t:           t,
+		client:      client,
+		workspaceID: workspaceID,
+	}
+}
+
+// AgentNames instructs the waiter to wait for the given, named agents to be connected and will
+// return even if other agents are not connected.
+func (w WorkspaceAgentWaiter) AgentNames(names []string) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.agentNames = names
+	return w
+}
+
+// MatchResources instructs the waiter to wait until the workspace has resources that cause the
+// provided matcher function to return true.
+func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource) bool) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.resourcesMatcher = m
+	return w
+}
+
+// Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
+func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
+	w.t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(w.agentNames))
+	for _, name := range w.agentNames {
 		agentNamesMap[name] = struct{}{}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
+	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(t, func() bool {
+	require.Eventually(w.t, func() bool {
 		var err error
-		workspace, err := client.Workspace(ctx, workspaceID)
-		if !assert.NoError(t, err) {
+		workspace, err := w.client.Workspace(ctx, w.workspaceID)
+		if !assert.NoError(w.t, err) {
 			return false
 		}
 		if workspace.LatestBuild.Job.CompletedAt == nil {
@@ -879,23 +987,25 @@ func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uui
 
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
-				if len(agentNames) > 0 {
+				if len(w.agentNames) > 0 {
 					if _, ok := agentNamesMap[agent.Name]; !ok {
 						continue
 					}
 				}
 
 				if agent.Status != codersdk.WorkspaceAgentConnected {
-					t.Logf("agent %s not connected yet", agent.Name)
+					w.t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}
 		}
 		resources = workspace.LatestBuild.Resources
-
-		return true
+		if w.resourcesMatcher == nil {
+			return true
+		}
+		return w.resourcesMatcher(resources)
 	}, testutil.WaitLong, testutil.IntervalMedium)
-	t.Logf("got workspace agents (workspace %s)", workspaceID)
+	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }
 
@@ -927,11 +1037,8 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	require.NoError(t, err, "unexpected error fetching workspace")
 	require.Equal(t, workspace.LatestBuild.Transition, codersdk.WorkspaceTransition(from), "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
 
-	template, err := client.Template(ctx, workspace.TemplateID)
-	require.NoError(t, err, "fetch workspace template")
-
 	req := codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: template.ActiveVersionID,
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
 	}
 

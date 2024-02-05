@@ -5,8 +5,9 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import { FormikTouched, useFormik } from "formik";
-import { FC, ChangeEvent, useState, useEffect } from "react";
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { type FC, ChangeEvent, useState, useEffect } from "react";
+import { useTheme } from "@emotion/react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { getFormHelpers } from "utils/formUtils";
 import { docs } from "utils/docs";
 import {
@@ -20,6 +21,7 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import {
   useWorkspacesToGoDormant,
   useWorkspacesToBeDeleted,
@@ -38,8 +40,6 @@ import {
   AutostopRequirementWeeksHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import { useTheme } from "@emotion/react";
-import { TemplateScheduleAutostart } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -54,8 +54,6 @@ export interface TemplateScheduleForm {
   isSubmitting: boolean;
   error?: unknown;
   allowAdvancedScheduling: boolean;
-  allowWorkspaceActions: boolean;
-  allowAutostopRequirement: boolean;
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
 }
@@ -66,8 +64,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   onCancel,
   error,
   allowAdvancedScheduling,
-  allowWorkspaceActions,
-  allowAutostopRequirement,
   isSubmitting,
   initialTouched,
 }) => {
@@ -78,6 +74,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
       // the API ignores these values, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
+      use_max_ttl:
+        template.use_max_ttl === undefined
+          ? template.max_ttl_ms > 0
+          : template.use_max_ttl,
       max_ttl_ms: allowAdvancedScheduling
         ? template.max_ttl_ms / MS_HOUR_CONVERSION
         : 0,
@@ -91,12 +91,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
         : 0,
 
-      autostop_requirement_days_of_week: allowAutostopRequirement
+      autostop_requirement_days_of_week: allowAdvancedScheduling
         ? convertAutostopRequirementDaysValue(
             template.autostop_requirement.days_of_week,
           )
         : "off",
-      autostop_requirement_weeks: allowAutostopRequirement
+      autostop_requirement_weeks: allowAdvancedScheduling
         ? template.autostop_requirement.weeks > 0
           ? template.autostop_requirement.weeks
           : 1
@@ -116,6 +116,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       update_workspace_last_used_at: false,
       update_workspace_dormant_at: false,
       require_active_version: false,
+      disable_everyone_group_access: false,
     },
     validationSchema,
     onSubmit: () => {
@@ -205,9 +206,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       default_ttl_ms: form.values.default_ttl_ms
         ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
         : undefined,
-      max_ttl_ms: form.values.max_ttl_ms
-        ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
-        : undefined,
+      max_ttl_ms:
+        form.values.max_ttl_ms && form.values.use_max_ttl
+          ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
+          : undefined,
       failure_ttl_ms: form.values.failure_ttl_ms
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
@@ -218,12 +220,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
 
-      autostop_requirement: {
-        days_of_week: calculateAutostopRequirementDaysValue(
-          form.values.autostop_requirement_days_of_week,
-        ),
-        weeks: autostop_requirement_weeks,
-      },
+      autostop_requirement: form.values.use_max_ttl
+        ? undefined
+        : {
+            days_of_week: calculateAutostopRequirementDaysValue(
+              form.values.autostop_requirement_days_of_week,
+            ),
+            weeks: autostop_requirement_weeks,
+          },
       autostart_requirement: {
         days_of_week: form.values.autostart_requirement_days_of_week,
       },
@@ -233,6 +237,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
       require_active_version: false,
+      disable_everyone_group_access: false,
     });
   };
 
@@ -317,6 +322,27 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     }
   };
 
+  const handleToggleUseMaxTTL = async () => {
+    const val = !form.values.use_max_ttl;
+    if (val) {
+      // set max_ttl to 1, set autostop_requirement to empty
+      await form.setValues({
+        ...form.values,
+        use_max_ttl: val,
+        max_ttl_ms: 1,
+        autostop_requirement_days_of_week: "off",
+        autostop_requirement_weeks: 1,
+      });
+    } else {
+      // set max_ttl to 0
+      await form.setValues({
+        ...form.values,
+        use_max_ttl: val,
+        max_ttl_ms: 0,
+      });
+    }
+  };
+
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
@@ -328,95 +354,138 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       >
         <Stack direction="row" css={styles.ttlFields}>
           <TextField
-            {...getFieldHelpers(
-              "default_ttl_ms",
-              <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />,
-            )}
+            {...getFieldHelpers("default_ttl_ms", {
+              helperText: (
+                <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />
+              ),
+            })}
             disabled={isSubmitting}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label="Default autostop (hours)"
             type="number"
           />
-
-          {!allowAutostopRequirement && (
-            <TextField
-              {...getFieldHelpers(
-                "max_ttl_ms",
-                allowAdvancedScheduling ? (
-                  <MaxTTLHelperText ttl={form.values.max_ttl_ms} />
-                ) : (
-                  <>
-                    You need an enterprise license to use it{" "}
-                    <Link href={docs("/enterprise")}>Learn more</Link>.
-                  </>
-                ),
-              )}
-              disabled={isSubmitting || !allowAdvancedScheduling}
-              fullWidth
-              inputProps={{ min: 0, step: 1 }}
-              label="Max lifetime (hours)"
-              type="number"
-            />
-          )}
         </Stack>
       </FormSection>
 
-      {allowAutostopRequirement && (
-        <FormSection
-          title="Autostop Requirement"
-          description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
-        >
-          <Stack direction="row" css={styles.ttlFields}>
-            <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_days_of_week",
+      <FormSection
+        title="Autostop Requirement"
+        description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
+      >
+        <Stack direction="row" css={styles.ttlFields}>
+          <TextField
+            {...getFieldHelpers("autostop_requirement_days_of_week", {
+              helperText: (
                 <AutostopRequirementDaysHelperText
                   days={form.values.autostop_requirement_days_of_week}
-                />,
-              )}
-              disabled={isSubmitting}
-              fullWidth
-              select
-              value={form.values.autostop_requirement_days_of_week}
-              label="Days with required stop"
-            >
-              <MenuItem key="off" value="off">
-                Off
-              </MenuItem>
-              <MenuItem key="daily" value="daily">
-                Daily
-              </MenuItem>
-              <MenuItem key="saturday" value="saturday">
-                Saturday
-              </MenuItem>
-              <MenuItem key="sunday" value="sunday">
-                Sunday
-              </MenuItem>
-            </TextField>
+                />
+              ),
+            })}
+            disabled={isSubmitting || form.values.use_max_ttl}
+            fullWidth
+            select
+            value={form.values.autostop_requirement_days_of_week}
+            label="Days with required stop"
+          >
+            <MenuItem key="off" value="off">
+              Off
+            </MenuItem>
+            <MenuItem key="daily" value="daily">
+              Daily
+            </MenuItem>
+            <MenuItem key="saturday" value="saturday">
+              Saturday
+            </MenuItem>
+            <MenuItem key="sunday" value="sunday">
+              Sunday
+            </MenuItem>
+          </TextField>
 
-            <TextField
-              {...getFieldHelpers(
-                "autostop_requirement_weeks",
+          <TextField
+            {...getFieldHelpers("autostop_requirement_weeks", {
+              helperText: (
                 <AutostopRequirementWeeksHelperText
                   days={form.values.autostop_requirement_days_of_week}
                   weeks={form.values.autostop_requirement_weeks}
-                />,
-              )}
-              disabled={
-                isSubmitting ||
-                !["saturday", "sunday"].includes(
-                  form.values.autostop_requirement_days_of_week || "",
-                )
+                />
+              ),
+            })}
+            disabled={
+              isSubmitting ||
+              form.values.use_max_ttl ||
+              !["saturday", "sunday"].includes(
+                form.values.autostop_requirement_days_of_week || "",
+              )
+            }
+            fullWidth
+            inputProps={{ min: 1, max: 16, step: 1 }}
+            label="Weeks between required stops"
+            type="number"
+          />
+        </Stack>
+      </FormSection>
+
+      <FormSection
+        title="Max Lifetime"
+        description="Define the maximum lifetime for workspaces created from this template."
+        deprecated
+      >
+        <Stack direction="column" spacing={4}>
+          <Stack direction="row" alignItems="center">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  id="use_max_ttl"
+                  size="small"
+                  disabled={isSubmitting || !allowAdvancedScheduling}
+                  onChange={handleToggleUseMaxTTL}
+                  name="use_max_ttl"
+                  checked={form.values.use_max_ttl}
+                />
               }
-              fullWidth
-              inputProps={{ min: 1, max: 16, step: 1 }}
-              label="Weeks between required stops"
-              type="number"
+              label={
+                <Stack spacing={0.5}>
+                  <strong>
+                    Use a max lifetime instead of a required autostop schedule.
+                  </strong>
+                  <span
+                    css={{
+                      fontSize: 12,
+                      color: theme.palette.text.secondary,
+                    }}
+                  >
+                    Use a maximum lifetime for workspaces created from this
+                    template instead of an autostop requirement as configured
+                    above.
+                  </span>
+                </Stack>
+              }
             />
           </Stack>
-        </FormSection>
-      )}
+
+          <TextField
+            {...getFieldHelpers("max_ttl_ms", {
+              helperText: allowAdvancedScheduling ? (
+                <MaxTTLHelperText ttl={form.values.max_ttl_ms} />
+              ) : (
+                <>
+                  You need an enterprise license to use it{" "}
+                  <Link href={docs("/enterprise")}>Learn more</Link>.
+                </>
+              ),
+            })}
+            disabled={
+              isSubmitting ||
+              !form.values.use_max_ttl ||
+              !allowAdvancedScheduling
+            }
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
+            label="Max lifetime (hours)"
+            type="number"
+          />
+        </Stack>
+      </FormSection>
 
       <FormSection
         title="Allow users scheduling"
@@ -493,12 +562,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
-      {allowAdvancedScheduling && allowWorkspaceActions && (
+      {allowAdvancedScheduling && (
         <>
           <FormSection
             title="Failure Cleanup"
             description="When enabled, Coder will attempt to stop workspaces that are in a failed state after a specified number of days."
-            alpha
           >
             <FormFields>
               <FormControlLabel
@@ -512,10 +580,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Enable Failure Cleanup"
               />
               <TextField
-                {...getFieldHelpers(
-                  "failure_ttl_ms",
-                  <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />,
-                )}
+                {...getFieldHelpers("failure_ttl_ms", {
+                  helperText: (
+                    <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
+                  ),
+                })}
                 disabled={isSubmitting || !form.values.failure_cleanup_enabled}
                 fullWidth
                 inputProps={{ min: 0, step: "any" }}
@@ -527,7 +596,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <FormSection
             title="Dormancy Threshold"
             description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
-            alpha
           >
             <FormFields>
               <FormControlLabel
@@ -541,12 +609,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Enable Dormancy Threshold"
               />
               <TextField
-                {...getFieldHelpers(
-                  "time_til_dormant_ms",
-                  <DormancyTTLHelperText
-                    ttl={form.values.time_til_dormant_ms}
-                  />,
-                )}
+                {...getFieldHelpers("time_til_dormant_ms", {
+                  helperText: (
+                    <DormancyTTLHelperText
+                      ttl={form.values.time_til_dormant_ms}
+                    />
+                  ),
+                })}
                 disabled={
                   isSubmitting || !form.values.inactivity_cleanup_enabled
                 }
@@ -560,7 +629,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <FormSection
             title="Dormancy Auto-Deletion"
             description="When enabled, Coder will permanently delete dormant workspaces after a period of time. Once a workspace is deleted it cannot be recovered."
-            alpha
           >
             <FormFields>
               <FormControlLabel
@@ -574,12 +642,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Enable Dormancy Auto-Deletion"
               />
               <TextField
-                {...getFieldHelpers(
-                  "time_til_dormant_autodelete_ms",
-                  <DormancyAutoDeletionTTLHelperText
-                    ttl={form.values.time_til_dormant_autodelete_ms}
-                  />,
-                )}
+                {...getFieldHelpers("time_til_dormant_autodelete_ms", {
+                  helperText: (
+                    <DormancyAutoDeletionTTLHelperText
+                      ttl={form.values.time_til_dormant_autodelete_ms}
+                    />
+                  ),
+                })}
                 disabled={
                   isSubmitting ||
                   !form.values.dormant_autodeletion_cleanup_enabled

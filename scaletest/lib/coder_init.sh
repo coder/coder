@@ -68,7 +68,7 @@ CODER_FIRST_USER_TRIAL="${CODER_FIRST_USER_TRIAL}"
 EOF
 
 echo "Importing kubernetes template"
-DRY_RUN="$DRY_RUN" "$PROJECT_ROOT/scaletest/lib/coder_shim.sh" templates create \
+DRY_RUN="$DRY_RUN" "$PROJECT_ROOT/scaletest/lib/coder_shim.sh" templates push \
 	--global-config="${CONFIG_DIR}" \
 	--directory "${CONFIG_DIR}/templates/kubernetes" \
 	--yes kubernetes

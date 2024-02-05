@@ -24,8 +24,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,7 +42,7 @@ func TestInjection(t *testing.T) {
 		},
 	}
 	binFs := http.FS(fstest.MapFS{})
-	db := dbfake.New()
+	db := dbmem.New()
 	handler := site.New(&site.Options{
 		BinFS:    binFs,
 		Database: db,
@@ -74,7 +74,7 @@ func TestInjection(t *testing.T) {
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	t.Parallel()
 
-	db := dbfake.New()
+	db := dbmem.New()
 
 	// Create an expired user with a refresh token, but provide no OAuth2
 	// configuration so that refresh is impossible, this should result in

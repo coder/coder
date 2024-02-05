@@ -74,12 +74,82 @@ coder_app.
 
 ![Autostop UI](./images/autostop.png)
 
-### Max lifetime
+### Max lifetime (Deprecated, Enterprise)
 
 Max lifetime is a template setting that determines the number of hours a
 workspace will run before Coder automatically stops it, regardless of any active
 connections. Use this setting to ensure that workspaces do not run in perpetuity
 when connections are left open inadvertently.
+
+Max lifetime is deprecated in favor of template autostop requirements. Templates
+can choose to use a max lifetime or an autostop requirement during the
+deprecation period, but only one can be used at a time. Coder recommends using
+autostop requirements instead as they avoid restarts during work hours.
+
+### Autostop requirement (enterprise)
+
+Autostop requirement is a template setting that determines how often workspaces
+using the template must automatically stop. Autostop requirement ignores any
+active connections, and ensures that workspaces do not run in perpetuity when
+connections are left open inadvertently.
+
+Workspaces will apply the template autostop requirement on the given day in the
+user's timezone and specified quiet hours (see below). This ensures that
+workspaces will not be stopped during work hours.
+
+The available options are "Days", which can be set to "Daily", "Saturday" or
+"Sunday", and "Weeks", which can be set to any number from 1 to 16.
+
+"Days" governs which days of the week workspaces must stop. If you select
+"daily", workspaces must be automatically stopped every day at the start of the
+user's defined quiet hours. When using "Saturday" or "Sunday", workspaces will
+be automatically stopped on Saturday or Sunday in the user's timezone and quiet
+hours.
+
+"Weeks" determines how many weeks between required stops. It cannot be changed
+from the default of 1 if you have selected "Daily" for "Days". When using a
+value greater than 1, workspaces will be automatically stopped every N weeks on
+the day specified by "Days" and the user's quiet hours. The autostop week is
+synchronized for all workspaces on the same template.
+
+Autostop requirement is disabled when the template is using the deprecated max
+lifetime feature. Templates can choose to use a max lifetime or an autostop
+requirement during the deprecation period, but only one can be used at a time.
+
+#### User quiet hours (enterprise)
+
+User quiet hours can be configured in the user's schedule settings page.
+Workspaces on templates with an autostop requirement will only be forcibly
+stopped due to the policy at the start of the user's quiet hours.
+
+![User schedule settings](./images/user-quiet-hours.png)
+
+Admins can define the default quiet hours for all users with the
+`--default-quiet-hours-schedule` flag or `CODER_DEFAULT_QUIET_HOURS_SCHEDULE`
+environment variable. The value should be a cron expression such as
+`CRON_TZ=America/Chicago 30 2 * * *` which would set the default quiet hours to
+2:30 AM in the America/Chicago timezone. The cron schedule can only have a
+minute and hour component. The default schedule is UTC 00:00. It is recommended
+to set the default quiet hours to a time when most users are not expected to be
+using Coder.
+
+Admins can force users to use the default quiet hours with the
+[CODER_ALLOW_CUSTOM_QUIET_HOURS](./cli/server.md#allow-custom-quiet-hours)
+environment variable. Users will still be able to see the page, but will be
+unable to set a custom time or timezone. If users have already set a custom
+quiet hours schedule, it will be ignored and the default will be used instead.
+
+### Automatic updates
+
+It can be tedious to manually update a workspace everytime an update is pushed
+to a template. Users can choose to opt-in to automatic updates to update to the
+active template version whenever the workspace is started.
+
+Note: If a template is updated such that new parameter inputs are required from
+the user, autostart will be disabled for the workspace until the user has
+manually updated the workspace.
+
+![Automatic Updates](./images/workspace-automatic-updates.png)
 
 ## Updating workspaces
 
@@ -115,7 +185,12 @@ though the exact behavior depends on the template. For more information, see
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
-When a workspace is deleted, all of the workspace's resources are deleted.
+Typically, when a workspace is deleted, all of the workspace's resources are
+deleted along with it. Rarely, one may wish to delete a workspace without
+deleting its resources, e.g. a workspace in a broken state. Users with the
+Template Admin role have the option to do so both in the UI, and also in the CLI
+by running the `delete` command with the `--orphan` flag. This option should be
+considered cautiously as orphaning may lead to unaccounted cloud resources.
 
 ## Repairing workspaces
 

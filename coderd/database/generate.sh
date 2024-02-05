@@ -58,6 +58,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
 
 	go run ../../scripts/dbgen
-	# This will error if a view is broken.
-	go test -run=TestViewSubset
+	# This will error if a view is broken. This is in it's own package to avoid
+	# stuff like dbmock breaking builds if it's out of date from the interface.
+	go test ./gentest
 )

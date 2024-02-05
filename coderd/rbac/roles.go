@@ -154,7 +154,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Permissions(map[string][]Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
-				ResourceUser.Type: {ActionRead},
+				ResourceUser.Type:                         {ActionRead},
+				ResourceUserWorkspaceBuildParameters.Type: {ActionRead},
+				// Users can create provisioner daemons scoped to themselves.
+				ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate},
 			})...,
 		),
 	}.withCachedRegoValue()
@@ -165,10 +168,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type: {ActionRead},
-			ResourceAuditLog.Type: {ActionRead},
-			ResourceUser.Type:     {ActionRead},
-			ResourceGroup.Type:    {ActionRead},
+			ResourceTemplate.Type:         {ActionRead},
+			ResourceTemplateInsights.Type: {ActionRead},
+			ResourceAuditLog.Type:         {ActionRead},
+			ResourceUser.Type:             {ActionRead},
+			ResourceGroup.Type:            {ActionRead},
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {ActionRead},
 			ResourceDeploymentValues.Type: {ActionRead},
@@ -195,6 +199,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceGroup.Type:        {ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {ActionRead},
+			// Template admins can read all template insights data
+			ResourceTemplateInsights.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -204,8 +210,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        userAdmin,
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]Action{
-			ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceRoleAssignment.Type:               {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUser.Type:                         {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUserData.Type:                     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceUserWorkspaceBuildParameters.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},

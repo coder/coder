@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/djherbis/times"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -76,16 +75,16 @@ func CleanStaleTerraformPlugins(ctx context.Context, cachePath string, fs afero.
 	// Identify stale plugins
 	var stalePlugins []string
 	for _, pluginPath := range pluginPaths {
-		accessTime, err := latestAccessTime(fs, pluginPath)
+		modTime, err := latestModTime(fs, pluginPath)
 		if err != nil {
-			return xerrors.Errorf("unable to evaluate latest access time for directory %q: %w", pluginPath, err)
+			return xerrors.Errorf("unable to evaluate latest mtime for directory %q: %w", pluginPath, err)
 		}
 
-		if accessTime.Add(staleTerraformPluginRetention).Before(now) {
-			logger.Info(ctx, "plugin directory is stale and will be removed", slog.F("plugin_path", pluginPath))
+		if modTime.Add(staleTerraformPluginRetention).Before(now) {
+			logger.Info(ctx, "plugin directory is stale and will be removed", slog.F("plugin_path", pluginPath), slog.F("mtime", modTime))
 			stalePlugins = append(stalePlugins, pluginPath)
 		} else {
-			logger.Debug(ctx, "plugin directory is not stale", slog.F("plugin_path", pluginPath))
+			logger.Debug(ctx, "plugin directory is not stale", slog.F("plugin_path", pluginPath), slog.F("mtime", modTime))
 		}
 	}
 
@@ -127,22 +126,19 @@ func CleanStaleTerraformPlugins(ctx context.Context, cachePath string, fs afero.
 	return nil
 }
 
-// latestAccessTime walks recursively through the directory content, and locates
-// the last accessed file.
-func latestAccessTime(fs afero.Fs, pluginPath string) (time.Time, error) {
+// latestModTime walks recursively through the directory content, and locates
+// the last created/modified file.
+func latestModTime(fs afero.Fs, pluginPath string) (time.Time, error) {
 	var latest time.Time
 	err := afero.Walk(fs, pluginPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		accessTime := info.ModTime() // fallback to modTime if accessTime is not available (afero)
-		if info.Sys() != nil {
-			timeSpec := times.Get(info)
-			accessTime = timeSpec.AccessTime()
-		}
-		if latest.Before(accessTime) {
-			latest = accessTime
+		// atime is not reliable, so always use mtime.
+		modTime := info.ModTime()
+		if modTime.After(latest) {
+			latest = modTime
 		}
 		return nil
 	})

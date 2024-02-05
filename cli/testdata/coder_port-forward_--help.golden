@@ -34,6 +34,9 @@ USAGE:
        $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
 
 OPTIONS:
+      --disable-autostart bool, $CODER_SSH_DISABLE_AUTOSTART (default: false)
+          Disable starting the workspace automatically when connecting via SSH.
+
   -p, --tcp string-array, $CODER_PORT_FORWARD_TCP
           Forward TCP port(s) from the workspace to the local machine.
 

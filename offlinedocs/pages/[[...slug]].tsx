@@ -33,6 +33,7 @@ import Head from "next/head";
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 import path from "path";
+import { ReactNode } from "react";
 import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -256,7 +257,7 @@ const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
 
   return (
     <Box>
-      <NextLink href={"/" + item.path} passHref>
+      <NextLink href={"/" + item.path} passHref legacyBehavior>
         <Link
           fontWeight={isActive ? 600 : 400}
           color={isActive ? "gray.900" : "gray.700"}
@@ -351,8 +352,12 @@ const MobileNavbar: React.FC<{ nav: Nav; version: string }> = ({
   );
 };
 
-const slugifyTitle = (title: string) => {
-  return _.kebabCase(title.toLowerCase());
+const slugifyTitle = (titleSource: ReactNode) => {
+  if (Array.isArray(titleSource) && typeof titleSource[0] === "string") {
+    return _.kebabCase(titleSource[0].toLowerCase());
+  }
+
+  return undefined;
 };
 
 const getImageUrl = (src: string | undefined) => {
@@ -411,10 +416,11 @@ const DocsPage: NextPage<{
               >
                 {route.title}
               </Heading>
+
               <ReactMarkdown
                 rehypePlugins={[rehypeRaw]}
                 remarkPlugins={[remarkGfm]}
-                transformLinkUri={transformLinkUriSource(route.path)}
+                urlTransform={transformLinkUriSource(route.path)}
                 components={{
                   h1: ({ children }) => (
                     <Heading
@@ -422,18 +428,19 @@ const DocsPage: NextPage<{
                       fontSize="4xl"
                       pt={10}
                       pb={2}
-                      id={slugifyTitle(children[0] as string)}
+                      id={slugifyTitle(children)}
                     >
                       {children}
                     </Heading>
                   ),
+
                   h2: ({ children }) => (
                     <Heading
                       as="h2"
                       fontSize="3xl"
                       pt={10}
                       pb={2}
-                      id={slugifyTitle(children[0] as string)}
+                      id={slugifyTitle(children)}
                     >
                       {children}
                     </Heading>
@@ -444,7 +451,7 @@ const DocsPage: NextPage<{
                       fontSize="2xl"
                       pt={10}
                       pb={2}
-                      id={slugifyTitle(children[0] as string)}
+                      id={slugifyTitle(children)}
                     >
                       {children}
                     </Heading>

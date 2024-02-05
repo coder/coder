@@ -1,33 +1,35 @@
 import TextField from "@mui/material/TextField";
-import { CreateGroupRequest } from "api/typesGenerated";
+import { type FormikTouched, useFormik } from "formik";
+import { type FC } from "react";
+import { useNavigate } from "react-router-dom";
+import * as Yup from "yup";
+import type { CreateGroupRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { useFormik } from "formik";
-import { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  getFormHelpers,
-  nameValidator,
-  onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { isApiValidationError } from "api/errors";
 
 const validationSchema = Yup.object({
-  name: nameValidator("Name"),
+  name: Yup.string().required().label("Name"),
 });
 
 export type CreateGroupPageViewProps = {
   onSubmit: (data: CreateGroupRequest) => void;
-  formErrors?: unknown;
+  error?: unknown;
   isLoading: boolean;
+  // Helpful to show field errors on Storybook
+  initialTouched?: FormikTouched<CreateGroupRequest>;
 };
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   onSubmit,
-  formErrors,
+  error,
   isLoading,
+  initialTouched,
 }) => {
   const navigate = useNavigate();
   const form = useFormik<CreateGroupRequest>({
@@ -39,8 +41,9 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
     },
     validationSchema,
     onSubmit,
+    initialTouched,
   });
-  const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, formErrors);
+  const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
   const onCancel = () => navigate("/groups");
 
   return (
@@ -48,30 +51,29 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
       <FullPageForm title="Create group">
         <form onSubmit={form.handleSubmit}>
           <Stack spacing={2.5}>
+            {Boolean(error) && !isApiValidationError(error) && (
+              <ErrorAlert error={error} />
+            )}
+
             <TextField
               {...getFieldHelpers("name")}
-              onChange={onChangeTrimmed(form)}
-              autoComplete="name"
               autoFocus
               fullWidth
               label="Name"
             />
             <TextField
-              {...getFieldHelpers(
-                "display_name",
-                "Optional: keep empty to default to the name.",
-              )}
-              autoComplete="display_name"
-              autoFocus
+              {...getFieldHelpers("display_name", {
+                helperText: "Optional: keep empty to default to the name.",
+              })}
               fullWidth
               label="Display Name"
             />
-            <TextField
+            <IconField
               {...getFieldHelpers("avatar_url")}
               onChange={onChangeTrimmed(form)}
-              autoComplete="avatar url"
               fullWidth
               label="Avatar URL"
+              onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
             />
           </Stack>
           <FormFooter onCancel={onCancel} isLoading={isLoading} />

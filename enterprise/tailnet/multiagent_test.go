@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -12,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -27,11 +27,10 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -40,26 +39,46 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
 	defer ma1.Close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.SendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.Close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
+}
+
+func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
+	require.NoError(t, err)
+	defer coord1.Close()
+
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
+	defer ma1.Close()
+
+	err = coord1.Close()
+	require.NoError(t, err)
+
+	ma1.RequireEventuallyClosed(ctx)
 }
 
 // TestPGCoordinator_MultiAgent_UnsubscribeRace tests a single coordinator with
@@ -75,11 +94,10 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -88,27 +106,24 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
 	defer ma1.Close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.SendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.UnsubscribeAgent(agent1.id))
-	require.NoError(t, ma1.Close())
+	ma1.RequireUnsubscribeAgent(agent1.id)
+	ma1.Close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_Unsubscribe tests a single coordinator with a
@@ -124,11 +139,10 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -137,41 +151,39 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
 	defer ma1.Close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	require.NoError(t, ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3}))
+	ma1.SendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.UnsubscribeAgent(agent1.id))
+	ma1.RequireUnsubscribeAgent(agent1.id)
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
 
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
-		require.NoError(t, ma1.UpdateSelf(&agpl.Node{PreferredDERP: 9}))
+		ma1.SendNodeWithDERP(9)
 		assertNeverHasDERPs(ctx, t, agent1, 9)
 	}()
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
 		agent1.sendNode(&agpl.Node{PreferredDERP: 8})
-		assertMultiAgentNeverHasDERPs(ctx, t, ma1, 8)
+		ma1.RequireNeverHasDERPs(ctx, 8)
 	}()
 
-	require.NoError(t, ma1.Close())
+	ma1.Close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_MultiCoordinator tests two coordinators with a
@@ -189,11 +201,10 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -205,26 +216,23 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord2.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord2)
 	defer ma1.Close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.SendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.Close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe tests two
@@ -243,11 +251,10 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -259,26 +266,23 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 	defer agent1.close()
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
-	id := uuid.New()
-	ma1 := coord2.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord2)
 	defer ma1.Close()
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.SendNodeWithDERP(3)
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	require.NoError(t, ma1.Close())
+	ma1.Close()
 	require.NoError(t, agent1.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }
 
 // TestPGCoordinator_MultiAgent_TwoAgents tests three coordinators with a
@@ -299,11 +303,10 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -322,33 +325,29 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	defer agent1.close()
 	agent2.sendNode(&agpl.Node{PreferredDERP: 6})
 
-	id := uuid.New()
-	ma1 := coord3.ServeMultiAgent(id)
+	ma1 := tailnettest.NewTestMultiAgent(t, coord3)
 	defer ma1.Close()
 
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
+	ma1.RequireSubscribeAgent(agent1.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 5)
 
 	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
+	ma1.RequireEventuallyHasDERPs(ctx, 1)
 
-	err = ma1.SubscribeAgent(agent2.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 6)
+	ma1.RequireSubscribeAgent(agent2.id)
+	ma1.RequireEventuallyHasDERPs(ctx, 6)
 
 	agent2.sendNode(&agpl.Node{PreferredDERP: 2})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 2)
+	ma1.RequireEventuallyHasDERPs(ctx, 2)
 
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
+	ma1.SendNodeWithDERP(3)
 	assertEventuallyHasDERPs(ctx, t, agent1, 3)
 	assertEventuallyHasDERPs(ctx, t, agent2, 3)
 
-	require.NoError(t, ma1.Close())
+	ma1.Close()
 	require.NoError(t, agent1.close())
 	require.NoError(t, agent2.close())
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, agent1.id)
 }

@@ -63,7 +63,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 		// we don't really care what the error is here.  In the larger scenario,
 		// the client has disconnected, so we can't return any error information
 		// to them.
-		_ = s.startPTYSession(sess, "ssh", cmd, ptyInfo, windowSize)
+		_ = s.startPTYSession(logger, sess, "ssh", cmd, ptyInfo, windowSize)
 	}()
 
 	readDone := make(chan struct{})
@@ -114,6 +114,11 @@ type testSSHContext struct {
 	context.Context
 }
 
+var (
+	_ gliderssh.Context = testSSHContext{}
+	_ ptySession        = &testSession{}
+)
+
 func newTestSession(ctx context.Context) (toClient *io.PipeReader, fromClient *io.PipeWriter, s ptySession) {
 	toClient, fromPty := io.Pipe()
 	toPty, fromClient := io.Pipe()
@@ -142,6 +147,10 @@ func (s *testSession) Read(p []byte) (n int, err error) {
 
 func (s *testSession) Write(p []byte) (n int, err error) {
 	return s.fromPty.Write(p)
+}
+
+func (*testSession) Signals(_ chan<- gliderssh.Signal) {
+	// Not implemented, but will be called.
 }
 
 func (testSSHContext) Lock() {

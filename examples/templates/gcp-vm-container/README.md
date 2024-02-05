@@ -1,24 +1,23 @@
 ---
-name: Develop in a container on a Google Cloud VM
-description: Get started with Linux development on Google Cloud.
-tags: [cloud, google, container]
-icon: /icon/gcp.png
+display_name: Google Compute Engine (VM Container)
+description: Provision Google Compute Engine instances as Coder workspaces
+icon: ../../../site/static/icon/gcp.png
+maintainer_github: coder
+verified: true
+tags: [vm-container, linux, gcp]
 ---
 
-# gcp-vm-container
+# Remote Development on Google Compute Engine (VM Container)
 
-To get started, run `coder templates init`. When prompted, select this template,
-and follow the on-screen instructions to proceed.
+## Prerequisites
 
-## Authentication
+### Authentication
 
 This template assumes that coderd is run in an environment that is authenticated
 with Google Cloud. For example, run `gcloud auth application-default login` to
 import credentials on the system and user running coderd. For other ways to
 authenticate [consult the Terraform
 docs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/getting_started#adding-credentials).
-
-## Service account
 
 Coder requires a Google Cloud Service Account to provision workspaces. To create
 a service account:
@@ -45,6 +44,19 @@ a service account:
 
 1. Generate a **JSON private key**, which will be what you provide to Coder
    during the setup process.
+
+## Architecture
+
+This template provisions the following resources:
+
+- GCP VM (ephemeral, deleted on stop)
+  - Container in VM
+- Managed disk (persistent, mounted to `/home/coder` in container)
+
+This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ## code-server
 

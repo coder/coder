@@ -17,6 +17,9 @@ import (
 type agentMetrics struct {
 	connectionsTotal      prometheus.Counter
 	reconnectingPTYErrors *prometheus.CounterVec
+	// startupScriptSeconds is the time in seconds that the start script(s)
+	// took to run. This is reported once per agent.
+	startupScriptSeconds *prometheus.GaugeVec
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -35,9 +38,18 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	)
 	registerer.MustRegister(reconnectingPTYErrors)
 
+	startupScriptSeconds := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "startup_script_seconds",
+		Help:      "Amount of time taken to run the startup script in seconds.",
+	}, []string{"success"})
+	registerer.MustRegister(startupScriptSeconds)
+
 	return &agentMetrics{
 		connectionsTotal:      connectionsTotal,
 		reconnectingPTYErrors: reconnectingPTYErrors,
+		startupScriptSeconds:  startupScriptSeconds,
 	}
 }
 

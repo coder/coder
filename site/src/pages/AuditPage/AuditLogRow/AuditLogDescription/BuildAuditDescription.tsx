@@ -1,11 +1,15 @@
-import { AuditLog } from "api/typesGenerated";
-import { FC, useMemo } from "react";
+import type { AuditLog } from "api/typesGenerated";
+import { type FC, useMemo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
 
-export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
+interface BuildAuditDescriptionProps {
+  auditLog: AuditLog;
+}
+
+export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
   auditLog,
-}): JSX.Element => {
+}) => {
   const workspaceName = auditLog.additional_fields?.workspace_name?.trim();
   // workspaces can be started/stopped/deleted by a user, or kicked off automatically by Coder
   const user =

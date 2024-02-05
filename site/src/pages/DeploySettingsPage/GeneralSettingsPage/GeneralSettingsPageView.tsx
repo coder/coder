@@ -1,5 +1,5 @@
-import Box from "@mui/material/Box";
-import {
+import { type FC } from "react";
+import type {
   ClibaseOption,
   DAUsResponse,
   Entitlements,
@@ -10,9 +10,9 @@ import {
   ActiveUserChart,
   ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
-import { Header } from "components/DeploySettingsLayout/Header";
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
+import { Header } from "../Header";
+import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -24,13 +24,14 @@ export type GeneralSettingsPageViewProps = {
   entitlements: Entitlements | undefined;
   safeExperiments: Experiments | undefined;
 };
-export const GeneralSettingsPageView = ({
+
+export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
   deploymentOptions,
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
   safeExperiments,
-}: GeneralSettingsPageViewProps): JSX.Element => {
+}) => {
   return (
     <>
       <Header
@@ -43,7 +44,7 @@ export const GeneralSettingsPageView = ({
           <ErrorAlert error={deploymentDAUsError} />
         )}
         {deploymentDAUs && (
-          <Box height={200} sx={{ mb: 3 }}>
+          <div css={{ marginBottom: 24, height: 200 }}>
             <ChartSection title={<ActiveUsersTitle />}>
               <ActiveUserChart
                 data={deploymentDAUs.entries}
@@ -55,7 +56,7 @@ export const GeneralSettingsPageView = ({
                 }
               />
             </ChartSection>
-          </Box>
+          </div>
         )}
         <OptionsTable
           options={useDeploymentOptions(

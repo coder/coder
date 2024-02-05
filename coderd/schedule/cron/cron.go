@@ -115,7 +115,7 @@ type Schedule struct {
 	cronStr string
 }
 
-// String serializes the schedule to its original human-friendly format.
+// String serializes the schedule to its original format.
 // The leading CRON_TZ is maintained.
 func (s Schedule) String() string {
 	var sb strings.Builder
@@ -123,6 +123,19 @@ func (s Schedule) String() string {
 	_, _ = sb.WriteString(s.sched.Location.String())
 	_, _ = sb.WriteString(" ")
 	_, _ = sb.WriteString(s.cronStr)
+	return sb.String()
+}
+
+// Humanize returns a slightly more human-friendly representation of the
+// schedule.
+func (s Schedule) Humanize() string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(s.Time())
+	_, _ = sb.WriteString(" ")
+	_, _ = sb.WriteString(s.DaysOfWeek())
+	_, _ = sb.WriteString(" (")
+	_, _ = sb.WriteString(s.Location().String())
+	_, _ = sb.WriteString(")")
 	return sb.String()
 }
 

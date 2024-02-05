@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -75,7 +77,7 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		called := make(chan struct{})
 		client := coderdtest.New(t, &coderdtest.Options{
-			TrialGenerator: func(ctx context.Context, s string) error {
+			TrialGenerator: func(context.Context, codersdk.LicensorTrialRequest) error {
 				close(called)
 				return nil
 			},
@@ -676,7 +678,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdateUsername", func(t *testing.T) {
+	t.Run("UpdateUser", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -691,13 +693,38 @@ func TestUpdateUserProfile(t *testing.T) {
 		_, _ = client.User(ctx, codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
+			Name:     "Mr User",
 		})
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Name, "Mr User")
 		numLogs++ // add an audit log for user update
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	t.Run("InvalidRealUserName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "john@coder.com",
+			Username:       "john",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name: " Mr Bean", // must not have leading space
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 }
 
@@ -1695,11 +1722,134 @@ func TestSuspendedPagination(t *testing.T) {
 	require.Equal(t, expected, page.Users, "expected page")
 }
 
+func TestUserAutofillParameters(t *testing.T) {
+	t.Parallel()
+	t.Run("NotSelf", func(t *testing.T) {
+		t.Parallel()
+		client1, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+
+		u1 := coderdtest.CreateFirstUser(t, client1)
+
+		client2, u2 := coderdtest.CreateAnotherUser(t, client1, u1.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		db := api.Database
+
+		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			CreatedBy:      u1.UserID,
+			OrganizationID: u1.OrganizationID,
+		}).Params(database.TemplateVersionParameter{
+			Name:     "param",
+			Required: true,
+		}).Do()
+
+		_, err := client2.UserAutofillParameters(
+			ctx,
+			u1.UserID.String(),
+			version.Template.ID,
+		)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+
+		// u1 should be able to read u2's parameters as u1 is site admin.
+		_, err = client1.UserAutofillParameters(
+			ctx,
+			u2.ID.String(),
+			version.Template.ID,
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("FindsParameters", func(t *testing.T) {
+		t.Parallel()
+		client1, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{})
+
+		u1 := coderdtest.CreateFirstUser(t, client1)
+
+		client2, u2 := coderdtest.CreateAnotherUser(t, client1, u1.OrganizationID)
+
+		db := api.Database
+
+		version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			CreatedBy:      u1.UserID,
+			OrganizationID: u1.OrganizationID,
+		}).Params(database.TemplateVersionParameter{
+			Name:     "param",
+			Required: true,
+		},
+			database.TemplateVersionParameter{
+				Name:      "param2",
+				Ephemeral: true,
+			},
+		).Do()
+
+		dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OwnerID:        u2.ID,
+			TemplateID:     version.Template.ID,
+			OrganizationID: u1.OrganizationID,
+		}).Params(
+			database.WorkspaceBuildParameter{
+				Name:  "param",
+				Value: "foo",
+			},
+			database.WorkspaceBuildParameter{
+				Name:  "param2",
+				Value: "bar",
+			},
+		).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Use client2 since client1 is site admin, so
+		// we don't get good coverage on RBAC working.
+		params, err := client2.UserAutofillParameters(
+			ctx,
+			u2.ID.String(),
+			version.Template.ID,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, len(params))
+
+		require.Equal(t, "param", params[0].Name)
+		require.Equal(t, "foo", params[0].Value)
+
+		// Verify that latest parameter value is returned.
+		dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: u1.OrganizationID,
+			OwnerID:        u2.ID,
+			TemplateID:     version.Template.ID,
+		}).Params(
+			database.WorkspaceBuildParameter{
+				Name:  "param",
+				Value: "foo_new",
+			},
+		).Do()
+
+		params, err = client2.UserAutofillParameters(
+			ctx,
+			u2.ID.String(),
+			version.Template.ID,
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, len(params))
+
+		require.Equal(t, "param", params[0].Name)
+		require.Equal(t, "foo_new", params[0].Value)
+	})
+}
+
 // TestPaginatedUsers creates a list of users, then tries to paginate through
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.
@@ -1708,15 +1858,17 @@ func TestPaginatedUsers(t *testing.T) {
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
-	orgID := me.OrganizationIDs[0]
 
 	// When 50 users exist
 	total := 50
-	allUsers := make([]codersdk.User, total+1) // +1 forme
-	allUsers[0] = me
-	specialUsers := make([]codersdk.User, total/2)
+	allUsers := make([]database.User, total+1)
+	allUsers[0] = database.User{
+		Email:    me.Email,
+		Username: me.Username,
+	}
+	specialUsers := make([]database.User, total/2)
 
-	eg, egCtx := errgroup.WithContext(ctx)
+	eg, _ := errgroup.WithContext(ctx)
 	// Create users
 	for i := 0; i < total; i++ {
 		i := i
@@ -1730,21 +1882,14 @@ func TestPaginatedUsers(t *testing.T) {
 			if i%3 == 0 {
 				username = strings.ToUpper(username)
 			}
-			// One side effect of having to use the api vs the db calls directly, is you cannot
-			// mock time. Ideally I could pass in mocked times and space these users out.
-			//
-			// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
-			// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
-			// timestamps. The pagination goes by timestamps and uuids.
-			newUser, err := client.CreateUser(egCtx, codersdk.CreateUserRequest{
-				Email:          email,
-				Username:       username,
-				Password:       "MySecurePassword!",
-				OrganizationID: orgID,
+
+			// We used to use the API to ceate users, but that is slow.
+			// Instead, we create them directly in the database now
+			// to prevent timeout flakes.
+			newUser := dbgen.User(t, db, database.User{
+				Email:    email,
+				Username: username,
 			})
-			if err != nil {
-				return err
-			}
 			allUsers[i+1] = newUser
 			if i%2 == 0 {
 				specialUsers[i/2] = newUser
@@ -1757,8 +1902,8 @@ func TestPaginatedUsers(t *testing.T) {
 	require.NoError(t, err, "create users failed")
 
 	// Sorting the users will sort by username.
-	sortUsers(allUsers)
-	sortUsers(specialUsers)
+	sortDatabaseUsers(allUsers)
+	sortDatabaseUsers(specialUsers)
 
 	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "gmail"
@@ -1772,7 +1917,7 @@ func TestPaginatedUsers(t *testing.T) {
 	tests := []struct {
 		name     string
 		limit    int
-		allUsers []codersdk.User
+		allUsers []database.User
 		opt      func(request codersdk.UsersRequest) codersdk.UsersRequest
 	}{
 		{name: "all users", limit: 10, allUsers: allUsers},
@@ -1800,7 +1945,7 @@ func TestPaginatedUsers(t *testing.T) {
 // Assert pagination will page through the list of all users using the given
 // limit for each page. The 'allUsers' is the expected full list to compare
 // against.
-func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
+func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []database.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest,
 ) {
 	var count int
@@ -1817,7 +1962,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		},
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, page.Users, allUsers[:limit], "first page, limit=%d", limit)
+	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
 
 	for {
@@ -1846,14 +1991,14 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		}))
 		require.NoError(t, err, "next offset page")
 
-		var expected []codersdk.User
+		var expected []database.User
 		if count+limit > len(allUsers) {
 			expected = allUsers[count:]
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		require.Equalf(t, page.Users, expected, "next users, after=%s, limit=%d", afterCursor, limit)
-		require.Equalf(t, offsetPage.Users, expected, "offset users, offset=%d, limit=%d", count, limit)
+		require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(expected), "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, onlyUsernames(offsetPage.Users), onlyUsernames(expected), "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
@@ -1863,7 +2008,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 			},
 		}))
 		require.NoError(t, err, "prev page")
-		require.Equal(t, allUsers[count-limit:count], prevPage.Users, "prev users")
+		require.Equal(t, onlyUsernames(allUsers[count-limit:count]), onlyUsernames(prevPage.Users), "prev users")
 		count += len(page.Users)
 	}
 }
@@ -1873,6 +2018,25 @@ func sortUsers(users []codersdk.User) {
 	slices.SortFunc(users, func(a, b codersdk.User) int {
 		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
 	})
+}
+
+func sortDatabaseUsers(users []database.User) {
+	slices.SortFunc(users, func(a, b database.User) int {
+		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
+	})
+}
+
+func onlyUsernames[U codersdk.User | database.User](users []U) []string {
+	var out []string
+	for _, u := range users {
+		switch u := (any(u)).(type) {
+		case codersdk.User:
+			out = append(out, u.Username)
+		case database.User:
+			out = append(out, u.Username)
+		}
+	}
+	return out
 }
 
 func BenchmarkUsersMe(b *testing.B) {

@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions";
-import IconField from "./IconField";
 import type { Meta, StoryObj } from "@storybook/react";
+import { IconField } from "./IconField";
 
 const meta: Meta<typeof IconField> = {
   title: "components/IconField",

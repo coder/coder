@@ -192,6 +192,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_NAME="+metadata.GetWorkspaceName(),
 		"CODER_WORKSPACE_OWNER="+metadata.GetWorkspaceOwner(),
 		"CODER_WORKSPACE_OWNER_EMAIL="+metadata.GetWorkspaceOwnerEmail(),
+		"CODER_WORKSPACE_OWNER_NAME="+metadata.GetWorkspaceOwnerName(),
 		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+metadata.GetWorkspaceOwnerOidcAccessToken(),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),

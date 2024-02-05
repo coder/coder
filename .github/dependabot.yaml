@@ -38,19 +38,12 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
+    open-pull-requests-limit: 15
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
-    groups:
-      otel:
-        patterns:
-          - "go.nhat.io/otelsql"
-          - "go.opentelemetry.io/otel*"
-      golang-x:
-        patterns:
-          - "golang.org/x/*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
@@ -66,10 +59,6 @@ updates:
       # We need to coordinate terraform updates with the version hardcoded in
       # our Go code.
       - dependency-name: "terraform"
-    groups:
-      scripts-docker:
-        patterns:
-          - "*"
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -94,30 +83,9 @@ updates:
           - version-update:semver-major
     open-pull-requests-limit: 15
     groups:
-      react:
+      site:
         patterns:
-          - "react*"
-          - "@types/react*"
-      xterm:
-        patterns:
-          - "xterm*"
-      xstate:
-        patterns:
-          - "xstate"
-          - "@xstate*"
-      mui:
-        patterns:
-          - "@mui*"
-      storybook:
-        patterns:
-          - "@storybook*"
-          - "storybook*"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@eslint*"
-          - "@typescript-eslint/eslint-plugin"
-          - "@typescript-eslint/parser"
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/offlinedocs/"
@@ -140,6 +108,10 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+    groups:
+      offlinedocs:
+        patterns:
+          - "*"
 
   # Update dogfood.
   - package-ecosystem: "terraform"

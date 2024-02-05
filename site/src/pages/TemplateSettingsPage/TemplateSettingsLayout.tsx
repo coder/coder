@@ -1,18 +1,17 @@
-import { makeStyles } from "@mui/styles";
-import { Sidebar } from "./Sidebar";
-import { Stack } from "components/Stack/Stack";
-import { createContext, FC, Suspense, useContext } from "react";
+import { createContext, type FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { Loader } from "components/Loader/Loader";
-import { Outlet, useParams } from "react-router-dom";
-import { Margins } from "components/Margins/Margins";
 import { useQuery } from "react-query";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { templateByName } from "api/queries/templates";
-import { type AuthorizationResponse, type Template } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Outlet, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import type { AuthorizationResponse, Template } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
+import { Sidebar } from "./Sidebar";
 
 const TemplateSettings = createContext<
   { template: Template; permissions: AuthorizationResponse } | undefined
@@ -28,7 +27,6 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const styles = useStyles();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
   const templateQuery = useQuery(templateByName(orgId, templateName));
@@ -58,7 +56,7 @@ export const TemplateSettingsLayout: FC = () => {
       </Helmet>
 
       <Margins>
-        <Stack className={styles.wrapper} direction="row" spacing={10}>
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
           {templateQuery.isError || permissionsQuery.isError ? (
             <ErrorAlert error={templateQuery.error} />
           ) : (
@@ -70,7 +68,7 @@ export const TemplateSettingsLayout: FC = () => {
             >
               <Sidebar template={templateQuery.data} />
               <Suspense fallback={<Loader />}>
-                <main className={styles.content}>
+                <main css={{ width: "100%" }}>
                   <Outlet />
                 </main>
               </Suspense>
@@ -81,13 +79,3 @@ export const TemplateSettingsLayout: FC = () => {
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  wrapper: {
-    padding: theme.spacing(6, 0),
-  },
-
-  content: {
-    width: "100%",
-  },
-}));

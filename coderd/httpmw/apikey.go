@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -74,8 +75,8 @@ func UserAuthorization(r *http.Request) Authorization {
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
-	Github OAuth2Config
-	OIDC   OAuth2Config
+	Github promoauth.OAuth2Config
+	OIDC   promoauth.OAuth2Config
 }
 
 func (c *OAuth2Configs) IsZero() bool {
@@ -270,7 +271,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
-			var oauthConfig OAuth2Config
+			var oauthConfig promoauth.OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
 				oauthConfig = cfg.OAuth2Configs.Github
@@ -378,6 +379,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				OAuthRefreshToken:      link.OAuthRefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				DebugContext: link.DebugContext,
 			})
 			if err != nil {
 				return write(http.StatusInternalServerError, codersdk.Response{
@@ -534,4 +538,19 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// See other forces a GET request rather than keeping the current method
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// CustomRedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set, with a provided code
+func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect string, message string, code int) {
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", redirect)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), code)
 }

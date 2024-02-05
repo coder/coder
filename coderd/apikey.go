@@ -82,13 +82,13 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:           user.ID,
-		LoginType:        database.LoginTypeToken,
-		DeploymentValues: api.DeploymentValues,
-		ExpiresAt:        dbtime.Now().Add(lifeTime),
-		Scope:            scope,
-		LifetimeSeconds:  int64(lifeTime.Seconds()),
-		TokenName:        tokenName,
+		UserID:          user.ID,
+		LoginType:       database.LoginTypeToken,
+		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		ExpiresAt:       dbtime.Now().Add(lifeTime),
+		Scope:           scope,
+		LifetimeSeconds: int64(lifeTime.Seconds()),
+		TokenName:       tokenName,
 	})
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
@@ -127,10 +127,10 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 
 	lifeTime := time.Hour * 24 * 7
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:           user.ID,
-		DeploymentValues: api.DeploymentValues,
-		LoginType:        database.LoginTypePassword,
-		RemoteAddr:       r.RemoteAddr,
+		UserID:          user.ID,
+		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		LoginType:       database.LoginTypePassword,
+		RemoteAddr:      r.RemoteAddr,
 		// All api generated keys will last 1 week. Browser login tokens have
 		// a shorter life.
 		ExpiresAt:       dbtime.Now().Add(lifeTime),

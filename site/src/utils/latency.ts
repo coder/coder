@@ -1,16 +1,16 @@
-import { Theme } from "@mui/material/styles";
+import type { Theme } from "@emotion/react";
 
 export const getLatencyColor = (theme: Theme, latency?: number) => {
   if (!latency) {
     return theme.palette.text.secondary;
   }
 
-  let color = theme.palette.success.light;
+  let color = theme.roles.success.fill.solid;
 
   if (latency >= 150 && latency < 300) {
-    color = theme.palette.warning.light;
+    color = theme.roles.warning.fill.solid;
   } else if (latency >= 300) {
-    color = theme.palette.error.light;
+    color = theme.roles.error.fill.solid;
   }
   return color;
 };

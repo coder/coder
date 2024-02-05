@@ -1,19 +1,18 @@
+import { css, Global, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
-import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { makeStyles } from "@mui/styles";
-import Picker from "@emoji-mart/react";
-import { FC } from "react";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import { visuallyHidden } from "@mui/utils";
+import { type FC, lazy, Suspense } from "react";
+import { Loader } from "components/Loader/Loader";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
-import { colors } from "theme/colors";
-import data from "@emoji-mart/data/sets/14/twitter.json";
-import icons from "theme/icons.json";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>
@@ -23,24 +22,12 @@ type IconFieldProps = TextFieldProps & {
   onPickEmoji: (value: string) => void;
 };
 
-const custom = [
-  {
-    id: "icons",
-    name: "Icons",
-    emojis: icons.map((icon) => {
-      const id = icon.split(".")[0];
+const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-      return {
-        id,
-        name: id,
-        keywords: id.split("-"),
-        skins: [{ src: `/icon/${icon}` }],
-      };
-    }),
-  },
-];
-
-const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
+export const IconField: FC<IconFieldProps> = ({
+  onPickEmoji,
+  ...textFieldProps
+}) => {
   if (
     typeof textFieldProps.value !== "string" &&
     typeof textFieldProps.value !== "undefined"
@@ -48,19 +35,33 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
     throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
   }
 
-  const styles = useStyles();
+  const theme = useTheme();
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
     <Stack spacing={1}>
       <TextField
-        {...textFieldProps}
         fullWidth
         label="Icon"
+        {...textFieldProps}
         InputProps={{
           endAdornment: hasIcon ? (
-            <InputAdornment position="end" className={styles.adornment}>
-              <img
+            <InputAdornment
+              position="end"
+              css={{
+                width: 24,
+                height: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                "& img": {
+                  maxWidth: "100%",
+                  objectFit: "contain",
+                },
+              }}
+            >
+              <ExternalImage
                 alt=""
                 src={textFieldProps.value}
                 // This prevent browser to display the ugly error icon if the
@@ -73,6 +74,18 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         }}
       />
 
+      <Global
+        styles={css`
+          em-emoji-picker {
+            --rgb-background: ${theme.palette.background.paper};
+            --rgb-input: ${theme.palette.primary.main};
+            --rgb-color: ${theme.palette.text.primary};
+
+            // Hack to prevent the right side from being cut off
+            width: 350px;
+          }
+        `}
+      />
       <Popover>
         {(popover) => (
           <>
@@ -85,48 +98,36 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
               id="emoji"
               css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
             >
-              <Picker
-                set="twitter"
-                theme="dark"
-                data={data}
-                custom={custom}
-                onEmojiSelect={(emoji) => {
-                  const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
-                  onPickEmoji(value);
-                  popover.setIsOpen(false);
-                }}
-              />
+              <Suspense fallback={<Loader />}>
+                <EmojiPicker
+                  onEmojiSelect={(emoji) => {
+                    const value =
+                      emoji.src ?? urlFromUnifiedCode(emoji.unified);
+                    onPickEmoji(value);
+                    popover.setIsOpen(false);
+                  }}
+                />
+              </Suspense>
             </PopoverContent>
           </>
         )}
       </Popover>
+
+      {/*
+      - This component takes a long time to load (easily several seconds), so we
+      don't want to wait until the user actually clicks the button to start loading.
+      Unfortunately, React doesn't provide an API to start warming a lazy component,
+      so we just have to sneak it into the DOM, which is kind of annoying, but means
+      that users shouldn't ever spend time waiting for it to load.
+      - Except we don't do it when running tests, because Jest doesn't define
+      `IntersectionObserver`, and it would make them slower anyway. */}
+      {process.env.NODE_ENV !== "test" && (
+        <div css={{ ...visuallyHidden }}>
+          <Suspense>
+            <EmojiPicker onEmojiSelect={() => {}} />
+          </Suspense>
+        </div>
+      )}
     </Stack>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  "@global": {
-    "em-emoji-picker": {
-      "--rgb-background": theme.palette.background.paper,
-      "--rgb-input": colors.gray[17],
-      "--rgb-color": colors.gray[4],
-
-      // Hack to prevent the right side from being cut off
-      width: 350,
-    },
-  },
-  adornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    "& img": {
-      maxWidth: "100%",
-      objectFit: "contain",
-    },
-  },
-}));
-
-export default IconField;

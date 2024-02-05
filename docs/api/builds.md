@@ -58,6 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -169,6 +170,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
   "workspace_owner_name": "string"
 }
@@ -238,6 +240,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -349,6 +352,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
   "workspace_owner_name": "string"
 }
@@ -557,6 +561,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
   {
     "agents": [
       {
+        "api_version": "string",
         "apps": [
           {
             "command": "string",
@@ -677,6 +682,7 @@ Status Code **200**
 | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -844,6 +850,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -955,6 +962,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
   "workspace_owner_name": "string"
 }
@@ -1029,6 +1037,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       {
         "agents": [
           {
+            "api_version": "string",
             "apps": [
               {
                 "command": "string",
@@ -1140,6 +1149,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   }
@@ -1185,6 +1195,7 @@ Status Code **200**
 | `» reason`                       | [codersdk.BuildReason](schemas.md#codersdkbuildreason)                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» resources`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» apps`                       | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» command`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» display_name`              | string                                                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
@@ -1270,6 +1281,7 @@ Status Code **200**
 | `» updated_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_name`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `» workspace_owner_avatar_url`   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_id`           | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» workspace_owner_name`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 
@@ -1405,6 +1417,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     {
       "agents": [
         {
+          "api_version": "string",
           "apps": [
             {
               "command": "string",
@@ -1516,6 +1529,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
   "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
   "workspace_owner_name": "string"
 }

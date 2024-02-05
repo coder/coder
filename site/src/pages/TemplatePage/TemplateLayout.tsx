@@ -1,5 +1,10 @@
-import { useTheme } from "@emotion/react";
-import { createContext, type FC, Suspense, useContext } from "react";
+import {
+  createContext,
+  type FC,
+  type PropsWithChildren,
+  Suspense,
+  useContext,
+} from "react";
 import { useQuery } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
 import type { AuthorizationRequest } from "api/typesGenerated";
@@ -8,12 +13,12 @@ import {
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { TemplatePageHeader } from "./TemplatePageHeader";
 import { TabLink, Tabs } from "components/Tabs/Tabs";
+import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
   templateId: string,
@@ -24,6 +29,12 @@ const templatePermissions = (
       resource_id: templateId,
     },
     action: "update",
+  },
+  canReadInsights: {
+    object: {
+      resource_type: "template_insights",
+    },
+    action: "read",
   },
 });
 
@@ -59,10 +70,9 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
   return context;
 };
 
-export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
+export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
@@ -70,11 +80,14 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
-  const shouldShowInsights = data?.permissions?.canUpdateTemplate;
+  // Auditors should also be able to view insights, but do not automatically
+  // have permission to update templates. Need both checks.
+  const shouldShowInsights =
+    data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
 
   if (error) {
     return (
-      <div css={{ margin: theme.spacing(2) }}>
+      <div css={{ margin: 16 }}>
         <ErrorAlert error={error} />
       </div>
     );

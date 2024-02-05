@@ -112,7 +112,7 @@ export const CreateUserForm: FC<
   return (
     <FullPageForm title="Create user">
       {isApiError(error) && !hasApiFieldErrors(error) && (
-        <ErrorAlert error={error} sx={{ mb: 4 }} />
+        <ErrorAlert error={error} css={{ marginBottom: 32 }} />
       )}
       <form onSubmit={form.handleSubmit} autoComplete="off">
         <Stack spacing={2.5}>
@@ -132,10 +132,9 @@ export const CreateUserForm: FC<
             label={Language.emailLabel}
           />
           <TextField
-            {...getFieldHelpers(
-              "login_type",
-              "Authentication method for this user",
-            )}
+            {...getFieldHelpers("login_type", {
+              helperText: "Authentication method for this user",
+            })}
             select
             id="login_type"
             data-testid="login-type-input"
@@ -180,12 +179,11 @@ export const CreateUserForm: FC<
             })}
           </TextField>
           <TextField
-            {...getFieldHelpers(
-              "password",
-              form.values.login_type === "password"
-                ? ""
-                : "No password required for this login type",
-            )}
+            {...getFieldHelpers("password", {
+              helperText:
+                form.values.login_type !== "password" &&
+                "No password required for this login type",
+            })}
             autoComplete="current-password"
             fullWidth
             id="password"

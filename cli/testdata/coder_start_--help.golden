@@ -6,11 +6,22 @@ USAGE:
   Start a workspace
 
 OPTIONS:
+      --always-prompt bool
+          Always prompt all parameters. Does not pull parameter values from
+          existing workspace.
+
       --build-option string-array, $CODER_BUILD_OPTION
           Build option value in the format "name=value".
 
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
+
+      --parameter string-array, $CODER_RICH_PARAMETER
+          Rich parameter value in the format "name=value".
+
+      --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
+          Specify a file path with values for rich parameters defined in the
+          template.
 
   -y, --yes bool
           Bypass prompts.

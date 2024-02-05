@@ -53,8 +53,10 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ```json
 {
+  "agent_api_version": "string",
   "dashboard_url": "string",
   "external_url": "string",
+  "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
 }
@@ -152,9 +154,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
+    "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_upgrade_message": "string",
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -235,6 +239,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ]
     },
     "external_token_encryption_keys": ["string"],
+    "healthcheck": {
+      "refresh": 0,
+      "threshold_database": 0
+    },
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -267,6 +275,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_allow_list": ["string"],
       "group_auto_create": true,
       "group_mapping": {},
       "group_regex_filter": {},
@@ -289,6 +298,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "signups_disabled_text": "string",
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],
@@ -336,7 +346,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "links": {
         "value": [
           {
-            "icon": "string",
+            "icon": "bug",
             "name": "string",
             "target": "string"
           }
@@ -368,6 +378,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "allow_insecure_ciphers": true,
       "cert_file": ["string"],
       "client_auth": "string",
       "client_ca_file": "string",
@@ -376,7 +387,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "enable": true,
       "key_file": ["string"],
       "min_version": "string",
-      "redirect_http": true
+      "redirect_http": true,
+      "supported_ciphers": ["string"]
     },
     "trace": {
       "capture_logs": true,
@@ -386,24 +398,13 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
+      "allow_user_custom": true,
       "default_schedule": "string"
     },
     "verbose": true,
     "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
+    "wildcard_access_url": "string",
     "write_config": true
   },
   "options": [
@@ -553,7 +554,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["moons"]
+["example"]
 ```
 
 ### Responses
@@ -590,7 +591,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
 > 200 Response
 
 ```json
-["moons"]
+["example"]
 ```
 
 ### Responses

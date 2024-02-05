@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -1093,7 +1094,7 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 			return &proto.Empty{}, nil
 		}
 	}
-	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
+	clientPipe, serverPipe := drpc.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
@@ -1129,19 +1130,20 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
 	t.Helper()
-	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
+	clientPipe, serverPipe := drpc.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
+	tempDir := t.TempDir()
 	go func() {
 		defer close(closed)
 		_ = provisionersdk.Serve(ctx, &server, &provisionersdk.ServeOptions{
 			Listener:      serverPipe,
 			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("test-provisioner"),
-			WorkDirectory: t.TempDir(),
+			WorkDirectory: tempDir,
 		})
 	}()
 	t.Cleanup(func() {

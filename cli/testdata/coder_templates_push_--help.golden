@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder templates push [flags] [template]
 
-  Push a new template version from the current directory or as specified by flag
+  Create or update a template from the current directory or as specified by flag
 
 OPTIONS:
       --activate bool (default: true)
@@ -12,9 +12,6 @@ OPTIONS:
       --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from
           active template version.
-
-      --create bool (default: false)
-          Create the template if it does not exist.
 
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.

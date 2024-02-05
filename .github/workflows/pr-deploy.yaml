@@ -9,10 +9,6 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      pr_number:
-        description: "PR number"
-        type: number
-        required: true
       experiments:
         description: "Experiments to enable"
         required: false
@@ -123,7 +119,7 @@ jobs:
           echo "NEW=$NEW" >> $GITHUB_OUTPUT
 
       - name: Check changed files
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           base: ${{ github.ref }}
@@ -167,7 +163,7 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: Find Comment
-        uses: peter-evans/find-comment@v2
+        uses: peter-evans/find-comment@v3
         id: fc
         with:
           issue-number: ${{ needs.get_info.outputs.PR_NUMBER }}
@@ -177,7 +173,7 @@ jobs:
 
       - name: Comment on PR
         id: comment_id
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ needs.get_info.outputs.PR_NUMBER }}
@@ -355,6 +351,7 @@ jobs:
       - name: Install/Upgrade Helm chart
         run: |
           set -euo pipefail
+          helm dependency update --skip-refresh ./helm/coder
           helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
           --namespace "pr${{ env.PR_NUMBER }}" \
           --values ./pr-deploy-values.yaml \
@@ -419,7 +416,7 @@ jobs:
 
           # Create template
           cd ./.github/pr-deployments/template
-          coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
 
           # Create workspace
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
@@ -444,7 +441,7 @@ jobs:
           echo "Slack notification sent"
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v2
+        uses: peter-evans/find-comment@v3
         id: fc
         with:
           issue-number: ${{ env.PR_NUMBER }}
@@ -453,7 +450,7 @@ jobs:
           direction: last
 
       - name: Comment on PR
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         env:
           STATUS: ${{ needs.get_info.outputs.NEW == 'true' && 'Created' || 'Updated' }}
         with:

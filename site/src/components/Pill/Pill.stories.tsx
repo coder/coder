@@ -1,66 +1,82 @@
-import { Pill } from "./Pill";
+import { Pill, PillSpinner } from "./Pill";
 import type { Meta, StoryObj } from "@storybook/react";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 
 const meta: Meta<typeof Pill> = {
   title: "components/Pill",
   component: Pill,
+  args: {
+    children: "Default",
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof Pill>;
 
-export const Primary: Story = {
-  args: {
-    text: "Primary",
-    type: "primary",
-  },
-};
+export const Default: Story = {};
 
-export const Secondary: Story = {
+export const Danger: Story = {
   args: {
-    text: "Secondary",
-    type: "secondary",
-  },
-};
-
-export const Success: Story = {
-  args: {
-    text: "Success",
-    type: "success",
-  },
-};
-
-export const Info: Story = {
-  args: {
-    text: "Information",
-    type: "info",
-  },
-};
-
-export const Warning: Story = {
-  args: {
-    text: "Warning",
-    type: "warning",
+    children: "Danger",
+    type: "danger",
   },
 };
 
 export const Error: Story = {
   args: {
-    text: "Error",
+    children: "Error",
     type: "error",
   },
 };
 
-export const Default: Story = {
+export const Warning: Story = {
   args: {
-    text: "Default",
+    children: "Warning",
+    type: "warning",
   },
 };
 
-export const WarningLight: Story = {
+export const Notice: Story = {
   args: {
-    text: "Warning",
-    type: "warning",
-    lightBorder: true,
+    children: "Notice",
+    type: "notice",
+  },
+};
+
+export const Info: Story = {
+  args: {
+    children: "Information",
+    type: "info",
+  },
+};
+
+export const Success: Story = {
+  args: {
+    children: "Success",
+    type: "success",
+  },
+};
+
+export const Active: Story = {
+  args: {
+    children: "Active",
+    type: "active",
+  },
+};
+
+export const WithIcon: Story = {
+  args: {
+    children: "Information",
+    type: "info",
+    icon: <InfoOutlined />,
+  },
+};
+
+export const WithSpinner: Story = {
+  args: {
+    icon: <PillSpinner />,
+  },
+  parameters: {
+    chromatic: { delay: 700 },
   },
 };

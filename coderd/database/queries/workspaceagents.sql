@@ -69,7 +69,8 @@ UPDATE
 SET
 	version = $2,
 	expanded_directory = $3,
-	subsystems = $4
+	subsystems = $4,
+	api_version = $5
 WHERE
 	id = $1;
 
@@ -218,6 +219,8 @@ SELECT
 	users.id AS owner_id,
 	users.username AS owner_name,
 	users.status AS owner_status,
+	workspaces.template_id AS template_id,
+	workspace_builds.template_version_id AS template_version_id,
 	array_cat(
 		array_append(users.rbac_roles, 'member'),
 		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
@@ -251,15 +254,17 @@ FROM users
 WHERE
 	-- TODO: we can add more conditions here, such as:
 	-- 1) The user must be active
-	-- 2) The user must not be deleted
-	-- 3) The workspace must be running
+	-- 2) The workspace must be running
 	workspace_agents.auth_token = @auth_token
+AND
+	workspaces.deleted = FALSE
 GROUP BY
 	workspace_agents.id,
 	workspaces.id,
 	users.id,
 	organization_members.organization_id,
-	workspace_builds.build_number
+	workspace_builds.build_number,
+	workspace_builds.template_version_id
 ORDER BY
 	workspace_builds.build_number DESC
 LIMIT 1;

@@ -130,6 +130,25 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		}
 	}
 
+	// Fail if the DERP map has no regions or no DERP nodes.
+	badDerpMapMsg := "A valid DERP map is required for networking to work. You must either supply your own DERP map or use the built-in DERP server"
+	if len(derpMap.Regions) == 0 {
+		return nil, xerrors.New("DERP map has no regions. " + badDerpMapMsg)
+	}
+	foundValidNode := false
+regionLoop:
+	for _, region := range derpMap.Regions {
+		for _, node := range region.Nodes {
+			if !node.STUNOnly {
+				foundValidNode = true
+				break regionLoop
+			}
+		}
+	}
+	if !foundValidNode {
+		return nil, xerrors.New("DERP map has no DERP nodes. " + badDerpMapMsg)
+	}
+
 	return derpMap, nil
 }
 

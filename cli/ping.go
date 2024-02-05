@@ -40,15 +40,16 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, err := getWorkspaceAndAgent(
 				ctx, inv, client,
+				false, // Do not autostart for a ping.
 				codersdk.Me, workspaceName,
 			)
 			if err != nil {
 				return err
 			}
 
-			var logger slog.Logger
+			logger := inv.Logger
 			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
@@ -71,7 +72,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			start := time.Now()
 			for {
 				if n > 0 {
-					time.Sleep(time.Second)
+					time.Sleep(pingWait)
 				}
 				n++
 

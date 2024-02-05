@@ -1,6 +1,3 @@
-import Box from "@mui/material/Box";
-import { Theme } from "@mui/material/styles";
-import useTheme from "@mui/styles/useTheme";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -20,9 +17,12 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
+  HelpTooltipContent,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
-import { FC } from "react";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import { Line } from "react-chartjs-2";
 import annotationPlugin from "chartjs-plugin-annotation";
 
@@ -42,7 +42,7 @@ ChartJS.register(
 const USER_LIMIT_DISPLAY_THRESHOLD = 60;
 
 export interface ActiveUserChartProps {
-  data: { date: string; amount: number }[];
+  data: Array<{ date: string; amount: number }>;
   interval: "day" | "week";
   userLimit: number | undefined;
 }
@@ -52,7 +52,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   interval,
   userLimit,
 }) => {
-  const theme: Theme = useTheme();
+  const theme = useTheme();
 
   const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
   const chartData = data.map((val) => val.amount);
@@ -62,6 +62,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 
   const options: ChartOptions<"line"> = {
     responsive: true,
+    animation: false,
     plugins: {
       annotation: {
         annotations: [
@@ -96,6 +97,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
     },
     scales: {
       y: {
+        grid: { color: theme.palette.divider },
         suggestedMin: 0,
         ticks: {
           precision: 0,
@@ -103,6 +105,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
       },
 
       x: {
+        grid: { color: theme.palette.divider },
         ticks: {
           stepSize: data.length > 10 ? 2 : undefined,
         },
@@ -124,11 +127,9 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
           {
             label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
             data: chartData,
-            pointBackgroundColor: theme.palette.info.light,
-            pointBorderColor: theme.palette.info.light,
-            borderColor: theme.palette.info.light,
-            backgroundColor: theme.palette.info.dark,
-            fill: "origin",
+            pointBackgroundColor: theme.roles.active.outline,
+            pointBorderColor: theme.roles.active.outline,
+            borderColor: theme.roles.active.outline,
           },
         ],
       }}
@@ -137,18 +138,21 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   );
 };
 
-export const ActiveUsersTitle = () => {
+export const ActiveUsersTitle: FC = () => {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+    <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
       Active Users
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
-        <HelpTooltipText>
-          When a connection is initiated to a user&apos;s workspace they are
-          considered an active user. e.g. apps, web terminal, SSH
-        </HelpTooltipText>
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
+          <HelpTooltipText>
+            When a connection is initiated to a user&apos;s workspace they are
+            considered an active user. e.g. apps, web terminal, SSH
+          </HelpTooltipText>
+        </HelpTooltipContent>
       </HelpTooltip>
-    </Box>
+    </div>
   );
 };
 

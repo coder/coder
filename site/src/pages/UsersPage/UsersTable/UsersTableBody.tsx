@@ -1,12 +1,18 @@
-import Box from "@mui/material/Box";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Skeleton from "@mui/material/Skeleton";
+import Divider from "@mui/material/Divider";
+import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
+import KeyOutlined from "@mui/icons-material/KeyOutlined";
+import GitHub from "@mui/icons-material/GitHub";
+import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
+import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type * as TypesGen from "api/typesGenerated";
+import { type GroupsByUserId } from "api/queries/groups";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
@@ -15,16 +21,16 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
-import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
-import KeyOutlined from "@mui/icons-material/KeyOutlined";
-import GitHub from "@mui/icons-material/GitHub";
-import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
-import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import { LastSeen } from "components/LastSeen/LastSeen";
+import {
+  MoreMenu,
+  MoreMenuTrigger,
+  MoreMenuContent,
+  MoreMenuItem,
+  ThreeDotsButton,
+} from "components/MoreMenu/MoreMenu";
 import { UserRoleCell } from "./UserRoleCell";
-import { type GroupsByUserId } from "api/queries/groups";
 import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
@@ -56,9 +62,7 @@ interface UsersTableBodyProps {
   oidcRoleSyncEnabled: boolean;
 }
 
-export const UsersTableBody: FC<
-  React.PropsWithChildren<UsersTableBodyProps>
-> = ({
+export const UsersTableBody: FC<UsersTableBodyProps> = ({
   users,
   authMethods,
   roles,
@@ -84,9 +88,9 @@ export const UsersTableBody: FC<
         <TableLoaderSkeleton>
           <TableRowSkeleton>
             <TableCell>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <AvatarDataSkeleton />
-              </Box>
+              </div>
             </TableCell>
 
             <TableCell>
@@ -119,9 +123,9 @@ export const UsersTableBody: FC<
           <Cond condition={isNonInitialPage}>
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message="No users found on this page" />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           </Cond>
@@ -129,9 +133,9 @@ export const UsersTableBody: FC<
           <Cond>
             <TableRow>
               <TableCell colSpan={999}>
-                <Box p={4}>
+                <div css={{ padding: 32 }}>
                   <EmptyState message="No users found" />
-                </Box>
+                </div>
               </TableCell>
             </TableRow>
           </Cond>
@@ -170,54 +174,57 @@ export const UsersTableBody: FC<
                 user.status === "suspended" && styles.suspended,
               ]}
             >
-              <Box>{user.status}</Box>
-              <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
+              <div>{user.status}</div>
+              <LastSeen at={user.last_seen_at} css={{ fontSize: 12 }} />
             </TableCell>
 
             {canEditUsers && (
               <TableCell>
-                <TableRowMenu
-                  data={user}
-                  menuItems={[
-                    // Return either suspend or activate depending on status
-                    user.status === "active" || user.status === "dormant"
-                      ? {
-                          label: <>Suspend&hellip;</>,
-                          onClick: onSuspendUser,
-                          disabled: false,
-                        }
-                      : {
-                          label: <>Activate&hellip;</>,
-                          onClick: onActivateUser,
-                          disabled: false,
-                        },
-                    {
-                      label: <>Delete&hellip;</>,
-                      onClick: onDeleteUser,
-                      disabled: user.id === actorID,
-                    },
-                    {
-                      label: <>Reset password&hellip;</>,
-                      onClick: onResetUserPassword,
-                      disabled: user.login_type !== "password",
-                    },
-                    {
-                      label: "View workspaces",
-                      onClick: onListWorkspaces,
-                      disabled: false,
-                    },
-                    {
-                      label: (
-                        <>
-                          View activity
-                          {!canViewActivity && <EnterpriseBadge />}
-                        </>
-                      ),
-                      onClick: onViewActivity,
-                      disabled: !canViewActivity,
-                    },
-                  ]}
-                />
+                <MoreMenu>
+                  <MoreMenuTrigger>
+                    <ThreeDotsButton />
+                  </MoreMenuTrigger>
+                  <MoreMenuContent>
+                    {user.status === "active" || user.status === "dormant" ? (
+                      <MoreMenuItem
+                        data-testid="suspend-button"
+                        onClick={() => {
+                          onSuspendUser(user);
+                        }}
+                      >
+                        Suspend&hellip;
+                      </MoreMenuItem>
+                    ) : (
+                      <MoreMenuItem onClick={() => onActivateUser(user)}>
+                        Activate&hellip;
+                      </MoreMenuItem>
+                    )}
+                    <MoreMenuItem onClick={() => onListWorkspaces(user)}>
+                      View workspaces
+                    </MoreMenuItem>
+                    <MoreMenuItem
+                      onClick={() => onViewActivity(user)}
+                      disabled={!canViewActivity}
+                    >
+                      View activity
+                      {!canViewActivity && <EnterpriseBadge />}
+                    </MoreMenuItem>
+                    <MoreMenuItem
+                      onClick={() => onResetUserPassword(user)}
+                      disabled={user.login_type !== "password"}
+                    >
+                      Reset password&hellip;
+                    </MoreMenuItem>
+                    <Divider />
+                    <MoreMenuItem
+                      onClick={() => onDeleteUser(user)}
+                      disabled={user.id === actorID}
+                      danger
+                    >
+                      Delete&hellip;
+                    </MoreMenuItem>
+                  </MoreMenuContent>
+                </MoreMenu>
               </TableCell>
             )}
           </TableRow>
@@ -227,57 +234,60 @@ export const UsersTableBody: FC<
   );
 };
 
-const LoginType = ({
-  authMethods,
-  value,
-}: {
+interface LoginTypeProps {
   authMethods: TypesGen.AuthMethods;
   value: TypesGen.LoginType;
-}) => {
+}
+
+const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
   let displayName: string = value;
   let icon = <></>;
-  const iconStyles = { width: 14, height: 14 };
 
   if (value === "password") {
     displayName = "Password";
-    icon = <PasswordOutlined sx={iconStyles} />;
+    icon = <PasswordOutlined css={styles.icon} />;
   } else if (value === "none") {
     displayName = "None";
-    icon = <HideSourceOutlined sx={iconStyles} />;
+    icon = <HideSourceOutlined css={styles.icon} />;
   } else if (value === "github") {
     displayName = "GitHub";
-    icon = <GitHub sx={iconStyles} />;
+    icon = <GitHub css={styles.icon} />;
   } else if (value === "token") {
     displayName = "Token";
-    icon = <KeyOutlined sx={iconStyles} />;
+    icon = <KeyOutlined css={styles.icon} />;
   } else if (value === "oidc") {
     displayName =
       authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
     icon =
       authMethods.oidc.iconUrl === "" ? (
-        <ShieldOutlined sx={iconStyles} />
+        <ShieldOutlined css={styles.icon} />
       ) : (
-        <Box
-          component="img"
+        <img
           alt="Open ID Connect icon"
           src={authMethods.oidc.iconUrl}
-          sx={iconStyles}
+          css={styles.icon}
         />
       );
   }
 
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: 14 }}>
+    <div css={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
       {icon}
       {displayName}
-    </Box>
+    </div>
   );
 };
 
 const styles = {
+  icon: {
+    width: 14,
+    height: 14,
+  },
+
   status: {
     textTransform: "capitalize",
   },
+
   suspended: (theme) => ({
     color: theme.palette.text.secondary,
   }),

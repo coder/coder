@@ -42,6 +42,16 @@ machine:
 
 ## Options
 
+### --disable-autostart
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_SSH_DISABLE_AUTOSTART</code> |
+| Default     | <code>false</code>                        |
+
+Disable starting the workspace automatically when connecting via SSH.
+
 ### -p, --tcp
 
 |             |                                      |

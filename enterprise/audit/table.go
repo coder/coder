@@ -71,6 +71,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
 		"max_ttl":                           ActionTrack,
+		"use_max_ttl":                       ActionTrack,
 		"autostart_block_days_of_week":      ActionTrack,
 		"autostop_requirement_days_of_week": ActionTrack,
 		"autostop_requirement_weeks":        ActionTrack,
@@ -86,6 +87,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_dormant":                  ActionTrack,
 		"time_til_dormant_autodelete":       ActionTrack,
 		"require_active_version":            ActionTrack,
+		"deprecated":                        ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -117,6 +119,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_seen_at":         ActionIgnore,
 		"deleted":              ActionTrack,
 		"quiet_hours_schedule": ActionTrack,
+		"theme_preference":     ActionIgnore,
+		"name":                 ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,
@@ -133,6 +137,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
 		"automatic_updates":  ActionTrack,
+		"favorite":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,
@@ -183,6 +188,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"to_login_type":   ActionTrack,
 		"user_id":         ActionTrack,
 	},
+	&database.HealthSettings{}: {
+		"id":                     ActionIgnore,
+		"dismissed_healthchecks": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
@@ -206,6 +215,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_enabled":        ActionTrack,
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
+		"version":             ActionTrack,
 	},
 }
 

@@ -1,8 +1,10 @@
-import LicensesSettingsPageView from "./LicensesSettingsPageView";
+import { chromatic } from "testHelpers/chromatic";
 import { MockLicenseResponse } from "testHelpers/entities";
+import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 export default {
   title: "pages/DeploySettingsPage/LicensesSettingsPageView",
+  parameters: { chromatic },
   component: LicensesSettingsPageView,
 };
 

@@ -7,88 +7,47 @@
 import {
   type ForwardedRef,
   type KeyboardEvent,
+  type InputHTMLAttributes,
   forwardRef,
   useId,
 } from "react";
+import { Search, SearchInput } from "components/Menu/Search";
 
-import Box from "@mui/system/Box";
-import SearchIcon from "@mui/icons-material/SearchOutlined";
-import { visuallyHidden } from "@mui/utils";
-import { type SystemStyleObject } from "@mui/system";
-
-type Props = {
-  value: string;
-  onValueChange: (newValue: string) => void;
-
-  placeholder?: string;
+interface SearchBoxProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  value: string;
   onKeyDown?: (event: KeyboardEvent) => void;
-  sx?: SystemStyleObject;
-};
+  onValueChange: (newValue: string) => void;
+}
 
 export const SearchBox = forwardRef(function SearchBox(
-  {
-    value,
+  props: SearchBoxProps,
+  ref?: ForwardedRef<HTMLInputElement>,
+) {
+  const {
     onValueChange,
     onKeyDown,
     label = "Search",
     placeholder = "Search...",
-    sx = {},
-  }: Props,
-  ref?: ForwardedRef<HTMLInputElement>,
-) {
+    ...attrs
+  } = props;
+
   const hookId = useId();
   const inputId = `${hookId}-${SearchBox.name}-input`;
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexFlow: "row nowrap",
-        alignItems: "center",
-        paddingX: 2,
-        height: "40px",
-        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-        ...sx,
-      }}
-      onKeyDown={onKeyDown}
-    >
-      <Box component="div" sx={{ width: "18px" }}>
-        <SearchIcon
-          sx={{
-            display: "block",
-            fontSize: "14px",
-            marginX: "auto",
-            color: (theme) => theme.palette.text.secondary,
-          }}
-        />
-      </Box>
-
-      <Box component="label" sx={visuallyHidden} htmlFor={inputId}>
-        {label}
-      </Box>
-
-      <Box
-        component="input"
-        type="text"
+    <Search>
+      <SearchInput
+        label={label}
         ref={ref}
         id={inputId}
         autoFocus
         tabIndex={0}
         placeholder={placeholder}
-        value={value}
+        {...attrs}
+        onKeyDown={onKeyDown}
         onChange={(e) => onValueChange(e.target.value)}
-        sx={{
-          height: "100%",
-          border: 0,
-          background: "none",
-          width: "100%",
-          outline: 0,
-          "&::placeholder": {
-            color: (theme) => theme.palette.text.secondary,
-          },
-        }}
       />
-    </Box>
+    </Search>
   );
 });

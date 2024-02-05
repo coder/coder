@@ -6,20 +6,21 @@ import {
   MockUser,
   MockWorkspace,
   MockWorkspaceQuota,
-  MockWorkspaceRequest,
   MockWorkspaceRichParametersRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionExternalAuthGithub,
   MockOrganization,
-  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { Language } from "./CreateWorkspacePageView";
+import { server } from "testHelpers/server";
+import { rest } from "msw";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -156,71 +157,6 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
-  it("external auth authenticates and succeeds", async () => {
-    jest
-      .spyOn(API, "getWorkspaceQuota")
-      .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest
-      .spyOn(API, "getUsers")
-      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    const nameField = await screen.findByLabelText(nameLabelText);
-    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-    fireEvent.change(nameField, {
-      target: { value: "test" },
-    });
-
-    const githubButton = await screen.findByText("Login with GitHub");
-    await userEvent.click(githubButton);
-
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
-
-    await screen.findByText("Authenticated with GitHub");
-
-    const submitButton = screen.getByText(createWorkspaceText);
-    await userEvent.click(submitButton);
-
-    await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
-        MockUser.id,
-        expect.objectContaining({
-          ...MockWorkspaceRequest,
-        }),
-      ),
-    );
-  });
-
-  it("external auth: errors if unauthenticated and submits", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    const nameField = await screen.findByLabelText(nameLabelText);
-
-    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-    fireEvent.change(nameField, {
-      target: { value: "test" },
-    });
-
-    const submitButton = screen.getByText(createWorkspaceText);
-    await userEvent.click(submitButton);
-
-    await screen.findByText("You must authenticate to create a workspace!");
-  });
-
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
@@ -240,7 +176,9 @@ describe("CreateWorkspacePage", () => {
         "me",
         expect.objectContaining({
           template_id: MockTemplate.id,
-          rich_parameter_values: [{ name: param, value: paramValue }],
+          rich_parameter_values: [
+            expect.objectContaining({ name: param, value: paramValue }),
+          ],
         }),
       );
     });
@@ -265,9 +203,74 @@ describe("CreateWorkspacePage", () => {
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
-          rich_parameter_values: [{ name: param, value: paramValue }],
+          rich_parameter_values: [
+            expect.objectContaining({ name: param, value: paramValue }),
+          ],
         }),
       );
     });
+  });
+
+  it("Detects when a workspace is being created with the 'duplicate' mode", async () => {
+    const params = new URLSearchParams({
+      mode: "duplicate",
+      name: MockWorkspace.name,
+      version: MockWorkspace.template_active_version_id,
+    });
+
+    renderWithAuth(<CreateWorkspacePage />, {
+      path: "/templates/:template/workspace",
+      route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
+    });
+
+    const warningMessage = await screen.findByRole("alert");
+    const nameInput = await screen.findByRole("textbox", {
+      name: "Workspace Name",
+    });
+
+    expect(warningMessage).toHaveTextContent(Language.duplicationWarning);
+    expect(nameInput).toHaveValue(`${MockWorkspace.name}-copy`);
+  });
+
+  it("displays the form after connecting to all the external services", async () => {
+    jest.spyOn(window, "open").mockImplementation(() => null);
+    const user = userEvent.setup();
+    const notAuthenticatedExternalAuth = {
+      ...MockTemplateVersionExternalAuthGithub,
+      authenticated: false,
+    };
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:versionId/external-auth",
+        (req, res, ctx) => {
+          return res(ctx.json([notAuthenticatedExternalAuth]));
+        },
+      ),
+    );
+    renderCreateWorkspacePage();
+
+    await screen.findByText("External authentication");
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+
+    const connectButton = screen.getByRole("button", {
+      name: /connect/i,
+    });
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:versionId/external-auth",
+        (req, res, ctx) => {
+          const authenticatedExternalAuth = {
+            ...MockTemplateVersionExternalAuthGithub,
+            authenticated: true,
+          };
+          return res(ctx.json([authenticatedExternalAuth]));
+        },
+      ),
+    );
+    await user.click(connectButton);
+    // TODO: Consider improving the timeout by simulating react-query polling.
+    // Current implementation could not achieve this, further research is
+    // needed.
+    await screen.findByRole("form", undefined, { timeout: 10_000 });
   });
 });

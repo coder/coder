@@ -1,5 +1,5 @@
-import { Avatar, AvatarProps } from "components/Avatar/Avatar";
-import { FC } from "react";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import { type FC } from "react";
 
 export type UserAvatarProps = {
   username: string;
@@ -12,7 +12,7 @@ export const UserAvatar: FC<UserAvatarProps> = ({
   ...avatarProps
 }) => {
   return (
-    <Avatar title={username} src={avatarURL} {...avatarProps}>
+    <Avatar background title={username} src={avatarURL} {...avatarProps}>
       {username}
     </Avatar>
   );

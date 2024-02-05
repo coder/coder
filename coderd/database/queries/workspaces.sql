@@ -46,9 +46,12 @@ WHERE
 
 -- name: GetWorkspaceByAgentID :one
 SELECT
-	*
+	sqlc.embed(workspaces),
+	templates.name as template_name
 FROM
 	workspaces
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspaces.id = (
 		SELECT
@@ -76,7 +79,7 @@ WHERE
 -- name: GetWorkspaces :many
 SELECT
 	workspaces.*,
-	COALESCE(template_name.template_name, 'unknown') as template_name,
+	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	COUNT(*) OVER () as count
@@ -117,12 +120,12 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		templates.name AS template_name
+		*
 	FROM
 		templates
 	WHERE
 		templates.id = workspaces.template_id
-) template_name ON true
+) template ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -239,13 +242,11 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by dormant workspaces. By default we do not return dormant
-	-- workspaces since they are considered soft-deleted.
+	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN @is_dormant :: text != '' THEN
-			dormant_at IS NOT NULL 
-		ELSE
-			dormant_at IS NULL
+		WHEN @dormant :: boolean != 'false' THEN
+			dormant_at IS NOT NULL
+		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
@@ -258,9 +259,16 @@ WHERE
 				  workspaces.last_used_at >= @last_used_after
 		  ELSE true
 	END
+  	AND CASE
+		  WHEN sqlc.narg('using_active') :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
+		  ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
+	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+	CASE WHEN workspaces.owner_id = @requester_id AND workspaces.favorite THEN 0 ELSE 1 END ASC,
 	(latest_build.completed_at IS NOT NULL AND
 		latest_build.canceled_at IS NULL AND
 		latest_build.error IS NULL AND
@@ -286,6 +294,15 @@ WHERE
 	AND deleted = @deleted
 	AND LOWER("name") = LOWER(@name)
 ORDER BY created_at DESC;
+
+-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
+SELECT
+	template_id, COUNT(DISTINCT owner_id) AS unique_owners_sum
+FROM
+	workspaces
+WHERE
+	template_id = ANY(@template_ids :: uuid[]) AND deleted = false
+GROUP BY template_id;
 
 -- name: InsertWorkspace :one
 INSERT INTO
@@ -346,6 +363,14 @@ SET
 	last_used_at = $2
 WHERE
 	id = $1;
+
+-- name: BatchUpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = @last_used_at
+WHERE
+	id = ANY(@ids :: uuid[]);
 
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
@@ -476,22 +501,30 @@ WHERE
 
 -- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
-	workspaces
+    workspaces
 SET
-	dormant_at = $2,
-	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    dormant_at = $2,
+    -- When a workspace is active we want to update the last_used_at to avoid the workspace going
     -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
-	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
-	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
+    last_used_at = CASE WHEN $2::timestamptz IS NULL THEN
+        now() at time zone 'utc'
+    ELSE
+        last_used_at
+    END,
+    -- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+    -- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+    deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN
+        NULL
+    ELSE
+        $2::timestamptz + (INTERVAL '1 millisecond' * (templates.time_til_dormant_autodelete / 1000000))
+    END
 FROM
-	templates
+    templates
 WHERE
-	workspaces.template_id = templates.id
-AND
-	workspaces.id = $1
-RETURNING workspaces.*;
+    workspaces.id = $1
+    AND templates.id = workspaces.template_id
+RETURNING
+    workspaces.*;
 
 -- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
 UPDATE workspaces
@@ -521,3 +554,9 @@ SET
 	automatic_updates = $2
 WHERE
 		id = $1;
+
+-- name: FavoriteWorkspace :exec
+UPDATE workspaces SET favorite = true WHERE id = @id;
+
+-- name: UnfavoriteWorkspace :exec
+UPDATE workspaces SET favorite = false WHERE id = @id;

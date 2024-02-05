@@ -43,6 +43,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					OAuthExpiry:            userLink.OAuthExpiry,
 					UserID:                 uid,
 					LoginType:              userLink.LoginType,
+					DebugContext:           userLink.DebugContext,
 				}); err != nil {
 					return xerrors.Errorf("update user link user_id=%s linked_id=%s: %w", userLink.UserID, userLink.LinkedID, err)
 				}
@@ -132,6 +133,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					OAuthExpiry:            userLink.OAuthExpiry,
 					UserID:                 uid,
 					LoginType:              userLink.LoginType,
+					DebugContext:           userLink.DebugContext,
 				}); err != nil {
 					return xerrors.Errorf("update user link user_id=%s linked_id=%s: %w", userLink.UserID, userLink.LinkedID, err)
 				}

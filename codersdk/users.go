@@ -46,6 +46,7 @@ type MinimalUser struct {
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
+	Name       string    `json:"name"`
 	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
@@ -55,6 +56,7 @@ type User struct {
 	Roles           []Role      `json:"roles"`
 	AvatarURL       string      `json:"avatar_url" format:"uri"`
 	LoginType       LoginType   `json:"login_type"`
+	ThemePreference string      `json:"theme_preference"`
 }
 
 type GetUsersResponse struct {
@@ -62,11 +64,38 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// @typescript-ignore LicensorTrialRequest
+type LicensorTrialRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
 type CreateFirstUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
-	Trial    bool   `json:"trial"`
+	Email     string                   `json:"email" validate:"required,email"`
+	Username  string                   `json:"username" validate:"required,username"`
+	Password  string                   `json:"password" validate:"required"`
+	Trial     bool                     `json:"trial"`
+	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+}
+
+type CreateFirstUserTrialInfo struct {
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -90,6 +119,11 @@ type CreateUserRequest struct {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
+}
+
+type UpdateUserAppearanceSettingsRequest struct {
+	ThemePreference string `json:"theme_preference" validate:"required"`
 }
 
 type UpdateUserPasswordRequest struct {
@@ -102,6 +136,10 @@ type UserQuietHoursScheduleResponse struct {
 	// UserSet is true if the user has set their own quiet hours schedule. If
 	// false, the user is using the default schedule.
 	UserSet bool `json:"user_set"`
+	// UserCanSet is true if the user is allowed to set their own quiet hours
+	// schedule. If false, the user cannot set a custom schedule and the default
+	// schedule will always be used.
+	UserCanSet bool `json:"user_can_set"`
 	// Time is the time of day that the quiet hours window starts in the given
 	// Timezone each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)
@@ -183,6 +221,27 @@ type OIDCAuthMethod struct {
 	IconURL    string `json:"iconUrl"`
 }
 
+type UserParameter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// UserAutofillParameters returns all recently used parameters for the given user.
+func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var params []UserParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
 // HasFirstUser returns whether the first user has been created.
 func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/first", nil)
@@ -190,7 +249,15 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode == http.StatusNotFound {
+		// ensure we are talking to coder and not
+		// some other service that returns 404
+		v := res.Header.Get(BuildVersionHeader)
+		if v == "" {
+			return false, xerrors.Errorf("missing build version header, not a coder instance")
+		}
+
 		return false, nil
 	}
 	if res.StatusCode != http.StatusOK {
@@ -241,7 +308,7 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// UpdateUserProfile enables callers to update profile information
+// UpdateUserProfile updates the username of a user.
 func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
 	if err != nil {
@@ -276,6 +343,20 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 		return User{}, ReadBodyAsError(res)
 	}
 
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserAppearanceSettings updates the appearance settings for a user.
+func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (User, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, ReadBodyAsError(res)
+	}
 	var resp User
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

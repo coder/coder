@@ -52,6 +52,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.OrganizationID,
 		arg.ExactName,
 		pq.Array(arg.IDs),
+		arg.Deprecated,
 	)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,8 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementWeeks,
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
+			&i.Deprecated,
+			&i.UseMaxTtl,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -195,7 +198,7 @@ type workspaceQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
@@ -219,9 +222,11 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.IsDormant,
+		arg.Dormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
+		arg.UsingActive,
+		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -247,6 +252,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.DormantAt,
 			&i.DeletingAt,
 			&i.AutomaticUpdates,
+			&i.Favorite,
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
@@ -314,6 +320,8 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.Deleted,
 			&i.LastSeenAt,
 			&i.QuietHoursSchedule,
+			&i.ThemePreference,
+			&i.Name,
 			&i.Count,
 		); err != nil {
 			return nil, err

@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/appearance"
+
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -108,9 +111,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 	}()
 
+	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
+		c, err := license.ParseClaims(rawJWT, Keys)
+		if err != nil {
+			return "", false, err
+		}
+		return c.Subject, c.Trial, nil
+	}
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
-	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
@@ -119,6 +128,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			return api.fetchWorkspaceProxies(ctx)
 		}
 		return api.fetchRegions(ctx)
+	}
+	api.tailnetService, err = tailnet.NewClientService(
+		api.Logger.Named("tailnetclient"),
+		&api.AGPL.TailnetCoordinator,
+		api.Options.DERPMapUpdateFrequency,
+		api.AGPL.DERPMap,
+	)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -169,15 +187,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.reconnectingPTYSignedToken)
 		})
-
-		r.With(
-			apiKeyMiddlewareOptional,
-			httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
-				DB:       options.Database,
-				Optional: true,
-			}),
-			httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
-		).Get("/workspaceagents/{workspaceagent}/legacy", api.agentIsLegacy)
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,
@@ -303,6 +312,42 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/oauth2-provider", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.oAuth2ProviderMiddleware,
+			)
+			r.Route("/apps", func(r chi.Router) {
+				r.Get("/", api.oAuth2ProviderApps)
+				r.Post("/", api.postOAuth2ProviderApp)
+
+				r.Route("/{app}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
+					r.Get("/", api.oAuth2ProviderApp)
+					r.Put("/", api.putOAuth2ProviderApp)
+					r.Delete("/", api.deleteOAuth2ProviderApp)
+
+					r.Route("/secrets", func(r chi.Router) {
+						r.Get("/", api.oAuth2ProviderAppSecrets)
+						r.Post("/", api.postOAuth2ProviderAppSecret)
+
+						r.Route("/{secretID}", func(r chi.Router) {
+							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
+						})
+					})
+				})
+			})
+		})
+		r.Route("/integrations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.jfrogEnabledMW,
+			)
+
+			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
+			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -354,27 +399,33 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 
-	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
-		// Proxy health is a moon feature.
-		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
-			Interval:   options.ProxyHealthInterval,
-			DB:         api.Database,
-			Logger:     options.Logger.Named("proxyhealth"),
-			Client:     api.HTTPClient,
-			Prometheus: api.PrometheusRegistry,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("initialize proxy health: %w", err)
-		}
-		go api.ProxyHealth.Run(ctx)
-		// Force the initial loading of the cache. Do this in a go routine in case
-		// the calls to the workspace proxies hang and this takes some time.
-		go api.forceWorkspaceProxyHealthUpdate(ctx)
-
-		// Use proxy health to return the healthy workspace proxy hostnames.
-		f := api.ProxyHealth.ProxyHosts
-		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+	// Moon feature init. Proxyhealh is a go routine to periodically check
+	// the health of all workspace proxies.
+	api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
+		Interval:   options.ProxyHealthInterval,
+		DB:         api.Database,
+		Logger:     options.Logger.Named("proxyhealth"),
+		Client:     api.HTTPClient,
+		Prometheus: api.PrometheusRegistry,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize proxy health: %w", err)
 	}
+	go api.ProxyHealth.Run(ctx)
+	// Force the initial loading of the cache. Do this in a go routine in case
+	// the calls to the workspace proxies hang and this takes some time.
+	go api.forceWorkspaceProxyHealthUpdate(ctx)
+
+	// Use proxy health to return the healthy workspace proxy hostnames.
+	f := api.ProxyHealth.ProxyHosts
+	api.AGPL.WorkspaceProxyHostsFn.Store(&f)
+
+	// Wire this up to healthcheck.
+	var fetchUpdater healthcheck.WorkspaceProxiesFetchUpdater = &workspaceProxiesFetchUpdater{
+		fetchFunc:  api.fetchWorkspaceProxies,
+		updateFunc: api.ProxyHealth.ForceUpdate,
+	}
+	api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
 
 	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
 	if err != nil {
@@ -442,6 +493,7 @@ type API struct {
 	provisionerDaemonAuth *provisionerDaemonAuth
 
 	licenseMetricsCollector license.MetricsCollector
+	tailnetService          *tailnet.ClientService
 }
 
 func (api *API) Close() error {
@@ -472,18 +524,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
+			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
-			// FeatureTemplateAutostopRequirement depends on
-			// FeatureAdvancedTemplateScheduling.
-			codersdk.FeatureTemplateAutostopRequirement: api.AGPL.Experiments.Enabled(codersdk.ExperimentTemplateAutostopRequirement) && api.DefaultQuietHoursSchedule != "",
-			codersdk.FeatureWorkspaceProxy:              true,
-			codersdk.FeatureUserRoleManagement:          true,
-			codersdk.FeatureAccessControl:               true,
+			codersdk.FeatureWorkspaceProxy:             true,
+			codersdk.FeatureUserRoleManagement:         true,
+			codersdk.FeatureAccessControl:              true,
 		})
 	if err != nil {
 		return err
@@ -499,18 +548,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			"License requires telemetry but telemetry is disabled",
 		}
 		api.Logger.Error(ctx, "license requires telemetry enabled")
-		return nil
-	}
-
-	if entitlements.Features[codersdk.FeatureTemplateAutostopRequirement].Enabled && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-		api.entitlements.Errors = []string{
-			`Your license is entitled to the feature "template autostop ` +
-				`requirement" (and you have it enabled by setting the ` +
-				"default quiet hours schedule), but you are not entitled to " +
-				`the dependency feature "advanced template scheduling". ` +
-				"Please contact support for a new license.",
-		}
-		api.Logger.Error(ctx, "license is entitled to template autostop requirement but not advanced template scheduling")
 		return nil
 	}
 
@@ -553,8 +590,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				Log:      api.Logger.Named("quota_committer"),
 				Database: api.Database,
 			}
-			ptr := proto.QuotaCommitter(&committer)
-			api.AGPL.QuotaCommitter.Store(&ptr)
+			qcPtr := proto.QuotaCommitter(&committer)
+			api.AGPL.QuotaCommitter.Store(&qcPtr)
 		} else {
 			api.AGPL.QuotaCommitter.Store(nil)
 		}
@@ -565,38 +602,20 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore)
 			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
-		} else {
-			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
-			api.AGPL.TemplateScheduleStore.Store(&templateStore)
-		}
-	}
 
-	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateAutostopRequirement); shouldUpdate(initial, changed, enabled) {
-		if enabled {
-			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
-			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
-			if !ok {
-				api.Logger.Error(ctx, "unable to set up enterprise template schedule store, template autostop requirements will not be applied to workspace builds")
+			if api.DefaultQuietHoursSchedule == "" {
+				api.Logger.Warn(ctx, "template autostop requirement will default to UTC midnight as the default user quiet hours schedule. Set a custom default quiet hours schedule using CODER_QUIET_HOURS_DEFAULT_SCHEDULE to avoid this warning")
+				api.DefaultQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *"
 			}
-			enterpriseTemplateStore.UseAutostopRequirement.Store(true)
-
-			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule)
+			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.DeploymentValues.UserQuietHoursSchedule.AllowUserCustom.Value())
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template autostop requirements will not be applied to workspace builds", slog.Error(err))
 			} else {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		} else {
-			if api.DefaultQuietHoursSchedule != "" {
-				api.Logger.Warn(ctx, "template autostop requirements are not enabled (due to setting default quiet hours schedule) as your license is not entitled to this feature")
-			}
-
-			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
-			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
-			if ok {
-				enterpriseTemplateStore.UseAutostopRequirement.Store(false)
-			}
-
+			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&templateStore)
 			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
 			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 		}
@@ -605,12 +624,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 		var coordinator agpltailnet.Coordinator
 		if enabled {
-			var haCoordinator agpltailnet.Coordinator
-			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
-				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
-			} else {
-				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
-			}
+			haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
@@ -662,6 +676,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			acs = dbauthz.EnterpriseTemplateAccessControlStore{}
 		}
 		api.AGPL.AccessControlStore.Store(&acs)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureAppearance); shouldUpdate(initial, changed, enabled) {
+		if enabled {
+			f := newAppearanceFetcher(
+				api.Database,
+				api.DeploymentValues.Support.Links.Value,
+			)
+			api.AGPL.AppearanceFetcher.Store(&f)
+		} else {
+			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+		}
 	}
 
 	// External token encryption is soft-enforced

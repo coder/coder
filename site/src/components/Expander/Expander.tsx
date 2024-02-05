@@ -1,15 +1,16 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
+import { type FC, type ReactNode } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { type FC, type PropsWithChildren } from "react";
 
 export interface ExpanderProps {
   expanded: boolean;
   setExpanded: (val: boolean) => void;
+  children?: ReactNode;
 }
 
-export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
+export const Expander: FC<ExpanderProps> = ({
   expanded,
   setExpanded,
   children,
@@ -49,9 +50,9 @@ const styles = {
     cursor: "pointer",
     color: theme.palette.text.secondary,
   }),
-  collapseLink: (theme) => ({
-    marginTop: theme.spacing(2),
-  }),
+  collapseLink: {
+    marginTop: 16,
+  },
   text: (theme) => ({
     display: "flex",
     alignItems: "center",

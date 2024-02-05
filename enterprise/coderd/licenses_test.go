@@ -148,6 +148,7 @@ func TestDeleteLicense(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		//nolint:gocritic // RBAC is irrelevant here.
 		resp, err := client.Request(ctx, http.MethodDelete, "/api/v2/licenses/drivers", nil)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)

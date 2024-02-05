@@ -15,6 +15,7 @@ import LoadingButton from "@mui/lab/LoadingButton";
 export const Language = {
   usernameLabel: "Username",
   emailLabel: "Email",
+  nameLabel: "Name",
   updateSettings: "Update account",
 };
 
@@ -51,40 +52,51 @@ export const AccountForm: FC<AccountFormProps> = ({
   const getFieldHelpers = getFormHelpers(form, updateProfileError);
 
   return (
-    <>
-      <Form onSubmit={form.handleSubmit}>
-        <FormFields>
-          {Boolean(updateProfileError) && (
-            <ErrorAlert error={updateProfileError} />
-          )}
-          <TextField
-            disabled
-            fullWidth
-            label={Language.emailLabel}
-            value={email}
-          />
-          <TextField
-            {...getFieldHelpers("username")}
-            onChange={onChangeTrimmed(form)}
-            aria-disabled={!editable}
-            autoComplete="username"
-            disabled={!editable}
-            fullWidth
-            label={Language.usernameLabel}
-          />
+    <Form onSubmit={form.handleSubmit}>
+      <FormFields>
+        {Boolean(updateProfileError) && (
+          <ErrorAlert error={updateProfileError} />
+        )}
 
-          <div>
-            <LoadingButton
-              loading={isLoading}
-              disabled={!editable}
-              type="submit"
-              variant="contained"
-            >
-              {Language.updateSettings}
-            </LoadingButton>
-          </div>
-        </FormFields>
-      </Form>
-    </>
+        <TextField
+          disabled
+          fullWidth
+          label={Language.emailLabel}
+          value={email}
+        />
+        <TextField
+          {...getFieldHelpers("username")}
+          onChange={onChangeTrimmed(form)}
+          aria-disabled={!editable}
+          autoComplete="username"
+          disabled={!editable}
+          fullWidth
+          label={Language.usernameLabel}
+        />
+        <TextField
+          {...getFieldHelpers("name")}
+          onBlur={(e) => {
+            e.target.value = e.target.value.trim();
+            form.handleChange(e);
+          }}
+          aria-disabled={!editable}
+          disabled={!editable}
+          fullWidth
+          label={Language.nameLabel}
+          helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace.me.owner_name" property.'
+        />
+
+        <div>
+          <LoadingButton
+            loading={isLoading}
+            disabled={!editable}
+            type="submit"
+            variant="contained"
+          >
+            {Language.updateSettings}
+          </LoadingButton>
+        </div>
+      </FormFields>
+    </Form>
   );
 };

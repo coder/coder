@@ -90,7 +90,7 @@ ORDER BY
 	date ASC;
 
 -- name: DeleteOldWorkspaceAgentStats :exec
-DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '6 months';
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '180 days';
 
 -- name: GetDeploymentWorkspaceAgentStats :one
 WITH agent_stats AS (

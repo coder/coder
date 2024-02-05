@@ -1,10 +1,9 @@
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { useState, useRef } from "react";
+import { type FC, useState, useRef } from "react";
 import { DateRangeValue } from "./DateRange";
 import { differenceInWeeks } from "date-fns";
 import { lastWeeks } from "./utils";
@@ -13,13 +12,12 @@ import { lastWeeks } from "./utils";
 // 6 months.
 export const numberOfWeeksOptions = [4, 12, 24] as const;
 
-export const WeekPicker = ({
-  value,
-  onChange,
-}: {
+interface WeekPickerProps {
   value: DateRangeValue;
   onChange: (value: DateRangeValue) => void;
-}) => {
+}
+
+export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const numberOfWeeks = differenceInWeeks(value.endDate, value.startDate);
@@ -71,11 +69,11 @@ export const WeekPicker = ({
               }}
             >
               Last {option} weeks
-              <Box css={{ width: 16, height: 16 }}>
+              <div css={{ width: 16, height: 16 }}>
                 {numberOfWeeks === option && (
                   <CheckOutlined css={{ width: 16, height: 16 }} />
                 )}
-              </Box>
+              </div>
             </MenuItem>
           );
         })}

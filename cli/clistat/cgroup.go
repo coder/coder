@@ -44,6 +44,13 @@ const (
 	cgroupV2MemoryStat = "/sys/fs/cgroup/memory.stat"
 )
 
+const (
+	// 9223372036854771712 is the highest positive signed 64-bit integer (263-1),
+	// rounded down to multiples of 4096 (2^12), the most common page size on x86 systems.
+	// This is used by docker to indicate no memory limit.
+	UnlimitedMemory int64 = 9223372036854771712
+)
+
 // ContainerCPU returns the CPU usage of the container cgroup.
 // This is calculated as difference of two samples of the
 // CPU usage of the container cgroup.
@@ -269,6 +276,10 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 		}
 		// I haven't found an instance where this isn't a valid integer.
 		// Nonetheless, if it is not, assume there is no limit set.
+		maxUsageBytes = -1
+	}
+	// Set to unlimited if we detect the unlimited docker value.
+	if maxUsageBytes == UnlimitedMemory {
 		maxUsageBytes = -1
 	}
 

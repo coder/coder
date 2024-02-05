@@ -1,4 +1,9 @@
-import { MockAuthMethods, mockApiError } from "testHelpers/entities";
+import {
+  MockAuthMethodsAll,
+  MockAuthMethodsExternal,
+  MockAuthMethodsPasswordOnly,
+  mockApiError,
+} from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
@@ -12,17 +17,37 @@ type Story = StoryObj<typeof LoginPageView>;
 
 export const Example: Story = {
   args: {
-    authMethods: MockAuthMethods,
+    authMethods: MockAuthMethodsPasswordOnly,
+  },
+};
+
+export const WithExternalAuthMethods: Story = {
+  args: {
+    authMethods: MockAuthMethodsExternal,
+  },
+};
+
+export const WithAllAuthMethods: Story = {
+  args: {
+    authMethods: MockAuthMethodsAll,
   },
 };
 
 export const AuthError: Story = {
   args: {
     error: mockApiError({
-      message: "User or password is incorrect",
-      detail: "Please, try again",
+      message: "Incorrect email or password.",
     }),
-    authMethods: MockAuthMethods,
+    authMethods: MockAuthMethodsPasswordOnly,
+  },
+};
+
+export const ExternalAuthError: Story = {
+  args: {
+    error: mockApiError({
+      message: "Incorrect email or password.",
+    }),
+    authMethods: MockAuthMethodsAll,
   },
 };
 
@@ -35,6 +60,6 @@ export const LoadingAuthMethods: Story = {
 export const SigningIn: Story = {
   args: {
     isSigningIn: true,
-    authMethods: MockAuthMethods,
+    authMethods: MockAuthMethodsPasswordOnly,
   },
 };

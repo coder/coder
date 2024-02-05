@@ -11,7 +11,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -25,7 +25,7 @@ func TestCheckInactiveUsers(t *testing.T) {
 
 	// Add some dormant accounts
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	db := dbfake.New()
+	db := dbmem.New()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)

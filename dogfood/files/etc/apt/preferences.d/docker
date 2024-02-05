@@ -1,0 +1,19 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin download.docker.com
+Pin-Priority: 1
+
+# Docker Community Edition
+Package: docker-ce
+Pin: origin download.docker.com
+Pin-Priority: 500
+
+# Docker command-line tool
+Package: docker-ce-cli
+Pin: origin download.docker.com
+Pin-Priority: 500
+
+# containerd runtime
+Package: containerd.io
+Pin: origin download.docker.com
+Pin-Priority: 500

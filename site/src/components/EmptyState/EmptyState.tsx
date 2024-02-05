@@ -1,13 +1,10 @@
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import type { FC, ReactNode } from "react";
-import { useTheme } from "@emotion/react";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string;
   /** Longer optional description to display below the message */
-  description?: string | React.ReactNode;
+  description?: string | ReactNode;
   cta?: ReactNode;
   className?: string;
   image?: ReactNode;
@@ -17,18 +14,16 @@ export interface EmptyStateProps {
  * Component to place on screens or in lists that have no content. Optionally
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
- *
- * EmptyState's props extend the [Material UI Box component](https://material-ui.com/components/box/)
- * that you can directly pass props through to to customize the shape and layout of it.
  */
-export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
-  props,
-) => {
-  const { message, description, cta, image, ...boxProps } = props;
-  const theme = useTheme();
-
+export const EmptyState: FC<EmptyStateProps> = ({
+  message,
+  description,
+  cta,
+  image,
+  ...attrs
+}) => {
   return (
-    <Box
+    <div
       css={{
         overflow: "hidden",
         display: "flex",
@@ -37,43 +32,27 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
         alignItems: "center",
         textAlign: "center",
         minHeight: 360,
-        padding: theme.spacing(10, 5),
+        padding: "80px 40px",
         position: "relative",
       }}
-      {...boxProps}
+      {...attrs}
     >
-      <Typography
-        variant="h5"
-        css={{
-          fontSize: theme.spacing(3),
-        }}
-      >
-        {message}
-      </Typography>
+      <h5 css={{ fontSize: 24, fontWeight: 500, margin: 0 }}>{message}</h5>
       {description && (
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          css={{
-            marginTop: theme.spacing(1.5),
-            fontSize: theme.spacing(2),
+        <p
+          css={(theme) => ({
+            marginTop: 16,
+            fontSize: 16,
             lineHeight: "140%",
-            maxWidth: theme.spacing(60),
-          }}
+            maxWidth: 480,
+            color: theme.palette.text.secondary,
+          })}
         >
           {description}
-        </Typography>
+        </p>
       )}
-      {cta && (
-        <div
-          css={{
-            marginTop: theme.spacing(4),
-          }}
-        >
-          {cta}
-        </div>
-      )}
+      {cta && <div css={{ marginTop: 24 }}>{cta}</div>}
       {image}
-    </Box>
+    </div>
   );
 };

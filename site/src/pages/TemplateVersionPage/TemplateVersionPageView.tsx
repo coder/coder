@@ -1,6 +1,8 @@
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import { type FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -11,14 +13,12 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
+import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { UseTabResult } from "hooks/useTab";
-import { type FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import type { TemplateVersion } from "api/typesGenerated";
 import { createDayString } from "utils/createDayString";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { TemplateVersion } from "api/typesGenerated";
 import { TemplateVersionFiles } from "utils/templateVersion";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface TemplateVersionPageViewProps {
   versionName: string;
@@ -28,7 +28,7 @@ export interface TemplateVersionPageViewProps {
   error: unknown;
   currentVersion: TemplateVersion | undefined;
   currentFiles: TemplateVersionFiles | undefined;
-  previousFiles: TemplateVersionFiles | undefined;
+  baseFiles: TemplateVersionFiles | undefined;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
@@ -38,7 +38,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   createWorkspaceUrl,
   currentVersion,
   currentFiles,
-  previousFiles,
+  baseFiles,
   error,
 }) => {
   return (
@@ -103,7 +103,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <TemplateFiles
               tab={tab}
               currentFiles={currentFiles}
-              previousFiles={previousFiles}
+              baseFiles={baseFiles}
             />
           </>
         )}

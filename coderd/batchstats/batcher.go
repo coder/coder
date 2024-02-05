@@ -13,10 +13,10 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 const (
@@ -133,7 +133,7 @@ func (b *Batcher) Add(
 	templateID uuid.UUID,
 	userID uuid.UUID,
 	workspaceID uuid.UUID,
-	st agentsdk.Stats,
+	st *agentproto.Stats,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -156,11 +156,11 @@ func (b *Batcher) Add(
 	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
 	b.buf.TxPackets = append(b.buf.TxPackets, st.TxPackets)
 	b.buf.TxBytes = append(b.buf.TxBytes, st.TxBytes)
-	b.buf.SessionCountVSCode = append(b.buf.SessionCountVSCode, st.SessionCountVSCode)
-	b.buf.SessionCountJetBrains = append(b.buf.SessionCountJetBrains, st.SessionCountJetBrains)
-	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPTY)
-	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSSH)
-	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMS)
+	b.buf.SessionCountVSCode = append(b.buf.SessionCountVSCode, st.SessionCountVscode)
+	b.buf.SessionCountJetBrains = append(b.buf.SessionCountJetBrains, st.SessionCountJetbrains)
+	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPty)
+	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSsh)
+	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMs)
 
 	// If the buffer is over 80% full, signal the flusher to flush immediately.
 	// We want to trigger flushes early to reduce the likelihood of

@@ -1,12 +1,14 @@
-import { type FC, type ReactNode, useState } from "react";
-
-import { type User } from "api/typesGenerated";
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import type { User } from "api/typesGenerated";
 import { roles } from "api/queries/roles";
 import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import {
-  users,
+  paginatedUsers,
   suspendUser,
   activateUser,
   deleteUser,
@@ -14,28 +16,23 @@ import {
   updateRoles,
   authMethods,
 } from "api/queries/users";
-
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { useOrganizationId, usePagination } from "hooks";
-import { useMe } from "hooks/useMe";
-import { usePermissions } from "hooks/usePermissions";
-import { useStatusFilterMenu } from "./UsersFilter";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { useMe } from "contexts/auth/useMe";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFilter } from "components/Filter/filter";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { generateRandomString } from "utils/random";
-import { prepareQuery } from "utils/filters";
-
-import { Helmet } from "react-helmet-async";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { nonInitialPage } from "components/PaginationWidget/utils";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { pageTitle } from "utils/page";
-import { UsersPageView } from "./UsersPageView";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { isNonInitialPage } from "components/PaginationWidget/utils";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { pageTitle } from "utils/page";
+import { generateRandomString } from "utils/random";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { useStatusFilterMenu } from "./UsersFilter";
+import { UsersPageView } from "./UsersPageView";
 
-export const UsersPage: FC<{ children?: ReactNode }> = () => {
+export const UsersPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -43,19 +40,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
 
-  const pagination = usePagination({ searchParamsResult });
-  const usersQuery = useQuery(
-    users({
-      q: prepareQuery(searchParams.get("filter") ?? ""),
-      limit: pagination.limit,
-      offset: pagination.offset,
-    }),
-  );
-
   const organizationId = useOrganizationId();
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 
+  const me = useMe();
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
@@ -63,13 +52,12 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     enabled: viewDeploymentValues,
   });
 
-  const me = useMe();
+  const usersQuery = usePaginatedQuery(paginatedUsers(searchParamsResult[0]));
   const useFilterResult = useFilter({
     searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1);
-    },
+    onUpdate: usersQuery.goToFirstPage,
   });
+
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -157,17 +145,14 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}
-        isNonInitialPage={nonInitialPage(searchParams)}
+        isNonInitialPage={isNonInitialPage(searchParams)}
         actorID={me.id}
         filterProps={{
           filter: useFilterResult,
           error: usersQuery.error,
           menus: { status: statusMenu },
         }}
-        count={usersQuery.data?.count}
-        page={pagination.page}
-        limit={pagination.limit}
-        onPageChange={pagination.goToPage}
+        usersQuery={usersQuery}
       />
 
       <DeleteDialog

@@ -1,6 +1,7 @@
 import {
-  ReactElement,
-  ReactNode,
+  type FC,
+  type ReactElement,
+  type ReactNode,
   cloneElement,
   createContext,
   useContext,
@@ -8,6 +9,7 @@ import {
   useId,
   useRef,
   useState,
+  HTMLAttributes,
 } from "react";
 // This is used as base for the main Popover component
 // eslint-disable-next-line no-restricted-imports -- Read above
@@ -38,13 +40,19 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
   undefined,
 );
 
-export const Popover = (props: {
+export interface PopoverProps {
   children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
   mode?: TriggerMode;
   isDefaultOpen?: boolean;
+}
+
+export const Popover: FC<PopoverProps> = ({
+  children,
+  mode,
+  isDefaultOpen,
 }) => {
   const hookId = useId();
-  const [isOpen, setIsOpen] = useState(props.isDefaultOpen ?? false);
+  const [isOpen, setIsOpen] = useState(isDefaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
 
   const value: PopoverContextValue = {
@@ -52,14 +60,12 @@ export const Popover = (props: {
     setIsOpen,
     triggerRef,
     id: `${hookId}-popover`,
-    mode: props.mode ?? "click",
+    mode: mode ?? "click",
   };
 
   return (
     <PopoverContext.Provider value={value}>
-      {typeof props.children === "function"
-        ? props.children(value)
-        : props.children}
+      {typeof children === "function" ? children(value) : children}
     </PopoverContext.Provider>
   );
 };
@@ -74,8 +80,11 @@ export const usePopover = () => {
   return context;
 };
 
-export const PopoverTrigger = (props: { children: TriggerElement }) => {
+export const PopoverTrigger = (
+  props: HTMLAttributes<HTMLElement> & { children: TriggerElement },
+) => {
   const popover = usePopover();
+  const { children, ...elementProps } = props;
 
   const clickProps = {
     onClick: () => {
@@ -93,6 +102,7 @@ export const PopoverTrigger = (props: { children: TriggerElement }) => {
   };
 
   return cloneElement(props.children, {
+    ...elementProps,
     ...(popover.mode === "click" ? clickProps : hoverProps),
     "aria-haspopup": true,
     "aria-owns": popover.isOpen ? popover.id : undefined,
@@ -102,14 +112,19 @@ export const PopoverTrigger = (props: { children: TriggerElement }) => {
 
 type Horizontal = "left" | "right";
 
-export const PopoverContent = (
-  props: Omit<MuiPopoverProps, "open" | "onClose" | "anchorEl"> & {
-    horizontal?: Horizontal;
-  },
-) => {
+export type PopoverContentProps = Omit<
+  MuiPopoverProps,
+  "open" | "onClose" | "anchorEl"
+> & {
+  horizontal?: Horizontal;
+};
+
+export const PopoverContent: FC<PopoverContentProps> = ({
+  horizontal = "left",
+  ...popoverProps
+}) => {
   const popover = usePopover();
   const [isReady, setIsReady] = useState(false);
-  const horizontal = props.horizontal ?? "left";
   const hoverMode = popover.mode === "hover";
 
   // This is a hack to make sure the popover is not rendered until the trigger
@@ -128,22 +143,22 @@ export const PopoverContent = (
   return (
     <MuiPopover
       disablePortal
-      css={(theme) => ({
+      css={{
         // When it is on hover mode, and the mode is moving from the trigger to
         // the popover, if there is any space, the popover will be closed. I
         // found this is a limitation on how MUI structured the component. It is
         // not a big issue for now but we can re-evaluate it in the future.
-        marginTop: hoverMode ? undefined : theme.spacing(1),
+        marginTop: hoverMode ? undefined : 8,
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
-          minWidth: theme.spacing(40),
+          minWidth: 320,
           fontSize: 14,
           pointerEvents: hoverMode ? "auto" : undefined,
         },
-      })}
+      }}
       {...horizontalProps(horizontal)}
       {...modeProps(popover)}
-      {...props}
+      {...popoverProps}
       id={popover.id}
       open={popover.isOpen}
       onClose={() => popover.setIsOpen(false)}

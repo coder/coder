@@ -15,7 +15,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 	lp.mut.Lock()
 	defer lp.mut.Unlock()
 
-	if time.Since(lp.mtime) < time.Second {
+	if time.Since(lp.mtime) < lp.cacheDuration {
 		// copy
 		ports := make([]codersdk.WorkspaceAgentListeningPort, len(lp.ports))
 		copy(ports, lp.ports)

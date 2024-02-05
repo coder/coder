@@ -5,18 +5,19 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { AccountPage } from "./AccountPage";
 import { mockApiError } from "testHelpers/entities";
 
-const renderPage = () => {
-  return renderWithAuth(<AccountPage />);
-};
-
 const newData = {
   username: "user",
+  name: "Mr User",
 };
 
 const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Username"));
   fireEvent.change(screen.getByLabelText("Username"), {
     target: { value: newData.username },
+  });
+  await waitFor(() => screen.findByLabelText("Name"));
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: newData.name },
   });
   fireEvent.click(screen.getByText(AccountForm.Language.updateSettings));
 };
@@ -35,16 +36,17 @@ describe("AccountPage", () => {
           avatar_url: "",
           last_seen_at: new Date().toString(),
           login_type: "password",
+          theme_preference: "",
           ...data,
         }),
       );
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const successMessage = await screen.findByText("Updated settings.");
       expect(successMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -59,7 +61,7 @@ describe("AccountPage", () => {
         }),
       );
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText(
@@ -67,7 +69,7 @@ describe("AccountPage", () => {
       );
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 
@@ -77,13 +79,13 @@ describe("AccountPage", () => {
         data: "unknown error",
       });
 
-      const { user } = renderPage();
+      renderWithAuth(<AccountPage />);
       await fillAndSubmitForm();
 
       const errorMessage = await screen.findByText("Something went wrong.");
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
-      expect(API.updateProfile).toBeCalledWith(user.id, newData);
+      expect(API.updateProfile).toBeCalledWith("me", newData);
     });
   });
 });

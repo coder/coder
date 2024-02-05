@@ -165,7 +165,8 @@ services:
     # ...
   environment:
     CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
-    CODER_DERP_SERVER_STUN_ADDRESSES: "" # Only use relayed connections
+    CODER_BLOCK_DIRECT: "true" # force SSH traffic through control plane's DERP proxy
+    CODER_DERP_SERVER_STUN_ADDRESSES: "disable" # Only use relayed connections
     CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:13
@@ -197,9 +198,12 @@ coder:
     # Disable automatic update checks
     - name: "CODER_UPDATE_CHECK"
       value: "false"
+    # force SSH traffic through control plane's DERP proxy
+    - name: CODER_BLOCK_DIRECT
+      value: "true"
     # Only use relayed connections
     - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
-      value: ""
+      value: "disable"
     # You must set up an external PostgreSQL database
     - name: "CODER_PG_CONNECTION_URL"
       value: ""
@@ -226,6 +230,58 @@ server, as demonstrated in the example below:
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
 
+## Coder Modules
+
+### Artifactory
+
+Air gapped users can clone the [coder/modules](htpps://github.com/coder/modules)
+repo and publish a
+[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
+to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
+
+1. Create a local-terraform-repository with name `coder-modules-local`
+2. Create a virtual repository with name `tf`
+3. Follow the below instructions to publish coder modules to Artifactory
+
+   ```shell
+   git clone https://github.com/coder/modules
+   cd modules
+   jf tfc
+   jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
+   ```
+
+4. Generate a token with access to the `tf` repo and set an `ENV` variable
+   `TF_TOKEN_example.jfrog.io="XXXXXXXXXXXXXXX"` on the Coder provisioner.
+5. Create a file `.terraformrc` with following content and mount at
+   `/home/coder/.terraformrc` within the Coder provisioner.
+
+   ```hcl
+   provider_installation {
+     direct {
+         exclude = ["registry.terraform.io/*/*"]
+     }
+     network_mirror {
+         url = "https://example.jfrog.io/artifactory/api/terraform/tf/providers/"
+     }
+   }
+   ```
+
+6. Update module source as,
+
+   ```hcl
+   module "module-name" {
+     source = "https://example.jfrog.io/tf__coder/module-name/coder"
+     version = "1.0.0"
+     agent_id = coder_agent.example.id
+     ...
+   }
+   ```
+
+> Do not forget to replace example.jgrog.io with uour Artifactory URL
+
+Based on the instructions
+[here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
+
 ## Firewall exceptions
 
 In restricted internet networks, Coder may require connection to internet.
@@ -236,3 +292,19 @@ Coder is installed.
 - open-vsx.org (optional if someone would use code-server)
 - registry.terraform.io (to create and push template)
 - v2-licensor.coder.com (developing Coder in Coder)
+
+## JetBrains IDEs
+
+Gateway, JetBrains' remote development product that works with Coder,
+[has documented offline deployment steps.](../ides/gateway.md#jetbrains-gateway-in-an-offline-environment)
+
+## Microsoft VS Code Remote - SSH
+
+Installation of the
+[Visual Studio Code Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh)
+(for connecting a local VS Code to a remote Coder workspace) requires that your
+local machine has outbound HTTPS (port 443) connectivity to:
+
+- update.code.visualstudio.com
+- vscode.blob.core.windows.net
+- \*.vo.msecnd.net

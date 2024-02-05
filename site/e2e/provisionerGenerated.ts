@@ -122,6 +122,7 @@ export interface Agent {
   /** Field 19 was startup_script_behavior, now removed. */
   displayApps: DisplayApps | undefined;
   scripts: Script[];
+  extraEnvs: Env[];
 }
 
 export interface Agent_Metadata {
@@ -143,6 +144,11 @@ export interface DisplayApps {
   webTerminal: boolean;
   sshHelper: boolean;
   portForwardingHelper: boolean;
+}
+
+export interface Env {
+  name: string;
+  value: string;
 }
 
 /** Script represents a script to be run on the workspace. */
@@ -215,6 +221,7 @@ export interface Metadata {
   workspaceOwnerOidcAccessToken: string;
   workspaceOwnerSessionToken: string;
   templateId: string;
+  workspaceOwnerName: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -523,6 +530,9 @@ export const Agent = {
     for (const v of message.scripts) {
       Script.encode(v!, writer.uint32(170).fork()).ldelim();
     }
+    for (const v of message.extraEnvs) {
+      Env.encode(v!, writer.uint32(178).fork()).ldelim();
+    }
     return writer;
   },
 };
@@ -585,6 +595,18 @@ export const DisplayApps = {
     }
     if (message.portForwardingHelper === true) {
       writer.uint32(40).bool(message.portForwardingHelper);
+    }
+    return writer;
+  },
+};
+
+export const Env = {
+  encode(message: Env, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
     }
     return writer;
   },
@@ -774,6 +796,9 @@ export const Metadata = {
     }
     if (message.templateId !== "") {
       writer.uint32(98).string(message.templateId);
+    }
+    if (message.workspaceOwnerName !== "") {
+      writer.uint32(106).string(message.workspaceOwnerName);
     }
     return writer;
   },

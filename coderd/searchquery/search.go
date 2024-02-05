@@ -1,6 +1,7 @@
 package searchquery
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -107,9 +108,17 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
-	filter.IsDormant = parser.String(values, "", "is-dormant")
+	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
+	filter.UsingActive = sql.NullBool{
+		// Invert the value of the query parameter to get the correct value.
+		// UsingActive returns if the workspace is on the latest template active version.
+		Bool: !parser.Boolean(values, true, "outdated"),
+		// Only include this search term if it was provided. Otherwise default to omitting it
+		// which will return all workspaces.
+		Valid: values.Has("outdated"),
+	}
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

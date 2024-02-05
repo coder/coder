@@ -1,66 +1,73 @@
-import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { visuallyHidden } from "@mui/utils";
 
 export interface CliAuthPageViewProps {
-  sessionToken: string | null;
+  sessionToken?: string;
 }
 
-export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
-  const styles = useStyles();
+const VISUALLY_HIDDEN_SPACE = " ";
 
+export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
   if (!sessionToken) {
     return <FullScreenLoader />;
   }
 
   return (
     <SignInLayout>
-      <Welcome message="Session token" />
+      <Welcome>Session token</Welcome>
 
-      <p className={styles.text}>
-        Copy the session token below and{" "}
-        <strong className={styles.lineBreak}>paste it in your terminal</strong>.
+      <p css={styles.instructions}>
+        Copy the session token below and
+        {/*
+         * This looks silly, but it's a case where you want to hide the space
+         * visually because it messes up the centering, but you want the space
+         * to still be available to screen readers
+         */}
+        <span css={{ ...visuallyHidden }}>{VISUALLY_HIDDEN_SPACE}</span>
+        <strong css={{ display: "block" }}>paste it in your terminal.</strong>
       </p>
 
-      <CodeExample code={sessionToken} password />
+      <CodeExample code={sessionToken} secret />
 
-      <div className={styles.links}>
-        <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
+      <div css={{ paddingTop: 16 }}>
+        <RouterLink to="/workspaces" css={styles.backLink}>
           Go to workspaces
-        </Button>
+        </RouterLink>
       </div>
     </SignInLayout>
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  title: {
-    fontSize: theme.spacing(4),
-    fontWeight: 400,
-    lineHeight: "140%",
-    margin: 0,
-  },
-
-  text: {
+const styles = {
+  instructions: (theme) => ({
     fontSize: 16,
     color: theme.palette.text.secondary,
-    marginBottom: theme.spacing(4),
+    paddingBottom: 8,
     textAlign: "center",
-    lineHeight: "160%",
-  },
+    lineHeight: 1.4,
 
-  lineBreak: {
-    whiteSpace: "nowrap",
-  },
+    // Have to undo styling side effects from <Welcome> component
+    marginTop: -24,
+  }),
 
-  links: {
-    display: "flex",
-    justifyContent: "flex-end",
-    paddingTop: theme.spacing(1),
-  },
-}));
+  backLink: (theme) => ({
+    display: "block",
+    textAlign: "center",
+    color: theme.palette.text.primary,
+    textDecoration: "underline",
+    textUnderlineOffset: 3,
+    textDecorationColor: "hsla(0deg, 0%, 100%, 0.7)",
+    paddingTop: 16,
+    paddingBottom: 16,
+
+    "&:hover": {
+      textDecoration: "none",
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

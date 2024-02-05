@@ -1,3 +1,12 @@
+---
+display_name: Envbox (Kubernetes)
+description: Provision envbox pods as Coder workspaces
+icon: ../../../site/static/icon/k8s.png
+maintainer_github: coder
+verified: true
+tags: [kubernetes, containers, docker-in-docker]
+---
+
 # envbox
 
 ## Introduction
@@ -38,7 +47,7 @@ To supply values to existing existing Terraform variables you can specify the
 `-V` flag. For example
 
 ```bash
-coder templates create envbox --var namespace="mynamespace" --var max_cpus=2 --var min_cpus=1 --var max_memory=4 --var min_memory=1
+coder templates push envbox --var namespace="mynamespace" --var max_cpus=2 --var min_cpus=1 --var max_memory=4 --var min_memory=1
 ```
 
 ## Contributions

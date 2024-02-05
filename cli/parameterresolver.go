@@ -2,14 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil/levenshtein"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 type WorkspaceCLIAction int
@@ -22,7 +23,8 @@ const (
 )
 
 type ParameterResolver struct {
-	lastBuildParameters []codersdk.WorkspaceBuildParameter
+	lastBuildParameters       []codersdk.WorkspaceBuildParameter
+	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
 	richParameters     []codersdk.WorkspaceBuildParameter
 	richParametersFile map[string]string
@@ -34,6 +36,11 @@ type ParameterResolver struct {
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
 	pr.lastBuildParameters = params
+	return pr
+}
+
+func (pr *ParameterResolver) WithSourceWorkspaceParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
+	pr.sourceWorkspaceParameters = params
 	return pr
 }
 
@@ -68,6 +75,7 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
+	staged = pr.resolveWithSourceBuildParameters(staged, templateVersionParameters)
 	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
@@ -159,11 +167,35 @@ next:
 	return resolved
 }
 
+func (pr *ParameterResolver) resolveWithSourceBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+next:
+	for _, buildParameter := range pr.sourceWorkspaceParameters {
+		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
+		if tvp == nil {
+			continue // it looks like this parameter is not present anymore
+		}
+
+		if tvp.Ephemeral {
+			continue // ephemeral parameters should not be passed to consecutive builds
+		}
+
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				continue next
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	}
+	return resolved
+}
+
 func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) error {
 	for _, r := range resolved {
 		tvp := findTemplateVersionParameter(r, templateVersionParameters)
 		if tvp == nil {
-			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
+			return templateVersionParametersNotFound(r.Name, templateVersionParameters)
 		}
 
 		if tvp.Ephemeral && !pr.promptBuildOptions && findWorkspaceBuildParameter(tvp.Name, pr.buildOptions) == nil {
@@ -194,7 +226,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			(action == WorkspaceUpdate && promptParameterOption) ||
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
-			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
+			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
 			parameterValue, err := cliui.RichParameter(inv, tvp)
 			if err != nil {
 				return nil, err
@@ -253,4 +285,20 @@ func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParame
 		}
 	}
 	return false
+}
+
+func templateVersionParametersNotFound(unknown string, params []codersdk.TemplateVersionParameter) error {
+	var sb strings.Builder
+	_, _ = sb.WriteString(fmt.Sprintf("parameter %q is not present in the template.", unknown))
+	// Going with a fairly generous edit distance
+	maxDist := len(unknown) / 2
+	var paramNames []string
+	for _, p := range params {
+		paramNames = append(paramNames, p.Name)
+	}
+	matches := levenshtein.Matches(unknown, maxDist, paramNames...)
+	if len(matches) > 0 {
+		_, _ = sb.WriteString(fmt.Sprintf("\nDid you mean: %s", strings.Join(matches, ", ")))
+	}
+	return xerrors.Errorf(sb.String())
 }

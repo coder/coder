@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -38,7 +39,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	}
 	cachePath := t.TempDir()
 	workDir := t.TempDir()
-	client, server := provisionersdk.MemTransportPipe()
+	client, server := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
@@ -124,8 +125,10 @@ func sendApply(sess proto.DRPCProvisioner_SessionClient, transition proto.Worksp
 	}}})
 }
 
+// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this simultaneously, it can cause "text file busy"
+// nolint: paralleltest
 func TestProvision_Cancel(t *testing.T) {
-	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("This test uses interrupts and is not supported on Windows")
 	}
@@ -156,9 +159,10 @@ func TestProvision_Cancel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+		// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
+		// one process tries to do this, it can cause "text file busy"
+		// nolint: paralleltest
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			binPath := filepath.Join(dir, "terraform")
 
@@ -166,6 +170,7 @@ func TestProvision_Cancel(t *testing.T) {
 			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
 			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 			require.NoError(t, err)
+			t.Logf("wrote fake terraform script to %s", binPath)
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,
@@ -216,8 +221,10 @@ func TestProvision_Cancel(t *testing.T) {
 	}
 }
 
+// below we exec fake_cancel_hang.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this, it can cause "text file busy"
+// nolint: paralleltest
 func TestProvision_CancelTimeout(t *testing.T) {
-	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("This test uses interrupts and is not supported on Windows")
 	}

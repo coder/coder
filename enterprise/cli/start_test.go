@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/google/uuid"
@@ -36,50 +37,37 @@ func TestStart(t *testing.T) {
 				},
 			},
 		})
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		// Create an initial version.
-		oldVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+		oldVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, nil)
 		// Create a template that mandates the promoted version.
 		// This should be enforced for everyone except template admins.
-		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, oldVersion.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, oldVersion.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, oldVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, oldVersion.ID)
 		require.Equal(t, oldVersion.ID, template.ActiveVersionID)
-		template, err := ownerClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		template = coderdtest.UpdateTemplateMeta(t, templateAdminClient, template.ID, codersdk.UpdateTemplateMeta{
 			RequireActiveVersion: true,
 		})
-		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
 
 		// Create a new version that we will promote.
-		activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+		activeVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
-		err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: activeVersion.ID,
-		})
-		require.NoError(t, err)
-		err = ownerClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, activeVersion.ID)
+		err := templateAdminClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: activeVersion.ID,
 		})
 		require.NoError(t, err)
 
-		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		templateACLAdminClient, templateACLAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		templateGroupACLAdminClient, templateGroupACLAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		// Create a group so we can also test group template admin ownership.
-		group, err := ownerClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "test",
-		})
-		require.NoError(t, err)
-
 		// Add the user who gains template admin via group membership.
-		group, err = ownerClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{templateGroupACLAdmin.ID.String()},
-		})
-		require.NoError(t, err)
+		group := coderdtest.CreateGroup(t, ownerClient, owner.OrganizationID, "test", templateGroupACLAdmin)
 
 		// Update the template for both users and groups.
 		err = ownerClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
@@ -154,24 +142,79 @@ func TestStart(t *testing.T) {
 						require.NoError(t, err)
 						coderdtest.AwaitWorkspaceBuildJobCompleted(t, c.Client, ws.LatestBuild.ID)
 
+						initialTemplateVersion := ws.LatestBuild.TemplateVersionID
+
 						if cmd == "start" {
 							// Stop the workspace so that we can start it.
-							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
-								req.TemplateVersionID = oldVersion.ID
-							})
+							coderdtest.MustTransitionWorkspace(t, c.Client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 						}
 						// Start the workspace. Every test permutation should
 						// pass.
+						var buf bytes.Buffer
 						inv, conf := newCLI(t, cmd, ws.Name, "-y")
+						inv.Stdout = &buf
 						clitest.SetupConfig(t, c.Client, conf)
 						err = inv.Run()
 						require.NoError(t, err)
 
 						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
 						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
+						if initialTemplateVersion == ws.LatestBuild.TemplateVersionID {
+							return
+						}
+
+						if cmd == "start" {
+							require.Contains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
+						}
+
+						if cmd == "restart" {
+							require.Contains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
+						}
 					})
 				}
 			})
 		}
+	})
+
+	t.Run("StartActivatesDormant", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		workspace := coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+		_ = coderdtest.MustTransitionWorkspace(t, memberClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
+		})
+		require.NoError(t, err)
+
+		inv, root := newCLI(t, "start", workspace.Name)
+		clitest.SetupConfig(t, memberClient, root)
+
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+
+		err = inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "Activating dormant workspace...")
+
+		workspace = coderdtest.MustWorkspace(t, memberClient, workspace.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 	})
 }

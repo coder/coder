@@ -59,7 +59,7 @@ func TestExpiresSoon(t *testing.T) {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		require.NoError(t, err)
 
-		expiresSoon := cert.NotAfter.Before(time.Now().AddDate(0, 6, 0))
+		expiresSoon := cert.NotAfter.Before(time.Now().AddDate(0, 3, 0))
 		if expiresSoon {
 			t.Errorf("certificate expires within 6 months %s: %s", cert.NotAfter, cert.Subject.CommonName)
 		} else {

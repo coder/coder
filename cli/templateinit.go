@@ -113,7 +113,7 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 				inv.Stdout,
 				pretty.Sprint(
 					cliui.DefaultStyles.Code,
-					"cd "+relPath+" && coder templates create"),
+					"cd "+relPath+" && coder templates push"),
 			)
 			_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "\nExamples provide a starting point and are expected to be edited! 🎨"))
 			return nil

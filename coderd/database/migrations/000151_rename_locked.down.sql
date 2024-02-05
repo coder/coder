@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE templates RENAME COLUMN time_til_dormant TO inactivity_ttl;
 ALTER TABLE templates RENAME COLUMN time_til_dormant_autodelete TO locked_ttl;
 ALTER TABLE workspaces RENAME COLUMN dormant_at TO locked_at;
@@ -22,5 +20,3 @@ AS
 	    templates.created_by = visible_users.id;
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
-
-COMMIT;

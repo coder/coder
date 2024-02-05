@@ -7,7 +7,7 @@
   </a>
 
   <h1>
-  Self-Hosted Remote Development Environments
+  Self-Hosted Cloud Development Environments
   </h1>
 
   <a href="https://coder.com#gh-light-mode-only">
@@ -31,9 +31,9 @@
 
 </div>
 
-[Coder](https://coder.com) enables organizations to set up development environments in the cloud. Environments are defined with Terraform, connected through a secure high-speed Wireguard® tunnel, and are automatically shut down when not in use to save on costs. Coder gives engineering teams the flexibility to use the cloud for workloads that are most beneficial to them.
+[Coder](https://coder.com) enables organizations to set up development environments in their public or private cloud infrastructure. Cloud development environments are defined with Terraform, connected through a secure high-speed Wireguard® tunnel, and are automatically shut down when not in use to save on costs. Coder gives engineering teams the flexibility to use the cloud for workloads that are most beneficial to them.
 
-- Define development environments in Terraform
+- Define cloud development environments in Terraform
   - EC2 VMs, Kubernetes Pods, Docker Containers, etc.
 - Automatically shutdown idle resources to save on costs
 - Onboard developers in seconds instead of days
@@ -44,7 +44,7 @@
 
 ## Quickstart
 
-The most convenient way to try Coder is to install it on your local machine and experiment with provisioning development environments using Docker (works on Linux, macOS, and Windows).
+The most convenient way to try Coder is to install it on your local machine and experiment with provisioning cloud development environments using Docker (works on Linux, macOS, and Windows).
 
 ```
 # First, install Coder
@@ -100,7 +100,7 @@ Browse our docs [here](https://coder.com/docs/v2) or visit a specific section be
 
 Feel free to [open an issue](https://github.com/coder/coder/issues/new) if you have questions, run into bugs, or have a feature request.
 
-[Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features, and chat with the community using Coder!
+[Join our Discord](https://discord.gg/coder) or [Slack](https://cdr.co/join-community) to provide feedback on in-progress features, and chat with the community using Coder!
 
 ## Contributing
 

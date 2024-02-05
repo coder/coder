@@ -3,6 +3,7 @@
 package pty_test
 
 import (
+	"os"
 	"os/exec"
 	"testing"
 
@@ -37,6 +38,19 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		pty, ps := ptytest.Start(t, pty.Command("sleep", "30"))
 		err := ps.Kill()
+		assert.NoError(t, err)
+		err = ps.Wait()
+		var exitErr *exec.ExitError
+		require.True(t, xerrors.As(err, &exitErr))
+		assert.NotEqual(t, 0, exitErr.ExitCode())
+		err = pty.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+		pty, ps := ptytest.Start(t, pty.Command("sleep", "30"))
+		err := ps.Signal(os.Interrupt)
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError

@@ -1,10 +1,12 @@
 import { defineConfig } from "@playwright/test";
 import path from "path";
-import { defaultPort, gitAuth } from "./constants";
+import { defaultPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
   : defaultPort;
+
+export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
 const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
@@ -27,16 +29,24 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
-      timeout: 60000,
+      timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
-    launchOptions: {
-      args: ["--disable-webgl"],
-    },
+    ...(wsEndpoint
+      ? {
+          connectOptions: {
+            wsEndpoint: wsEndpoint,
+          },
+        }
+      : {
+          launchOptions: {
+            args: ["--disable-webgl"],
+          },
+        }),
   },
   webServer: {
     url: `http://localhost:${port}/api/v2/deployment/config`,
@@ -93,6 +103,7 @@ export default defineConfig({
         gitAuth.webPort,
         gitAuth.validatePath,
       ),
+      CODER_PPROF_ADDRESS: "127.0.0.1:" + coderdPProfPort,
     },
     reuseExistingServer: false,
   },

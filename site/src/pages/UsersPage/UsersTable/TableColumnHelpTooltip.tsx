@@ -1,10 +1,12 @@
 import { FC } from "react";
 import {
   HelpTooltip,
+  HelpTooltipContent,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { docs } from "utils/docs";
 
@@ -42,17 +44,19 @@ export const TableColumnHelpTooltip: FC<Props> = ({ variant }) => {
   const variantLang = Language[variant];
 
   return (
-    <HelpTooltip size="small">
-      <HelpTooltipTitle>{variantLang.title}</HelpTooltipTitle>
-      <HelpTooltipText>{variantLang.text}</HelpTooltipText>
-
-      <HelpTooltipLinksGroup>
-        {variantLang.links.map((link) => (
-          <HelpTooltipLink key={link.text} href={link.href}>
-            {link.text}
-          </HelpTooltipLink>
-        ))}
-      </HelpTooltipLinksGroup>
+    <HelpTooltip>
+      <HelpTooltipTrigger size="small" />
+      <HelpTooltipContent>
+        <HelpTooltipTitle>{variantLang.title}</HelpTooltipTitle>
+        <HelpTooltipText>{variantLang.text}</HelpTooltipText>
+        <HelpTooltipLinksGroup>
+          {variantLang.links.map((link) => (
+            <HelpTooltipLink key={link.text} href={link.href}>
+              {link.text}
+            </HelpTooltipLink>
+          ))}
+        </HelpTooltipLinksGroup>
+      </HelpTooltipContent>
     </HelpTooltip>
   );
 };

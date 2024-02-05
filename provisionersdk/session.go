@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -216,6 +217,11 @@ func (s *Session) extractArchive() error {
 			}
 			return xerrors.Errorf("read template source archive: %w", err)
 		}
+		s.Logger.Debug(context.Background(), "read archive entry",
+			slog.F("name", header.Name),
+			slog.F("mod_time", header.ModTime),
+			slog.F("size", header.Size))
+
 		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
 		// files outside the workdir.
 		if !filepath.IsLocal(header.Name) {
@@ -253,8 +259,11 @@ func (s *Session) extractArchive() error {
 			if err != nil {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
+
+			hash := crc32.NewIEEE()
+			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
-			size, err := io.CopyN(file, reader, 10<<20)
+			size, err := io.CopyN(file, hashReader, 10<<20)
 			if xerrors.Is(err, io.EOF) {
 				err = nil
 			}
@@ -270,7 +279,7 @@ func (s *Session) extractArchive() error {
 				slog.F("size_bytes", size),
 				slog.F("path", headerPath),
 				slog.F("mode", mode),
-			)
+				slog.F("checksum", fmt.Sprintf("%x", hash.Sum(nil))))
 		}
 	}
 	return nil

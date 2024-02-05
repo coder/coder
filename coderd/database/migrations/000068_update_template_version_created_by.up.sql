@@ -1,5 +1,3 @@
-BEGIN;
-
 UPDATE
     template_versions
 SET
@@ -14,5 +12,3 @@ WHERE
     created_by IS NULL;
 
 ALTER TABLE template_versions ALTER COLUMN created_by SET NOT NULL;
-
-COMMIT;

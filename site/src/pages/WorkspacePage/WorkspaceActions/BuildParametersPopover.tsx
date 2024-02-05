@@ -1,9 +1,10 @@
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import { useQuery } from "react-query";
 import { getWorkspaceParameters } from "api/api";
-import {
+import type {
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuildParameter,
@@ -20,41 +21,56 @@ import {
 import { useFormik } from "formik";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { getInitialRichParameterValues } from "utils/richParameters";
+import {
+  AutofillBuildParameter,
+  getInitialRichParameterValues,
+} from "utils/richParameters";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 
-export const BuildParametersPopover = ({
-  workspace,
-  disabled,
-  onSubmit,
-}: {
+interface BuildParametersPopoverProps {
   workspace: Workspace;
   disabled?: boolean;
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+}
+
+export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
+  workspace,
+  disabled,
+  onSubmit,
 }) => {
+  const { data: parameters } = useQuery({
+    queryKey: ["workspace", workspace.id, "parameters"],
+    queryFn: () => getWorkspaceParameters(workspace),
+  });
+  const ephemeralParameters = parameters
+    ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
+    : undefined;
+
   return (
     <Popover>
       <PopoverTrigger>
-        <Button
+        <TopbarButton
           data-testid="build-parameters-button"
           disabled={disabled}
           color="neutral"
-          sx={{ px: 0 }}
+          css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
         >
-          <ExpandMoreOutlined sx={{ fontSize: 16 }} />
-        </Button>
+          <ExpandMoreOutlined css={{ fontSize: 14 }} />
+        </TopbarButton>
       </PopoverTrigger>
       <PopoverContent
         horizontal="right"
-        css={(theme) => ({ ".MuiPaper-root": { width: theme.spacing(38) } })}
+        css={{ ".MuiPaper-root": { width: 304 } }}
       >
         <BuildParametersPopoverContent
-          workspace={workspace}
+          ephemeralParameters={ephemeralParameters}
+          buildParameters={parameters?.buildParameters}
           onSubmit={onSubmit}
         />
       </PopoverContent>
@@ -62,57 +78,59 @@ export const BuildParametersPopover = ({
   );
 };
 
-const BuildParametersPopoverContent = ({
-  workspace,
-  onSubmit,
-}: {
-  workspace: Workspace;
+interface BuildParametersPopoverContentProps {
+  ephemeralParameters?: TemplateVersionParameter[];
+  buildParameters?: WorkspaceBuildParameter[];
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+}
+
+const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
+  ephemeralParameters,
+  buildParameters,
+  onSubmit,
 }) => {
+  const theme = useTheme();
   const popover = usePopover();
-  const { data: parameters } = useQuery({
-    queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
-    enabled: popover.isOpen,
-  });
-  const ephemeralParameters = parameters
-    ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
-    : undefined;
 
   return (
     <>
-      {parameters && parameters.buildParameters && ephemeralParameters ? (
+      {buildParameters && ephemeralParameters ? (
         ephemeralParameters.length > 0 ? (
           <>
-            <Box
-              sx={{
-                color: (theme) => theme.palette.text.secondary,
-                p: 2.5,
-                borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+            <div
+              css={{
+                color: theme.palette.text.secondary,
+                padding: 20,
+                borderBottom: `1px solid ${theme.palette.divider}`,
               }}
             >
               <HelpTooltipTitle>Build Options</HelpTooltipTitle>
               <HelpTooltipText>
                 These parameters only apply for a single workspace start.
               </HelpTooltipText>
-            </Box>
-            <Box sx={{ p: 2.5 }}>
+            </div>
+            <div css={{ padding: 20 }}>
               <Form
                 onSubmit={(buildParameters) => {
                   onSubmit(buildParameters);
                   popover.setIsOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
-                buildParameters={parameters.buildParameters}
+                buildParameters={buildParameters.map(
+                  (p): AutofillBuildParameter => ({
+                    ...p,
+                    source: "active_build",
+                  }),
+                )}
               />
-            </Box>
+            </div>
           </>
         ) : (
-          <Box
-            sx={{
-              color: (theme) => theme.palette.text.secondary,
-              p: 2.5,
-              borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+          <div
+            css={{
+              color: theme.palette.text.secondary,
+              padding: 20,
+              borderBottom: `1px solid ${theme.palette.divider}`,
             }}
           >
             <HelpTooltipTitle>Build Options</HelpTooltipTitle>
@@ -126,7 +144,7 @@ const BuildParametersPopoverContent = ({
                 Read the docs
               </HelpTooltipLink>
             </HelpTooltipLinksGroup>
-          </Box>
+          </div>
         )
       ) : (
         <Loader />
@@ -135,14 +153,16 @@ const BuildParametersPopoverContent = ({
   );
 };
 
-const Form = ({
+interface FormProps {
+  ephemeralParameters: TemplateVersionParameter[];
+  buildParameters: AutofillBuildParameter[];
+  onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+}
+
+const Form: FC<FormProps> = ({
   ephemeralParameters,
   buildParameters,
   onSubmit,
-}: {
-  ephemeralParameters: TemplateVersionParameter[];
-  buildParameters: WorkspaceBuildParameter[];
-  onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }) => {
   const form = useFormik({
     initialValues: {
@@ -177,17 +197,17 @@ const Form = ({
           );
         })}
       </FormFields>
-      <Box sx={{ py: 3, pb: 1 }}>
+      <div css={{ paddingTop: "24px", paddingBottom: "8px" }}>
         <Button
           data-testid="build-parameters-submit"
           type="submit"
           variant="contained"
           color="primary"
-          sx={{ width: "100%" }}
+          css={{ width: "100%" }}
         >
           Build workspace
         </Button>
-      </Box>
+      </div>
     </form>
   );
 };

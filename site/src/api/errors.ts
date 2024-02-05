@@ -92,5 +92,5 @@ export const getErrorDetail = (error: unknown): string | undefined | null =>
   isApiError(error)
     ? error.response.data.detail
     : error instanceof Error
-    ? `Please check the developer console for more details.`
-    : null;
+      ? `Please check the developer console for more details.`
+      : null;
