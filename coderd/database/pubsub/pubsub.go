@@ -356,13 +356,14 @@ func (p *PGPubsub) recordReconnect() {
 // logDialer is a pq.Dialer and pq.DialerContext that logs when it starts
 // connecting and when the TCP connection is established.
 type logDialer struct {
-	logCtx context.Context
 	logger slog.Logger
 	d      net.Dialer
 }
 
-var _ pq.Dialer = logDialer{}
-var _ pq.DialerContext = logDialer{}
+var (
+	_ pq.Dialer        = logDialer{}
+	_ pq.DialerContext = logDialer{}
+)
 
 func (d logDialer) Dial(network, address string) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -383,15 +384,17 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 		timeoutMS = int(time.Until(deadline) / time.Millisecond)
 	}
 
-	d.logger.Info(d.logCtx, "pubsub dialing postgres", slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
+	logger := d.logger.With(slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
+
+	logger.Info(ctx, "pubsub dialing postgres")
 	start := time.Now()
 	conn, err := d.d.DialContext(ctx, network, address)
 	if err != nil {
-		d.logger.Error(d.logCtx, "pubsub failed to dial postgres", slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS), slog.Error(err))
+		logger.Error(ctx, "pubsub failed to dial postgres")
 		return nil, err
 	}
 	elapsed := time.Since(start)
-	d.logger.Info(d.logCtx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
+	logger.Info(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
 	return conn, nil
 }
 
@@ -401,7 +404,6 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	var (
 		errCh  = make(chan error)
 		dialer = logDialer{
-			logCtx: ctx,
 			logger: p.logger,
 			// pq.defaultDialer uses a zero net.Dialer as well.
 			d: net.Dialer{},
