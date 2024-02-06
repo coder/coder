@@ -17,5 +17,8 @@ OPTIONS:
   -y, --yes bool
           Bypass prompts.
 
+      --zip bool
+          Output the template as a zip archive to stdout.
+
 ———
 Run `coder --help` for a list of global options.
