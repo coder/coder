@@ -862,62 +862,6 @@ jobs:
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
 
-  deploy-legacy-proxies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: build
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: coder
-          path: ./build
-
-      - name: Install Release
-        run: |
-          set -euo pipefail
-
-          regions=(
-            # gcp-region-id instance-name systemd-service-name
-            "australia-southeast1-b coder-sydney coder-workspace-proxy"
-            "europe-west3-c coder-europe coder-workspace-proxy"
-            "southamerica-east1-b coder-brazil coder-workspace-proxy"
-          )
-
-          deb_pkg=$(find ./build -name "coder_*_linux_amd64.deb" -print -quit)
-          if [ -z "$deb_pkg" ]; then
-              echo "deb package $deb_pkg not found"
-              ls -l ./build
-              exit 1
-          fi
-
-          gcloud config set project coder-dogfood
-          for region in "${regions[@]}"; do
-            echo "::group::$region"
-            set -- $region
-
-            set -x
-            gcloud config set compute/zone "$1"
-            gcloud compute scp "$deb_pkg" "${2}:/tmp/coder.deb"
-            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
-            set +x
-
-            echo "::endgroup::"
-          done
-
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
   # in migrations or sqlc queries that makes a query unable to be prepared.
