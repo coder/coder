@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -143,7 +144,7 @@ func TestTemplates(t *testing.T) {
 	t.Run("MaxPortShareLevel", func(t *testing.T) {
 		t.Parallel()
 
-		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+		owner, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
@@ -161,24 +162,83 @@ func TestTemplates(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		var level int32 = 2
+		// Over max level
+		var level int32 = 3
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.ErrorContains(t, err, "Value must be between 0 and 2")
+
+		// Under min level
+		level = -1
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.ErrorContains(t, err, "Value must be between 0 and 2")
+
+		// OK
+		level = 2
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, level, updated.MaxPortShareLevel)
 
-		level = 3
-		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		// Make some port shares and ensure they are adjusted correctly
+		// when template max port share level is updated
+		ws := dbgen.Workspace(t, db, database.Workspace{})
+		_ = dbgen.WorkspaceAgentPortShare(t, db, database.WorkspaceAgentPortShare{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8080,
+			ShareLevel:  1,
+		})
+		_ = dbgen.WorkspaceAgentPortShare(t, db, database.WorkspaceAgentPortShare{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8081,
+			ShareLevel:  2,
+		})
+		level = 1
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
-		require.ErrorContains(t, err, "Value must be between 0 and 2")
+		require.NoError(t, err)
 
-		level = -1
-		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		// ensure port shares are downgraded correctly
+		updatedPs1, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8080,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, level, updatedPs1.ShareLevel)
+		updatedPs2, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8081,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, level, updatedPs2.ShareLevel)
+
+		// ensure port shares are removed correctly
+		level = 0
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
-		require.ErrorContains(t, err, "Value must be between 0 and 2")
+		require.NoError(t, err)
+		_, err = db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8080,
+		})
+		require.ErrorContains(t, err, "no rows")
+		_, err = db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: ws.ID,
+			AgentName:   "test-agent",
+			Port:        8081,
+		})
+		require.ErrorContains(t, err, "no rows")
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
