@@ -13,6 +13,37 @@ user <-> workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our networking logic.
 
+## Requirements
+
+In order for clients and workspaces to be able to connect:
+
+- All clients and agents must be able to establish a connection to the Coder
+  server (`CODER_ACCESS_URL`) over HTTPS (`tcp/443`).
+- Any reverse proxy or ingress between the Coder control plane and clients must
+  support WebSockets.
+
+In order for clients to be able to establish direct connections:
+
+> **Note:** Direct connections via the web browser are not supported. To improve
+> latency for browser-based applications running inside Coder workspaces,
+> consider deploying one or more
+> [workspace proxies](../admin/workspace-proxies.md).
+
+- The client is connecting using the CLI (e.g. `coder ssh` or
+  `coder port-forward`).
+- The client and workspace agent are both able to connect to a specific STUN
+  server.
+  > The STUN server needs to tell the client and workspace their respective
+  > `address:port` pairs from its perspective so that they can establish a
+  > direct connection with each other. If the client and agent are only able to
+  > connect to STUN servers on different networks, then a direct connection will
+  > not be possible. For an in-depth technical explanation, see
+  > [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
+- Outbound UDP traffic must be allowed for both the client and the agent from
+  source ports `udp/3478` and `udp/41641` to all destination ports.
+  > For more detailed information, see
+  > [What firewall ports should I open to use Tailscale? (tailscale.com)](https://tailscale.com/kb/1082/firewall-ports).
+
 ## coder server
 
 Workspaces connect to the coder server via the server's external address, set
