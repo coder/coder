@@ -97,6 +97,7 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	// Verify .zip format
 	tarReader := tar.NewReader(bytes.NewReader(expected))
 	expectedZip, err := coderd.CreateZipFromTar(tarReader)
+	require.NoError(t, err)
 
 	inv, root = clitest.New(t, "templates", "pull", "--zip", template.Name)
 	clitest.SetupConfig(t, templateAdmin, root)
