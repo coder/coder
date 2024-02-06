@@ -52,7 +52,7 @@ In order for clients to be able to establish direct connections:
 > communications across Network Address Translations (NATs) or firewalls.
 >
 > [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
-> is commonly used in private networks to allow mulitple devices to share a
+> is commonly used in private networks to allow multiple devices to share a
 > single public IP address. The vast majority of ISPs today use at least one
 > level of NAT.
 
@@ -61,8 +61,8 @@ networks (e.g. `192.168.1.0/24`). In order for them to communicate with each
 other, they will each need their counterpart's public IP address and port.
 
 Inside of that network, packets from the agent or client will show up as having
-source address `192.168.1.X:12345`. Howver, outside of this private network, the
-source address will show up differently (for example, `12.3.4.56:54321`). In
+source address `192.168.1.X:12345`. However, outside of this private network,
+the source address will show up differently (for example, `12.3.4.56:54321`). In
 order for the Coder client and agent to establish a direct connection with each
 other, one of them needs to know the `ip:port` pair under which their
 counterpart can be reached.
