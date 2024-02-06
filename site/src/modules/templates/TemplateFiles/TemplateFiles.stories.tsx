@@ -26,4 +26,14 @@ type Story = StoryObj<typeof TemplateFiles>;
 
 const Example: Story = {};
 
+export const WithDiff: Story = {
+  args: {
+    currentFiles: {
+      ...exampleFiles,
+      "main.tf": `${exampleFiles["main.tf"]} - with changes`,
+    },
+    baseFiles: exampleFiles,
+  },
+};
+
 export { Example as TemplateFiles };
