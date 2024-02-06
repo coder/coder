@@ -98,18 +98,18 @@ func NewServerTailnet(
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
 		agentTickets:         map[uuid.UUID]map[uuid.UUID]struct{}{},
 		transport:            tailnetTransport.Clone(),
-		connsPerAgent: prometheus.NewGauge(prometheus.GaugeOpts{
+		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
-			Name:      "open_tcp_connections",
+			Name:      "open_connections",
 			Help:      "Total number of TCP connections currently open to workspace agents.",
-		}),
-		totalConns: prometheus.NewCounter(prometheus.CounterOpts{
+		}, []string{"network"}),
+		totalConns: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
-			Name:      "tcp_connections_total",
+			Name:      "connections_total",
 			Help:      "Total number of TCP connections made to workspace agents.",
-		}),
+		}, []string{"network"}),
 	}
 	tn.transport.DialContext = tn.dialContext
 	// These options are mostly just picked at random, and they can likely be
@@ -328,8 +328,8 @@ type ServerTailnet struct {
 
 	transport *http.Transport
 
-	connsPerAgent prometheus.Gauge
-	totalConns    prometheus.Counter
+	connsPerAgent *prometheus.GaugeVec
+	totalConns    *prometheus.CounterVec
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
@@ -380,8 +380,8 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 		return nil, err
 	}
 
-	s.connsPerAgent.Inc()
-	s.totalConns.Inc()
+	s.connsPerAgent.WithLabelValues("tcp").Inc()
+	s.totalConns.WithLabelValues("tcp").Inc()
 	return &instrumentedConn{
 		Conn:          nc,
 		agentID:       agentID,
@@ -498,12 +498,12 @@ type instrumentedConn struct {
 
 	agentID       uuid.UUID
 	closeOnce     sync.Once
-	connsPerAgent prometheus.Gauge
+	connsPerAgent *prometheus.GaugeVec
 }
 
 func (c *instrumentedConn) Close() error {
 	c.closeOnce.Do(func() {
-		c.connsPerAgent.Dec()
+		c.connsPerAgent.WithLabelValues("tcp").Dec()
 	})
 	return c.Conn.Close()
 }
