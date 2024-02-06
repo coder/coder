@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -317,6 +318,40 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// This is only supported for subdomain-based applications.
 		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
 		appSharingLevel = database.AppSharingLevelOwner
+
+		// Port sharing authorization
+		// First check if there is a port share for the port
+		agentName := agentNameOrID
+		id, err := uuid.Parse(agentNameOrID)
+		if err == nil {
+			// If parsing works it's an ID, let's get the name
+			agent, err := db.GetWorkspaceAgentByID(ctx, id)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agent %q: %w", agentNameOrID, err)
+			}
+			agentName = agent.Name
+		}
+
+		ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   agentName,
+			Port:        int32(portUint),
+		})
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get workspace agent port share: %w", err)
+			}
+			// No port share found, so we keep default to owner.
+		} else {
+			switch ps.ShareLevel {
+			case int32(codersdk.WorkspaceAgentPortShareLevelAuthenticated):
+				appSharingLevel = database.AppSharingLevelAuthenticated
+			case int32(codersdk.WorkspaceAgentPortShareLevelPublic):
+				appSharingLevel = database.AppSharingLevelPublic
+			default:
+				return nil, xerrors.Errorf("invalid port share level %d", ps.ShareLevel)
+			}
+		}
 	} else {
 		for _, app := range apps {
 			if app.Slug == r.AppSlugOrPort {
