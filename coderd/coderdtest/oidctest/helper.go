@@ -125,9 +125,6 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 //
 // TODO: Is state param optional? Can we grab it from the authURL?
 func OAuth2GetCode(authURL string, state string, doRequest func(req *http.Request) (*http.Response, error)) (string, error) {
-	// We need to store some claims, because this is also an OIDC provider, and
-	// it expects some claims to be present.
-	// TODO: POST or GET method?
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, authURL, nil)
 	if err != nil {
 		return "", xerrors.Errorf("failed to create auth request: %w", err)
