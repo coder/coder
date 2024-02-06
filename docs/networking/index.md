@@ -31,18 +31,33 @@ In order for clients to be able to establish direct connections:
 
 - The client is connecting using the CLI (e.g. `coder ssh` or
   `coder port-forward`).
-- The client and workspace agent are both able to connect to a specific STUN
-  server.
-  > The STUN server needs to tell the client and workspace their respective
-  > `address:port` pairs from its perspective so that they can establish a
-  > direct connection with each other. If the client and agent are only able to
-  > connect to STUN servers on different networks, then a direct connection will
-  > not be possible. For an in-depth technical explanation, see
-  > [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
-- Outbound UDP traffic must be allowed for both the client and the agent from
-  source ports `udp/3478` and `udp/41641` to all destination ports.
-  > For more detailed information, see
-  > [What firewall ports should I open to use Tailscale? (tailscale.com)](https://tailscale.com/kb/1082/firewall-ports).
+- The client and workspace agent are both able to connect to [a specific STUN server](#stun-in-a-natshell).
+- All outbound UDP traffic must be allowed for both the client and the agent
+  on **all ports** to each others' respective networks.
+  - To establish a direct connection, both agent and client use STUN. This involves sending UDP packets outbound on `udp/3478` to the configured [STUN server](../cli/server.md#--derp-server-stun-addresses). If either the agent or the client are unable to send and receive UDP packets to a STUN server, then direct connections will not be possible.
+  - Both agents and clients will then establish a [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on ephemeral (high) ports. If a firewall between the client and the agent blocks this UDP traffic, direct connections will not be possible.
+
+### STUN in a NATshell
+
+> [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html) is a protocol used to assist applications in establishing peer-to-peer communications across Network Address Translations (NATs) or firewalls.
+>
+> [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation) is commonly used in private networks to allow mulitple devices to share a single public IP address. The vast majority of ISPs today use at least one level of NAT.
+
+Normally, both Coder agent and client will be running in different _private_ networks (e.g. `192.168.1.0/24`). In order for them to communicate with each other, they will each need their counterpart's public IP address and port.
+
+Inside of that network, packets from the agent or client will show up as having source address `192.168.1.X:12345`. Howver, outside of this private network, the source address will show up differently (for example, `12.3.4.56:54321`). In order for the Coder client and agent to establish a direct connection with each other, one of them needs to know the `ip:port` pair under which their counterpart can be reached.
+
+In order to accomplish this, both client and agent can use a STUN server:
+
+> The below glosses over a lot of the complexity of traversing NATs.
+> For a more in-depth technical explanation, see [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
+
+- **Discovery:** Both the client and agent will send UDP traffic to a configured STUN server. This STUN server is generally located on the public internet, and responds with the public IP address and port from which the request came.
+- **Port Mapping:** The client and agent then exchange this information through the Coder server. They will then construct packets that should be able to successfully traverse their counterpart's NATs successfully.
+- **NAT Traversal:** The client and agent then send these crafted packets to their counterpart's public addresses. If all goes well, the NATs on the other end should route these packets to the correct internal address.
+- **Connection:** Once the packets reach the other side, they send a response back to the source `ip:port` from the packet. Again, the NATs should recognize these responses as belonging to an ongoing communication, and forward them accordingly.
+
+At this point, both the client and agent should be able to send traffic directly to each other.
 
 ## coder server
 
