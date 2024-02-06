@@ -112,8 +112,8 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		require.Eventually(t, func() bool {
 			metrics, err := registry.Gather()
 			assert.NoError(t, err)
-			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_tcp_connections_total") &&
-				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_tcp_connections")
+			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_connections_total", "tcp") &&
+				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_connections", "tcp")
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
