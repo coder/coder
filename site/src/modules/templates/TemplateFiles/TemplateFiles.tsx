@@ -93,7 +93,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
           />
         </div>
 
-        <div css={styles.files}>
+        <div css={styles.files} data-testid="template-files-content">
           {[...filenames]
             .sort((a, b) => a.localeCompare(b))
             .map((filename) => {
