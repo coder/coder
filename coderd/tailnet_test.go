@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +78,43 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("Metrics", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+		a := agents[0]
+
+		registry := prometheus.NewRegistry()
+		require.NoError(t, registry.Register(serverTailnet))
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp := serverTailnet.ReverseProxy(u, u, a.id)
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		require.Eventually(t, func() bool {
+			metrics, err := registry.Gather()
+			assert.NoError(t, err)
+			return testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_connections_total", "tcp") &&
+				testutil.PromGaugeHasValue(t, metrics, 1, "coder_servertailnet_open_connections", "tcp")
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
 	t.Run("HostRewrite", func(t *testing.T) {

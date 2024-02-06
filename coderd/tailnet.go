@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -97,6 +98,18 @@ func NewServerTailnet(
 		agentConnectionTimes: map[uuid.UUID]time.Time{},
 		agentTickets:         map[uuid.UUID]map[uuid.UUID]struct{}{},
 		transport:            tailnetTransport.Clone(),
+		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "coder",
+			Subsystem: "servertailnet",
+			Name:      "open_connections",
+			Help:      "Total number of TCP connections currently open to workspace agents.",
+		}, []string{"network"}),
+		totalConns: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "servertailnet",
+			Name:      "connections_total",
+			Help:      "Total number of TCP connections made to workspace agents.",
+		}, []string{"network"}),
 	}
 	tn.transport.DialContext = tn.dialContext
 	// These options are mostly just picked at random, and they can likely be
@@ -168,6 +181,16 @@ func NewServerTailnet(
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()
 	return tn, nil
+}
+
+func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
+	s.connsPerAgent.Describe(descs)
+	s.totalConns.Describe(descs)
+}
+
+func (s *ServerTailnet) Collect(metrics chan<- prometheus.Metric) {
+	s.connsPerAgent.Collect(metrics)
+	s.totalConns.Collect(metrics)
 }
 
 func (s *ServerTailnet) expireOldAgents() {
@@ -304,6 +327,9 @@ type ServerTailnet struct {
 	agentTickets map[uuid.UUID]map[uuid.UUID]struct{}
 
 	transport *http.Transport
+
+	connsPerAgent *prometheus.GaugeVec
+	totalConns    *prometheus.CounterVec
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
@@ -349,7 +375,18 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 		return nil, xerrors.Errorf("no agent id attached")
 	}
 
-	return s.DialAgentNetConn(ctx, agentID, network, addr)
+	nc, err := s.DialAgentNetConn(ctx, agentID, network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	s.connsPerAgent.WithLabelValues("tcp").Inc()
+	s.totalConns.WithLabelValues("tcp").Inc()
+	return &instrumentedConn{
+		Conn:          nc,
+		agentID:       agentID,
+		connsPerAgent: s.connsPerAgent,
+	}, nil
 }
 
 func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
@@ -454,4 +491,19 @@ func (s *ServerTailnet) Close() error {
 	s.transport.CloseIdleConnections()
 	<-s.derpMapUpdaterClosed
 	return nil
+}
+
+type instrumentedConn struct {
+	net.Conn
+
+	agentID       uuid.UUID
+	closeOnce     sync.Once
+	connsPerAgent *prometheus.GaugeVec
+}
+
+func (c *instrumentedConn) Close() error {
+	c.closeOnce.Do(func() {
+		c.connsPerAgent.WithLabelValues("tcp").Dec()
+	})
+	return c.Conn.Close()
 }
