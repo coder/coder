@@ -40,7 +40,6 @@ func extractTokenParams(r *http.Request, callbackURL string) (tokenParams, []cod
 		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
 	}
 
-	// TODO: Can we make this a URL straight out of the database?
 	cb, err := url.Parse(callbackURL)
 	if err != nil {
 		return tokenParams{}, nil, err

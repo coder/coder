@@ -34,7 +34,6 @@ func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParam
 
 	p.RequiredNotEmpty("state", "response_type", "client_id")
 
-	// TODO: Can we make this a URL straight out of the database?
 	cb, err := url.Parse(callbackURL)
 	if err != nil {
 		return authorizeParams{}, nil, err
