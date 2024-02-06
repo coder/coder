@@ -55,7 +55,7 @@ func absoluteBinaryPath(ctx context.Context, logger slog.Logger) (string, error)
 		return "", xerrors.Errorf("Terraform binary absolute path not found: %w", err)
 	}
 
-	// Checking the installed installedVersion of Terraform.
+	// Checking the installed version of Terraform.
 	installedVersion, err := versionFromBinaryPath(ctx, absoluteBinary)
 	if err != nil {
 		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
