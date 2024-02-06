@@ -46,7 +46,7 @@ func extractTokenParams(r *http.Request, callbackURL string) (tokenParams, []cod
 		return tokenParams{}, nil, err
 	}
 
-	p.Required("grant_type", "client_secret", "client_id", "code")
+	p.RequiredNotEmpty("grant_type", "client_secret", "client_id", "code")
 
 	vals := r.Form
 	params := tokenParams{

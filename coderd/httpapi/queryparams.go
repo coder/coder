@@ -23,16 +23,16 @@ type QueryParamParser struct {
 	// Parsed is a map of all query params that were parsed. This is useful
 	// for checking if extra query params were passed in.
 	Parsed map[string]bool
-	// RequiredParams is a map of all query params that are required. This is useful
+	// RequiredNotEmptyParams is a map of all query params that are required. This is useful
 	// for forcing a value to be provided.
-	RequiredParams map[string]bool
+	RequiredNotEmptyParams map[string]bool
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
-		Errors:         []codersdk.ValidationError{},
-		Parsed:         map[string]bool{},
-		RequiredParams: map[string]bool{},
+		Errors:                 []codersdk.ValidationError{},
+		Parsed:                 map[string]bool{},
+		RequiredNotEmptyParams: map[string]bool{},
 	}
 }
 
@@ -90,9 +90,9 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 	return v
 }
 
-func (p *QueryParamParser) Required(queryParam ...string) *QueryParamParser {
+func (p *QueryParamParser) RequiredNotEmpty(queryParam ...string) *QueryParamParser {
 	for _, q := range queryParam {
-		p.RequiredParams[q] = true
+		p.RequiredNotEmptyParams[q] = true
 	}
 	return p
 }
@@ -246,10 +246,10 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
-	if parser.RequiredParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
+	if parser.RequiredNotEmptyParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q is required", queryParam),
+			Detail: fmt.Sprintf("Query param %q is required and cannot be empty", queryParam),
 		})
 		return def, nil
 	}

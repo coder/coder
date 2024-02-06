@@ -32,7 +32,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParam
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	p.Required("state", "response_type", "client_id")
+	p.RequiredNotEmpty("state", "response_type", "client_id")
 
 	// TODO: Can we make this a URL straight out of the database?
 	cb, err := url.Parse(callbackURL)

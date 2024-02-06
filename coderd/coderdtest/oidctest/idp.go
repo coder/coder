@@ -1052,7 +1052,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		f.logger.Info(r.Context(), "http call device auth")
 
 		p := httpapi.NewQueryParamParser()
-		p.Required("client_id")
+		p.RequiredNotEmpty("client_id")
 		clientID := p.String(r.URL.Query(), "", "client_id")
 		_ = p.String(r.URL.Query(), "", "scopes")
 		if len(p.Errors) > 0 {
