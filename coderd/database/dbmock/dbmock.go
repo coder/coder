@@ -3455,6 +3455,20 @@ func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(arg0, arg1 any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), arg0, arg1)
 }
 
+// RestrictWorkspaceAgentPortSharesByTemplate mocks base method.
+func (m *MockStore) RestrictWorkspaceAgentPortSharesByTemplate(arg0 context.Context, arg1 database.RestrictWorkspaceAgentPortSharesByTemplateParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestrictWorkspaceAgentPortSharesByTemplate", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RestrictWorkspaceAgentPortSharesByTemplate indicates an expected call of RestrictWorkspaceAgentPortSharesByTemplate.
+func (mr *MockStoreMockRecorder) RestrictWorkspaceAgentPortSharesByTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestrictWorkspaceAgentPortSharesByTemplate", reflect.TypeOf((*MockStore)(nil).RestrictWorkspaceAgentPortSharesByTemplate), arg0, arg1)
+}
+
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()

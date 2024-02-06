@@ -2549,6 +2549,10 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
 }
 
+func (q *querier) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Context, arg database.RestrictWorkspaceAgentPortSharesByTemplateParams) error {
+	panic("not implemented")
+}
+
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

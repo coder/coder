@@ -8201,6 +8201,26 @@ func (q *sqlQuerier) InsertWorkspaceAgentPortShare(ctx context.Context, arg Inse
 	return i, err
 }
 
+const restrictWorkspaceAgentPortSharesByTemplate = `-- name: RestrictWorkspaceAgentPortSharesByTemplate :exec
+UPDATE workspace_agent_port_share
+SET share_level = $1
+WHERE workspace_id IN (
+	SELECT id
+	FROM workspaces
+	WHERE template_id = $2
+) AND share_level > $1
+`
+
+type RestrictWorkspaceAgentPortSharesByTemplateParams struct {
+	ShareLevel int32     `db:"share_level" json:"share_level"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Context, arg RestrictWorkspaceAgentPortSharesByTemplateParams) error {
+	_, err := q.db.ExecContext(ctx, restrictWorkspaceAgentPortSharesByTemplate, arg.ShareLevel, arg.TemplateID)
+	return err
+}
+
 const updateWorkspaceAgentPortShare = `-- name: UpdateWorkspaceAgentPortShare :exec
 UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
 `

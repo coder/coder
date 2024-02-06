@@ -6083,6 +6083,15 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Context, arg database.RestrictWorkspaceAgentPortSharesByTemplateParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

@@ -9,3 +9,14 @@ UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 A
 
 -- name: DeleteWorkspaceAgentPortShare :exec
 DELETE FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3;
+
+-- name: RestrictWorkspaceAgentPortSharesByTemplate :exec
+UPDATE workspace_agent_port_share
+SET share_level = $1
+WHERE workspace_id IN (
+	SELECT id
+	FROM workspaces
+	WHERE template_id = $2
+) AND share_level > $1;
+DELETE FROM workspace_agent_port_share
+WHERE share_level = 0;

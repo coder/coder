@@ -1642,6 +1642,13 @@ func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.R
 	return proxy, err
 }
 
+func (m metricsStore) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Context, arg database.RestrictWorkspaceAgentPortSharesByTemplateParams) error {
+	start := time.Now()
+	r0 := m.s.RestrictWorkspaceAgentPortSharesByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("RestrictWorkspaceAgentPortSharesByTemplate").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)

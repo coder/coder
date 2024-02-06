@@ -702,6 +702,19 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
+		// If the template admin is making the share level stricter, we need to
+		// update the workspaces port shares that are using the template to be at
+		// least as restrictive.
+		if (maxPortShareLevel < template.MaxPortSharingLevel) && portSharer.CanRestrictSharing() {
+			err = tx.RestrictWorkspaceAgentPortSharesByTemplate(ctx, database.RestrictWorkspaceAgentPortSharesByTemplateParams{
+				TemplateID: template.ID,
+				ShareLevel: maxPortShareLevel,
+			})
+			if err != nil {
+				return xerrors.Errorf("restrict workspace agent port shares by template: %w", err)
+			}
+		}
+
 		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
 				RequireActiveVersion: req.RequireActiveVersion,
