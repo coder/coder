@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net"
 	"sync"
 	"time"
 
@@ -352,11 +353,63 @@ func (p *PGPubsub) recordReconnect() {
 	}
 }
 
+// logDialer is a pq.Dialer and pq.DialerContext that logs when it starts
+// connecting and when the TCP connection is established.
+type logDialer struct {
+	logger slog.Logger
+	d      net.Dialer
+}
+
+var (
+	_ pq.Dialer        = logDialer{}
+	_ pq.DialerContext = logDialer{}
+)
+
+func (d logDialer) Dial(network, address string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return d.DialContext(ctx, network, address)
+}
+
+func (d logDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return d.DialContext(ctx, network, address)
+}
+
+func (d logDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	deadline, hasDeadline := ctx.Deadline()
+	timeoutMS := 0
+	if hasDeadline {
+		timeoutMS = int(time.Until(deadline) / time.Millisecond)
+	}
+
+	logger := d.logger.With(slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
+
+	logger.Info(ctx, "pubsub dialing postgres")
+	start := time.Now()
+	conn, err := d.d.DialContext(ctx, network, address)
+	if err != nil {
+		logger.Error(ctx, "pubsub failed to dial postgres")
+		return nil, err
+	}
+	elapsed := time.Since(start)
+	logger.Info(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
+	return conn, nil
+}
+
 func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	p.connected.Set(0)
 	// Creates a new listener using pq.
-	errCh := make(chan error)
-	p.pgListener = pq.NewListener(connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+	var (
+		errCh  = make(chan error)
+		dialer = logDialer{
+			logger: p.logger,
+			// pq.defaultDialer uses a zero net.Dialer as well.
+			d: net.Dialer{},
+		}
+	)
+	p.pgListener = pq.NewDialListener(dialer, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 		switch t {
 		case pq.ListenerEventConnected:
 			p.logger.Info(ctx, "pubsub connected to postgres")
