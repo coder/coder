@@ -103,6 +103,8 @@ func (w *Watchdog) publishLoop() {
 
 func (w *Watchdog) subscribeMonitor() {
 	defer w.wg.Done()
+	tmr := w.clock.Timer(periodTimeout)
+	defer tmr.Stop()
 	beats := make(chan struct{})
 	unsub, err := w.ps.Subscribe(EventPubsubWatchdog, func(context.Context, []byte) {
 		w.logger.Debug(w.ctx, "got heartbeat for pubsub watchdog")
@@ -117,8 +119,6 @@ func (w *Watchdog) subscribeMonitor() {
 		return
 	}
 	defer unsub()
-	tmr := w.clock.Timer(periodTimeout)
-	defer tmr.Stop()
 	for {
 		select {
 		case <-w.ctx.Done():
