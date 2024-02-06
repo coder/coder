@@ -168,10 +168,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.5.7
-# as it is the last version licensed under the MPL. Installing the same version
-# here for consistency.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip" && \
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.6.6.
+# Installing the same version here to match.
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip" && \
 		unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \
