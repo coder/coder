@@ -385,8 +385,9 @@ func TestSSH(t *testing.T) {
 			closePipes()
 		})
 
-		// Here we start a monitor for the input going to the server
-		// (i.e. client stdout) to ensure that the output is clean.
+		// Here we start a monitor for the output produced by the proxy command,
+		// which is read by the SSH client. This is done to validate that the
+		// output is clean.
 		proxyCommandOutputBuf := make(chan byte, 4096)
 		tGo(t, func() {
 			defer close(proxyCommandOutputBuf)
