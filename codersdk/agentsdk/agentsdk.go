@@ -688,6 +688,9 @@ func (c *wsNetConn) Close() error {
 // during read or write will cancel the context, but not close the
 // conn. Close should be called to release context resources.
 func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	// Set the read limit to 4 MiB -- about the limit for protobufs.  This needs to be larger than
+	// the default because some of our protocols can include large messages like startup scripts.
+	conn.SetReadLimit(1 << 22)
 	ctx, cancel := context.WithCancel(ctx)
 	nc := websocket.NetConn(ctx, conn, msgType)
 	return ctx, &wsNetConn{
