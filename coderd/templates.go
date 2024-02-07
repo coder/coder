@@ -344,7 +344,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			DisplayName:                  createTemplate.DisplayName,
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
-			MaxPortSharingLevel:          0,
+			MaxPortSharingLevel:          database.AppSharingLevelOwner,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -633,14 +633,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
 	if req.MaxPortShareLevel != nil {
-		if *req.MaxPortShareLevel < 0 || *req.MaxPortShareLevel > 2 {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be between 0 and 2."})
+		if req.MaxPortShareLevel.ValidMaxLevel() {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be 'authenticated' or 'public'."})
 		}
 		if !portSharer.CanRestrictSharing() {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
 		}
 
-		maxPortShareLevel = *req.MaxPortShareLevel
+		maxPortShareLevel = database.AppSharingLevel(*req.MaxPortShareLevel)
 	}
 
 	if len(validErrs) > 0 {
@@ -911,6 +911,6 @@ func (api *API) convertTemplate(
 		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    template.MaxPortSharingLevel,
+		MaxPortShareLevel:    codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel),
 	}
 }

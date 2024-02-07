@@ -35,7 +35,7 @@ func TestWorkspacePortShare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	// try to update port share with template max port share level 0
+	// try to update port share with template max port share level owner
 	err := client.UpdateWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
 		AgentName:  agent.Name,
 		Port:       8080,
@@ -44,7 +44,7 @@ func TestWorkspacePortShare(t *testing.T) {
 	require.Error(t, err, "Port sharing level not allowed")
 
 	// update the template max port share level to public
-	var level int32 = 2
+	var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
 	client.UpdateTemplateMeta(ctx, workspace.TemplateID, codersdk.UpdateTemplateMeta{
 		MaxPortShareLevel: &level,
 	})

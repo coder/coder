@@ -343,14 +343,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			}
 			// No port share found, so we keep default to owner.
 		} else {
-			switch ps.ShareLevel {
-			case int32(codersdk.WorkspaceAgentPortShareLevelAuthenticated):
-				appSharingLevel = database.AppSharingLevelAuthenticated
-			case int32(codersdk.WorkspaceAgentPortShareLevelPublic):
-				appSharingLevel = database.AppSharingLevelPublic
-			default:
-				return nil, xerrors.Errorf("invalid port share level %d", ps.ShareLevel)
-			}
+			appSharingLevel = ps.ShareLevel
 		}
 	} else {
 		for _, app := range apps {

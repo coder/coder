@@ -161,24 +161,20 @@ func TestTemplates(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		var level int32 = 2
+		// OK
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, level, updated.MaxPortShareLevel)
 
-		level = 3
+		// Invalid level
+		level = "invalid"
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
-		require.ErrorContains(t, err, "Value must be between 0 and 2")
-
-		level = -1
-		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			MaxPortShareLevel: &level,
-		})
-		require.ErrorContains(t, err, "Value must be between 0 and 2")
+		require.ErrorContains(t, err, "Invalid value")
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {

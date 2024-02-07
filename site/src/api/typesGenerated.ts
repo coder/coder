@@ -1041,7 +1041,7 @@ export interface Template {
   readonly time_til_dormant_ms: number;
   readonly time_til_dormant_autodelete_ms: number;
   readonly require_active_version: boolean;
-  readonly max_port_share_level: number;
+  readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/templates.go
@@ -1300,7 +1300,7 @@ export interface UpdateTemplateMeta {
   readonly require_active_version: boolean;
   readonly deprecation_message?: string;
   readonly disable_everyone_group_access: boolean;
-  readonly max_port_share_level?: number;
+  readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/users.go
@@ -2157,9 +2157,11 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 ];
 
 // From codersdk/workspaceportshare.go
-export type WorkspaceAgentPortShareLevel = 0 | 1 | 2;
+export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
-  0, 1, 2,
+  "authenticated",
+  "owner",
+  "public",
 ];
 
 // From codersdk/workspaceagents.go

@@ -623,11 +623,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Equal(t, int32(0), template.MaxPortShareLevel)
-		// It is unfortunate we need to sleep, but the test can fail if the
-		// updatedAt is too close together.
-		time.Sleep(time.Millisecond * 5)
 
-		var level int32 = 2
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
 		req := codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		}

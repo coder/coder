@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -91,7 +90,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
-		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, 0),
+		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -140,7 +139,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
 		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
 		Port:        takeFirst(orig.Port, 8080),
-		ShareLevel:  takeFirst(orig.ShareLevel, int32(codersdk.WorkspaceAgentPortShareLevelPublic)),
+		ShareLevel:  takeFirst(orig.ShareLevel, database.AppSharingLevelPublic),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return ps

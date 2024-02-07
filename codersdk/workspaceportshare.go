@@ -9,19 +9,30 @@ import (
 )
 
 const (
-	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = 0
-	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = 1
-	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = 2
+	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = "owner"
+	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = "authenticated"
+	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = "public"
 )
 
 type (
-	WorkspaceAgentPortShareLevel         int
+	WorkspaceAgentPortShareLevel         string
 	UpdateWorkspaceAgentPortShareRequest struct {
 		AgentName  string                       `json:"agent_name"`
 		Port       int32                        `json:"port"`
 		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
 	}
 )
+
+func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {
+	return l == WorkspaceAgentPortShareLevelOwner ||
+		l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelPublic
+}
+
+func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
+	return l == WorkspaceAgentPortShareLevelAuthenticated ||
+		l == WorkspaceAgentPortShareLevelPublic
+}
 
 func (c *Client) UpdateWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceAgentPortShareRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/port-share", workspaceID), req)

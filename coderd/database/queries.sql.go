@@ -6035,7 +6035,7 @@ type InsertTemplateParams struct {
 	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
 	DisplayName                  string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxPortSharingLevel          int32           `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -6160,15 +6160,15 @@ WHERE
 `
 
 type UpdateTemplateMetaByIDParams struct {
-	ID                           uuid.UUID   `db:"id" json:"id"`
-	UpdatedAt                    time.Time   `db:"updated_at" json:"updated_at"`
-	Description                  string      `db:"description" json:"description"`
-	Name                         string      `db:"name" json:"name"`
-	Icon                         string      `db:"icon" json:"icon"`
-	DisplayName                  string      `db:"display_name" json:"display_name"`
-	AllowUserCancelWorkspaceJobs bool        `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	GroupACL                     TemplateACL `db:"group_acl" json:"group_acl"`
-	MaxPortSharingLevel          int32       `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	ID                           uuid.UUID       `db:"id" json:"id"`
+	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
+	Description                  string          `db:"description" json:"description"`
+	Name                         string          `db:"name" json:"name"`
+	Icon                         string          `db:"icon" json:"icon"`
+	DisplayName                  string          `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
+	MaxPortSharingLevel          AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -8178,10 +8178,10 @@ INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_le
 `
 
 type InsertWorkspaceAgentPortShareParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentName   string          `db:"agent_name" json:"agent_name"`
+	Port        int32           `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentPortShare(ctx context.Context, arg InsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
@@ -8206,10 +8206,10 @@ UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 A
 `
 
 type UpdateWorkspaceAgentPortShareParams struct {
-	ShareLevel  int32     `db:"share_level" json:"share_level"`
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	AgentName   string    `db:"agent_name" json:"agent_name"`
-	Port        int32     `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentName   string          `db:"agent_name" json:"agent_name"`
+	Port        int32           `db:"port" json:"port"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg UpdateWorkspaceAgentPortShareParams) error {

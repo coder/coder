@@ -30,9 +30,9 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if req.ShareLevel < 0 || req.ShareLevel > 2 {
+	if !req.ShareLevel.ValidPortShareLevel() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Port sharing level not allowed. Must be between 0 and 2.",
+			Message: "Port sharing level not allowed.",
 		})
 		return
 	}
@@ -46,7 +46,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 
 		if req.ShareLevel > codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than %d.", template.MaxPortSharingLevel),
+				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than '%s'.", template.MaxPortSharingLevel),
 			})
 			return
 		}
@@ -83,35 +83,11 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		if req.ShareLevel == codersdk.WorkspaceAgentPortShareLevelOwner {
-			// If the port is not shared, and the user is trying to set it to owner,
-			// we don't need to do anything.
-			rw.WriteHeader(http.StatusOK)
-			return
-		}
-
 		_, err = api.Database.InsertWorkspaceAgentPortShare(ctx, database.InsertWorkspaceAgentPortShareParams{
 			WorkspaceID: workspace.ID,
 			AgentName:   req.AgentName,
 			Port:        req.Port,
-			ShareLevel:  int32(req.ShareLevel),
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		rw.WriteHeader(http.StatusOK)
-		return
-	}
-
-	if codersdk.WorkspaceAgentPortShareLevel(psl.ShareLevel) == codersdk.WorkspaceAgentPortShareLevelOwner {
-		// If the port is shared, and the user is trying to set it to owner,
-		// we need to remove the existing share record.
-		err = api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{
-			WorkspaceID: workspace.ID,
-			AgentName:   req.AgentName,
-			Port:        req.Port,
+			ShareLevel:  database.AppSharingLevel(req.ShareLevel),
 		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -126,7 +102,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		WorkspaceID: psl.WorkspaceID,
 		AgentName:   psl.AgentName,
 		Port:        psl.Port,
-		ShareLevel:  int32(req.ShareLevel),
+		ShareLevel:  database.AppSharingLevel(req.ShareLevel),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

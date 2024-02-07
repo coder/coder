@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1634,7 +1633,7 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			WorkspaceID: ps.WorkspaceID,
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
-			ShareLevel:  int32(codersdk.WorkspaceAgentPortShareLevelAuthenticated),
+			ShareLevel:  database.AppSharingLevelAuthenticated,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {

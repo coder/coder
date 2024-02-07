@@ -19,7 +19,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 {
   "agent_name": "string",
   "port": 0,
-  "share_level": 0
+  "share_level": "owner"
 }
 ```
 

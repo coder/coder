@@ -35,19 +35,19 @@ func TestWorkspacePortShare(t *testing.T) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), r.Workspace.ID)
 	require.NoError(t, err)
 
-	// negative level
+	// owner level should fail
 	err = client.UpdateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
-		ShareLevel: codersdk.WorkspaceAgentPortShareLevel(-1),
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevel("owner"),
 	})
 	require.Error(t, err)
 
-	// level too high
+	// invalid level should fail
 	err = client.UpdateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
-		ShareLevel: codersdk.WorkspaceAgentPortShareLevel(3),
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevel("invalid"),
 	})
 	require.Error(t, err)
 

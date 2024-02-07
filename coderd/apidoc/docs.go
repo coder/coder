@@ -11057,7 +11057,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "max_port_share_level": {
-                    "type": "integer"
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
@@ -12585,11 +12585,11 @@ const docTemplate = `{
             }
         },
         "codersdk.WorkspaceAgentPortShareLevel": {
-            "type": "integer",
+            "type": "string",
             "enum": [
-                0,
-                1,
-                2
+                "owner",
+                "authenticated",
+                "public"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentPortShareLevelOwner",

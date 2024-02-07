@@ -850,7 +850,7 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     use_max_ttl boolean DEFAULT false NOT NULL,
-    max_port_sharing_level integer DEFAULT 0 NOT NULL
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -962,7 +962,7 @@ CREATE TABLE workspace_agent_port_share (
     workspace_id uuid NOT NULL,
     agent_name text NOT NULL,
     port integer NOT NULL,
-    share_level integer NOT NULL
+    share_level app_sharing_level NOT NULL
 );
 
 CREATE TABLE workspace_agent_scripts (

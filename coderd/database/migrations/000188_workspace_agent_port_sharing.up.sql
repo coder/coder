@@ -2,10 +2,10 @@ CREATE TABLE workspace_agent_port_share (
 	workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
 	agent_name text NOT NULL,
 	port integer NOT NULL,
-	share_level integer NOT NULL
+	share_level app_sharing_level NOT NULL
 );
 
-ALTER TABLE templates ADD COLUMN max_port_sharing_level integer NOT NULL DEFAULT 0;
+ALTER TABLE templates ADD COLUMN max_port_sharing_level app_sharing_level NOT NULL DEFAULT 'owner'::app_sharing_level;
 
 -- Update the template_with_users view by recreating it.
 DROP VIEW template_with_users;

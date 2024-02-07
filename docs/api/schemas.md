@@ -4674,7 +4674,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": 0,
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4710,7 +4710,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `id`                               | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `max_port_share_level`             | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
 | `max_ttl_ms`                       | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                  |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -5541,7 +5541,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_name": "string",
   "port": 0,
-  "share_level": 0
+  "share_level": "owner"
 }
 ```
 
@@ -6554,18 +6554,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ## codersdk.WorkspaceAgentPortShareLevel
 
 ```json
-0
+"owner"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value |
-| ----- |
-| `0`   |
-| `1`   |
-| `2`   |
+| Value           |
+| --------------- |
+| `owner`         |
+| `authenticated` |
+| `public`        |
 
 ## codersdk.WorkspaceAgentScript
 
