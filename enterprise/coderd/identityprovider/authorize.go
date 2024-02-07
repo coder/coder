@@ -3,10 +3,8 @@ package identityprovider
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +38,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParam
 	}
 	params := authorizeParams{
 		clientID:     p.String(vals, "", "client_id"),
-		redirectURL:  p.URL(vals, cb, "redirect_uri"),
+		redirectURL:  p.RedirectURL(vals, cb, "redirect_uri"),
 		responseType: httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:        p.Strings(vals, []string{}, "scope"),
 		state:        p.String(vals, "", "state"),
@@ -48,13 +46,6 @@ func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParam
 
 	// We add "redirected" when coming from the authorize page.
 	_ = p.String(vals, "", "redirected")
-
-	if err := validateRedirectURL(cb, params.redirectURL.String()); err != nil {
-		p.Errors = append(p.Errors, codersdk.ValidationError{
-			Field:  "redirect_uri",
-			Detail: fmt.Sprintf("Query param %q is invalid", "redirect_uri"),
-		})
-	}
 
 	p.ErrorExcessParams(vals)
 	return params, p.Errors, nil
@@ -142,18 +133,4 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 
 	// Always wrap with its custom mw.
 	return authorizeMW(accessURL)(http.HandlerFunc(handler)).ServeHTTP
-}
-
-// validateRedirectURL validates that the redirectURL is contained in baseURL.
-func validateRedirectURL(baseURL *url.URL, redirectURL string) error {
-	redirect, err := url.Parse(redirectURL)
-	if err != nil {
-		return err
-	}
-	// It can be a sub-directory but not a sub-domain, as we have apps on
-	// sub-domains so it seems too dangerous.
-	if redirect.Host != baseURL.Host || !strings.HasPrefix(redirect.Path, baseURL.Path) {
-		return xerrors.New("invalid redirect URL")
-	}
-	return nil
 }

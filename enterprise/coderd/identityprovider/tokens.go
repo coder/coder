@@ -52,7 +52,7 @@ func extractTokenParams(r *http.Request, callbackURL string) (tokenParams, []cod
 		clientID:     p.String(vals, "", "client_id"),
 		clientSecret: p.String(vals, "", "client_secret"),
 		code:         p.String(vals, "", "code"),
-		redirectURL:  p.URL(vals, cb, "redirect_uri"),
+		redirectURL:  p.RedirectURL(vals, cb, "redirect_uri"),
 		grantType:    httpapi.ParseCustom(p, vals, "", "grant_type", httpapi.ParseEnum[codersdk.OAuth2ProviderGrantType]),
 	}
 

@@ -123,14 +123,24 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 	})
 }
 
-func (p *QueryParamParser) URL(vals url.Values, def *url.URL, queryParam string) *url.URL {
-	v, err := parseQueryParam(p, vals, url.Parse, def, queryParam)
+func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryParam string) *url.URL {
+	v, err := parseQueryParam(p, vals, url.Parse, base, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
 		})
 	}
+
+	// It can be a sub-directory but not a sub-domain, as we have apps on
+	// sub-domains and that seems too dangerous.
+	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q is invalid", queryParam),
+		})
+	}
+
 	return v
 }
 
