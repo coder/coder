@@ -43,12 +43,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/templates \
+curl -X GET http://coder-server:8080/api/v2/insights/templates?before=0&after=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /insights/templates`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description |
+| -------- | ----- | ------- | -------- | ----------- |
+| `before` | query | integer | true     | Start time  |
+| `after`  | query | integer | true     | End time    |
 
 ### Example responses
 
@@ -121,12 +128,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/user-activity \
+curl -X GET http://coder-server:8080/api/v2/insights/user-activity?before=0&after=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /insights/user-activity`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description |
+| -------- | ----- | ------- | -------- | ----------- |
+| `before` | query | integer | true     | Start time  |
+| `after`  | query | integer | true     | End time    |
 
 ### Example responses
 
@@ -165,12 +179,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/user-latency \
+curl -X GET http://coder-server:8080/api/v2/insights/user-latency?before=0&after=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /insights/user-latency`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description |
+| -------- | ----- | ------- | -------- | ----------- |
+| `before` | query | integer | true     | Start time  |
+| `after`  | query | integer | true     | End time    |
 
 ### Example responses
 
