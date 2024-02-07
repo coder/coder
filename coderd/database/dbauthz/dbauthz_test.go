@@ -822,8 +822,9 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("InsertTemplate", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
 		check.Args(database.InsertTemplateParams{
-			Provisioner:    "echo",
-			OrganizationID: orgID,
+			Provisioner:         "echo",
+			OrganizationID:      orgID,
+			MaxPortSharingLevel: database.AppSharingLevelOwner,
 		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), rbac.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
