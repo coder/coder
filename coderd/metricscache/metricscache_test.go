@@ -420,8 +420,9 @@ func TestCache_BuildTime(t *testing.T) {
 
 			id := uuid.New()
 			err := db.InsertTemplate(ctx, database.InsertTemplateParams{
-				ID:          id,
-				Provisioner: database.ProvisionerTypeEcho,
+				ID:                  id,
+				Provisioner:         database.ProvisionerTypeEcho,
+				MaxPortSharingLevel: database.AppSharingLevelOwner,
 			})
 			require.NoError(t, err)
 			template, err := db.GetTemplateByID(ctx, id)
