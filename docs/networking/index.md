@@ -19,18 +19,22 @@ In order for clients and workspaces to be able to connect:
 
 - All clients and agents must be able to establish a connection to the Coder
   server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
-- Any reverse proxy or ingress between the Coder control plane and clients/agents must
-  support WebSockets.
+- Any reverse proxy or ingress between the Coder control plane and
+  clients/agents must support WebSockets.
 
 In order for clients to be able to establish direct connections:
 
 > **Note:** Direct connections via the web browser are not supported. To improve
-> latency for browser-based applications running inside Coder workspaces in regions far from the Coder control plane,
-> consider deploying one or more
+> latency for browser-based applications running inside Coder workspaces in
+> regions far from the Coder control plane, consider deploying one or more
 > [workspace proxies](../admin/workspace-proxies.md).
 
 - The client is connecting using the CLI (e.g. `coder ssh` or
-  `coder port-forward`).
+  `coder port-forward`). Note that the
+  [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
+  and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
+  [`ssh coder.<workspace>`](../cli/config-ssh.md) all utilize the CLI to
+  establish a workspace connection.
 - The client and workspace agent are both able to connect to
   [a specific STUN server](#stun-in-a-natshell).
 - All outbound UDP traffic must be allowed for both the client and the agent on
