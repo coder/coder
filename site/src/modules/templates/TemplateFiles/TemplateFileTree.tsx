@@ -34,7 +34,12 @@ interface TemplateFilesTreeProps {
   onRename?: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
-  Label?: FC<{ path: string; filename: string; isFolder: boolean }>;
+  Label?: FC<{
+    path: string;
+    filename: string;
+    label: string;
+    isFolder: boolean;
+  }>;
 }
 
 export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
@@ -51,16 +56,28 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
     typeof content === "object";
 
   const buildTreeItems = (
+    label: string,
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
     // Used to group empty folders in one single label like VSCode does
-    const shouldGroupFolderLabel =
+    const shouldGroupFolder =
       isFolder(content) &&
       Object.keys(content).length === 1 &&
-      isFolder(Object.keys(content)[0]);
+      isFolder(Object.values(content)[0]);
+
+    if (shouldGroupFolder) {
+      const firstChildFileName = Object.keys(content)[0];
+      const child = content[firstChildFileName];
+      return buildTreeItems(
+        `${label} / ${firstChildFileName}`,
+        firstChildFileName,
+        child,
+        currentPath,
+      );
+    }
 
     let icon: JSX.Element | null = isFolder(content) ? null : (
       <FormatAlignLeftOutlined />
@@ -84,11 +101,12 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
           Label ? (
             <Label
               path={currentPath}
+              label={label}
               filename={filename}
               isFolder={isFolder(content)}
             />
           ) : (
-            filename
+            label
           )
         }
         css={(theme) => css`
@@ -137,6 +155,10 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
           onSelect(currentPath);
         }}
         onContextMenu={(event) => {
+          const hasContextActions = onRename || onDelete;
+          if (!hasContextActions) {
+            return;
+          }
           event.preventDefault(); // Avoid default browser behavior
           event.stopPropagation(); // Avoid trigger parent context menu
           setContextMenu(
@@ -161,7 +183,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             .sort(sortFileTree(content))
             .map((filename) => {
               const child = content[filename];
-              return buildTreeItems(filename, child, currentPath);
+              return buildTreeItems(filename, filename, child, currentPath);
             })}
       </TreeItem>
     );
@@ -179,7 +201,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
         .sort(sortFileTree(fileTree))
         .map((filename) => {
           const child = fileTree[filename];
-          return buildTreeItems(filename, child);
+          return buildTreeItems(filename, filename, child);
         })}
 
       <Menu

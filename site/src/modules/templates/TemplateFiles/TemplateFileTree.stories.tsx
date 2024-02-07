@@ -52,6 +52,7 @@ export const NestedOpen: Story = {
 
 export const GroupEmptyFolders: Story = {
   args: {
+    activePath: "folder/other-folder/another/nested.tf",
     fileTree: {
       "main.tf": "resource aws_instance my_instance {}",
       "variables.tf": "variable my_var {}",
