@@ -633,14 +633,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
 	if req.MaxPortShareLevel != nil {
-		if req.MaxPortShareLevel.ValidMaxLevel() {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Value must be 'authenticated' or 'public'."})
+		err := portSharer.ValidateTemplateMaxPortSharingLevel(*req.MaxPortShareLevel)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: err.Error()})
+		} else {
+			maxPortShareLevel = database.AppSharingLevel(*req.MaxPortShareLevel)
 		}
-		if !portSharer.CanRestrictSharing() {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: "Restricting port sharing level is an enterprise feature that is not enabled."})
-		}
-
-		maxPortShareLevel = database.AppSharingLevel(*req.MaxPortShareLevel)
 	}
 
 	if len(validErrs) > 0 {

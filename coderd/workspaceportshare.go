@@ -3,7 +3,6 @@ package coderd
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -37,19 +36,18 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if portSharer.CanRestrictSharing() {
-		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
-		if req.ShareLevel > codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Port sharing level not allowed. Must not be greater than '%s'.", template.MaxPortSharingLevel),
-			})
-			return
-		}
+	err = portSharer.AuthorizedPortSharingLevel(template, req.ShareLevel)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
 	}
 
 	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
