@@ -101,6 +101,12 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				ID:        uuid.New(),
 				CreatedAt: dbtime.Now(),
 				// TODO: Configurable expiration?  Ten minutes matches GitHub.
+				// This timeout is only for the code that will be exchanged for the
+				// access token, not the access token itself.  It does not need to be
+				// long-lived because normally it will be exchanged immediately after it
+				// is received.  If the application does wait before exchanging the
+				// token (for example suppose they ask the user to confirm and the user
+				// has left) then they can just retry immediately and get a new code.
 				ExpiresAt:    dbtime.Now().Add(time.Duration(10) * time.Minute),
 				SecretPrefix: []byte(code.Prefix),
 				HashedSecret: []byte(code.Hashed),
