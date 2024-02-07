@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,8 +42,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	require.True(t, gaugeHasValue(t, metrics, 0, "coder_pubsub_current_events"))
-	require.True(t, gaugeHasValue(t, metrics, 0, "coder_pubsub_current_subscribers"))
+	require.True(t, testutil.PromGaugeHasValue(t, metrics, 0, "coder_pubsub_current_events"))
+	require.True(t, testutil.PromGaugeHasValue(t, metrics, 0, "coder_pubsub_current_subscribers"))
 
 	event := "test"
 	data := "testing"
@@ -63,14 +62,14 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.Eventually(t, func() bool {
 		metrics, err = registry.Gather()
 		assert.NoError(t, err)
-		return gaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
-			gaugeHasValue(t, metrics, 1, "coder_pubsub_current_subscribers") &&
-			gaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
-			counterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", "true") &&
-			counterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", "true") &&
-			counterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
-			counterHasValue(t, metrics, 7, "coder_pubsub_received_bytes_total") &&
-			counterHasValue(t, metrics, 7, "coder_pubsub_published_bytes_total")
+		return testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
+			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_subscribers") &&
+			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
+			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
+			testutil.PromCounterHasValue(t, metrics, 7, "coder_pubsub_received_bytes_total") &&
+			testutil.PromCounterHasValue(t, metrics, 7, "coder_pubsub_published_bytes_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	colossalData := make([]byte, 7600)
@@ -93,54 +92,14 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.Eventually(t, func() bool {
 		metrics, err = registry.Gather()
 		assert.NoError(t, err)
-		return gaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
-			gaugeHasValue(t, metrics, 2, "coder_pubsub_current_subscribers") &&
-			gaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
-			counterHasValue(t, metrics, 2, "coder_pubsub_publishes_total", "true") &&
-			counterHasValue(t, metrics, 2, "coder_pubsub_subscribes_total", "true") &&
-			counterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
-			counterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "colossal") &&
-			counterHasValue(t, metrics, 7607, "coder_pubsub_received_bytes_total") &&
-			counterHasValue(t, metrics, 7607, "coder_pubsub_published_bytes_total")
+		return testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
+			testutil.PromGaugeHasValue(t, metrics, 2, "coder_pubsub_current_subscribers") &&
+			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
+			testutil.PromCounterHasValue(t, metrics, 2, "coder_pubsub_publishes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, 2, "coder_pubsub_subscribes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
+			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "colossal") &&
+			testutil.PromCounterHasValue(t, metrics, 7607, "coder_pubsub_received_bytes_total") &&
+			testutil.PromCounterHasValue(t, metrics, 7607, "coder_pubsub_published_bytes_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
-}
-
-func gaugeHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
-	t.Helper()
-	for _, family := range metrics {
-		if family.GetName() != name {
-			continue
-		}
-		ms := family.GetMetric()
-		for _, m := range ms {
-			require.Equal(t, len(label), len(m.GetLabel()))
-			for i, lv := range label {
-				if lv != m.GetLabel()[i].GetValue() {
-					continue
-				}
-			}
-			return value == m.GetGauge().GetValue()
-		}
-	}
-	return false
-}
-
-func counterHasValue(t testing.TB, metrics []*dto.MetricFamily, value float64, name string, label ...string) bool {
-	t.Helper()
-	for _, family := range metrics {
-		if family.GetName() != name {
-			continue
-		}
-		ms := family.GetMetric()
-		for _, m := range ms {
-			require.Equal(t, len(label), len(m.GetLabel()))
-			for i, lv := range label {
-				if lv != m.GetLabel()[i].GetValue() {
-					continue
-				}
-			}
-			return value == m.GetCounter().GetValue()
-		}
-	}
-	return false
 }

@@ -17,6 +17,7 @@ import (
 func (r *RootCmd) templatePull() *clibase.Cmd {
 	var (
 		tarMode     bool
+		zipMode     bool
 		versionName string
 	)
 
@@ -37,6 +38,10 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 			if len(inv.Args) > 1 {
 				dest = inv.Args[1]
+			}
+
+			if tarMode && zipMode {
+				return xerrors.Errorf("either tar or zip can be selected")
 			}
 
 			organization, err := CurrentOrganization(inv, client)
@@ -98,17 +103,25 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 			cliui.Info(inv.Stderr, "Pulling template version "+cliui.Bold(templateVersion.Name)+"...")
 
+			var fileFormat string // empty = default, so .tar
+			if zipMode {
+				fileFormat = codersdk.FormatZip
+			}
+
 			// Download the tar archive.
-			raw, ctype, err := client.Download(ctx, templateVersion.Job.FileID)
+			raw, ctype, err := client.DownloadWithFormat(ctx, templateVersion.Job.FileID, fileFormat)
 			if err != nil {
 				return xerrors.Errorf("download template: %w", err)
 			}
 
-			if ctype != codersdk.ContentTypeTar {
+			if fileFormat == "" && ctype != codersdk.ContentTypeTar {
 				return xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
 			}
+			if fileFormat == codersdk.FormatZip && ctype != codersdk.ContentTypeZip {
+				return xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeZip)
+			}
 
-			if tarMode {
+			if tarMode || zipMode {
 				_, err = inv.Stdout.Write(raw)
 				return err
 			}
@@ -151,6 +164,12 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 			Flag:        "tar",
 
 			Value: clibase.BoolOf(&tarMode),
+		},
+		{
+			Description: "Output the template as a zip archive to stdout.",
+			Flag:        "zip",
+
+			Value: clibase.BoolOf(&zipMode),
 		},
 		{
 			Description: "The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.",

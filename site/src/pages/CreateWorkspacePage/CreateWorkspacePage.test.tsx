@@ -214,7 +214,7 @@ describe("CreateWorkspacePage", () => {
   it("Detects when a workspace is being created with the 'duplicate' mode", async () => {
     const params = new URLSearchParams({
       mode: "duplicate",
-      name: MockWorkspace.name,
+      name: `${MockWorkspace.name}-copy`,
       version: MockWorkspace.template_active_version_id,
     });
 

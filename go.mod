@@ -84,7 +84,7 @@ require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/smithy-go v1.19.0
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816
-	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
+	github.com/bramvdbogaerde/go-scp v1.3.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -103,7 +103,7 @@ require (
 	github.com/creack/pty v1.1.21
 	github.com/dave/dst v0.27.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/elastic/go-sysinfo v1.11.0
+	github.com/elastic/go-sysinfo v1.12.0
 	github.com/fatih/color v1.16.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0

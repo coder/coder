@@ -557,7 +557,7 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) {
 	defer server.Close()
 
 	err = server.Serve()
-	if errors.Is(err, io.EOF) {
+	if err == nil || errors.Is(err, io.EOF) {
 		// Unless we call `session.Exit(0)` here, the client won't
 		// receive `exit-status` because `(*sftp.Server).Close()`
 		// calls `Close()` on the underlying connection (session),

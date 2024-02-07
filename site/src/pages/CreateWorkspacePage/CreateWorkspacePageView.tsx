@@ -1,21 +1,24 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import type * as TypesGen from "api/typesGenerated";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import Button from "@mui/material/Button";
+import FormHelperText from "@mui/material/FormHelperText";
 import { FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState, useMemo } from "react";
+import { type FC, useEffect, useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
+import * as Yup from "yup";
+import type * as TypesGen from "api/typesGenerated";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import * as Yup from "yup";
 import {
   FormFields,
   FormSection,
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import {
   AutofillBuildParameter,
   AutofillSource,
@@ -24,16 +27,8 @@ import {
 } from "utils/richParameters";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
-import {
-  CreateWorkspaceMode,
-  ExternalAuthPollingState,
-} from "./CreateWorkspacePage";
-import { useSearchParams } from "react-router-dom";
-import { CreateWSPermissions } from "./permissions";
 import { Alert } from "components/Alert/Alert";
-import { ExternalAuthBanner } from "./ExternalAuthBanner/ExternalAuthBanner";
 import { Margins } from "components/Margins/Margins";
-import Button from "@mui/material/Button";
 import { Avatar } from "components/Avatar/Avatar";
 import {
   PageHeader,
@@ -42,6 +37,13 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import {
+  CreateWorkspaceMode,
+  ExternalAuthPollingState,
+} from "./CreateWorkspacePage";
+import { ExternalAuthBanner } from "./ExternalAuthBanner/ExternalAuthBanner";
+import { CreateWSPermissions } from "./permissions";
 
 export const Language = {
   duplicationWarning:
@@ -52,7 +54,7 @@ export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
   error: unknown;
   resetMutation: () => void;
-  defaultName: string;
+  defaultName?: string | null;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
   versionId?: string;
@@ -92,11 +94,18 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
   const requiresExternalAuth = externalAuth.some((auth) => !auth.authenticated);
+  const [suggestedName, setSuggestedName] = useState(() =>
+    generateWorkspaceName(),
+  );
+
+  const rerollSuggestedName = useCallback(() => {
+    setSuggestedName(() => generateWorkspaceName());
+  }, []);
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
-        name: defaultName,
+        name: defaultName ?? "",
         template_id: template.id,
         rich_parameter_values: getInitialRichParameterValues(
           parameters,
@@ -205,16 +214,29 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   </span>
                 </Stack>
               )}
-
-              <TextField
-                {...getFieldHelpers("name")}
-                disabled={creatingWorkspace}
-                // resetMutation facilitates the clearing of validation errors
-                onChange={onChangeTrimmed(form, resetMutation)}
-                autoFocus
-                fullWidth
-                label="Workspace Name"
-              />
+              <div>
+                <TextField
+                  {...getFieldHelpers("name")}
+                  disabled={creatingWorkspace}
+                  // resetMutation facilitates the clearing of validation errors
+                  onChange={onChangeTrimmed(form, resetMutation)}
+                  fullWidth
+                  label="Workspace Name"
+                />
+                <FormHelperText data-chromatic="ignore">
+                  Need a suggestion?{" "}
+                  <Button
+                    variant="text"
+                    css={styles.nameSuggestion}
+                    onClick={async () => {
+                      await form.setFieldValue("name", suggestedName);
+                      rerollSuggestedName();
+                    }}
+                  >
+                    {suggestedName}
+                  </Button>
+                </FormHelperText>
+              </div>
 
               {permissions.createWorkspaceForUser && (
                 <UserAutocomplete
@@ -279,6 +301,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 };
 
 const styles = {
+  nameSuggestion: (theme) => ({
+    color: theme.roles.info.fill.solid,
+    padding: "4px 8px",
+    lineHeight: "inherit",
+    fontSize: "inherit",
+    height: "unset",
+  }),
   hasDescription: {
     paddingBottom: 16,
   },

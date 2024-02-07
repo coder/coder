@@ -37,7 +37,8 @@
           go_1_21
           go-migrate
           golangci-lint
-          google-chrome
+          # google-chrome is not available on OSX
+          (if pkgs.stdenv.hostPlatform.isDarwin then null else google-chrome)
           gopls
           gotestsum
           jq

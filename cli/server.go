@@ -655,6 +655,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
+			// We'll read from this channel in the select below that tracks shutdown.  If it remains
+			// nil, that case of the select will just never fire, but it's important not to have a
+			// "bare" read on this channel.
+			var pubsubWatchdogTimeout <-chan struct{}
 			if vals.InMemoryDatabase {
 				// This is only used for testing.
 				options.Database = dbmem.New()
@@ -683,6 +687,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					options.PrometheusRegistry.MustRegister(ps)
 				}
 				defer options.Pubsub.Close()
+				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+				pubsubWatchdogTimeout = psWatchdog.Timeout()
+				defer psWatchdog.Close()
 			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
@@ -1031,6 +1038,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
+			case <-pubsubWatchdogTimeout:
+				exitErr = xerrors.New("pubsub Watchdog timed out")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {

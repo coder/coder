@@ -472,7 +472,7 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	api.agentProvider, err = NewServerTailnet(api.ctx,
+	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
 		options.DERPServer,
 		api.DERPMap,
@@ -484,6 +484,10 @@ func New(options *Options) *API {
 	)
 	if err != nil {
 		panic("failed to setup server tailnet: " + err.Error())
+	}
+	api.agentProvider = stn
+	if options.DeploymentValues.Prometheus.Enable {
+		options.PrometheusRegistry.MustRegister(stn)
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(
 		api.Logger.Named("tailnetclient"),
