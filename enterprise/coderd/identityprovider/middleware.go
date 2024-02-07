@@ -16,10 +16,11 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get(httpmw.OriginHeader)
+			// TODO: The origin can be blank from some clients, like cURL.  For now
+			// only browser-based auth flow is officially supported but in a future PR
+			// we should support a cURL-based and blank origin flows.
 			originU, err := url.Parse(origin)
-			if err != nil {
-				// TODO: Curl requests will not have this. One idea is to always show
-				// html here??
+			if err != nil || origin == "" {
 				httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Invalid or missing origin header.",
 					Detail:  err.Error(),
