@@ -14,13 +14,18 @@ const TemplateFilesPage: FC = () => {
   const { data: currentFiles } = useQuery(
     templateFiles(activeVersion.job.file_id),
   );
-  const { data: previousTemplate } = useQuery(
+  const previousVersionQuery = useQuery(
     previousTemplateVersion(orgId, template.name, activeVersion.name),
   );
+  const previousVersion = previousVersionQuery.data;
+  const hasPreviousVersion =
+    previousVersionQuery.isSuccess && previousVersion !== null;
   const { data: previousFiles } = useQuery({
-    ...templateFiles(previousTemplate?.job.file_id ?? ""),
-    enabled: Boolean(previousTemplate),
+    ...templateFiles(previousVersion?.job.file_id ?? ""),
+    enabled: hasPreviousVersion,
   });
+  const shouldDisplayFiles =
+    currentFiles && (!hasPreviousVersion || previousFiles);
 
   return (
     <>
@@ -28,7 +33,7 @@ const TemplateFilesPage: FC = () => {
         <title>{getTemplatePageTitle("Source Code", template)}</title>
       </Helmet>
 
-      {previousFiles && currentFiles ? (
+      {shouldDisplayFiles ? (
         <TemplateFiles
           currentFiles={currentFiles}
           baseFiles={previousFiles}
