@@ -87,6 +87,14 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}()
 
+			// In stdio mode, we can't allow any writes to stdin or stdout
+			// because they are used by the SSH protocol.
+			stdioReader, stdioWriter := inv.Stdin, inv.Stdout
+			if stdio {
+				inv.Stdin = stdioErrLogReader{inv.Logger}
+				inv.Stdout = inv.Stderr
+			}
+
 			// This WaitGroup solves for a race condition where we were logging
 			// while closing the log file in a defer. It probably solves
 			// others too.
@@ -234,7 +242,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
-				copier := newRawSSHCopier(logger, rawSSH, inv.Stdin, inv.Stdout)
+				copier := newRawSSHCopier(logger, rawSSH, stdioReader, stdioWriter)
 				if err = stack.push("rawSSHCopier", copier); err != nil {
 					return err
 				}
@@ -986,4 +994,13 @@ func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
 		Value:       src,
 		Default:     "false",
 	}
+}
+
+type stdioErrLogReader struct {
+	l slog.Logger
+}
+
+func (r stdioErrLogReader) Read(_ []byte) (int, error) {
+	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
+	return 0, io.EOF
 }

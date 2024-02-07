@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
@@ -308,6 +309,147 @@ func TestSSH(t *testing.T) {
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		command := "sh -c exit"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c exit"
+		}
+		err = session.Run(command)
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		<-cmdDone
+	})
+
+	t.Run("Stdio_StartStoppedWorkspace_CleanStdout", func(t *testing.T) {
+		t.Parallel()
+
+		authToken := uuid.NewString()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		monitorServerOutput, monitorServerInput := io.Pipe()
+		closePipes := func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput, monitorServerOutput, monitorServerInput} {
+				_ = c.Close()
+			}
+		}
+		defer closePipes()
+		tGo(t, func() {
+			<-ctx.Done()
+			closePipes()
+		})
+
+		// Here we start a monitor for the input going to the server
+		// (i.e. client stdout) to ensure that the output is clean.
+		serverInputBuf := make(chan byte, 4096)
+		tGo(t, func() {
+			defer close(serverInputBuf)
+
+			gotHeader := false
+			buf := bytes.Buffer{}
+			r := bufio.NewReader(monitorServerOutput)
+			for {
+				b, err := r.ReadByte()
+				if err != nil {
+					if errors.Is(err, io.ErrClosedPipe) {
+						return
+					}
+					assert.NoError(t, err, "read byte failed")
+					return
+				}
+				if b == '\n' || b == '\r' {
+					out := buf.Bytes()
+					t.Logf("monitorServerOutput: %q (%#x)", out, out)
+					buf.Reset()
+
+					// Ideally we would do further verification, but that would
+					// involve parsing the SSH protocol to look for output that
+					// doesn't belong. This at least ensures that no garbage is
+					// being sent to the server before trying to connect.
+					if !gotHeader {
+						gotHeader = true
+						assert.Equal(t, "SSH-2.0-Go", string(out), "invalid header")
+					}
+				} else {
+					_ = buf.WriteByte(b)
+				}
+				select {
+				case serverInputBuf <- b:
+				case <-ctx.Done():
+					return
+				}
+			}
+		})
+		tGo(t, func() {
+			defer serverInput.Close()
+
+			// Range closed by above goroutine.
+			for b := range serverInputBuf {
+				_, err := serverInput.Write([]byte{b})
+				if err != nil {
+					if errors.Is(err, io.ErrClosedPipe) {
+						return
+					}
+					assert.NoError(t, err, "write byte failed")
+					return
+				}
+			}
+		})
+
+		// Start the SSH stdio command.
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = monitorServerInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		tGo(t, func() {
+			// When the agent connects, the workspace was started, and we should
+			// have access to the shell.
+			_ = agenttest.New(t, client.URL, authToken)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 		})
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
