@@ -35,8 +35,15 @@ In order for clients to be able to establish direct connections:
   and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
   [`ssh coder.<workspace>`](../cli/config-ssh.md) all utilize the CLI to
   establish a workspace connection.
-- The client and workspace agent are both able to connect to
-  [a specific STUN server](#stun-in-a-natshell).
+- Either the client or workspace agent are able to discover a reachable
+  `ip:port` of their counterpart. If the agent and client are able to
+  communicate with each other using their locally assigned IP addresses, then a
+  direct connection can be established immediately. Otherwise, the client and
+  agent will contact
+  [the configured STUN servers](../cli/server.md#derp-server-stun-addresses) to
+  try and determine which `ip:port` can be used to communicate with their
+  counterpart. See [below](#stun-in-a-natshell) for more details on how this
+  process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on
   **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN. This
@@ -51,6 +58,19 @@ In order for clients to be able to establish direct connections:
 
 ### STUN in a NATshell
 
+In order for one application to connect to another across a network, the
+connecting application needs to know the IP address and port under which the
+target application is reachable. If both applications reside on the same
+network, then they can most likely connect directly to each other. In the
+context of a Coder workspace agent and client, this is generally not the case,
+as both agent and client will most likely be running in different _private_
+networks (e.g. `192.168.1.0/24`). In this case, at least one of the two will
+need to know an IP address and port under which they can reach their
+counterpart.
+
+This problem is often referred to as NAT traversal, and Coder uses a standard
+protocol named STUN to address this.
+
 > [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html)
 > is a protocol used to assist applications in establishing peer-to-peer
 > communications across Network Address Translations (NATs) or firewalls.
@@ -60,26 +80,25 @@ In order for clients to be able to establish direct connections:
 > single public IP address. The vast majority of ISPs today use at least one
 > level of NAT.
 
-Normally, both Coder agent and client will be running in different _private_
-networks (e.g. `192.168.1.0/24`). In order for them to communicate with each
-other, they will each need their counterpart's public IP address and port.
-
 Inside of that network, packets from the agent or client will show up as having
 source address `192.168.1.X:12345`. However, outside of this private network,
 the source address will show up differently (for example, `12.3.4.56:54321`). In
 order for the Coder client and agent to establish a direct connection with each
 other, one of them needs to know the `ip:port` pair under which their
-counterpart can be reached.
+counterpart can be reached. Once communication succeeds in one direction, we can
+inspect the source address of the received packet to determine the return
+address.
 
-In order to accomplish this, both client and agent can use a STUN server:
+At a high level, STUN works like this:
 
 > The below glosses over a lot of the complexity of traversing NATs. For a more
 > in-depth technical explanation, see
 > [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
 
-- **Discovery:** Both the client and agent will send UDP traffic to a configured
-  STUN server. This STUN server is generally located on the public internet, and
-  responds with the public IP address and port from which the request came.
+- **Discovery:** Both the client and agent will send UDP traffic to one or more
+  configured STUN servers. These STUN servers are generally located on the
+  public internet, and respond with the public IP address and port from which
+  the request came.
 - **Port Mapping:** The client and agent then exchange this information through
   the Coder server. They will then construct packets that should be able to
   successfully traverse their counterpart's NATs successfully.
@@ -132,6 +151,12 @@ dashboard-accessed web apps.
 Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
+
+Establishing a direct connection can be an involved process because both the
+client and workspace agent will likely be behind at least one level of NAT,
+meaning that we need to use STUN to learn the IP address and port under which
+the client and agent can both contact each other. See
+[above](#stun-in-a-natshell) for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
