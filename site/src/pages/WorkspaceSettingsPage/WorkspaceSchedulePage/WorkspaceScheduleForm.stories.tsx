@@ -105,3 +105,13 @@ export const Loading: Story = {
     isLoading: true,
   },
 };
+
+export const AutoStopAndStartOff: Story = {
+  args: {
+    initialValues: {
+      ...defaultInitialValues,
+      autostartEnabled: false,
+      autostopEnabled: false,
+    },
+  },
+};
