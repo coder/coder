@@ -46,14 +46,23 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
   Label,
 }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
+
+  const isFolder = (content?: FileTree | string): content is FileTree =>
+    typeof content === "object";
+
   const buildTreeItems = (
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-    const isFolder = typeof content === "object";
-    let icon: JSX.Element | null = isFolder ? null : (
+    // Used to group empty folders in one single label like VSCode does
+    const shouldGroupFolderLabel =
+      isFolder(content) &&
+      Object.keys(content).length === 1 &&
+      isFolder(Object.keys(content)[0]);
+
+    let icon: JSX.Element | null = isFolder(content) ? null : (
       <FormatAlignLeftOutlined />
     );
 
@@ -73,7 +82,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
         key={currentPath}
         label={
           Label ? (
-            <Label path={currentPath} filename={filename} isFolder={isFolder} />
+            <Label
+              path={currentPath}
+              filename={filename}
+              isFolder={isFolder(content)}
+            />
           ) : (
             filename
           )
@@ -143,7 +156,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
           } as CSSProperties
         }
       >
-        {isFolder &&
+        {isFolder(content) &&
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
