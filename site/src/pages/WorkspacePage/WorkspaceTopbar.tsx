@@ -33,7 +33,7 @@ import {
   shouldDisplayScheduleControls,
 } from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
-import { ConnectionStatus } from "./ConnectionStatus";
+import { ActivityStatus } from "./ActivityStatus";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -201,7 +201,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </Popover>
         </TopbarData>
 
-        <ConnectionStatus lastUsedAt={workspace.last_used_at} />
+        <ActivityStatus workspace={workspace} />
 
         {shouldDisplayScheduleControls(workspace) && (
           <TopbarData>

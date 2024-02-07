@@ -1,3 +1,4 @@
+import Link from "@mui/material/Link";
 import cronstrue from "cronstrue";
 import cronParser from "cron-parser";
 import dayjs, { type Dayjs } from "dayjs";
@@ -6,7 +7,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
 import { isWorkspaceOn } from "./workspace";
 
@@ -120,7 +121,9 @@ export const autostopDisplay = (
             {" "}
             because this workspace has enabled autostop. You can disable it from
             the{" "}
-            <Link to="settings/schedule">Workspace Schedule settings page</Link>
+            <Link component={RouterLink} to="settings/schedule">
+              Workspace Schedule settings page
+            </Link>
             .
           </>
         );

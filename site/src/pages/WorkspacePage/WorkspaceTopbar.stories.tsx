@@ -48,6 +48,28 @@ export const Outdated: Story = {
   },
 };
 
+export const Ready: Story = {
+  args: {
+    workspace: {
+      ...baseWorkspace,
+      last_used_at: new Date().toISOString(),
+      latest_build: {
+        ...baseWorkspace.latest_build,
+        created_at: new Date().toISOString(),
+      },
+    },
+  },
+};
+
+export const Connected: Story = {
+  args: {
+    workspace: {
+      ...baseWorkspace,
+      last_used_at: new Date().toISOString(),
+    },
+  },
+};
+
 export const Dormant: Story = {
   args: {
     workspace: {
