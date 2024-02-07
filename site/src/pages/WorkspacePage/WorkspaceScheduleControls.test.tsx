@@ -1,49 +1,28 @@
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider } from "contexts/ThemeProvider";
-import { QueryClient, QueryClientProvider, useQuery } from "react-query";
-import { MockWorkspace } from "testHelpers/entities";
-import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import { type FC } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import { server } from "testHelpers/server";
-import { rest } from "msw";
 import dayjs from "dayjs";
 import * as API from "api/api";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { ThemeProvider } from "contexts/ThemeProvider";
+import { MockTemplate, MockWorkspace } from "testHelpers/entities";
+import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-const Wrapper = () => {
-  const { data: workspace } = useQuery(
-    workspaceByOwnerAndName(MockWorkspace.owner_name, MockWorkspace.name),
+const Wrapper: FC = () => {
+  return (
+    <WorkspaceScheduleControls
+      workspace={MockWorkspace}
+      template={MockTemplate}
+      canUpdateSchedule
+    />
   );
-
-  if (!workspace) {
-    return null;
-  }
-
-  return <WorkspaceScheduleControls workspace={workspace} canUpdateSchedule />;
 };
 
 const BASE_DEADLINE = dayjs().add(3, "hour");
 
 const renderScheduleControls = async () => {
-  server.use(
-    rest.get(
-      "/api/v2/users/:username/workspace/:workspaceName",
-      (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockWorkspace,
-            latest_build: {
-              ...MockWorkspace.latest_build,
-              deadline: BASE_DEADLINE.toISOString(),
-            },
-          }),
-        );
-      },
-    ),
-  );
   render(
     <ThemeProvider>
       <QueryClientProvider client={new QueryClient()}>

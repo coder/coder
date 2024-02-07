@@ -33,6 +33,7 @@ import {
   shouldDisplayScheduleControls,
 } from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
+import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -228,10 +229,13 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
             </TopbarIcon>
             <WorkspaceScheduleControls
               workspace={workspace}
+              template={template}
               canUpdateSchedule={canUpdateWorkspace}
             />
           </TopbarData>
         )}
+
+        <LastUsed lastUsedAt={workspace.last_used_at} />
 
         {quota && quota.budget > 0 && (
           <TopbarData>

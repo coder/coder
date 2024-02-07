@@ -1,9 +1,16 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link, { LinkProps } from "@mui/material/Link";
+import Link, { type LinkProps } from "@mui/material/Link";
+import IconButton from "@mui/material/IconButton";
+import RemoveIcon from "@mui/icons-material/RemoveOutlined";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import { visuallyHidden } from "@mui/utils";
+import { type Dayjs } from "dayjs";
 import { forwardRef, type FC, useRef } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { isWorkspaceOn } from "utils/workspace";
-import type { Workspace } from "api/typesGenerated";
+import type { Template, Workspace } from "api/typesGenerated";
 import {
   autostartDisplay,
   autostopDisplay,
@@ -12,28 +19,22 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import IconButton from "@mui/material/IconButton";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import Tooltip from "@mui/material/Tooltip";
-import _ from "lodash";
 import { getErrorMessage } from "api/errors";
 import {
   updateDeadline,
   workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useMutation, useQueryClient } from "react-query";
-import { Dayjs } from "dayjs";
-import { visuallyHidden } from "@mui/utils";
 
 export interface WorkspaceScheduleControlsProps {
   workspace: Workspace;
+  template: Template;
   canUpdateSchedule: boolean;
 }
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   workspace,
+  template,
   canUpdateSchedule,
 }) => {
   const queryClient = useQueryClient();
@@ -90,7 +91,7 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   return (
     <div css={styles.scheduleValue} data-testid="schedule-controls">
       {isWorkspaceOn(workspace) ? (
-        <AutoStopDisplay workspace={workspace} />
+        <AutoStopDisplay workspace={workspace} template={template} />
       ) : (
         <ScheduleSettingsLink>
           Starts at {autostartDisplay(workspace.autostart_schedule)}
@@ -133,22 +134,24 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 
 interface AutoStopDisplayProps {
   workspace: Workspace;
+  template: Template;
 }
 
-const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
-  const display = autostopDisplay(workspace);
+const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace, template }) => {
+  const display = autostopDisplay(workspace, template);
 
   if (display.tooltip) {
     return (
       <Tooltip title={display.tooltip}>
         <ScheduleSettingsLink
-          css={(theme) => ({
-            color: isShutdownSoon(workspace)
-              ? `${theme.palette.warning.light} !important`
-              : undefined,
-          })}
+          css={
+            isShutdownSoon(workspace) &&
+            ((theme) => ({
+              color: `${theme.palette.warning.light} !important`,
+            }))
+          }
         >
-          Stop {display.message}
+          {display.message}
         </ScheduleSettingsLink>
       </Tooltip>
     );

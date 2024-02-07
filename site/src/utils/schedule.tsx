@@ -1,12 +1,14 @@
 import cronstrue from "cronstrue";
-import dayjs, { Dayjs } from "dayjs";
+import cronParser from "cron-parser";
+import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { Template, Workspace } from "api/typesGenerated";
+import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import type { Template, Workspace } from "api/typesGenerated";
 import { isWorkspaceOn } from "./workspace";
-import cronParser from "cron-parser";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -90,9 +92,10 @@ export const isShuttingDown = (
 
 export const autostopDisplay = (
   workspace: Workspace,
+  template: Template,
 ): {
-  message: string;
-  tooltip?: string;
+  message: ReactNode;
+  tooltip?: ReactNode;
 } => {
   const ttl = workspace.ttl_ms;
 
@@ -110,9 +113,27 @@ export const autostopDisplay = (
       };
     } else {
       const deadlineTz = deadline.tz(dayjs.tz.guess());
+      let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirment`;
+      if (template.autostop_requirement && template.allow_user_autostop) {
+        reason = (
+          <>
+            {" "}
+            because this workspace has enabled autostop. You can disable it from
+            the{" "}
+            <Link to="settings/schedule">Workspace Schedule settings page</Link>
+            .
+          </>
+        );
+      }
       return {
-        message: deadlineTz.fromNow(),
-        tooltip: deadlineTz.format("MMMM D, YYYY h:mm A"),
+        message: `Stop ${deadlineTz.fromNow()}`,
+        tooltip: (
+          <>
+            This workspace will be stopped on{" "}
+            {deadlineTz.format("MMMM D, YYYY [at] h:mm A")}
+            {reason}
+          </>
+        ),
       };
     }
   } else if (!ttl || ttl < 1) {
