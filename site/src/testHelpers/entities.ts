@@ -488,7 +488,7 @@ export const MockTemplate: TypesGen.Template = {
   require_active_version: false,
   deprecated: false,
   deprecation_message: "",
-  max_port_share_level: 0,
+  max_port_share_level: "owner",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {

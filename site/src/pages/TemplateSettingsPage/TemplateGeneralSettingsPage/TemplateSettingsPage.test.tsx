@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
-import { UpdateTemplateMeta } from "api/typesGenerated";
+import { UpdateTemplateMeta, WorkspaceAgentPortShareLevels } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { MockTemplate } from "testHelpers/entities";
 import {
@@ -48,7 +48,7 @@ const validFormValues: FormValues = {
   update_workspace_dormant_at: false,
   require_active_version: false,
   disable_everyone_group_access: false,
-  max_port_share_level: 0,
+  max_port_share_level: "owner",
 };
 
 const renderTemplateSettingsPage = async () => {
