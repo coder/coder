@@ -322,14 +322,15 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// Port sharing authorization
 		// First check if there is a port share for the port
 		agentName := agentNameOrID
-		id, err := uuid.Parse(agentNameOrID)
-		if err == nil {
-			// If parsing works it's an ID, let's get the name
-			agent, err := db.GetWorkspaceAgentByID(ctx, id)
-			if err != nil {
-				return nil, xerrors.Errorf("get workspace agent %q: %w", agentNameOrID, err)
+		id, _ := uuid.Parse(agentNameOrID)
+		for _, a := range agents {
+			if a.ID == id {
+				agentName = a.Name
+				break
 			}
-			agentName = agent.Name
+			if a.Name == agentNameOrID {
+				break
+			}
 		}
 
 		ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
