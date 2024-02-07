@@ -33,18 +33,12 @@ type tokenParams struct {
 	redirectURL  *url.URL
 }
 
-func extractTokenParams(r *http.Request, callbackURL string) (tokenParams, []codersdk.ValidationError, error) {
+func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
 	if err != nil {
 		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
 	}
-
-	cb, err := url.Parse(callbackURL)
-	if err != nil {
-		return tokenParams{}, nil, err
-	}
-
 	p.RequiredNotEmpty("grant_type", "client_secret", "client_id", "code")
 
 	vals := r.Form
@@ -52,12 +46,15 @@ func extractTokenParams(r *http.Request, callbackURL string) (tokenParams, []cod
 		clientID:     p.String(vals, "", "client_id"),
 		clientSecret: p.String(vals, "", "client_secret"),
 		code:         p.String(vals, "", "code"),
-		redirectURL:  p.RedirectURL(vals, cb, "redirect_uri"),
+		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
 		grantType:    httpapi.ParseCustom(p, vals, "", "grant_type", httpapi.ParseEnum[codersdk.OAuth2ProviderGrantType]),
 	}
 
 	p.ErrorExcessParams(vals)
-	return params, p.Errors, nil
+	if len(p.Errors) > 0 {
+		return tokenParams{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
+	}
+	return params, nil, nil
 }
 
 func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
@@ -65,17 +62,20 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		params, validationErrs, err := extractTokenParams(r, app.CallbackURL)
+		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate form values.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		if len(validationErrs) > 0 {
+
+		params, validationErrs, err := extractTokenParams(r, callbackURL)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid query params.",
+				Detail:      err.Error(),
 				Validations: validationErrs,
 			})
 			return

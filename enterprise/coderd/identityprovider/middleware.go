@@ -57,12 +57,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 					return
 				}
 
-				// Extract the form parameters for two reasons:
-				// 1. We need the redirect URI to build the cancel URI.
-				// 2. Since validation will run once the user clicks "allow", it is
-				//    better to validate now to avoid wasting the user's time clicking a
-				//    button that will just error anyway.
-				params, errs, err := extractAuthorizeParams(r, app.CallbackURL)
+				callbackURL, err := url.Parse(app.CallbackURL)
 				if err != nil {
 					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 						Status:       http.StatusInternalServerError,
@@ -75,9 +70,16 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 					})
 					return
 				}
-				if len(errs) > 0 {
-					errStr := make([]string, len(errs))
-					for i, err := range errs {
+
+				// Extract the form parameters for two reasons:
+				// 1. We need the redirect URI to build the cancel URI.
+				// 2. Since validation will run once the user clicks "allow", it is
+				//    better to validate now to avoid wasting the user's time clicking a
+				//    button that will just error anyway.
+				params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
+				if err != nil {
+					errStr := make([]string, len(validationErrs))
+					for i, err := range validationErrs {
 						errStr[i] = err.Detail
 					}
 					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{

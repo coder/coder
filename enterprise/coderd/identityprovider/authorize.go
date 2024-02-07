@@ -26,19 +26,15 @@ type authorizeParams struct {
 	state        string
 }
 
-func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParams, []codersdk.ValidationError, error) {
+func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizeParams, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
 	p.RequiredNotEmpty("state", "response_type", "client_id")
 
-	cb, err := url.Parse(callbackURL)
-	if err != nil {
-		return authorizeParams{}, nil, err
-	}
 	params := authorizeParams{
 		clientID:     p.String(vals, "", "client_id"),
-		redirectURL:  p.RedirectURL(vals, cb, "redirect_uri"),
+		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
 		responseType: httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:        p.Strings(vals, []string{}, "scope"),
 		state:        p.String(vals, "", "state"),
@@ -48,7 +44,10 @@ func extractAuthorizeParams(r *http.Request, callbackURL string) (authorizeParam
 	_ = p.String(vals, "", "redirected")
 
 	p.ErrorExcessParams(vals)
-	return params, p.Errors, nil
+	if len(p.Errors) > 0 {
+		return authorizeParams{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
+	}
+	return params, nil, nil
 }
 
 /**
@@ -63,7 +62,7 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		apiKey := httpmw.APIKey(r)
 		app := httpmw.OAuth2ProviderApp(r)
 
-		params, validationErrs, err := extractAuthorizeParams(r, app.CallbackURL)
+		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
 			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate query parameters.",
@@ -71,9 +70,12 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
-		if len(validationErrs) > 0 {
+
+		params, validationErrs, err := extractAuthorizeParams(r, callbackURL)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid query params.",
+				Detail:      err.Error(),
 				Validations: validationErrs,
 			})
 			return
