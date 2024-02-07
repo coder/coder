@@ -362,11 +362,20 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		clientOutput, clientInput := io.Pipe()
-		serverOutput, serverInput := io.Pipe()
-		monitorServerOutput, monitorServerInput := io.Pipe()
+		clientStdinR, clientStdinW := io.Pipe()
+		// Here's a simple flowchart for how these pipes are used:
+		//
+		// flowchart LR
+		//     A[ProxyCommand] --> B[captureProxyCommandStdoutW]
+		//     B --> C[captureProxyCommandStdoutR]
+		//     C --> VA[Validate output]
+		//     C --> D[proxyCommandOutputW]
+		//     D --> E[proxyCommandOutputR]
+		//     E --> F[SSH Client]
+		proxyCommandOutputR, proxyCommandOutputW := io.Pipe()
+		captureProxyCommandStdoutR, captureProxyCommandStdoutW := io.Pipe()
 		closePipes := func() {
-			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput, monitorServerOutput, monitorServerInput} {
+			for _, c := range []io.Closer{clientStdinR, clientStdinW, proxyCommandOutputR, proxyCommandOutputW, captureProxyCommandStdoutR, captureProxyCommandStdoutW} {
 				_ = c.Close()
 			}
 		}
@@ -378,13 +387,13 @@ func TestSSH(t *testing.T) {
 
 		// Here we start a monitor for the input going to the server
 		// (i.e. client stdout) to ensure that the output is clean.
-		serverInputBuf := make(chan byte, 4096)
+		proxyCommandOutputBuf := make(chan byte, 4096)
 		tGo(t, func() {
-			defer close(serverInputBuf)
+			defer close(proxyCommandOutputBuf)
 
 			gotHeader := false
 			buf := bytes.Buffer{}
-			r := bufio.NewReader(monitorServerOutput)
+			r := bufio.NewReader(captureProxyCommandStdoutR)
 			for {
 				b, err := r.ReadByte()
 				if err != nil {
@@ -402,7 +411,7 @@ func TestSSH(t *testing.T) {
 					// Ideally we would do further verification, but that would
 					// involve parsing the SSH protocol to look for output that
 					// doesn't belong. This at least ensures that no garbage is
-					// being sent to the server before trying to connect.
+					// being sent to the SSH client before trying to connect.
 					if !gotHeader {
 						gotHeader = true
 						assert.Equal(t, "SSH-2.0-Go", string(out), "invalid header")
@@ -411,18 +420,18 @@ func TestSSH(t *testing.T) {
 					_ = buf.WriteByte(b)
 				}
 				select {
-				case serverInputBuf <- b:
+				case proxyCommandOutputBuf <- b:
 				case <-ctx.Done():
 					return
 				}
 			}
 		})
 		tGo(t, func() {
-			defer serverInput.Close()
+			defer proxyCommandOutputW.Close()
 
 			// Range closed by above goroutine.
-			for b := range serverInputBuf {
-				_, err := serverInput.Write([]byte{b})
+			for b := range proxyCommandOutputBuf {
+				_, err := proxyCommandOutputW.Write([]byte{b})
 				if err != nil {
 					if errors.Is(err, io.ErrClosedPipe) {
 						return
@@ -436,8 +445,8 @@ func TestSSH(t *testing.T) {
 		// Start the SSH stdio command.
 		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		inv.Stdin = clientOutput
-		inv.Stdout = monitorServerInput
+		inv.Stdin = clientStdinR
+		inv.Stdout = captureProxyCommandStdoutW
 		inv.Stderr = io.Discard
 
 		cmdDone := tGo(t, func() {
@@ -453,8 +462,8 @@ func TestSSH(t *testing.T) {
 		})
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
-			Reader: serverOutput,
-			Writer: clientInput,
+			Reader: proxyCommandOutputR,
+			Writer: clientStdinW,
 		}, "", &ssh.ClientConfig{
 			// #nosec
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -475,7 +484,7 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		err = sshClient.Close()
 		require.NoError(t, err)
-		_ = clientOutput.Close()
+		_ = clientStdinR.Close()
 
 		<-cmdDone
 	})
