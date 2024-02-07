@@ -8201,6 +8201,38 @@ func (q *sqlQuerier) InsertWorkspaceAgentPortShare(ctx context.Context, arg Inse
 	return i, err
 }
 
+const listWorkspaceAgentPortShares = `-- name: ListWorkspaceAgentPortShares :many
+SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1
+`
+
+func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceAgentPortShares, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentPortShare
+	for rows.Next() {
+		var i WorkspaceAgentPortShare
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.Port,
+			&i.ShareLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateWorkspaceAgentPortShare = `-- name: UpdateWorkspaceAgentPortShare :exec
 UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
 `

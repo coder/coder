@@ -7189,6 +7189,39 @@ const docTemplate = `{
             }
         },
         "/workspaces/{workspace}/port-share": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Get workspace agent port shares",
+                "operationId": "get-workspace-agent-port-shares",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -12584,6 +12617,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentPortShare": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                }
+            }
+        },
         "codersdk.WorkspaceAgentPortShareLevel": {
             "type": "string",
             "enum": [
@@ -12596,6 +12643,17 @@ const docTemplate = `{
                 "WorkspaceAgentPortShareLevelAuthenticated",
                 "WorkspaceAgentPortShareLevelPublic"
             ]
+        },
+        "codersdk.WorkspaceAgentPortShares": {
+            "type": "object",
+            "properties": {
+                "shares": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
+                    }
+                }
+            }
         },
         "codersdk.WorkspaceAgentScript": {
             "type": "object",

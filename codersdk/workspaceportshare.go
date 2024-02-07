@@ -21,6 +21,14 @@ type (
 		Port       int32                        `json:"port"`
 		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
 	}
+	WorkspaceAgentPortShares struct {
+		Shares []WorkspaceAgentPortShare `json:"shares"`
+	}
+	WorkspaceAgentPortShare struct {
+		AgentName  string                       `json:"agent_name"`
+		Port       int32                        `json:"port"`
+		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
+	}
 )
 
 func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {

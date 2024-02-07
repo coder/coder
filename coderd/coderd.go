@@ -960,6 +960,7 @@ func New(options *Options) *API {
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
 				r.Post("/port-share", api.postWorkspaceAgentPortShare)
+				r.Get("/port-shares", api.getWorkspaceAgentPortShares)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

@@ -3425,6 +3425,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), arg0, arg1)
 }
 
+// ListWorkspaceAgentPortShares mocks base method.
+func (m *MockStore) ListWorkspaceAgentPortShares(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWorkspaceAgentPortShares", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentPortShare)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWorkspaceAgentPortShares indicates an expected call of ListWorkspaceAgentPortShares.
+func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), arg0, arg1)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(arg0 context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()

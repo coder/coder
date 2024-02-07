@@ -6551,6 +6551,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `script`       | string  | false    |              |             |
 | `timeout`      | integer | false    |              |             |
 
+## codersdk.WorkspaceAgentPortShare
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": "owner"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`  | string                                                                         | false    |              |             |
+| `port`        | integer                                                                        | false    |              |             |
+| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
+
 ## codersdk.WorkspaceAgentPortShareLevel
 
 ```json
@@ -6566,6 +6584,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `owner`         |
 | `authenticated` |
 | `public`        |
+
+## codersdk.WorkspaceAgentPortShares
+
+```json
+{
+  "shares": [
+    {
+      "agent_name": "string",
+      "port": 0,
+      "share_level": "owner"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                          | Required | Restrictions | Description |
+| -------- | ----------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `shares` | array of [codersdk.WorkspaceAgentPortShare](#codersdkworkspaceagentportshare) | false    |              |             |
 
 ## codersdk.WorkspaceAgentScript
 

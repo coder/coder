@@ -891,7 +891,8 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("UpdateTemplateMetaByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateMetaByIDParams{
-			ID: t1.ID,
+			ID:                  t1.ID,
+			MaxPortSharingLevel: "owner",
 		}).Asserts(t1, rbac.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1625,6 +1626,12 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
 		}).Asserts(ws, rbac.ActionRead).Returns(ps)
+	}))
+	s.Run("ListWorkspaceAgentPortShares", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentPortShare{ps})
 	}))
 	s.Run("UpdateWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

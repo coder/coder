@@ -6066,6 +6066,20 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
+func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	shares := []database.WorkspaceAgentPortShare{}
+	for _, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == workspaceID {
+			shares = append(shares, share)
+		}
+	}
+
+	return shares, nil
+}
+
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

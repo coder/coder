@@ -109,3 +109,40 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 
 	rw.WriteHeader(http.StatusOK)
 }
+
+// @Summary Get workspace agent port shares
+// @ID get-workspace-agent-port-shares
+// @Security CoderSessionToken
+// @Produce json
+// @Tags PortSharing
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentPortShares
+// @Router /workspaces/{workspace}/port-share [get]
+//
+//nolint:revive // this is not a getter
+func (api *API) getWorkspaceAgentPortShares(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+
+	shares, err := api.Database.ListWorkspaceAgentPortShares(ctx, workspace.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentPortShares{
+		Shares: convertPortShares(shares),
+	})
+}
+
+func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.WorkspaceAgentPortShare {
+	var converted []codersdk.WorkspaceAgentPortShare
+	for _, share := range shares {
+		converted = append(converted, codersdk.WorkspaceAgentPortShare{
+			AgentName:  share.AgentName,
+			Port:       share.Port,
+			ShareLevel: codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
+		})
+	}
+	return converted
+}

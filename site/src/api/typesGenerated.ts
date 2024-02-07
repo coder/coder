@@ -1617,6 +1617,18 @@ export interface WorkspaceAgentMetadataResult {
   readonly error: string;
 }
 
+// From codersdk/workspaceportshare.go
+export interface WorkspaceAgentPortShare {
+  readonly agent_name: string;
+  readonly port: number;
+  readonly share_level: WorkspaceAgentPortShareLevel;
+}
+
+// From codersdk/workspaceportshare.go
+export interface WorkspaceAgentPortShares {
+  readonly shares: WorkspaceAgentPortShare[];
+}
+
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
   readonly log_source_id: string;
