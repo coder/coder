@@ -2550,7 +2550,15 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 }
 
 func (q *querier) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Context, arg database.RestrictWorkspaceAgentPortSharesByTemplateParams) error {
-	panic("not implemented")
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return err
+	}
+
+	return q.db.RestrictWorkspaceAgentPortSharesByTemplate(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

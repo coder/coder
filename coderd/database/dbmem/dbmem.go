@@ -6089,7 +6089,39 @@ func (q *FakeQuerier) RestrictWorkspaceAgentPortSharesByTemplate(ctx context.Con
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var sharesToDelete []database.WorkspaceAgentPortShare
+	for _, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		for i, share := range q.workspaceAgentPortShares {
+			if share.WorkspaceID != ws.ID {
+				continue
+			}
+
+			// delete port share if set to owner level
+			if arg.ShareLevel == int32(codersdk.WorkspaceAgentPortShareLevelOwner) {
+				sharesToDelete = append(sharesToDelete, share)
+				continue
+			}
+
+			q.workspaceAgentPortShares[i].ShareLevel = arg.ShareLevel
+		}
+	}
+
+	for _, share := range sharesToDelete {
+		for i, s := range q.workspaceAgentPortShares {
+			if s.WorkspaceID == share.WorkspaceID && s.AgentName == share.AgentName && s.Port == share.Port {
+				q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {

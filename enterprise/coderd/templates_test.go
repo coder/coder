@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -144,7 +145,7 @@ func TestTemplates(t *testing.T) {
 	t.Run("MaxPortShareLevel", func(t *testing.T) {
 		t.Parallel()
 
-		owner, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		owner, db, userRes := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
@@ -154,9 +155,9 @@ func TestTemplates(t *testing.T) {
 				},
 			},
 		})
-		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		client, user := coderdtest.CreateAnotherUser(t, owner, userRes.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, userRes.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, userRes.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -186,7 +187,9 @@ func TestTemplates(t *testing.T) {
 
 		// Make some port shares and ensure they are adjusted correctly
 		// when template max port share level is updated
-		ws := dbgen.Workspace(t, db, database.Workspace{})
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			TemplateID: template.ID,
+		})
 		_ = dbgen.WorkspaceAgentPortShare(t, db, database.WorkspaceAgentPortShare{
 			WorkspaceID: ws.ID,
 			AgentName:   "test-agent",
@@ -205,6 +208,7 @@ func TestTemplates(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		ctx = dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, userRes.OrganizationID))
 		// ensure port shares are downgraded correctly
 		updatedPs1, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
 			WorkspaceID: ws.ID,
