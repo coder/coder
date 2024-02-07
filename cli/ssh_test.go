@@ -369,13 +369,13 @@ func TestSSH(t *testing.T) {
 		//     A[ProxyCommand] --> B[captureProxyCommandStdoutW]
 		//     B --> C[captureProxyCommandStdoutR]
 		//     C --> VA[Validate output]
-		//     C --> D[proxyCommandOutputW]
-		//     D --> E[proxyCommandOutputR]
+		//     C --> D[proxyCommandStdoutW]
+		//     D --> E[proxyCommandStdoutR]
 		//     E --> F[SSH Client]
-		proxyCommandOutputR, proxyCommandOutputW := io.Pipe()
+		proxyCommandStdoutR, proxyCommandStdoutW := io.Pipe()
 		captureProxyCommandStdoutR, captureProxyCommandStdoutW := io.Pipe()
 		closePipes := func() {
-			for _, c := range []io.Closer{clientStdinR, clientStdinW, proxyCommandOutputR, proxyCommandOutputW, captureProxyCommandStdoutR, captureProxyCommandStdoutW} {
+			for _, c := range []io.Closer{clientStdinR, clientStdinW, proxyCommandStdoutR, proxyCommandStdoutW, captureProxyCommandStdoutR, captureProxyCommandStdoutW} {
 				_ = c.Close()
 			}
 		}
@@ -427,11 +427,11 @@ func TestSSH(t *testing.T) {
 			}
 		})
 		tGo(t, func() {
-			defer proxyCommandOutputW.Close()
+			defer proxyCommandStdoutW.Close()
 
 			// Range closed by above goroutine.
 			for b := range proxyCommandOutputBuf {
-				_, err := proxyCommandOutputW.Write([]byte{b})
+				_, err := proxyCommandStdoutW.Write([]byte{b})
 				if err != nil {
 					if errors.Is(err, io.ErrClosedPipe) {
 						return
@@ -462,7 +462,7 @@ func TestSSH(t *testing.T) {
 		})
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
-			Reader: proxyCommandOutputR,
+			Reader: proxyCommandStdoutR,
 			Writer: clientStdinW,
 		}, "", &ssh.ClientConfig{
 			// #nosec
