@@ -262,6 +262,10 @@ resource "coder_agent" "dev" {
   startup_script_timeout = 60
   startup_script         = <<-EOT
     set -eux -o pipefail
+
+    # Allow synchronization between scripts.
+    trap 'touch /tmp/.coder-startup-script.done' EXIT
+
     # Start Docker service
     sudo service docker start
     # Install playwright dependencies
