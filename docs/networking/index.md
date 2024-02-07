@@ -113,6 +113,22 @@ At a high level, STUN works like this:
 At this point, both the client and agent should be able to send traffic directly
 to each other.
 
+Below are some example scenarios:
+
+1. Direct connections without NAT or STUN
+
+    ```mermaid
+    flowchart LR
+        A[Client Workstation\n192.168.21.47:38297]
+        B((Private Network\ne.g. Corp. LAN))
+        C[Workspace Agent\n192.168.21.147:41563]
+        A <--> B
+        B <--> C
+    ```
+
+   In this example, both the client and agent are located on the network `192.168.21.0/24`. Assuming no firewalls are blocking packets in either direction, both client and agent are able to communicate directly with each other's locally assigned IP address.
+
+
 ## coder server
 
 Workspaces connect to the coder server via the server's external address, set
