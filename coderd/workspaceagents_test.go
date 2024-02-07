@@ -890,6 +890,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
+// TestWorkspaceAgentReportStats tests the legacy (agent API v1) report stats endpoint.
 func TestWorkspaceAgentReportStats(t *testing.T) {
 	t.Parallel()
 

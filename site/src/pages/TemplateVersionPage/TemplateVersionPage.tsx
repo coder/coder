@@ -5,7 +5,6 @@ import { useParams } from "react-router-dom";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
-import { useFileTab } from "modules/templates/TemplateFiles/TemplateFiles";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 import {
   templateByName,
@@ -43,7 +42,6 @@ export const TemplateVersionPage: FC = () => {
     ...templateFiles(activeVersionQuery.data?.job.file_id ?? ""),
     enabled: Boolean(activeVersionQuery.data),
   });
-  const tab = useFileTab(selectedVersionFilesQuery.data);
 
   const permissions = usePermissions();
   const versionId = selectedVersionQuery.data?.id;
@@ -75,7 +73,6 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
-        tab={tab}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

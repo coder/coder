@@ -31,6 +31,12 @@ jest.mock(
   }),
 );
 
+// Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
+// required for these tests, we can safely mock it.
+jest.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+  MonacoEditor: () => <div />,
+}));
+
 const renderTemplateEditorPage = () => {
   renderWithAuth(<TemplateVersionEditorPage />, {
     route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,

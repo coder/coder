@@ -39,7 +39,7 @@ type ServeOptions struct {
 	ExitTimeout time.Duration
 }
 
-func absoluteBinaryPath(ctx context.Context) (string, error) {
+func absoluteBinaryPath(ctx context.Context, logger slog.Logger) (string, error) {
 	binaryPath, err := safeexec.LookPath("terraform")
 	if err != nil {
 		return "", xerrors.Errorf("Terraform binary not found: %w", err)
@@ -56,13 +56,28 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 	}
 
 	// Checking the installed version of Terraform.
-	version, err := versionFromBinaryPath(ctx, absoluteBinary)
+	installedVersion, err := versionFromBinaryPath(ctx, absoluteBinary)
 	if err != nil {
 		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
 	}
 
-	if version.LessThan(minTerraformVersion) || version.GreaterThan(maxTerraformVersion) {
+	logger.Info(ctx, "detected terraform version",
+		slog.F("installed_version", installedVersion.String()),
+		slog.F("min_version", maxTerraformVersion.String()),
+		slog.F("max_version", maxTerraformVersion.String()))
+
+	if installedVersion.LessThan(minTerraformVersion) {
+		logger.Warn(ctx, "installed terraform version too old, will download known good version to cache")
 		return "", terraformMinorVersionMismatch
+	}
+
+	// Warn if the installed version is newer than what we've decided is the max.
+	// We used to ignore it and download our own version but this makes it easier
+	// to test out newer versions of Terraform.
+	if installedVersion.GreaterThanOrEqual(maxTerraformVersion) {
+		logger.Warn(ctx, "installed terraform version newer than expected, you may experience bugs",
+			slog.F("installed_version", installedVersion.String()),
+			slog.F("max_version", maxTerraformVersion.String()))
 	}
 
 	return absoluteBinary, nil
@@ -71,7 +86,7 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
-		absoluteBinary, err := absoluteBinaryPath(ctx)
+		absoluteBinary, err := absoluteBinaryPath(ctx, options.Logger)
 		if err != nil {
 			// This is an early exit to prevent extra execution in case the context is canceled.
 			// It generally happens in unit tests since this method is asynchronous and
@@ -80,6 +95,9 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("absolute binary context canceled: %w", err)
 			}
 
+			options.Logger.Warn(ctx, "no usable terraform binary found, downloading to cache dir",
+				slog.F("terraform_version", TerraformVersion.String()),
+				slog.F("cache_dir", options.CachePath))
 			binPath, err := Install(ctx, options.Logger, options.CachePath, TerraformVersion)
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)

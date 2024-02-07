@@ -2,7 +2,6 @@ import TextField from "@mui/material/TextField";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
 import { type ChangeEvent, type FC, useState } from "react";
-import { allowedExtensions, isAllowedFile } from "utils/templateVersion";
 import { type FileTree, isFolder, validatePath } from "utils/filetree";
 
 interface CreateFileDialogProps {
@@ -34,13 +33,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
       setError("File already exists");
       return;
     }
-    if (!isAllowedFile(pathValue)) {
-      const extensions = allowedExtensions.join(", ");
-      setError(
-        `This extension is not allowed. You only can create files with the following extensions: ${extensions}.`,
-      );
-      return;
-    }
+
     const pathError = validatePath(pathValue, fileTree);
     if (pathError) {
       setError(pathError);
@@ -155,13 +148,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
       setError("File already exists");
       return;
     }
-    if (!isAllowedFile(pathValue)) {
-      const extensions = allowedExtensions.join(", ");
-      setError(
-        `This extension is not allowed. You only can rename files with the following extensions: ${extensions}.`,
-      );
-      return;
-    }
+
     //Check if a folder is renamed to a file
     const [_, extension] = pathValue.split(".");
     if (isFolder(filename, fileTree) && extension) {

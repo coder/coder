@@ -14,7 +14,6 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
-import { UseTabResult } from "hooks/useTab";
 import type { TemplateVersion } from "api/typesGenerated";
 import { createDayString } from "utils/createDayString";
 import { TemplateVersionFiles } from "utils/templateVersion";
@@ -23,7 +22,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 export interface TemplateVersionPageViewProps {
   versionName: string;
   templateName: string;
-  tab: UseTabResult;
   createWorkspaceUrl?: string;
   error: unknown;
   currentVersion: TemplateVersion | undefined;
@@ -32,7 +30,6 @@ export interface TemplateVersionPageViewProps {
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
-  tab,
   versionName,
   templateName,
   createWorkspaceUrl,
@@ -101,9 +98,10 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             </Stats>
 
             <TemplateFiles
-              tab={tab}
               currentFiles={currentFiles}
               baseFiles={baseFiles}
+              templateName={templateName}
+              versionName={versionName}
             />
           </>
         )}

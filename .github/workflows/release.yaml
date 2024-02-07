@@ -411,7 +411,7 @@ jobs:
       - name: Sync fork
         run: gh repo sync cdrci/winget-pkgs -b master
         env:
-          GH_TOKEN: ${{ secrets.WINGET_GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Checkout
         uses: actions/checkout@v4

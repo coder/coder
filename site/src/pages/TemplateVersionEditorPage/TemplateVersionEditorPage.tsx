@@ -1,7 +1,7 @@
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
@@ -23,12 +23,9 @@ import {
   templateVersionVariables,
 } from "api/queries/templates";
 import { file, uploadFile } from "api/queries/files";
-import { TarFileTypeCodes, TarReader, TarWriter } from "utils/tar";
+import { TarReader, TarWriter } from "utils/tar";
 import { FileTree, traverse } from "utils/filetree";
-import {
-  createTemplateVersionFileTree,
-  isAllowedFile,
-} from "utils/templateVersion";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
@@ -40,16 +37,14 @@ type Params = {
 export const TemplateVersionEditorPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { version: initialVersionName, template: templateName } =
+  const { version: versionName, template: templateName } =
     useParams() as Params;
   const orgId = useOrganizationId();
-  const [currentVersionName, setCurrentVersionName] =
-    useState(initialVersionName);
   const templateQuery = useQuery(templateByName(orgId, templateName));
   const templateVersionOptions = templateVersionByName(
     orgId,
     templateName,
-    currentVersionName,
+    versionName,
   );
   const templateVersionQuery = useQuery({
     ...templateVersionOptions,
@@ -81,6 +76,27 @@ export const TemplateVersionEditorPage: FC = () => {
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
 
+  // File navigation
+  const [searchParams, setSearchParams] = useSearchParams();
+  // It can be undefined when a selected file is deleted
+  const activePath: string | undefined =
+    searchParams.get("path") ?? findInitialFile(fileTree ?? {});
+  const onActivePathChange = (path: string | undefined) => {
+    if (path) {
+      searchParams.set("path", path);
+    } else {
+      searchParams.delete("path");
+    }
+    setSearchParams(searchParams);
+  };
+
+  const navigateToVersion = (version: TemplateVersion) => {
+    return navigate(
+      `/templates/${templateName}/versions/${version.name}/edit`,
+      { replace: true },
+    );
+  };
+
   // Optimistically update the template version data job status to make the
   // build action feels faster
   const onBuildStart = () => {
@@ -98,8 +114,8 @@ export const TemplateVersionEditorPage: FC = () => {
   };
 
   const onBuildEnds = (newVersion: TemplateVersion) => {
-    setCurrentVersionName(newVersion.name);
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
+    navigateToVersion(newVersion);
   };
 
   // Provisioner Tags
@@ -120,6 +136,8 @@ export const TemplateVersionEditorPage: FC = () => {
 
       {templateQuery.data && templateVersionQuery.data && fileTree ? (
         <TemplateVersionEditor
+          activePath={activePath}
+          onActivePathChange={onActivePathChange}
           template={templateQuery.data}
           templateVersion={templateVersionQuery.data}
           defaultFileTree={fileTree}
@@ -159,17 +177,13 @@ export const TemplateVersionEditorPage: FC = () => {
               ...templateVersionQuery.data,
               ...data,
             };
-            setCurrentVersionName(publishedVersion.name);
             setIsPublishingDialogOpen(false);
             setLastSuccessfulPublishedVersion(publishedVersion);
             queryClient.setQueryData(
               templateVersionOptions.queryKey,
               publishedVersion,
             );
-            navigate(
-              `/templates/${templateName}/versions/${publishedVersion.name}/edit`,
-              { replace: true },
-            );
+            navigateToVersion(publishedVersion);
           }}
           isAskingPublishParameters={isPublishingDialogOpen}
           isPublishing={publishVersionMutation.isLoading}
@@ -193,7 +207,6 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           disableUpdate={
             templateVersionQuery.data.job.status !== "succeeded" ||
-            templateVersionQuery.data.name === initialVersionName ||
             templateVersionQuery.data.name ===
               lastSuccessfulPublishedVersion?.name
           }
@@ -253,7 +266,8 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
     };
 
     if (fileQuery.data) {
-      initializeFileTree(fileQuery.data).catch(() => {
+      initializeFileTree(fileQuery.data).catch((reason) => {
+        console.error(reason);
         displayError("Error on initializing the editor");
       });
     }
@@ -330,39 +344,20 @@ const generateVersionFiles = async (
 ) => {
   const tar = new TarWriter();
 
-  // Add previous non editable files
-  for (const file of tarReader.fileInfo) {
-    if (!isAllowedFile(file.name)) {
-      if (file.type === TarFileTypeCodes.Dir) {
-        tar.addFolder(file.name, {
-          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-          mtime: file.mtime,
-          user: file.user,
-          group: file.group,
-        });
-      } else {
-        tar.addFile(file.name, tarReader.getTextFile(file.name) as string, {
-          mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
-          mtime: file.mtime,
-          user: file.user,
-          group: file.group,
-        });
-      }
-    }
-  }
-  // Add the editable files
   traverse(fileTree, (content, _filename, fullPath) => {
     // When a file is deleted. Don't add it to the tar.
     if (content === undefined) {
       return;
     }
 
+    const baseFileInfo = tarReader.fileInfo.find((i) => i.name === fullPath);
+
     if (typeof content === "string") {
-      tar.addFile(fullPath, content);
+      tar.addFile(fullPath, content, baseFileInfo);
       return;
     }
 
-    tar.addFolder(fullPath);
+    tar.addFolder(fullPath, baseFileInfo);
   });
   const blob = (await tar.write()) as Blob;
   return new File([blob], "template.tar");
@@ -391,6 +386,18 @@ const publishVersion = async (options: {
   }
 
   return Promise.all(publishActions);
+};
+
+const findInitialFile = (fileTree: FileTree): string | undefined => {
+  let initialFile: string | undefined;
+
+  traverse(fileTree, (content, filename, path) => {
+    if (filename.endsWith(".tf")) {
+      initialFile = path;
+    }
+  });
+
+  return initialFile;
 };
 
 export default TemplateVersionEditorPage;

@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
-	"github.com/coder/retry"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
@@ -390,61 +389,6 @@ func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateRes
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// ReportStats begins a stat streaming connection with the Coder server.
-// It is resilient to network failures and intermittent coderd issues.
-func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *Stats, setInterval func(time.Duration)) (io.Closer, error) {
-	var interval time.Duration
-	ctx, cancel := context.WithCancel(ctx)
-	exited := make(chan struct{})
-
-	postStat := func(stat *Stats) {
-		var nextInterval time.Duration
-		for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-			resp, err := c.PostStats(ctx, stat)
-			if err != nil {
-				if !xerrors.Is(err, context.Canceled) {
-					log.Error(ctx, "report stats", slog.Error(err))
-				}
-				continue
-			}
-
-			nextInterval = resp.ReportInterval
-			break
-		}
-
-		if nextInterval != 0 && interval != nextInterval {
-			setInterval(nextInterval)
-		}
-		interval = nextInterval
-	}
-
-	// Send an empty stat to get the interval.
-	postStat(&Stats{})
-
-	go func() {
-		defer close(exited)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case stat, ok := <-statsChan:
-				if !ok {
-					return
-				}
-
-				postStat(stat)
-			}
-		}
-	}()
-
-	return closeFunc(func() error {
-		cancel()
-		<-exited
-		return nil
-	}), nil
-}
-
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
@@ -509,6 +453,9 @@ type StatsResponse struct {
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
+// PostStats sends agent stats to the coder server
+//
+// Deprecated: uses agent API v1 endpoint
 func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
 	if err != nil {
@@ -647,12 +594,6 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 
 	var authResp ExternalAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
-}
-
-type closeFunc func() error
-
-func (c closeFunc) Close() error {
-	return c()
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

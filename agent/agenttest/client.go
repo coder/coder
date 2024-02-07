@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -27,11 +28,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const statsInterval = 500 * time.Millisecond
+
 func NewClient(t testing.TB,
 	logger slog.Logger,
 	agentID uuid.UUID,
 	manifest agentsdk.Manifest,
-	statsChan chan *agentsdk.Stats,
+	statsChan chan *agentproto.Stats,
 	coordinator tailnet.Coordinator,
 ) *Client {
 	if manifest.AgentID == uuid.Nil {
@@ -51,7 +54,7 @@ func NewClient(t testing.TB,
 	require.NoError(t, err)
 	mp, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
-	fakeAAPI := NewFakeAgentAPI(t, logger, mp)
+	fakeAAPI := NewFakeAgentAPI(t, logger, mp, statsChan)
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
@@ -66,7 +69,6 @@ func NewClient(t testing.TB,
 		t:              t,
 		logger:         logger.Named("client"),
 		agentID:        agentID,
-		statsChan:      statsChan,
 		coordinator:    coordinator,
 		server:         server,
 		fakeAgentAPI:   fakeAAPI,
@@ -79,7 +81,6 @@ type Client struct {
 	logger             slog.Logger
 	agentID            uuid.UUID
 	metadata           map[string]agentsdk.Metadata
-	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
@@ -119,38 +120,6 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 		_ = c.server.Serve(serveCtx, lis)
 	}()
 	return conn, nil
-}
-
-func (c *Client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
-	doneCh := make(chan struct{})
-	ctx, cancel := context.WithCancel(ctx)
-
-	go func() {
-		defer close(doneCh)
-
-		setInterval(500 * time.Millisecond)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case stat := <-statsChan:
-				select {
-				case c.statsChan <- stat:
-				case <-ctx.Done():
-					return
-				default:
-					// We don't want to send old stats.
-					continue
-				}
-			}
-		}
-	}()
-	return closeFunc(func() error {
-		cancel()
-		<-doneCh
-		close(c.statsChan)
-		return nil
-	}), nil
 }
 
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
@@ -223,12 +192,6 @@ func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	return nil
 }
 
-type closeFunc func() error
-
-func (c closeFunc) Close() error {
-	return c()
-}
-
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -236,6 +199,7 @@ type FakeAgentAPI struct {
 
 	manifest  *agentproto.Manifest
 	startupCh chan *agentproto.Startup
+	statsCh   chan *agentproto.Stats
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -264,9 +228,13 @@ func (f *FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceB
 	return agentsdk.ProtoFromServiceBanner(sb), nil
 }
 
-func (*FakeAgentAPI) UpdateStats(context.Context, *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
+	f.logger.Debug(ctx, "update stats called", slog.F("req", req))
+	// empty request is sent to get the interval; but our tests don't want empty stats requests
+	if req.Stats != nil {
+		f.statsCh <- req.Stats
+	}
+	return &agentproto.UpdateStatsResponse{ReportInterval: durationpb.New(statsInterval)}, nil
 }
 
 func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
@@ -294,11 +262,12 @@ func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLog
 	panic("implement me")
 }
 
-func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest) *FakeAgentAPI {
+func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
 		t:         t,
 		logger:    logger.Named("FakeAgentAPI"),
 		manifest:  manifest,
+		statsCh:   statsCh,
 		startupCh: make(chan *agentproto.Startup, 100),
 	}
 }

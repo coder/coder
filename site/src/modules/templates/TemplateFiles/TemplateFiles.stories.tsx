@@ -1,4 +1,3 @@
-import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { TemplateFiles } from "./TemplateFiles";
@@ -19,7 +18,6 @@ const meta: Meta<typeof TemplateFiles> = {
   args: {
     currentFiles: exampleFiles,
     baseFiles: exampleFiles,
-    tab: { value: "0", set: action("change tab") },
   },
 };
 
@@ -27,5 +25,15 @@ export default meta;
 type Story = StoryObj<typeof TemplateFiles>;
 
 const Example: Story = {};
+
+export const WithDiff: Story = {
+  args: {
+    currentFiles: {
+      ...exampleFiles,
+      "main.tf": `${exampleFiles["main.tf"]} - with changes`,
+    },
+    baseFiles: exampleFiles,
+  },
+};
 
 export { Example as TemplateFiles };
