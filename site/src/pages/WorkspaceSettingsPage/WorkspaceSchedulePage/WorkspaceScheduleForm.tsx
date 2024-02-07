@@ -441,10 +441,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
       <FormFooter
         onCancel={onCancel}
         isLoading={isLoading}
-        submitDisabled={
-          (!allowTemplateAutoStart && !allowTemplateAutoStop) ||
-          (!form.values.autostartEnabled && !form.values.autostopEnabled)
-        }
+        // If both options, autostart and autostop, are disabled at the template
+        // level, the form is disabled.
+        submitDisabled={!allowTemplateAutoStart && !allowTemplateAutoStop}
       />
     </HorizontalForm>
   );
