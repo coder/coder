@@ -189,6 +189,7 @@ func TestTemplates(t *testing.T) {
 		// when template max port share level is updated
 		ws := dbgen.Workspace(t, db, database.Workspace{
 			TemplateID: template.ID,
+			OwnerID:    userRes.UserID,
 		})
 		_ = dbgen.WorkspaceAgentPortShare(t, db, database.WorkspaceAgentPortShare{
 			WorkspaceID: ws.ID,
