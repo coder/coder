@@ -67,6 +67,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
       isFolder(content) &&
       Object.keys(content).length === 1 &&
       isFolder(Object.values(content)[0]);
+    const isHiddenFile = currentPath.startsWith(".");
 
     if (shouldGroupFolder) {
       const firstChildFileName = Object.keys(content)[0];
@@ -115,13 +116,15 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
-            color: ${theme.palette.text.secondary};
+            color: ${isHiddenFile
+              ? theme.palette.text.disabled
+              : theme.palette.text.secondary};
             height: 32px;
 
             & svg {
               width: 12px;
               height: 12px;
-              color: ${theme.palette.text.secondary};
+              color: currentColor;
             }
 
             & > .MuiTreeItem-label {

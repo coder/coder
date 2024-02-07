@@ -67,3 +67,20 @@ export const GroupEmptyFolders: Story = {
     },
   },
 };
+
+export const GreyOutHiddenFiles: Story = {
+  args: {
+    fileTree: {
+      ".vite": {
+        "config.json": "resource aws_instance my_instance {}",
+      },
+      ".nextjs": {
+        "nested.tf": "resource aws_instance my_instance {}",
+      },
+      ".terraform.lock.hcl": "{}",
+      "main.tf": "resource aws_instance my_instance {}",
+      "variables.tf": "variable my_var {}",
+      "outputs.tf": "output my_output {}",
+    },
+  },
+};
