@@ -26,7 +26,7 @@ import {
   createFile,
   existsFile,
   FileTree,
-  getFileContent,
+  getFileText,
   isFolder,
   moveFile,
   removeFile,
@@ -167,8 +167,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     previousVersion.current = templateVersion;
   }, [templateVersion]);
 
-  const editorValue = getFileContent(activePath ?? "", fileTree) as string;
-  const isEditorValueBinary = isBinaryData(editorValue);
+  const editorValue = activePath ? getFileText(activePath, fileTree) : "";
+  const isEditorValueBinary =
+    typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
   // Auto scroll
   const buildLogsRef = useRef<HTMLDivElement>(null);
