@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -163,6 +164,102 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 	uut.L.Lock()
 	defer uut.L.Unlock()
 	require.Len(t, uut.queues, 0)
+}
+
+func TestLogSender_SkipHugeLog(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fDest := newFakeLogDest()
+	uut := newLogSender(logger)
+
+	t0 := dbtime.Now()
+	ls1 := uuid.UUID{0x11}
+	hugeLog := make([]byte, logOutputMaxBytes+1)
+	for i := range hugeLog {
+		hugeLog[i] = 'q'
+	}
+	err := uut.enqueue(ls1,
+		agentsdk.Log{
+			CreatedAt: t0,
+			Output:    string(hugeLog),
+			Level:     codersdk.LogLevelInfo,
+		},
+		agentsdk.Log{
+			CreatedAt: t0,
+			Output:    "test log 1, src 1",
+			Level:     codersdk.LogLevelInfo,
+		})
+	require.NoError(t, err)
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	require.Len(t, req.Logs, 1, "it should skip the huge log")
+	require.Equal(t, "test log 1, src 1", req.Logs[0].GetOutput())
+	require.Equal(t, proto.Log_INFO, req.Logs[0].GetLevel())
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+
+	cancel()
+	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	require.NoError(t, err)
+}
+
+func TestLogSender_Batch(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fDest := newFakeLogDest()
+	uut := newLogSender(logger)
+
+	t0 := dbtime.Now()
+	ls1 := uuid.UUID{0x11}
+	var logs []agentsdk.Log
+	for i := 0; i < 60000; i++ {
+		logs = append(logs, agentsdk.Log{
+			CreatedAt: t0,
+			Output:    "r",
+			Level:     codersdk.LogLevelInfo,
+		})
+	}
+	err := uut.enqueue(ls1, logs...)
+	require.NoError(t, err)
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	// with 60k logs, we should split into two updates to avoid going over 1MiB, since each log
+	// is about 21 bytes.
+	gotLogs := 0
+	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	gotLogs += len(req.Logs)
+	wire, err := protobuf.Marshal(req)
+	require.NoError(t, err)
+	require.Less(t, len(wire), logOutputMaxBytes, "wire should not exceed 1MiB")
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	req = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	gotLogs += len(req.Logs)
+	wire, err = protobuf.Marshal(req)
+	require.NoError(t, err)
+	require.Less(t, len(wire), logOutputMaxBytes, "wire should not exceed 1MiB")
+	require.Equal(t, 60000, gotLogs)
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+
+	cancel()
+	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	require.NoError(t, err)
 }
 
 type fakeLogDest struct {
