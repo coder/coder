@@ -33,7 +33,7 @@ import {
   shouldDisplayScheduleControls,
 } from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
-import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import { ConnectionStatus } from "./ConnectionStatus";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -201,6 +201,23 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </Popover>
         </TopbarData>
 
+        <ConnectionStatus lastUsedAt={workspace.last_used_at} />
+
+        {shouldDisplayScheduleControls(workspace) && (
+          <TopbarData>
+            <TopbarIcon>
+              <Tooltip title="Schedule">
+                <ScheduleOutlined aria-label="Schedule" />
+              </Tooltip>
+            </TopbarIcon>
+            <WorkspaceScheduleControls
+              workspace={workspace}
+              template={template}
+              canUpdateSchedule={canUpdateWorkspace}
+            />
+          </TopbarData>
+        )}
+
         {shouldDisplayDormantData && (
           <TopbarData>
             <TopbarIcon>
@@ -219,23 +236,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
             </Link>
           </TopbarData>
         )}
-
-        {shouldDisplayScheduleControls(workspace) && (
-          <TopbarData>
-            <TopbarIcon>
-              <Tooltip title="Schedule">
-                <ScheduleOutlined aria-label="Schedule" />
-              </Tooltip>
-            </TopbarIcon>
-            <WorkspaceScheduleControls
-              workspace={workspace}
-              template={template}
-              canUpdateSchedule={canUpdateWorkspace}
-            />
-          </TopbarData>
-        )}
-
-        <LastUsed lastUsedAt={workspace.last_used_at} />
 
         {quota && quota.budget > 0 && (
           <TopbarData>
