@@ -77,16 +77,11 @@ func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dbApps []database.OAuth2ProviderApp
+	var sdkApps []codersdk.OAuth2ProviderApp
 	for _, app := range userApps {
-		dbApps = append(dbApps, database.OAuth2ProviderApp{
-			ID:          app.OAuth2ProviderApp.ID,
-			Name:        app.OAuth2ProviderApp.Name,
-			CallbackURL: app.OAuth2ProviderApp.CallbackURL,
-			Icon:        app.OAuth2ProviderApp.Icon,
-		})
+		sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(api.AccessURL, app.OAuth2ProviderApp))
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(api.AccessURL, dbApps))
+	httpapi.Write(ctx, rw, http.StatusOK, sdkApps)
 }
 
 // @Summary Get OAuth2 application.
