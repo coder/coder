@@ -909,6 +909,72 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 
+		t.Run("PortSharingNoShare", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		})
+
+		t.Run("PortSharingAuthenticatedOK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			err = appDetails.SDKClient.UpdateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+			})
+			require.NoError(t, err)
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
+		t.Run("PortSharingPublicOK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			err = appDetails.SDKClient.UpdateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+			})
+			require.NoError(t, err)
+
+			_, _ = coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken("")
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
 
