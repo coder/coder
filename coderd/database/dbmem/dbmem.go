@@ -5407,6 +5407,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
+		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
 	}
 	q.templates = append(q.templates, template)
 	return nil

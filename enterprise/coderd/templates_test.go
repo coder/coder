@@ -174,7 +174,7 @@ func TestTemplates(t *testing.T) {
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
-		require.ErrorContains(t, err, "Invalid value")
+		require.ErrorContains(t, err, "invalid max port sharing level")
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
