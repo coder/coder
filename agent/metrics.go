@@ -10,8 +10,7 @@ import (
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/proto"
 )
 
 type agentMetrics struct {
@@ -53,8 +52,8 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	}
 }
 
-func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
-	var collected []agentsdk.AgentMetric
+func (a *agent) collectMetrics(ctx context.Context) []*proto.Stats_Metric {
+	var collected []*proto.Stats_Metric
 
 	// Tailscale internal metrics
 	metrics := clientmetric.Metrics()
@@ -63,7 +62,7 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 			continue
 		}
 
-		collected = append(collected, agentsdk.AgentMetric{
+		collected = append(collected, &proto.Stats_Metric{
 			Name:  m.Name(),
 			Type:  asMetricType(m.Type()),
 			Value: float64(m.Value()),
@@ -81,16 +80,16 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 			labels := toAgentMetricLabels(metric.Label)
 
 			if metric.Counter != nil {
-				collected = append(collected, agentsdk.AgentMetric{
+				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
-					Type:   agentsdk.AgentMetricTypeCounter,
+					Type:   proto.Stats_Metric_COUNTER,
 					Value:  metric.Counter.GetValue(),
 					Labels: labels,
 				})
 			} else if metric.Gauge != nil {
-				collected = append(collected, agentsdk.AgentMetric{
+				collected = append(collected, &proto.Stats_Metric{
 					Name:   metricFamily.GetName(),
-					Type:   agentsdk.AgentMetricTypeGauge,
+					Type:   proto.Stats_Metric_GAUGE,
 					Value:  metric.Gauge.GetValue(),
 					Labels: labels,
 				})
@@ -102,14 +101,14 @@ func (a *agent) collectMetrics(ctx context.Context) []agentsdk.AgentMetric {
 	return collected
 }
 
-func toAgentMetricLabels(metricLabels []*prompb.LabelPair) []agentsdk.AgentMetricLabel {
+func toAgentMetricLabels(metricLabels []*prompb.LabelPair) []*proto.Stats_Metric_Label {
 	if len(metricLabels) == 0 {
 		return nil
 	}
 
-	labels := make([]agentsdk.AgentMetricLabel, 0, len(metricLabels))
+	labels := make([]*proto.Stats_Metric_Label, 0, len(metricLabels))
 	for _, metricLabel := range metricLabels {
-		labels = append(labels, agentsdk.AgentMetricLabel{
+		labels = append(labels, &proto.Stats_Metric_Label{
 			Name:  metricLabel.GetName(),
 			Value: metricLabel.GetValue(),
 		})
@@ -130,12 +129,12 @@ func isIgnoredMetric(metricName string) bool {
 	return false
 }
 
-func asMetricType(typ clientmetric.Type) agentsdk.AgentMetricType {
+func asMetricType(typ clientmetric.Type) proto.Stats_Metric_Type {
 	switch typ {
 	case clientmetric.TypeGauge:
-		return agentsdk.AgentMetricTypeGauge
+		return proto.Stats_Metric_GAUGE
 	case clientmetric.TypeCounter:
-		return agentsdk.AgentMetricTypeCounter
+		return proto.Stats_Metric_COUNTER
 	default:
 		panic(fmt.Sprintf("unknown metric type: %d", typ))
 	}

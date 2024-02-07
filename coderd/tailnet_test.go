@@ -24,6 +24,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -327,7 +328,7 @@ func setupServerTailnetAgent(t *testing.T, agentNum int) ([]agentWithID, *coderd
 			DERPMap: derpMap,
 		}
 
-		c := agenttest.NewClient(t, logger, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coord)
+		c := agenttest.NewClient(t, logger, manifest.AgentID, manifest, make(chan *proto.Stats, 50), coord)
 		t.Cleanup(c.Close)
 
 		options := agent.Options{

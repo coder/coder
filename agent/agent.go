@@ -89,7 +89,6 @@ type Options struct {
 
 type Client interface {
 	ConnectRPC(ctx context.Context) (drpc.Conn, error)
-	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
@@ -158,7 +157,6 @@ func New(options Options) Agent {
 		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
 		ignorePorts:                  options.IgnorePorts,
 		portCacheDuration:            options.PortCacheDuration,
-		connStatsChan:                make(chan *agentsdk.Stats, 1),
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                options.SSHMaxTimeout,
@@ -216,8 +214,7 @@ type agent struct {
 
 	network       *tailnet.Conn
 	addresses     []netip.Prefix
-	connStatsChan chan *agentsdk.Stats
-	latestStat    atomic.Pointer[agentsdk.Stats]
+	statsReporter *statsReporter
 
 	connCountReconnectingPTY atomic.Int64
 
@@ -822,14 +819,13 @@ func (a *agent) run(ctx context.Context) error {
 		closed := a.isClosed()
 		if !closed {
 			a.network = network
+			a.statsReporter = newStatsReporter(a.logger, network, a)
 		}
 		a.closeMutex.Unlock()
 		if closed {
 			_ = network.Close()
 			return xerrors.New("agent is closed")
 		}
-
-		a.startReportingConnectionStats(ctx)
 	} else {
 		// Update the wireguard IPs if the agent ID changed.
 		err := network.SetAddresses(a.wireguardAddresses(manifest.AgentID))
@@ -867,6 +863,15 @@ func (a *agent) run(ctx context.Context) error {
 		err := a.fetchServiceBannerLoop(egCtx, aAPI)
 		if err != nil {
 			return xerrors.Errorf("fetch server banner loop: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running stats report loop")
+		err := a.statsReporter.reportLoop(egCtx, aAPI)
+		if err != nil {
+			return xerrors.Errorf("report stats loop: %w", err)
 		}
 		return nil
 	})
@@ -1218,115 +1223,83 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
 }
 
-// startReportingConnectionStats runs the connection stats reporting goroutine.
-func (a *agent) startReportingConnectionStats(ctx context.Context) {
-	reportStats := func(networkStats map[netlogtype.Connection]netlogtype.Counts) {
-		a.logger.Debug(ctx, "computing stats report")
-		stats := &agentsdk.Stats{
-			ConnectionCount:    int64(len(networkStats)),
-			ConnectionsByProto: map[string]int64{},
-		}
-		for conn, counts := range networkStats {
-			stats.ConnectionsByProto[conn.Proto.String()]++
-			stats.RxBytes += int64(counts.RxBytes)
-			stats.RxPackets += int64(counts.RxPackets)
-			stats.TxBytes += int64(counts.TxBytes)
-			stats.TxPackets += int64(counts.TxPackets)
-		}
-
-		// The count of active sessions.
-		sshStats := a.sshServer.ConnStats()
-		stats.SessionCountSSH = sshStats.Sessions
-		stats.SessionCountVSCode = sshStats.VSCode
-		stats.SessionCountJetBrains = sshStats.JetBrains
-
-		stats.SessionCountReconnectingPTY = a.connCountReconnectingPTY.Load()
-
-		// Compute the median connection latency!
-		a.logger.Debug(ctx, "starting peer latency measurement for stats")
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		status := a.network.Status()
-		durations := []float64{}
-		pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
-		defer cancelFunc()
-		for nodeID, peer := range status.Peer {
-			if !peer.Active {
-				continue
-			}
-			addresses, found := a.network.NodeAddresses(nodeID)
-			if !found {
-				continue
-			}
-			if len(addresses) == 0 {
-				continue
-			}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
-				if err != nil {
-					return
-				}
-				mu.Lock()
-				durations = append(durations, float64(duration.Microseconds()))
-				mu.Unlock()
-			}()
-		}
-		wg.Wait()
-		sort.Float64s(durations)
-		durationsLength := len(durations)
-		if durationsLength == 0 {
-			stats.ConnectionMedianLatencyMS = -1
-		} else if durationsLength%2 == 0 {
-			stats.ConnectionMedianLatencyMS = (durations[durationsLength/2-1] + durations[durationsLength/2]) / 2
-		} else {
-			stats.ConnectionMedianLatencyMS = durations[durationsLength/2]
-		}
-		// Convert from microseconds to milliseconds.
-		stats.ConnectionMedianLatencyMS /= 1000
-
-		// Collect agent metrics.
-		// Agent metrics are changing all the time, so there is no need to perform
-		// reflect.DeepEqual to see if stats should be transferred.
-
-		metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
-		defer cancelFunc()
-		a.logger.Debug(ctx, "collecting agent metrics for stats")
-		stats.Metrics = a.collectMetrics(metricsCtx)
-
-		a.latestStat.Store(stats)
-
-		a.logger.Debug(ctx, "about to send stats")
-		select {
-		case a.connStatsChan <- stats:
-			a.logger.Debug(ctx, "successfully sent stats")
-		case <-a.closed:
-			a.logger.Debug(ctx, "didn't send stats because we are closed")
-		}
+// Collect collects additional stats from the agent
+func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connection]netlogtype.Counts) *proto.Stats {
+	a.logger.Debug(context.Background(), "computing stats report")
+	stats := &proto.Stats{
+		ConnectionCount:    int64(len(networkStats)),
+		ConnectionsByProto: map[string]int64{},
+	}
+	for conn, counts := range networkStats {
+		stats.ConnectionsByProto[conn.Proto.String()]++
+		stats.RxBytes += int64(counts.RxBytes)
+		stats.RxPackets += int64(counts.RxPackets)
+		stats.TxBytes += int64(counts.TxBytes)
+		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// Report statistics from the created network.
-	cl, err := a.client.ReportStats(ctx, a.logger, a.connStatsChan, func(d time.Duration) {
-		a.network.SetConnStatsCallback(d, 2048,
-			func(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
-				reportStats(virtual)
-			},
-		)
-	})
-	if err != nil {
-		a.logger.Error(ctx, "agent failed to report stats", slog.Error(err))
+	// The count of active sessions.
+	sshStats := a.sshServer.ConnStats()
+	stats.SessionCountSsh = sshStats.Sessions
+	stats.SessionCountVscode = sshStats.VSCode
+	stats.SessionCountJetbrains = sshStats.JetBrains
+
+	stats.SessionCountReconnectingPty = a.connCountReconnectingPTY.Load()
+
+	// Compute the median connection latency!
+	a.logger.Debug(ctx, "starting peer latency measurement for stats")
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	status := a.network.Status()
+	durations := []float64{}
+	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelFunc()
+	for nodeID, peer := range status.Peer {
+		if !peer.Active {
+			continue
+		}
+		addresses, found := a.network.NodeAddresses(nodeID)
+		if !found {
+			continue
+		}
+		if len(addresses) == 0 {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			durations = append(durations, float64(duration.Microseconds()))
+		}()
+	}
+	wg.Wait()
+	sort.Float64s(durations)
+	durationsLength := len(durations)
+	if durationsLength == 0 {
+		stats.ConnectionMedianLatencyMs = -1
+	} else if durationsLength%2 == 0 {
+		stats.ConnectionMedianLatencyMs = (durations[durationsLength/2-1] + durations[durationsLength/2]) / 2
 	} else {
-		if err = a.trackConnGoroutine(func() {
-			// This is OK because the agent never re-creates the tailnet
-			// and the only shutdown indicator is agent.Close().
-			<-a.closed
-			_ = cl.Close()
-		}); err != nil {
-			a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
-			_ = cl.Close()
-		}
+		stats.ConnectionMedianLatencyMs = durations[durationsLength/2]
 	}
+	// Convert from microseconds to milliseconds.
+	stats.ConnectionMedianLatencyMs /= 1000
+
+	// Collect agent metrics.
+	// Agent metrics are changing all the time, so there is no need to perform
+	// reflect.DeepEqual to see if stats should be transferred.
+
+	metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelFunc()
+	a.logger.Debug(ctx, "collecting agent metrics for stats")
+	stats.Metrics = a.collectMetrics(metricsCtx)
+
+	return stats
 }
 
 var prioritizedProcs = []string{"coder agent"}
