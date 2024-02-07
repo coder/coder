@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 type authorizeParams struct {
@@ -80,15 +79,13 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		}
 
 		// TODO: Ignoring scope for now, but should look into implementing.
-		// 40 characters matches the length of GitHub's client secrets.
-		rawCode, err := cryptorand.String(40)
+		code, err := GenerateSecret()
 		if err != nil {
 			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to generate OAuth2 app authorization code.",
 			})
 			return
 		}
-		hashedCode := Hash(rawCode, app.ID)
 		err = db.InTx(func(tx database.Store) error {
 			// Delete any previous codes.
 			err = tx.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
@@ -105,7 +102,8 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 				CreatedAt: dbtime.Now(),
 				// TODO: Configurable expiration?  Ten minutes matches GitHub.
 				ExpiresAt:    dbtime.Now().Add(time.Duration(10) * time.Minute),
-				HashedSecret: hashedCode[:],
+				SecretPrefix: []byte(code.Prefix),
+				HashedSecret: []byte(code.Hashed),
 				AppID:        app.ID,
 				UserID:       apiKey.UserID,
 			})
@@ -124,7 +122,7 @@ func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		}
 
 		newQuery := params.redirectURL.Query()
-		newQuery.Add("code", rawCode)
+		newQuery.Add("code", code.Formatted)
 		newQuery.Add("state", params.state)
 		params.redirectURL.RawQuery = newQuery.Encode()
 

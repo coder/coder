@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 )
 
@@ -233,26 +232,23 @@ func (api *API) oAuth2ProviderAppSecrets(rw http.ResponseWriter, r *http.Request
 func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	app := httpmw.OAuth2ProviderApp(r)
-	// 40 characters matches the length of GitHub's client secrets.
-	rawSecret, err := cryptorand.String(40)
+	secret, err := identityprovider.GenerateSecret()
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to generate OAuth2 client secret.",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	// TODO: Currently unused.
-	prefix, _ := cryptorand.String(40)
-	hashed := identityprovider.Hash(rawSecret, app.ID)
-	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
+	dbSecret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:           uuid.New(),
 		CreatedAt:    dbtime.Now(),
-		SecretPrefix: []byte(prefix),
-		HashedSecret: hashed[:],
+		SecretPrefix: []byte(secret.Prefix),
+		HashedSecret: []byte(secret.Hashed),
 		// DisplaySecret is the last six characters of the original unhashed secret.
 		// This is done so they can be differentiated and it matches how GitHub
 		// displays their client secrets.
-		DisplaySecret: rawSecret[len(rawSecret)-6:],
+		DisplaySecret: secret.Formatted[len(secret.Formatted)-6:],
 		AppID:         app.ID,
 	})
 	if err != nil {
@@ -263,8 +259,8 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppSecretFull{
-		ID:               secret.ID,
-		ClientSecretFull: rawSecret,
+		ID:               dbSecret.ID,
+		ClientSecretFull: secret.Formatted,
 	})
 }
 

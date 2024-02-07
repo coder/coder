@@ -19,10 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -554,12 +554,44 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			authError: "Invalid query params",
 		},
 		{
-			name: "InvalidSecret",
+			name: "NoSecretScheme",
 			app:  apps.Default,
 			preToken: func(valid *oauth2.Config) {
-				valid.ClientSecret = uuid.NewString()
+				valid.ClientSecret = "1234_4321"
 			},
-			tokenError: "Invalid client secret or code",
+			tokenError: "Invalid client secret",
+		},
+		{
+			name: "InvalidSecretScheme",
+			app:  apps.Default,
+			preToken: func(valid *oauth2.Config) {
+				valid.ClientSecret = "notcoder_1234_4321"
+			},
+			tokenError: "Invalid client secret",
+		},
+		{
+			name: "MissingSecretSecret",
+			app:  apps.Default,
+			preToken: func(valid *oauth2.Config) {
+				valid.ClientSecret = "coder_1234"
+			},
+			tokenError: "Invalid client secret",
+		},
+		{
+			name: "MissingSecretPrefix",
+			app:  apps.Default,
+			preToken: func(valid *oauth2.Config) {
+				valid.ClientSecret = "coder__1234"
+			},
+			tokenError: "Invalid client secret",
+		},
+		{
+			name: "InvalidSecretPrefix",
+			app:  apps.Default,
+			preToken: func(valid *oauth2.Config) {
+				valid.ClientSecret = "coder_1234_4321"
+			},
+			tokenError: "Invalid client secret",
 		},
 		{
 			name: "MissingSecret",
@@ -570,10 +602,34 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			tokenError: "Invalid query params",
 		},
 		{
-			name:        "InvalidCode",
+			name:        "NoCodeScheme",
 			app:         apps.Default,
-			defaultCode: ptr.Ref(uuid.NewString()),
-			tokenError:  "Invalid client secret or code",
+			defaultCode: ptr.Ref("1234_4321"),
+			tokenError:  "Invalid code",
+		},
+		{
+			name:        "InvalidCodeScheme",
+			app:         apps.Default,
+			defaultCode: ptr.Ref("notcoder_1234_4321"),
+			tokenError:  "Invalid code",
+		},
+		{
+			name:        "MissingCodeSecret",
+			app:         apps.Default,
+			defaultCode: ptr.Ref("coder_1234"),
+			tokenError:  "Invalid code",
+		},
+		{
+			name:        "MissingCodePrefix",
+			app:         apps.Default,
+			defaultCode: ptr.Ref("coder__1234"),
+			tokenError:  "Invalid code",
+		},
+		{
+			name:        "InvalidCodePrefix",
+			app:         apps.Default,
+			defaultCode: ptr.Ref("coder_1234_4321"),
+			tokenError:  "Invalid code",
 		},
 		{
 			name:        "MissingCode",
@@ -600,16 +656,20 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:        "ExpiredCode",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("some-code"),
-			tokenError:  "Invalid client secret or code",
+			defaultCode: ptr.Ref("coder_prefix_code"),
+			tokenError:  "Invalid code",
 			setup: func(ctx context.Context, client *codersdk.Client, user codersdk.User) error {
 				// Insert an expired code.
-				hashedCode := identityprovider.Hash("some-code", apps.Default.ID)
+				hashedCode, err := userpassword.Hash("prefix_code")
+				if err != nil {
+					return err
+				}
 				_, err = db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
 					ID:           uuid.New(),
 					CreatedAt:    dbtime.Now().Add(-time.Minute * 11),
 					ExpiresAt:    dbtime.Now().Add(-time.Minute),
-					HashedSecret: hashedCode[:],
+					SecretPrefix: []byte("prefix"),
+					HashedSecret: []byte(hashedCode),
 					AppID:        apps.Default.ID,
 					UserID:       user.ID,
 				})

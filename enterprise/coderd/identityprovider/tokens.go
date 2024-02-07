@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/argon2"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -21,9 +20,15 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 )
+
+// errBadSecret means the user provided a bad secret.
+var errBadSecret = xerrors.New("Invalid client secret")
+
+// errBadCode means the user provided a bad code.
+var errBadCode = xerrors.New("Invalid code")
 
 type tokenParams struct {
 	clientID     string
@@ -86,12 +91,12 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 		switch params.grantType {
 		// TODO: Client creds, device code, refresh.
 		default:
-			token, err = authorizationCodeGrant(ctx, db, app, defaultLifetime, params.clientSecret, params.code)
+			token, err = authorizationCodeGrant(ctx, db, app, defaultLifetime, params)
 		}
 
-		if err != nil && errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, errBadCode) || errors.Is(err, errBadSecret) {
 			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
-				Message: "Invalid client secret or code",
+				Message: err.Error(),
 			})
 			return
 		}
@@ -109,47 +114,59 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 	}
 }
 
-func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, defaultLifetime time.Duration, clientSecret, code string) (oauth2.Token, error) {
+func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, defaultLifetime time.Duration, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
-	secretHash := Hash(clientSecret, app.ID)
-	secret, err := db.GetOAuth2ProviderAppSecretByAppIDAndSecret(
-		//nolint:gocritic // Users cannot read secrets so we must use the system.
-		dbauthz.AsSystemRestricted(ctx),
-		database.GetOAuth2ProviderAppSecretByAppIDAndSecretParams{
-			AppID:        app.ID,
-			HashedSecret: secretHash[:],
-		})
+	secret, err := parseSecret(params.clientSecret)
+	if err != nil {
+		return oauth2.Token{}, errBadSecret
+	}
+	//nolint:gocritic // Users cannot read secrets so we must use the system.
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.prefix))
+	if errors.Is(err, sql.ErrNoRows) {
+		return oauth2.Token{}, errBadSecret
+	}
 	if err != nil {
 		return oauth2.Token{}, err
+	}
+	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
+	}
+	if !equal {
+		return oauth2.Token{}, errBadSecret
 	}
 
 	// Validate the authorization code.
-	codeHash := Hash(code, app.ID)
+	code, err := parseSecret(params.code)
+	if err != nil {
+		return oauth2.Token{}, errBadCode
+	}
+	//nolint:gocritic // There is no user yet so we must use the system.
+	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.prefix))
+	if errors.Is(err, sql.ErrNoRows) {
+		return oauth2.Token{}, errBadCode
+	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	dbCode, err := db.GetOAuth2ProviderAppCodeByAppIDAndSecret(
-		//nolint:gocritic // There is no user yet so we must use the system.
-		dbauthz.AsSystemRestricted(ctx),
-		database.GetOAuth2ProviderAppCodeByAppIDAndSecretParams{
-			AppID:        app.ID,
-			HashedSecret: codeHash[:],
-		})
+	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
 	if err != nil {
-		return oauth2.Token{}, err
+		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
+	}
+	if !equal {
+		return oauth2.Token{}, errBadCode
 	}
 
-	// Ensure the code has not expired.  Make it look like no code.
+	// Ensure the code has not expired.
 	if dbCode.ExpiresAt.Before(dbtime.Now()) {
-		return oauth2.Token{}, sql.ErrNoRows
+		return oauth2.Token{}, errBadCode
 	}
 
 	// Generate a refresh token.
 	// The refresh token is not currently used or exposed though as API keys can
 	// already be refreshed by just using them.
 	// TODO: However, should we implement the refresh grant anyway?
-	// 40 characters matches the length of GitHub's client secrets.
-	rawRefreshToken, err := cryptorand.String(40)
+	refreshToken, err := GenerateSecret()
 	if err != nil {
 		return oauth2.Token{}, err
 	}
@@ -208,13 +225,13 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			return xerrors.Errorf("insert oauth2 access token: %w", err)
 		}
 
-		hashed := Hash(rawRefreshToken, app.ID)
 		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
 			ID:          uuid.New(),
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   key.ExpiresAt,
-			RefreshHash: hashed[:],
-			AppSecretID: secret.ID,
+			HashPrefix:  []byte(refreshToken.Prefix),
+			RefreshHash: []byte(refreshToken.Hashed),
+			AppSecretID: dbSecret.ID,
 			APIKeyID:    newKey.ID,
 		})
 		if err != nil {
@@ -230,16 +247,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		AccessToken: sessionToken,
 		TokenType:   "Bearer",
 		// TODO: Exclude until refresh grant is implemented.
-		// RefreshToken: rawRefreshToken,
+		// RefreshToken: refreshToken.formatted,
 		// Expiry:       key.ExpiresAt,
 	}, nil
-}
-
-/**
- * Hash uses argon2 to hash the secret using the ID as the salt.
- */
-func Hash(secret string, id uuid.UUID) []byte {
-	b := []byte(secret)
-	// TODO: Expose iterations, memory, and threads as configuration values?
-	return argon2.IDKey(b, []byte(id.String()), 1, 64*1024, 2, uint32(len(b)))
 }
