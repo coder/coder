@@ -1647,6 +1647,12 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			Port:        ps.Port,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("RestrictWorkspaceAgentPortSharesByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.RestrictWorkspaceAgentPortSharesByTemplateParams{
+			TemplateID: tpl.ID,
+		}).Asserts(tpl, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
