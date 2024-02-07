@@ -3,10 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
-import {
-  TemplateFiles,
-  useFileTab,
-} from "modules/templates/TemplateFiles/TemplateFiles";
+import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { getTemplatePageTitle } from "../utils";
@@ -24,7 +21,6 @@ const TemplateFilesPage: FC = () => {
     ...templateFiles(previousTemplate?.job.file_id ?? ""),
     enabled: Boolean(previousTemplate),
   });
-  const tab = useFileTab(currentFiles);
 
   return (
     <>
@@ -32,11 +28,12 @@ const TemplateFilesPage: FC = () => {
         <title>{getTemplatePageTitle("Source Code", template)}</title>
       </Helmet>
 
-      {previousFiles && currentFiles && tab.isLoaded ? (
+      {previousFiles && currentFiles ? (
         <TemplateFiles
           currentFiles={currentFiles}
           baseFiles={previousFiles}
-          tab={tab}
+          versionName={activeVersion.name}
+          templateName={template.name}
         />
       ) : (
         <Loader />

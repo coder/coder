@@ -2,12 +2,13 @@ import { type ComponentProps, type FC } from "react";
 import Editor, { DiffEditor, loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { useCoderTheme } from "./coderTheme";
+import { useTheme } from "@emotion/react";
 
 loader.config({ monaco });
 
 interface SyntaxHighlighterProps {
   value: string;
-  language: string;
+  language?: string;
   editorProps?: ComponentProps<typeof Editor> &
     ComponentProps<typeof DiffEditor>;
   compareWith?: string;
@@ -20,6 +21,7 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
   editorProps,
 }) => {
   const hasDiff = compareWith && value !== compareWith;
+  const theme = useTheme();
   const coderTheme = useCoderTheme();
   const commonProps = {
     language,
@@ -45,6 +47,7 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
       css={{
         padding: "8px 0",
         height: "100%",
+        backgroundColor: theme.monaco.colors["editor.background"],
       }}
     >
       {hasDiff ? (
