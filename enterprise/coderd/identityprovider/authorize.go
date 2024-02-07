@@ -50,12 +50,10 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
-/**
- * Authorize displays an HTML page for authorizing an application when the user
- * has first been redirected to this path and generates a code and redirects to
- * the app's callback URL after the user clicks "allow" on that page, which is
- * detected via the origin and referer headers.
- */
+// Authorize displays an HTML page for authorizing an application when the user
+// has first been redirected to this path and generates a code and redirects to
+// the app's callback URL after the user clicks "allow" on that page, which is
+// detected via the origin and referer headers.
 func Authorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 	handler := func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
