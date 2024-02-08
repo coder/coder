@@ -1815,6 +1815,7 @@ type OAuth2ProviderAppCode struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
 	AppID        uuid.UUID `db:"app_id" json:"app_id"`
@@ -1828,12 +1829,14 @@ type OAuth2ProviderAppSecret struct {
 	// The tail end of the original secret so secrets can be differentiated.
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
+	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
 }
 
 type OAuth2ProviderAppToken struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt time.Time `db:"expires_at" json:"expires_at"`
+	ID         uuid.UUID `db:"id" json:"id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
+	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
 	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
 	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`

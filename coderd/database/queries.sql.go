@@ -2761,31 +2761,8 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
-const getOAuth2ProviderAppCodeByAppIDAndSecret = `-- name: GetOAuth2ProviderAppCodeByAppIDAndSecret :one
-SELECT id, created_at, expires_at, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE app_id = $1 AND hashed_secret = $2
-`
-
-type GetOAuth2ProviderAppCodeByAppIDAndSecretParams struct {
-	AppID        uuid.UUID `db:"app_id" json:"app_id"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-}
-
-func (q *sqlQuerier) GetOAuth2ProviderAppCodeByAppIDAndSecret(ctx context.Context, arg GetOAuth2ProviderAppCodeByAppIDAndSecretParams) (OAuth2ProviderAppCode, error) {
-	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByAppIDAndSecret, arg.AppID, arg.HashedSecret)
-	var i OAuth2ProviderAppCode
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.AppID,
-	)
-	return i, err
-}
-
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -2795,6 +2772,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.ID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.SecretPrefix,
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
@@ -2802,31 +2780,27 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 	return i, err
 }
 
-const getOAuth2ProviderAppSecretByAppIDAndSecret = `-- name: GetOAuth2ProviderAppSecretByAppIDAndSecret :one
-SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id FROM oauth2_provider_app_secrets WHERE app_id = $1 AND hashed_secret = $2
+const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
-type GetOAuth2ProviderAppSecretByAppIDAndSecretParams struct {
-	AppID        uuid.UUID `db:"app_id" json:"app_id"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-}
-
-func (q *sqlQuerier) GetOAuth2ProviderAppSecretByAppIDAndSecret(ctx context.Context, arg GetOAuth2ProviderAppSecretByAppIDAndSecretParams) (OAuth2ProviderAppSecret, error) {
-	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppSecretByAppIDAndSecret, arg.AppID, arg.HashedSecret)
-	var i OAuth2ProviderAppSecret
+func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByPrefix, secretPrefix)
+	var i OAuth2ProviderAppCode
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
-		&i.LastUsedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
 		&i.HashedSecret,
-		&i.DisplaySecret,
+		&i.UserID,
 		&i.AppID,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppSecretByID = `-- name: GetOAuth2ProviderAppSecretByID :one
-SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id FROM oauth2_provider_app_secrets WHERE id = $1
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error) {
@@ -2839,12 +2813,32 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppSecretByPrefix = `-- name: GetOAuth2ProviderAppSecretByPrefix :one
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE secret_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppSecret, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppSecretByPrefix, secretPrefix)
+	var i OAuth2ProviderAppSecret
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.HashedSecret,
+		&i.DisplaySecret,
+		&i.AppID,
+		&i.SecretPrefix,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppSecretsByAppID = `-- name: GetOAuth2ProviderAppSecretsByAppID :many
-SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id FROM oauth2_provider_app_secrets WHERE app_id = $1 ORDER BY (created_at, id) ASC
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE app_id = $1 ORDER BY (created_at, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error) {
@@ -2863,6 +2857,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 			&i.HashedSecret,
 			&i.DisplaySecret,
 			&i.AppID,
+			&i.SecretPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -2875,6 +2870,25 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 		return nil, err
 	}
 	return items, nil
+}
+
+const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppTokenByPrefix, hashPrefix)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
+	)
+	return i, err
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
@@ -3017,6 +3031,7 @@ INSERT INTO oauth2_provider_app_codes (
     id,
     created_at,
     expires_at,
+    secret_prefix,
     hashed_secret,
     app_id,
     user_id
@@ -3026,14 +3041,16 @@ INSERT INTO oauth2_provider_app_codes (
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, created_at, expires_at, hashed_secret, user_id, app_id
+    $6,
+    $7
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	AppID        uuid.UUID `db:"app_id" json:"app_id"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
@@ -3044,6 +3061,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.ID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+		arg.SecretPrefix,
 		arg.HashedSecret,
 		arg.AppID,
 		arg.UserID,
@@ -3053,6 +3071,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.ID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.SecretPrefix,
 		&i.HashedSecret,
 		&i.UserID,
 		&i.AppID,
@@ -3064,6 +3083,7 @@ const insertOAuth2ProviderAppSecret = `-- name: InsertOAuth2ProviderAppSecret :o
 INSERT INTO oauth2_provider_app_secrets (
     id,
     created_at,
+    secret_prefix,
     hashed_secret,
     display_secret,
     app_id
@@ -3072,13 +3092,15 @@ INSERT INTO oauth2_provider_app_secrets (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id
+    $5,
+    $6
+) RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
 `
 
 type InsertOAuth2ProviderAppSecretParams struct {
 	ID            uuid.UUID `db:"id" json:"id"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret  []byte    `db:"hashed_secret" json:"hashed_secret"`
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
@@ -3088,6 +3110,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg Inse
 	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderAppSecret,
 		arg.ID,
 		arg.CreatedAt,
+		arg.SecretPrefix,
 		arg.HashedSecret,
 		arg.DisplaySecret,
 		arg.AppID,
@@ -3100,6 +3123,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg Inse
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
 	)
 	return i, err
 }
@@ -3109,6 +3133,7 @@ INSERT INTO oauth2_provider_app_tokens (
     id,
     created_at,
     expires_at,
+    hash_prefix,
     refresh_hash,
     app_secret_id,
     api_key_id
@@ -3118,14 +3143,16 @@ INSERT INTO oauth2_provider_app_tokens (
     $3,
     $4,
     $5,
-    $6
-) RETURNING id, created_at, expires_at, refresh_hash, app_secret_id, api_key_id
+    $6,
+    $7
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
+	HashPrefix  []byte    `db:"hash_prefix" json:"hash_prefix"`
 	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
 	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
 	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
@@ -3136,6 +3163,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.ID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+		arg.HashPrefix,
 		arg.RefreshHash,
 		arg.AppSecretID,
 		arg.APIKeyID,
@@ -3145,6 +3173,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.ID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.HashPrefix,
 		&i.RefreshHash,
 		&i.AppSecretID,
 		&i.APIKeyID,
@@ -3192,7 +3221,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 const updateOAuth2ProviderAppSecretByID = `-- name: UpdateOAuth2ProviderAppSecretByID :one
 UPDATE oauth2_provider_app_secrets SET
     last_used_at = $2
-WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id
+WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
 `
 
 type UpdateOAuth2ProviderAppSecretByIDParams struct {
@@ -3210,6 +3239,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
 	)
 	return i, err
 }

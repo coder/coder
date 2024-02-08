@@ -2352,15 +2352,12 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		})
 		check.Args(secret.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionRead).Returns(secret)
 	}))
-	s.Run("GetOAuth2ProviderAppSecretByAppIDAndSecret", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetOAuth2ProviderAppSecretByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(database.GetOAuth2ProviderAppSecretByAppIDAndSecretParams{
-			AppID:        app.ID,
-			HashedSecret: secret.HashedSecret,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionRead).Returns(secret)
+		check.Args(secret.SecretPrefix).Asserts(rbac.ResourceOAuth2ProviderAppSecret, rbac.ActionRead).Returns(secret)
 	}))
 	s.Run("InsertOAuth2ProviderAppSecret", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
@@ -2398,17 +2395,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		})
 		check.Args(code.ID).Asserts(code, rbac.ActionRead).Returns(code)
 	}))
-	s.Run("GetOAuth2ProviderAppCodeByAppIDAndSecret", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetOAuth2ProviderAppCodeByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		code := dbgen.OAuth2ProviderAppCode(s.T(), db, database.OAuth2ProviderAppCode{
 			AppID:  app.ID,
 			UserID: user.ID,
 		})
-		check.Args(database.GetOAuth2ProviderAppCodeByAppIDAndSecretParams{
-			AppID:        app.ID,
-			HashedSecret: code.HashedSecret,
-		}).Asserts(code, rbac.ActionRead).Returns(code)
+		check.Args(code.SecretPrefix).Asserts(code, rbac.ActionRead).Returns(code)
 	}))
 	s.Run("InsertOAuth2ProviderAppCode", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -2457,6 +2451,21 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppSecretID: secret.ID,
 			APIKeyID:    key.ID,
 		}).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), rbac.ActionCreate)
+	}))
+	s.Run("GetOAuth2ProviderAppTokenByPrefix", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
+			UserID: user.ID,
+		})
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
+			AppID: app.ID,
+		})
+		token := dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
+			AppSecretID: secret.ID,
+			APIKeyID:    key.ID,
+		})
+		check.Args(token.HashPrefix).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), rbac.ActionRead)
 	}))
 	s.Run("DeleteOAuth2ProviderAppTokensByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})

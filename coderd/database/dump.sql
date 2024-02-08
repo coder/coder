@@ -483,6 +483,7 @@ CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
+    secret_prefix bytea NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
     app_id uuid NOT NULL
@@ -496,7 +497,8 @@ CREATE TABLE oauth2_provider_app_secrets (
     last_used_at timestamp with time zone,
     hashed_secret bytea NOT NULL,
     display_secret text NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    secret_prefix bytea NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
@@ -505,6 +507,7 @@ CREATE TABLE oauth2_provider_app_tokens (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
+    hash_prefix bytea NOT NULL,
     refresh_hash bytea NOT NULL,
     app_secret_id uuid NOT NULL,
     api_key_id text NOT NULL
@@ -1348,19 +1351,19 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_app_codes
-    ADD CONSTRAINT oauth2_provider_app_codes_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
-
-ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY oauth2_provider_app_secrets
-    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
+ALTER TABLE ONLY oauth2_provider_app_codes
+    ADD CONSTRAINT oauth2_provider_app_codes_secret_prefix_key UNIQUE (secret_prefix);
 
 ALTER TABLE ONLY oauth2_provider_app_secrets
     ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_secret_prefix_key UNIQUE (secret_prefix);
+
 ALTER TABLE ONLY oauth2_provider_app_tokens
-    ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_refresh_hash_key UNIQUE (app_secret_id, refresh_hash);
+    ADD CONSTRAINT oauth2_provider_app_tokens_hash_prefix_key UNIQUE (hash_prefix);
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_pkey PRIMARY KEY (id);
@@ -1733,3 +1736,4 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
+

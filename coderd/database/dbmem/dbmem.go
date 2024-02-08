@@ -2242,23 +2242,6 @@ func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) 
 	return database.OAuth2ProviderApp{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetOAuth2ProviderAppCodeByAppIDAndSecret(_ context.Context, arg database.GetOAuth2ProviderAppCodeByAppIDAndSecretParams) (database.OAuth2ProviderAppCode, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.OAuth2ProviderAppCode{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for _, code := range q.oauth2ProviderAppCodes {
-		if bytes.Equal(code.HashedSecret, arg.HashedSecret) && code.AppID == arg.AppID {
-			return code, nil
-		}
-	}
-	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetOAuth2ProviderAppCodeByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2271,21 +2254,16 @@ func (q *FakeQuerier) GetOAuth2ProviderAppCodeByID(_ context.Context, id uuid.UU
 	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetOAuth2ProviderAppSecretByAppIDAndSecret(_ context.Context, arg database.GetOAuth2ProviderAppSecretByAppIDAndSecretParams) (database.OAuth2ProviderAppSecret, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.OAuth2ProviderAppSecret{}, err
-	}
-
+func (q *FakeQuerier) GetOAuth2ProviderAppCodeByPrefix(_ context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, secret := range q.oauth2ProviderAppSecrets {
-		if secret.AppID == arg.AppID && bytes.Equal(secret.HashedSecret, arg.HashedSecret) {
-			return secret, nil
+	for _, code := range q.oauth2ProviderAppCodes {
+		if bytes.Equal(code.SecretPrefix, secretPrefix) {
+			return code, nil
 		}
 	}
-	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
@@ -2294,6 +2272,18 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretByID(_ context.Context, id uuid.
 
 	for _, secret := range q.oauth2ProviderAppSecrets {
 		if secret.ID == id {
+			return secret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretByPrefix(_ context.Context, secretPrefix []byte) (database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, secret := range q.oauth2ProviderAppSecrets {
+		if bytes.Equal(secret.SecretPrefix, secretPrefix) {
 			return secret, nil
 		}
 	}
@@ -2326,6 +2316,18 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appI
 	}
 
 	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppTokenByPrefix(_ context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, token := range q.oauth2ProviderAppTokens {
+		if bytes.Equal(token.HashPrefix, hashPrefix) {
+			return token, nil
+		}
+	}
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderApps(_ context.Context) ([]database.OAuth2ProviderApp, error) {
@@ -5419,6 +5421,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppCode(_ context.Context, arg databas
 				ID:           arg.ID,
 				CreatedAt:    arg.CreatedAt,
 				ExpiresAt:    arg.ExpiresAt,
+				SecretPrefix: arg.SecretPrefix,
 				HashedSecret: arg.HashedSecret,
 				UserID:       arg.UserID,
 				AppID:        arg.AppID,
@@ -5445,6 +5448,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg datab
 			secret := database.OAuth2ProviderAppSecret{
 				ID:            arg.ID,
 				CreatedAt:     arg.CreatedAt,
+				SecretPrefix:  arg.SecretPrefix,
 				HashedSecret:  arg.HashedSecret,
 				DisplaySecret: arg.DisplaySecret,
 				AppID:         arg.AppID,
@@ -5473,6 +5477,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg databa
 				ID:          arg.ID,
 				CreatedAt:   arg.CreatedAt,
 				ExpiresAt:   arg.ExpiresAt,
+				HashPrefix:  arg.HashPrefix,
 				RefreshHash: arg.RefreshHash,
 				APIKeyID:    arg.APIKeyID,
 				AppSecretID: arg.AppSecretID,
@@ -6553,6 +6558,7 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 			newSecret := database.OAuth2ProviderAppSecret{
 				ID:            arg.ID,
 				CreatedAt:     secret.CreatedAt,
+				SecretPrefix:  secret.SecretPrefix,
 				HashedSecret:  secret.HashedSecret,
 				DisplaySecret: secret.DisplaySecret,
 				AppID:         secret.AppID,

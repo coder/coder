@@ -208,10 +208,14 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	// TODO: Currently unused.
+	prefix, _ := cryptorand.String(40)
+
 	hashed := sha256.Sum256([]byte(rawSecret))
 	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:           uuid.New(),
 		CreatedAt:    dbtime.Now(),
+		SecretPrefix: []byte(prefix),
 		HashedSecret: hashed[:],
 		// DisplaySecret is the last six characters of the original unhashed secret.
 		// This is done so they can be differentiated and it matches how GitHub
