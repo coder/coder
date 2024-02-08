@@ -1,4 +1,9 @@
-import type { PropsWithChildren, FC } from "react";
+import {
+  type PropsWithChildren,
+  type FC,
+  forwardRef,
+  HTMLAttributes,
+} from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
@@ -19,19 +24,19 @@ const styles = {
   },
 
   enabledBadge: (theme) => ({
-    border: `1px solid ${theme.experimental.roles.success.outline}`,
-    backgroundColor: theme.experimental.roles.success.background,
-    color: theme.experimental.roles.success.text,
+    border: `1px solid ${theme.roles.success.outline}`,
+    backgroundColor: theme.roles.success.background,
+    color: theme.roles.success.text,
   }),
   errorBadge: (theme) => ({
-    border: `1px solid ${theme.experimental.roles.error.outline}`,
-    backgroundColor: theme.experimental.roles.error.background,
-    color: theme.experimental.roles.error.text,
+    border: `1px solid ${theme.roles.error.outline}`,
+    backgroundColor: theme.roles.error.background,
+    color: theme.roles.error.text,
   }),
   warnBadge: (theme) => ({
-    border: `1px solid ${theme.experimental.roles.warning.outline}`,
-    backgroundColor: theme.experimental.roles.warning.background,
-    color: theme.experimental.roles.warning.text,
+    border: `1px solid ${theme.roles.warning.outline}`,
+    backgroundColor: theme.roles.warning.background,
+    color: theme.roles.warning.text,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -74,9 +79,14 @@ export const NotReachableBadge: FC = () => {
   );
 };
 
-export const DisabledBadge: FC = () => {
+export const DisabledBadge: FC = forwardRef<
+  HTMLSpanElement,
+  HTMLAttributes<HTMLSpanElement>
+>((props, ref) => {
   return (
     <span
+      {...props}
+      ref={ref}
       css={[
         styles.badge,
         (theme) => ({
@@ -89,7 +99,7 @@ export const DisabledBadge: FC = () => {
       Disabled
     </span>
   );
-};
+});
 
 export const EnterpriseBadge: FC = () => {
   return (
@@ -97,9 +107,9 @@ export const EnterpriseBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          backgroundColor: theme.experimental.roles.info.background,
-          border: `1px solid ${theme.experimental.roles.info.outline}`,
-          color: theme.experimental.roles.info.text,
+          backgroundColor: theme.roles.info.background,
+          border: `1px solid ${theme.roles.info.outline}`,
+          color: theme.roles.info.text,
         }),
       ]}
     >
@@ -114,9 +124,9 @@ export const PreviewBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.experimental.roles.preview.outline}`,
-          backgroundColor: theme.experimental.roles.preview.background,
-          color: theme.experimental.roles.preview.text,
+          border: `1px solid ${theme.roles.preview.outline}`,
+          backgroundColor: theme.roles.preview.background,
+          color: theme.roles.preview.text,
         }),
       ]}
     >
@@ -131,9 +141,9 @@ export const AlphaBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.experimental.roles.preview.outline}`,
-          backgroundColor: theme.experimental.roles.preview.background,
-          color: theme.experimental.roles.preview.text,
+          border: `1px solid ${theme.roles.preview.outline}`,
+          backgroundColor: theme.roles.preview.background,
+          color: theme.roles.preview.text,
         }),
       ]}
     >
@@ -148,9 +158,9 @@ export const DeprecatedBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.experimental.roles.danger.outline}`,
-          backgroundColor: theme.experimental.roles.danger.background,
-          color: theme.experimental.roles.danger.text,
+          border: `1px solid ${theme.roles.danger.outline}`,
+          backgroundColor: theme.roles.danger.background,
+          color: theme.roles.danger.text,
         }),
       ]}
     >

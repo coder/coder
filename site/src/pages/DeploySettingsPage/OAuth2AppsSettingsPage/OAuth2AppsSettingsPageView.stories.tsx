@@ -16,6 +16,13 @@ export const Loading: Story = {
   },
 };
 
+export const Error: Story = {
+  args: {
+    isLoading: false,
+    error: "some error",
+  },
+};
+
 export const Unentitled: Story = {
   args: {
     isLoading: false,

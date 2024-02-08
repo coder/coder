@@ -13,4 +13,6 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
-export const Default: Story = {};
+const Example: Story = {};
+
+export { Example as Database };

@@ -43,7 +43,10 @@ export const Language = {
 };
 
 const TerminalPage: FC = () => {
-  const theme = useTheme();
+  // Maybe one day we'll support a light themed terminal, but terminal coloring
+  // is notably a pain because of assumptions certain programs might make about your
+  // background color.
+  const theme = themes.dark;
   const navigate = useNavigate();
   const { proxy, proxyLatencies } = useProxy();
   const params = useParams() as { username: string; workspace: string };
@@ -296,7 +299,7 @@ const TerminalPage: FC = () => {
   ]);
 
   return (
-    <ThemeOverride theme={themes.dark}>
+    <ThemeOverride theme={theme}>
       <Helmet>
         <title>
           {workspace.data

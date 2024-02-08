@@ -491,6 +491,91 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
 
+func TestConfigMaps_setAllPeersLost(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
+	mClock := clock.NewMock()
+	mClock.Set(start)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	p2ID := uuid.UUID{2}
+	p2Node := newTestNode(2)
+	p2n, err := NodeToProto(p2Node)
+	require.NoError(t, err)
+
+	s1 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
+
+	updates := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+		{
+			Id:   p2ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p2n,
+		},
+	}
+	uut.updatePeers(updates)
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 2)
+	require.Len(t, r.wg.Peers, 2)
+	_ = testutil.RequireRecvCtx(ctx, t, s1)
+
+	mClock.Add(5 * time.Second)
+	uut.setAllPeersLost()
+
+	// No reprogramming yet, since we keep the peer around.
+	select {
+	case <-fEng.setNetworkMap:
+		t.Fatal("should not reprogram")
+	default:
+		// OK!
+	}
+
+	// When we advance the clock, even by a few ms, the timeout for peer 2 pops
+	// because our status only includes a handshake for peer 1
+	s2 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
+	mClock.Add(time.Millisecond * 10)
+	_ = testutil.RequireRecvCtx(ctx, t, s2)
+
+	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 1)
+	require.Len(t, r.wg.Peers, 1)
+
+	// Finally, advance the clock until after the timeout
+	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
+	mClock.Add(lostTimeout)
+	_ = testutil.RequireRecvCtx(ctx, t, s3)
+
+	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Len(t, nm.Peers, 0)
+	require.Len(t, r.wg.Peers, 0)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -589,12 +674,12 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
 
-	derpMap := &proto.DERPMap{
-		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
-		Regions: map[int64]*proto.DERPMap_Region{
+	derpMap := &tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{1: 0.025}},
+		Regions: map[int]*tailcfg.DERPRegion{
 			1: {
 				RegionCode: "AUH",
-				Nodes: []*proto.DERPMap_Region_Node{
+				Nodes: []*tailcfg.DERPNode{
 					{Name: "AUH0"},
 				},
 			},
@@ -631,13 +716,22 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	defer uut.close()
 
 	// Given: DERP Map already set
-	derpMap := &proto.DERPMap{
-		HomeParams: &proto.DERPMap_HomeParams{RegionScore: map[int64]float64{1: 0.025}},
-		Regions: map[int64]*proto.DERPMap_Region{
+	derpMap := &tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{
+			1:    0.025,
+			1001: 0.111,
+		}},
+		Regions: map[int]*tailcfg.DERPRegion{
 			1: {
 				RegionCode: "AUH",
-				Nodes: []*proto.DERPMap_Region_Node{
+				Nodes: []*tailcfg.DERPNode{
 					{Name: "AUH0"},
+				},
+			},
+			1001: {
+				RegionCode: "DXB",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "DXB0"},
 				},
 			},
 		},
@@ -649,8 +743,27 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	// Then: we don't configure
 	requireNeverConfigures(ctx, t, &uut.phased)
 
-	// When we set the same DERP map
-	uut.setDERPMap(derpMap)
+	// When we set the equivalent DERP map, with different ordering
+	uut.setDERPMap(&tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{
+			1001: 0.111,
+			1:    0.025,
+		}},
+		Regions: map[int]*tailcfg.DERPRegion{
+			1001: {
+				RegionCode: "DXB",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "DXB0"},
+				},
+			},
+			1: {
+				RegionCode: "AUH",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "AUH0"},
+				},
+			},
+		},
+	})
 
 	done := make(chan struct{})
 	go func() {

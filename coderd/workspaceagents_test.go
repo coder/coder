@@ -23,7 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -319,7 +319,7 @@ func TestWorkspaceAgentLogs(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentListen(t *testing.T) {
+func TestWorkspaceAgentConnectRPC(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Connect", func(t *testing.T) {
@@ -400,7 +400,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		_, err = agentClient.Listen(ctx)
+		_, err = agentClient.ConnectRPC(ctx)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -500,8 +500,14 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	// Verify that the manifest has DisableDirectConnections set to true.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
-	manifest, err := agentClient.Manifest(ctx)
+	rpc, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
+	defer func() {
+		cErr := rpc.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(rpc)
+	manifest := requireGetManifest(ctx, t, aAPI)
 	require.True(t, manifest.DisableDirectConnections)
 
 	_ = agenttest.New(t, client.URL, r.AgentToken)
@@ -535,7 +541,6 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer conn.Close()
-	require.True(t, conn.BlockEndpoints())
 
 	require.True(t, conn.AwaitReachable(ctx))
 	_, p2p, _, err := conn.Ping(ctx)
@@ -825,52 +830,67 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
-
-	manifest, err := agentClient.Manifest(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+
+	manifest := requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, manifest.Apps[0].Health)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, manifest.Apps[1].Health)
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
-	require.Error(t, err)
 	// empty
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
-	require.Error(t, err)
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{})
+	require.NoError(t, err)
 	// healthcheck disabled
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[0].ID[:],
+				Health: agentproto.AppHealth_INITIALIZING,
+			},
 		},
 	})
 	require.Error(t, err)
 	// invalid value
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: 99,
+			},
 		},
 	})
 	require.Error(t, err)
 	// update to healthy
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: agentproto.AppHealth_HEALTHY,
+			},
 		},
 	})
 	require.NoError(t, err)
-	manifest, err = agentClient.Manifest(ctx)
-	require.NoError(t, err)
+	manifest = requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, manifest.Apps[1].Health)
 	// update to unhealthy
-	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
+	_, err = aAPI.BatchUpdateAppHealths(ctx, &agentproto.BatchUpdateAppHealthRequest{
+		Updates: []*agentproto.BatchUpdateAppHealthRequest_HealthUpdate{
+			{
+				Id:     manifest.Apps[1].ID[:],
+				Health: agentproto.AppHealth_UNHEALTHY,
+			},
 		},
 	})
 	require.NoError(t, err)
-	manifest, err = agentClient.Manifest(ctx)
-	require.NoError(t, err)
+	manifest = requireGetManifest(ctx, t, aAPI)
 	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
+// TestWorkspaceAgentReportStats tests the legacy (agent API v1) report stats endpoint.
 func TestWorkspaceAgentReportStats(t *testing.T) {
 	t.Parallel()
 
@@ -1110,9 +1130,15 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-
-	manifest, err := agentClient.Manifest(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+
+	manifest := requireGetManifest(ctx, t, aAPI)
 
 	// Verify manifest API response.
 	require.Equal(t, workspace.ID, manifest.WorkspaceID)
@@ -1282,9 +1308,15 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	agentClient.SetSessionToken(r.AgentToken)
 
 	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
-
-	manifest, err := agentClient.Manifest(ctx)
+	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+
+	manifest := requireGetManifest(ctx, t, aAPI)
 
 	post := func(ctx context.Context, key, value string) error {
 		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
@@ -1395,13 +1427,13 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 			}
 		)
 
-		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+		err := postStartup(ctx, t, agentClient, &agentproto.Startup{
 			Version:           expectedVersion,
 			ExpandedDirectory: expectedDir,
-			Subsystems: []codersdk.AgentSubsystem{
+			Subsystems: []agentproto.Startup_Subsystem{
 				// Not sorted.
-				expectedSubsystems[1],
-				expectedSubsystems[0],
+				agentproto.Startup_EXECTRACE,
+				agentproto.Startup_ENVBOX,
 			},
 		})
 		require.NoError(t, err)
@@ -1415,7 +1447,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
 		// Sorted
 		require.Equal(t, expectedSubsystems, wsagent.Subsystems)
-		require.Equal(t, coderd.AgentAPIVersionREST, wsagent.APIVersion)
+		require.Equal(t, agentproto.CurrentVersion.String(), wsagent.APIVersion)
 	})
 
 	t.Run("InvalidSemver", func(t *testing.T) {
@@ -1433,13 +1465,10 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
+		err := postStartup(ctx, t, agentClient, &agentproto.Startup{
 			Version: "1.2.3",
 		})
-		require.Error(t, err)
-		cerr, ok := codersdk.AsError(err)
-		require.True(t, ok)
-		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		require.ErrorContains(t, err, "invalid agent semver version")
 	})
 }
 
@@ -1578,7 +1607,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			},
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
-					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitLab.String()
 				}),
 			},
 		})
@@ -1624,9 +1653,30 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 			ticks <- time.Now()
 		}
 		cancel()
-		// We expect only 1
+		// We expect only 1. One from the initial "Refresh" attempt, and the
+		// other should be skipped.
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
 		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")
 	})
+}
+
+func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
+	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+	manifest, err := agentsdk.ManifestFromProto(mp)
+	require.NoError(t, err)
+	return manifest
+}
+
+func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
+	conn, err := client.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := conn.Close()
+		require.NoError(t, cErr)
+	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
+	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
+	return err
 }

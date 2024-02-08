@@ -359,6 +359,107 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get JFrog XRay scan by workspace agent ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/integrations/jfrog/xray-scan?workspace_id=string&agent_id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /integrations/jfrog/xray-scan`
+
+### Parameters
+
+| Name           | In    | Type   | Required | Description  |
+| -------------- | ----- | ------ | -------- | ------------ |
+| `workspace_id` | query | string | true     | Workspace ID |
+| `agent_id`     | query | string | true     | Agent ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Post JFrog XRay scan by workspace agent ID.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/integrations/jfrog/xray-scan \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /integrations/jfrog/xray-scan`
+
+> Body parameter
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "critical": 0,
+  "high": 0,
+  "medium": 0,
+  "results_url": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                       | Required | Description                  |
+| ------ | ---- | ---------------------------------------------------------- | -------- | ---------------------------- |
+| `body` | body | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) | true     | Post JFrog XRay scan request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get licenses
 
 ### Code samples
@@ -454,6 +555,11 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 [
   {
     "callback_url": "string",
+    "endpoints": {
+      "authorization": "string",
+      "device_authorization": "string",
+      "token": "string"
+    },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string"
@@ -471,13 +577,17 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 Status Code **200**
 
-| Name             | Type         | Required | Restrictions | Description |
-| ---------------- | ------------ | -------- | ------------ | ----------- |
-| `[array item]`   | array        | false    |              |             |
-| `» callback_url` | string       | false    |              |             |
-| `» icon`         | string       | false    |              |             |
-| `» id`           | string(uuid) | false    |              |             |
-| `» name`         | string       | false    |              |             |
+| Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
+| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
+| `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
+| `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -518,6 +628,11 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```json
 {
   "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string"
@@ -558,6 +673,11 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string"
@@ -610,6 +730,11 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 ```json
 {
   "callback_url": "string",
+  "endpoints": {
+    "authorization": "string",
+    "device_authorization": "string",
+    "token": "string"
+  },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string"

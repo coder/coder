@@ -9,7 +9,7 @@ tags: [vm, linux, azure]
 
 # Remote Development on Azure VMs (Linux)
 
-Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
+Provision Azure Linux VMs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 

@@ -96,7 +96,11 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 				return xerrors.Errorf("unsubscribe agent: %w", err)
 			}
 		case wsproxysdk.CoordinateMessageTypeNodeUpdate:
-			err := ma.UpdateSelf(msg.Node)
+			pn, err := agpl.NodeToProto(msg.Node)
+			if err != nil {
+				return err
+			}
+			err = ma.UpdateSelf(pn)
 			if err != nil {
 				return xerrors.Errorf("update self: %w", err)
 			}
@@ -110,11 +114,14 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 func forwardNodesToWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	var lastData []byte
 	for {
-		nodes, ok := ma.NextUpdate(ctx)
+		resp, ok := ma.NextUpdate(ctx)
 		if !ok {
 			return xerrors.New("multiagent is closed")
 		}
-
+		nodes, err := agpl.OnlyNodeUpdates(resp)
+		if err != nil {
+			return xerrors.Errorf("failed to convert response: %w", err)
+		}
 		data, err := json.Marshal(wsproxysdk.CoordinateNodes{Nodes: nodes})
 		if err != nil {
 			return err

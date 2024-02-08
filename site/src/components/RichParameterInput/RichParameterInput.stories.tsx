@@ -19,7 +19,7 @@ const createTemplateVersionParameter = (
     name: "first_parameter",
     description: "This is first parameter.",
     type: "string",
-    mutable: false,
+    mutable: true,
     default_value: "default string",
     icon: "/icon/folder.svg",
     options: [],
@@ -44,6 +44,46 @@ export const Basic: Story = {
       description:
         "Customize the name of a Google Cloud project that will be created!",
     }),
+  },
+};
+
+export const Optional: Story = {
+  args: {
+    value: "initial-value",
+    id: "project_name",
+    parameter: createTemplateVersionParameter({
+      required: false,
+      name: "project_name",
+      description:
+        "Customize the name of a Google Cloud project that will be created!",
+    }),
+  },
+};
+
+export const Immutable: Story = {
+  args: {
+    value: "initial-value",
+    id: "project_name",
+    parameter: createTemplateVersionParameter({
+      mutable: false,
+      name: "project_name",
+      description:
+        "Customize the name of a Google Cloud project that will be created!",
+    }),
+  },
+};
+
+export const WithError: Story = {
+  args: {
+    id: "number_parameter",
+    parameter: createTemplateVersionParameter({
+      name: "number_parameter",
+      type: "number",
+      description: "Numeric parameter",
+      default_value: "",
+    }),
+    error: true,
+    helperText: "Number must be greater than 5",
   },
 };
 

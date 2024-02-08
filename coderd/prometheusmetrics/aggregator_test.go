@@ -3,6 +3,7 @@ package prometheusmetrics_test
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -70,6 +71,25 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "hello", Value: "world"},
 		}},
 		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6},
+		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 15, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "foobar", Value: "Foo,ba=z"},
+			{Name: "halo", Value: "wor\\,d=1,e=\\,2"},
+			{Name: "hello", Value: "wo,,r=d"},
+		}},
+		{Name: "f_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "empty", Value: ""},
+			{Name: "foobar", Value: "foobaz"},
+		}},
+	}
+
+	given3 := []*agentproto.Stats_Metric{
+		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 17, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "cat", Value: "do,=g"},
+			{Name: "hello", Value: "wo,,rld"},
+		}},
+		{Name: "f_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 8, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "foobar", Value: "foobaz"},
+		}},
 	}
 
 	commonLabels := []*agentproto.Stats_Metric_Label{
@@ -80,7 +100,6 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	}
 	expected := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
-		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: -9, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "lizz", Value: "rizz"},
@@ -88,7 +107,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "workspace_name", Value: testWorkspaceName},
 			{Name: "template_name", Value: testTemplateName},
 		}},
-		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
+		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
 			{Name: "agent_name", Value: testAgentName},
 			{Name: "foobar", Value: "Foobaz"},
@@ -97,12 +116,38 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 			{Name: "workspace_name", Value: testWorkspaceName},
 			{Name: "template_name", Value: testTemplateName},
 		}},
+		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
 		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: commonLabels},
+		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 17, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "agent_name", Value: testAgentName},
+			{Name: "cat", Value: "do,=g"},
+			{Name: "hello", Value: "wo,,rld"},
+			{Name: "username", Value: testUsername},
+			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
+		}},
+		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 15, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "agent_name", Value: testAgentName},
+			{Name: "foobar", Value: "Foo,ba=z"},
+			{Name: "halo", Value: "wor\\,d=1,e=\\,2"},
+			{Name: "hello", Value: "wo,,r=d"},
+			{Name: "username", Value: testUsername},
+			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
+		}},
+		{Name: "f_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 8, Labels: []*agentproto.Stats_Metric_Label{
+			{Name: "agent_name", Value: testAgentName},
+			{Name: "foobar", Value: "foobaz"},
+			{Name: "username", Value: testUsername},
+			{Name: "workspace_name", Value: testWorkspaceName},
+			{Name: "template_name", Value: testTemplateName},
+		}},
 	}
 
 	// when
 	metricsAggregator.Update(ctx, testLabels, given1)
 	metricsAggregator.Update(ctx, testLabels, given2)
+	metricsAggregator.Update(ctx, testLabels, given3)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -130,6 +175,12 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		return false
 	}
 
+	sort.Slice(actual, func(i, j int) bool {
+		m1 := prometheusMetricToString(t, actual[i])
+		m2 := prometheusMetricToString(t, actual[j])
+		return m1 < m2
+	})
+
 	for i, e := range expected {
 		desc := actual[i].Desc()
 		assert.Contains(t, desc.String(), e.Name)
@@ -156,9 +207,39 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 	return true
 }
 
+func prometheusMetricToString(t *testing.T, m prometheus.Metric) string {
+	var sb strings.Builder
+
+	desc := m.Desc()
+	_, _ = sb.WriteString(desc.String())
+	_ = sb.WriteByte('|')
+
+	var d dto.Metric
+	err := m.Write(&d)
+	require.NoError(t, err)
+	dtoLabels := asMetricAgentLabels(d.GetLabel())
+	sort.Slice(dtoLabels, func(i, j int) bool {
+		return dtoLabels[i].Name < dtoLabels[j].Name
+	})
+
+	for _, dtoLabel := range dtoLabels {
+		if dtoLabel.Value == "" {
+			continue
+		}
+		_, _ = sb.WriteString(dtoLabel.Name)
+		_ = sb.WriteByte('=')
+		_, _ = sb.WriteString(prometheusmetrics.MetricLabelValueEncoder.Replace(dtoLabel.Value))
+	}
+	return strings.TrimRight(sb.String(), ",")
+}
+
 func asMetricAgentLabels(dtoLabels []*dto.LabelPair) []*agentproto.Stats_Metric_Label {
 	metricLabels := make([]*agentproto.Stats_Metric_Label, 0, len(dtoLabels))
 	for _, dtoLabel := range dtoLabels {
+		if dtoLabel.GetValue() == "" {
+			continue
+		}
+
 		metricLabels = append(metricLabels, &agentproto.Stats_Metric_Label{
 			Name:  dtoLabel.GetName(),
 			Value: dtoLabel.GetValue(),

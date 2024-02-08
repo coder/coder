@@ -1,14 +1,13 @@
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
+import { type FC } from "react";
+import type { StoryContext } from "@storybook/react";
+import { withDefaultFeatures } from "api/api";
+import type { Entitlements } from "api/typesGenerated";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockAppearanceConfig,
   MockBuildInfo,
   MockEntitlements,
 } from "./entities";
-import { FC } from "react";
-import { StoryContext } from "@storybook/react";
-import * as _storybook_types from "@storybook/react";
-import { Entitlements } from "api/typesGenerated";
-import { withDefaultFeatures } from "api/api";
 
 export const withDashboardProvider = (
   Story: FC,
@@ -19,18 +18,17 @@ export const withDashboardProvider = (
   const entitlements: Entitlements = {
     ...MockEntitlements,
     features: withDefaultFeatures(
-      features.reduce(
-        (acc, feature) => {
-          acc[feature] = { enabled: true, entitlement: "entitled" };
-          return acc;
-        },
-        {} as Entitlements["features"],
+      Object.fromEntries(
+        features.map((feature) => [
+          feature,
+          { enabled: true, entitlement: "entitled" },
+        ]),
       ),
     ),
   };
 
   return (
-    <DashboardProviderContext.Provider
+    <DashboardContext.Provider
       value={{
         buildInfo: MockBuildInfo,
         entitlements,
@@ -43,6 +41,6 @@ export const withDashboardProvider = (
       }}
     >
       <Story />
-    </DashboardProviderContext.Provider>
+    </DashboardContext.Provider>
   );
 };

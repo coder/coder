@@ -23,6 +23,7 @@ var (
 	expiry       = flag.Duration("expiry", time.Minute*5, "Token expiry")
 	clientID     = flag.String("client-id", "static-client-id", "Client ID, set empty to be random")
 	clientSecret = flag.String("client-sec", "static-client-secret", "Client Secret, set empty to be random")
+	deviceFlow   = flag.Bool("device-flow", false, "Enable device flow")
 	// By default, no regex means it will never match anything. So at least default to matching something.
 	extRegex = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
 )
@@ -66,14 +67,18 @@ func RunIDP() func(t *testing.T) {
 		id, sec := idp.AppCredentials()
 		prov := idp.WellknownConfig()
 		const appID = "fake"
-		coderCfg := idp.ExternalAuthConfig(t, appID, nil)
+		coderCfg := idp.ExternalAuthConfig(t, appID, &oidctest.ExternalAuthConfigOptions{
+			UseDeviceAuth: *deviceFlow,
+		})
 
 		log.Println("IDP Issuer URL", idp.IssuerURL())
 		log.Println("Coderd Flags")
+
 		deviceCodeURL := ""
 		if coderCfg.DeviceAuth != nil {
 			deviceCodeURL = coderCfg.DeviceAuth.CodeURL
 		}
+
 		cfg := withClientSecret{
 			ClientSecret: sec,
 			ExternalAuthConfig: codersdk.ExternalAuthConfig{
@@ -89,13 +94,14 @@ func RunIDP() func(t *testing.T) {
 				NoRefresh:           false,
 				Scopes:              []string{"openid", "email", "profile"},
 				ExtraTokenKeys:      coderCfg.ExtraTokenKeys,
-				DeviceFlow:          coderCfg.DeviceAuth != nil,
+				DeviceFlow:          *deviceFlow,
 				DeviceCodeURL:       deviceCodeURL,
 				Regex:               *extRegex,
 				DisplayName:         coderCfg.DisplayName,
 				DisplayIcon:         coderCfg.DisplayIcon,
 			},
 		}
+
 		data, err := json.Marshal([]withClientSecret{cfg})
 		require.NoError(t, err)
 		log.Printf(`--external-auth-providers='%s'`, string(data))

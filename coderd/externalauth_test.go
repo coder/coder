@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -264,6 +265,27 @@ func TestExternalAuthManagement(t *testing.T) {
 
 func TestExternalAuthDevice(t *testing.T) {
 	t.Parallel()
+	// This is an example test on how to do device auth flow using our fake idp.
+	t.Run("WithFakeIDP", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		externalID := "fake-idp"
+		cfg := fake.ExternalAuthConfig(t, externalID, &oidctest.ExternalAuthConfigOptions{
+			UseDeviceAuth: true,
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{cfg},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		// Login!
+		fake.DeviceLogin(t, client, externalID)
+
+		extAuth, err := client.ExternalAuthByID(context.Background(), externalID)
+		require.NoError(t, err)
+		require.True(t, extAuth.Authenticated)
+	})
+
 	t.Run("NotSupported", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -362,6 +384,30 @@ func TestExternalAuthDevice(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
 		require.ErrorContains(t, err, "rate limit hit")
+	})
+
+	// If we forget to add the accept header, we get a form encoded body instead.
+	t.Run("FormEncodedBody", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/x-www-form-urlencoded")
+			_, _ = w.Write([]byte(url.Values{"access_token": {"hey"}}.Encode()))
+		}))
+		defer srv.Close()
+		client := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				ID: "test",
+				DeviceAuth: &externalauth.DeviceAuth{
+					ClientID: "test",
+					CodeURL:  srv.URL,
+					Scopes:   []string{"repo"},
+				},
+			}},
+		})
+		coderdtest.CreateFirstUser(t, client)
+		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "is form-url encoded")
 	})
 }
 

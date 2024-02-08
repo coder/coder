@@ -4,9 +4,9 @@ import {
   type DeploymentConfig,
 } from "api/api";
 import { FieldError } from "api/errors";
-import type * as TypesGen from "api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "contexts/AuthProvider/permissions";
+import type { Permissions } from "contexts/auth/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -21,17 +21,17 @@ export const MockOrganization: TypesGen.Organization = {
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27", amount: 1 },
+    { date: "2022-08-29", amount: 2 },
+    { date: "2022-08-30", amount: 1 },
   ],
 };
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 10 },
-    { date: "2022-08-29T00:00:00Z", amount: 22 },
-    { date: "2022-08-30T00:00:00Z", amount: 14 },
+    { date: "2022-08-27", amount: 10 },
+    { date: "2022-08-29", amount: 22 },
+    { date: "2022-08-30", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
@@ -199,6 +199,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
   dashboard_url: "https:///mock-url",
   workspace_proxy: false,
+  upgrade_message: "My custom upgrade message",
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -898,6 +899,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
@@ -920,6 +922,7 @@ export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "autostart",
@@ -942,6 +945,7 @@ export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "autostop",
@@ -966,6 +970,7 @@ export const MockFailedWorkspaceBuild = (
   workspace_name: "test-workspace",
   workspace_owner_id: MockUser.id,
   workspace_owner_name: MockUser.username,
+  workspace_owner_avatar_url: MockUser.avatar_url,
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
@@ -1011,6 +1016,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
   owner_name: MockUser.username,
+  owner_avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
@@ -1021,6 +1027,13 @@ export const MockWorkspace: TypesGen.Workspace = {
   },
   automatic_updates: "never",
   allow_renames: true,
+  favorite: false,
+};
+
+export const MockFavoriteWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  id: "test-favorite-workspace",
+  favorite: true,
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -3372,6 +3385,11 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     name: "foo",
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
+    endpoints: {
+      authorization: "http://localhost:3001/login/oauth2/authorize",
+      token: "http://localhost:3001/login/oauth2/token",
+      device_authorization: "",
+    },
   },
 ];
 

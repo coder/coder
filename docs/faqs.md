@@ -17,8 +17,8 @@ In the UI, click the Deployment tab -> Licenses and upload the `jwt` license
 file.
 
 > To add the license with the CLI, first
-> [install the Coder CLI](https://coder.com/docs/v2/latest/install/install.sh)
-> and server to the latest release.
+> [install the Coder CLI](./install/index.md#install-script) and server to the
+> latest release.
 
 If the license is a text string:
 
@@ -450,9 +450,9 @@ Starting Colima on a M3 Macbook Pro:
 colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
-Colima will show the path to the docker socket so I have a
-[Coder template](./docker-code-server/main.tf) that prompts the Coder admin to
-enter the docker socket as a Terraform variable.
+Colima will show the path to the docker socket so we have a
+[community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
+that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
 </details>
 
@@ -530,3 +530,23 @@ prerequisites for Linux, please look at the VSCode docs.
 https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
 
 </details>
+
+<details style="margin-bottom: 28px;">
+  <summary style="font-size: larger; font-weight: bold;">How can I resolve disconnects when connected to Coder via JetBrains Gateway?</summary>
+
+If you leave your JetBrains IDE open for some time while connected to Coder, you
+may encounter a message similar to the below:
+
+```console
+No internet connection. Changes in the document might be lost. Trying to reconnect…
+```
+
+To resolve this, add this entry to your SSH host file on your local machine:
+
+```console
+Host coder-jetbrains--*
+  ServerAliveInterval 5
+```
+
+Note that your SSH config file will be overwritten by the JetBrains Gateway
+client if it is re-authenticated to your Coder deployment.

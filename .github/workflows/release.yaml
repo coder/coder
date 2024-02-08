@@ -321,7 +321,7 @@ jobs:
 
       - name: Start Packer builds
         if: ${{ !inputs.dry_run }}
-        uses: peter-evans/repository-dispatch@v2
+        uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
@@ -408,6 +408,11 @@ jobs:
     if: ${{ !inputs.dry_run }}
 
     steps:
+      - name: Sync fork
+        run: gh repo sync cdrci/winget-pkgs -b master
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:

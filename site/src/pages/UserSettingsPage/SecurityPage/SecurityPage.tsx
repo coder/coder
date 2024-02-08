@@ -2,7 +2,7 @@ import { type ComponentProps, type FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { getUserLoginType } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";
-import { useMe } from "hooks/useMe";
+import { useMe } from "contexts/auth/useMe";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { displaySuccess } from "components/GlobalSnackbar/utils";

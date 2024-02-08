@@ -1779,6 +1779,15 @@ type GroupMember struct {
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
+type JfrogXrayScan struct {
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Critical    int32     `db:"critical" json:"critical"`
+	High        int32     `db:"high" json:"high"`
+	Medium      int32     `db:"medium" json:"medium"`
+	ResultsUrl  string    `db:"results_url" json:"results_url"`
+}
+
 type License struct {
 	ID         int32     `db:"id" json:"id"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
@@ -2187,6 +2196,8 @@ type Workspace struct {
 	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	// Favorite is true if the workspace owner has favorited the workspace.
+	Favorite bool `db:"favorite" json:"favorite"`
 }
 
 type WorkspaceAgent struct {

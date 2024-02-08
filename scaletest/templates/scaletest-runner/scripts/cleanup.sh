@@ -12,29 +12,51 @@ if [[ -z $event ]]; then
 	event=manual
 fi
 
-if [[ $event = manual ]]; then
+do_cleanup() {
+	start_phase "Cleanup (${event})"
+	coder exp scaletest cleanup \
+		--cleanup-job-timeout 2h \
+		--cleanup-timeout 5h |
+		tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
+	end_phase
+}
+
+do_scaledown() {
+	start_phase "Scale down provisioners (${event})"
+	maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner --replicas 1
+	maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
+	end_phase
+}
+
+case "${event}" in
+manual)
 	echo -n 'WARNING: This will clean up all scaletest resources, continue? (y/n) '
 	read -r -n 1
 	if [[ $REPLY != [yY] ]]; then
 		echo $'\nAborting...'
 		exit 1
 	fi
-fi
+	echo
 
-start_phase "Cleanup (${event})"
-coder exp scaletest cleanup \
-	--cleanup-job-timeout 2h \
-	--cleanup-timeout 5h |
-	tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
-end_phase
+	do_cleanup
+	do_scaledown
 
-if [[ $event != prepare ]]; then
-	start_phase "Scaling down provisioners..."
-	maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner --replicas 1
-	maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
-fi
-
-if [[ $event = manual ]]; then
 	echo 'Press any key to continue...'
 	read -s -r -n 1
-fi
+	;;
+prepare)
+	do_cleanup
+	;;
+on_stop) ;; # Do nothing, handled by "shutdown".
+always | on_success | on_error | shutdown)
+	do_cleanup
+	do_scaledown
+	;;
+shutdown_scale_down_only)
+	do_scaledown
+	;;
+*)
+	echo "Unknown event: ${event}" >&2
+	exit 1
+	;;
+esac

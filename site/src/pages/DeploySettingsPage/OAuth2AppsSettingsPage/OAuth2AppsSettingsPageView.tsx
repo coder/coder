@@ -19,6 +19,7 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Stack } from "components/Stack/Stack";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -28,12 +29,14 @@ type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];
   isEntitled: boolean;
   isLoading: boolean;
+  error: unknown;
 };
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
   apps,
   isEntitled,
   isLoading,
+  error,
 }) => {
   return (
     <>
@@ -62,6 +65,8 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
         </Button>
       </Stack>
 
+      {error && <ErrorAlert error={error} />}
+
       <TableContainer css={{ marginTop: 32 }}>
         <Table>
           <TableHead>
@@ -72,9 +77,8 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
           </TableHead>
           <TableBody>
             {isLoading && <TableLoader />}
-            {!isLoading &&
-              apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)}
-            {!isLoading && (!apps || apps?.length === 0) && (
+            {apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)}
+            {apps?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div css={{ textAlign: "center" }}>

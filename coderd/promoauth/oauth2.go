@@ -19,6 +19,11 @@ const (
 	SourceTokenSource      Oauth2Source = "TokenSource"
 	SourceAppInstallations Oauth2Source = "AppInstallations"
 	SourceAuthorizeDevice  Oauth2Source = "AuthorizeDevice"
+
+	SourceGitAPIAuthUser        Oauth2Source = "GitAPIAuthUser"
+	SourceGitAPIListEmails      Oauth2Source = "GitAPIListEmails"
+	SourceGitAPIOrgMemberships  Oauth2Source = "GitAPIOrgMemberships"
+	SourceGitAPITeamMemberships Oauth2Source = "GitAPITeamMemberships"
 )
 
 // OAuth2Config exposes a subset of *oauth2.Config functions for easier testing.
@@ -209,6 +214,18 @@ func (c *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.To
 	return c.underlying.TokenSource(c.wrapClient(ctx, SourceTokenSource), token)
 }
 
+// InstrumentHTTPClient will always return a new http client. The new client will
+// match the one passed in, but will have an instrumented round tripper.
+func (c *Config) InstrumentHTTPClient(hc *http.Client, source Oauth2Source) *http.Client {
+	return &http.Client{
+		// The new tripper will instrument every request made by the oauth2 client.
+		Transport:     newInstrumentedTripper(c, source, hc.Transport),
+		CheckRedirect: hc.CheckRedirect,
+		Jar:           hc.Jar,
+		Timeout:       hc.Timeout,
+	}
+}
+
 // wrapClient is the only way we can accurately instrument the oauth2 client.
 // This is because method calls to the 'OAuth2Config' interface are not 1:1 with
 // network requests.
@@ -229,8 +246,7 @@ func (c *Config) oauthHTTPClient(ctx context.Context, source Oauth2Source) *http
 		cli = hc
 	}
 
-	// The new tripper will instrument every request made by the oauth2 client.
-	cli.Transport = newInstrumentedTripper(c, source, cli.Transport)
+	cli = c.InstrumentHTTPClient(cli, source)
 	return cli
 }
 
@@ -245,12 +261,6 @@ type instrumentedTripper struct {
 func newInstrumentedTripper(c *Config, source Oauth2Source, under http.RoundTripper) *instrumentedTripper {
 	if under == nil {
 		under = http.DefaultTransport
-	}
-
-	// If the underlying transport is the default, we need to clone it.
-	// We should also clone it if it supports cloning.
-	if tr, ok := under.(*http.Transport); ok {
-		under = tr.Clone()
 	}
 
 	return &instrumentedTripper{

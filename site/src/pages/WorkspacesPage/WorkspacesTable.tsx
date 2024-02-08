@@ -7,6 +7,7 @@ import TableRow from "@mui/material/TableRow";
 import Checkbox from "@mui/material/Checkbox";
 import Skeleton from "@mui/material/Skeleton";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import Star from "@mui/icons-material/Star";
 import { useTheme } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -20,11 +21,11 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
-import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import {
   DormantStatusBadge,
   WorkspaceStatusBadge,
-} from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+} from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
@@ -65,10 +66,17 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   <Checkbox
                     // Remove the extra padding added for the first cell in the
                     // table
-                    css={{ marginLeft: "-20px" }}
+                    css={{
+                      marginLeft: "-20px",
+                      // MUI by default adds 9px padding to enhance the
+                      // clickable area. We aim to prevent this from impacting
+                      // the layout of surrounding elements.
+                      marginTop: -9,
+                      marginBottom: -9,
+                    }}
                     disabled={!workspaces || workspaces.length === 0}
                     checked={checkedWorkspaces.length === workspaces?.length}
-                    size="small"
+                    size="xsmall"
                     onChange={(_, checked) => {
                       if (!workspaces) {
                         return;
@@ -121,9 +129,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                         <Checkbox
                           // Remove the extra padding added for the first cell in the
                           // table
-                          css={{ marginLeft: "-20px" }}
+                          css={{
+                            marginLeft: "-20px",
+                          }}
                           data-testid={`checkbox-${workspace.id}`}
-                          size="small"
+                          size="xsmall"
                           disabled={cantBeChecked(workspace)}
                           checked={checked}
                           onClick={(e) => {
@@ -150,6 +160,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             alignItems="center"
                           >
                             {workspace.name}
+                            {workspace.favorite && (
+                              <Star css={{ width: 16, height: 16 }} />
+                            )}
                             {workspace.outdated && (
                               <WorkspaceOutdatedTooltip
                                 templateName={workspace.template_name}
@@ -259,14 +272,18 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
       }
     },
   });
-
+  const bgColor = checked ? theme.palette.action.hover : undefined;
   return (
     <TableRow
       {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
       css={{
         ...clickableProps.css,
-        backgroundColor: checked ? theme.palette.action.hover : undefined,
+        backgroundColor: bgColor,
+
+        "&:hover": {
+          backgroundColor: `${bgColor} !important`,
+        },
       }}
     >
       {children}

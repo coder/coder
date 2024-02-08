@@ -64,6 +64,8 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
+// @Param before query int true "Start time"
+// @Param after query int true "End time"
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
 // @Router /insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
@@ -151,6 +153,8 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
+// @Param before query int true "Start time"
+// @Param after query int true "End time"
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
@@ -241,6 +245,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
+// @Param before query int true "Start time"
+// @Param after query int true "End time"
 // @Success 200 {object} codersdk.TemplateInsightsResponse
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {

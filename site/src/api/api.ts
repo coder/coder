@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
 // This needs to include the `../`, otherwise it breaks when importing into
@@ -126,6 +126,13 @@ export const logout = async (): Promise<void> => {
 
 export const getAuthenticatedUser = async () => {
   const response = await axios.get<TypesGen.User>("/api/v2/users/me");
+  return response.data;
+};
+
+export const getUserParameters = async (templateID: string) => {
+  const response = await axios.get<TypesGen.UserParameter[]>(
+    "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
+  );
   return response.data;
 };
 
@@ -314,7 +321,7 @@ export const getPreviousTemplateVersionByName = async (
   organizationId: string,
   templateName: string,
   versionName: string,
-): Promise<GetPreviousTemplateVersionByNameResponse> => {
+) => {
   try {
     const response = await axios.get<TypesGen.TemplateVersion>(
       `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
@@ -1687,4 +1694,36 @@ export const updateHealthSettings = async (
     data,
   );
   return response.data;
+};
+
+export const putFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
+
+export const deleteFavoriteWorkspace = async (workspaceID: string) => {
+  await axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+};
+
+export type GetJFrogXRayScanParams = {
+  workspaceId: string;
+  agentId: string;
+};
+
+export const getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
+  const searchParams = new URLSearchParams({
+    workspace_id: options.workspaceId,
+    agent_id: options.agentId,
+  });
+
+  try {
+    const res = await axios.get<TypesGen.JFrogXrayScan>(
+      `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
+    );
+    return res.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      // react-query library does not allow undefined to be returned as a query result
+      return null;
+    }
+  }
 };

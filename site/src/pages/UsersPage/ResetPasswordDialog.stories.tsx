@@ -16,6 +16,8 @@ const Example: Story = {
     open: true,
     user: MockUser,
     newPassword: "somerandomstringhere",
+    onConfirm: () => {},
+    onClose: () => {},
   },
 };
 

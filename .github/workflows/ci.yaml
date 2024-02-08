@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 1
       # For pull requests it's not necessary to checkout the code
       - name: check changed files
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
@@ -131,7 +131,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: buildjet/cache@v3
+        uses: buildjet/cache@v4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -141,7 +141,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.17.1
+        uses: crate-ci/typos@v1.18.0
         with:
           config: .github/workflows/typos.toml
 
@@ -305,7 +305,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -353,7 +353,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -412,7 +412,7 @@ jobs:
         working-directory: site
 
       - name: Check code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -516,7 +516,8 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
         with:
-          buildScriptName: "storybook:build"
+          # Do a fast, testing build for change previews
+          buildScriptName: "storybook:ci"
           exitOnceUploaded: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
@@ -530,6 +531,8 @@ jobs:
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -547,6 +550,7 @@ jobs:
           autoAcceptChanges: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
+          # Do a full build with documentation for mainline builds
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
@@ -554,6 +558,8 @@ jobs:
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
   offlinedocs:
     name: offlinedocs
@@ -726,7 +732,7 @@ jobs:
 
             # Define specific tags
             tags=("$tag" "main" "latest")
-            
+
             # Create and push a multi-arch manifest for each tag
             # we are adding `latest` tag and keeping `main` for backward
             # compatibality
@@ -741,7 +747,7 @@ jobs:
 
       - name: Prune old images
         if: github.ref == 'refs/heads/main'
-        uses: vlaurin/action-ghcr-prune@v0.5.0
+        uses: vlaurin/action-ghcr-prune@v0.6.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
@@ -855,62 +861,6 @@ jobs:
           TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
-
-  deploy-legacy-proxies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: build
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: coder
-          path: ./build
-
-      - name: Install Release
-        run: |
-          set -euo pipefail
-
-          regions=(
-            # gcp-region-id instance-name systemd-service-name
-            "australia-southeast1-b coder-sydney coder-workspace-proxy"
-            "europe-west3-c coder-europe coder-workspace-proxy"
-            "southamerica-east1-b coder-brazil coder-workspace-proxy"
-          )
-
-          deb_pkg=$(find ./build -name "coder_*_linux_amd64.deb" -print -quit)
-          if [ -z "$deb_pkg" ]; then
-              echo "deb package $deb_pkg not found"
-              ls -l ./build
-              exit 1
-          fi
-
-          gcloud config set project coder-dogfood
-          for region in "${regions[@]}"; do
-            echo "::group::$region"
-            set -- $region
-
-            set -x
-            gcloud config set compute/zone "$1"
-            gcloud compute scp "$deb_pkg" "${2}:/tmp/coder.deb"
-            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
-            set +x
-
-            echo "::endgroup::"
-          done
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes

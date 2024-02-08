@@ -1,18 +1,17 @@
-import { usePermissions } from "hooks/usePermissions";
-import { useOrganizationId } from "hooks/useOrganizationId";
 import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
-import { useQuery } from "react-query";
 import {
   templateByName,
   templateFiles,
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
-import { useFileTab } from "components/TemplateFiles/TemplateFiles";
 
 type Params = {
   version: string;
@@ -43,7 +42,6 @@ export const TemplateVersionPage: FC = () => {
     ...templateFiles(activeVersionQuery.data?.job.file_id ?? ""),
     enabled: Boolean(activeVersionQuery.data),
   });
-  const tab = useFileTab(selectedVersionFilesQuery.data);
 
   const permissions = usePermissions();
   const versionId = selectedVersionQuery.data?.id;
@@ -75,7 +73,6 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
-        tab={tab}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

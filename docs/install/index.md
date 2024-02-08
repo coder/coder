@@ -38,7 +38,8 @@ curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ## Homebrew
 
 To install Coder on Linux, you can use the [Homebrew](https://brew.sh/) package
-manager that uses our official [Homebrew tap](github.com/coder/homebrew-coder).
+manager that uses our official
+[Homebrew tap](https://github.com/coder/homebrew-coder).
 
 ```shell
 brew install coder/coder/coder
@@ -94,7 +95,8 @@ sudo apk add ./coder.apk
 
 ## Manual
 
-Get the latest `.tar.gz` package from our GitHub releases page and install it
+Get the latest `.tar.gz` package from our
+[GitHub releases](https://github.com/coder/coder/releases/latest) and install it
 manually.
 
 1. Download the

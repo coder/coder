@@ -1,6 +1,14 @@
+import Tooltip from "@mui/material/Tooltip";
+import Link from "@mui/material/Link";
+import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
+import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
-import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
 import {
   Topbar,
   TopbarAvatar,
@@ -9,28 +17,21 @@ import {
   TopbarIcon,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import Tooltip from "@mui/material/Tooltip";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import {
-  WorkspaceScheduleControls,
-  shouldDisplayScheduleControls,
-} from "./WorkspaceScheduleControls";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { workspaceQuota } from "api/queries/workspaceQuota";
-import { useQuery } from "react-query";
-import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
-import { useTheme } from "@mui/material/styles";
-import Link from "@mui/material/Link";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { displayDormantDeletion } from "utils/dormant";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import PersonOutline from "@mui/icons-material/PersonOutline";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ExternalAvatar } from "components/Avatar/Avatar";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
+import {
+  WorkspaceScheduleControls,
+  shouldDisplayScheduleControls,
+} from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
 
 export type WorkspaceError =
@@ -62,32 +63,33 @@ export interface WorkspaceProps {
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
   latestVersion?: TypesGen.TemplateVersion;
+  handleToggleFavorite: () => void;
 }
 
-export const WorkspaceTopbar = (props: WorkspaceProps) => {
-  const {
-    handleStart,
-    handleStop,
-    handleRestart,
-    handleDelete,
-    handleUpdate,
-    handleCancel,
-    handleSettings,
-    handleChangeVersion,
-    handleDormantActivate,
-    workspace,
-    isUpdating,
-    isRestarting,
-    canUpdateWorkspace,
-    canChangeVersions,
-    canRetryDebugMode,
-    handleBuildRetry,
-    handleBuildRetryDebug,
-    isOwner,
-    template,
-    latestVersion,
-    permissions,
-  } = props;
+export const WorkspaceTopbar: FC<WorkspaceProps> = ({
+  handleStart,
+  handleStop,
+  handleRestart,
+  handleDelete,
+  handleUpdate,
+  handleCancel,
+  handleSettings,
+  handleChangeVersion,
+  handleDormantActivate,
+  handleToggleFavorite,
+  workspace,
+  isUpdating,
+  isRestarting,
+  canUpdateWorkspace,
+  canChangeVersions,
+  canRetryDebugMode,
+  handleBuildRetry,
+  handleBuildRetryDebug,
+  isOwner,
+  template,
+  latestVersion,
+  permissions,
+}) => {
   const theme = useTheme();
 
   // Quota
@@ -128,9 +130,11 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
         }}
       >
         <TopbarData>
-          <TopbarIcon>
-            <PersonOutline />
-          </TopbarIcon>
+          <UserAvatar
+            size="xs"
+            username={workspace.owner_name}
+            avatarURL={workspace.owner_avatar_url}
+          />
           <Tooltip title="Owner">
             <span>{workspace.owner_name}</span>
           </Tooltip>
@@ -229,7 +233,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           </TopbarData>
         )}
 
-        {quota && (
+        {quota && quota.budget > 0 && (
           <TopbarData>
             <TopbarIcon>
               <Tooltip title="Daily usage">
@@ -278,6 +282,7 @@ export const WorkspaceTopbar = (props: WorkspaceProps) => {
           handleRetryDebug={handleBuildRetryDebug}
           handleChangeVersion={handleChangeVersion}
           handleDormantActivate={handleDormantActivate}
+          handleToggleFavorite={handleToggleFavorite}
           canRetryDebug={canRetryDebugMode}
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}

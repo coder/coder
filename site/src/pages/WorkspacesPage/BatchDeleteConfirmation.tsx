@@ -157,28 +157,39 @@ const Workspaces: FC<StageProps> = ({ workspaces }) => {
               direction="row"
               alignItems="center"
               justifyContent="space-between"
+              spacing={3}
             >
               <span
                 css={{ fontWeight: 500, color: theme.experimental.l1.text }}
               >
                 {workspace.name}
               </span>
-              <Stack css={{ gap: 0, fontSize: 14, width: 128 }}>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <PersonIcon />
+              <Stack css={{ gap: 0, fontSize: 14 }} justifyContent="flex-end">
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="flex-end"
+                  spacing={1}
+                >
                   <span
                     css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
                   >
                     {workspace.owner_name}
                   </span>
+                  <PersonIcon />
                 </Stack>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                  <ScheduleIcon css={styles.summaryIcon} />
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
+                  justifyContent="flex-end"
+                >
                   <span
                     css={{ whiteSpace: "nowrap", textOverflow: "ellipsis" }}
                   >
                     {dayjs(workspace.last_used_at).fromNow()}
                   </span>
+                  <ScheduleIcon css={styles.summaryIcon} />
                 </Stack>
               </Stack>
             </Stack>

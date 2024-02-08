@@ -179,6 +179,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		UserRoleMapping:     vals.OIDC.UserRoleMapping.Value,
 		UserRolesDefault:    vals.OIDC.UserRolesDefault.GetSlice(),
 		SignInText:          vals.OIDC.SignInText.String(),
+		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 	}, nil
@@ -654,6 +655,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
+			// We'll read from this channel in the select below that tracks shutdown.  If it remains
+			// nil, that case of the select will just never fire, but it's important not to have a
+			// "bare" read on this channel.
+			var pubsubWatchdogTimeout <-chan struct{}
 			if vals.InMemoryDatabase {
 				// This is only used for testing.
 				options.Database = dbmem.New()
@@ -673,11 +678,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = pubsub.New(ctx, sqlDB, dbURL)
+				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
+				options.Pubsub = ps
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(ps)
+				}
 				defer options.Pubsub.Close()
+				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+				pubsubWatchdogTimeout = psWatchdog.Timeout()
+				defer psWatchdog.Close()
 			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
@@ -1026,6 +1038,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
+			case <-pubsubWatchdogTimeout:
+				exitErr = xerrors.New("pubsub Watchdog timed out")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
@@ -1773,12 +1787,6 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			Slug:         parts[1],
 		})
 	}
-	createClient := func(client *http.Client) (*github.Client, error) {
-		if enterpriseBaseURL != "" {
-			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
-		}
-		return github.NewClient(client), nil
-	}
 
 	endpoint := xgithub.Endpoint
 	if enterpriseBaseURL != "" {
@@ -1800,24 +1808,34 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 		}
 	}
 
+	instrumentedOauth := instrument.NewGithub("github-login", &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Endpoint:     endpoint,
+		RedirectURL:  redirectURL.String(),
+		Scopes: []string{
+			"read:user",
+			"read:org",
+			"user:email",
+		},
+	})
+
+	createClient := func(client *http.Client, source promoauth.Oauth2Source) (*github.Client, error) {
+		client = instrumentedOauth.InstrumentHTTPClient(client, source)
+		if enterpriseBaseURL != "" {
+			return github.NewEnterpriseClient(enterpriseBaseURL, "", client)
+		}
+		return github.NewClient(client), nil
+	}
+
 	return &coderd.GithubOAuth2Config{
-		OAuth2Config: instrument.NewGithub("github-login", &oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Endpoint:     endpoint,
-			RedirectURL:  redirectURL.String(),
-			Scopes: []string{
-				"read:user",
-				"read:org",
-				"user:email",
-			},
-		}),
+		OAuth2Config:       instrumentedOauth,
 		AllowSignups:       allowSignups,
 		AllowEveryone:      allowEveryone,
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIAuthUser)
 			if err != nil {
 				return nil, err
 			}
@@ -1825,7 +1843,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return user, err
 		},
 		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIListEmails)
 			if err != nil {
 				return nil, err
 			}
@@ -1833,7 +1851,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return emails, err
 		},
 		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPIOrgMemberships)
 			if err != nil {
 				return nil, err
 			}
@@ -1846,7 +1864,7 @@ func configureGithubOAuth2(instrument *promoauth.Factory, accessURL *url.URL, cl
 			return memberships, err
 		},
 		TeamMembership: func(ctx context.Context, client *http.Client, org, teamSlug, username string) (*github.Membership, error) {
-			api, err := createClient(client)
+			api, err := createClient(client, promoauth.SourceGitAPITeamMemberships)
 			if err != nil {
 				return nil, err
 			}

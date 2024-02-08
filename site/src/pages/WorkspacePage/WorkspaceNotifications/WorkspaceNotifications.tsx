@@ -1,20 +1,20 @@
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import { Template, TemplateVersion, Workspace } from "api/typesGenerated";
-import { FC, useEffect, useState } from "react";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { WorkspacePermissions } from "../permissions";
 import dayjs from "dayjs";
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import type { WorkspacePermissions } from "../permissions";
 import {
   NotificationActionButton,
   NotificationItem,
   Notifications,
 } from "./Notifications";
-import { Interpolation, Theme } from "@emotion/react";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
@@ -103,8 +103,10 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   }
 
   // Dormant
-  const areActionsEnabled = useIsWorkspaceActionsEnabled();
-  if (areActionsEnabled && workspace.dormant_at) {
+  const { entitlements } = useDashboard();
+  const advancedSchedulingEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled;
+  if (advancedSchedulingEnabled && workspace.dormant_at) {
     const formatDate = (dateStr: string, timestamp: boolean): string => {
       const date = new Date(dateStr);
       return date.toLocaleDateString(undefined, {

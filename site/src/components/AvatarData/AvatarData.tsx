@@ -52,7 +52,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
         {subtitle && (
           <span
             css={{
-              fontSize: 12,
+              fontSize: 13,
               color: theme.palette.text.secondary,
               lineHeight: "150%",
               maxWidth: 540,

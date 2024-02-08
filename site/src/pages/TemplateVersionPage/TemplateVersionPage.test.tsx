@@ -4,7 +4,7 @@ import {
 } from "testHelpers/renderHelpers";
 import TemplateVersionPage from "./TemplateVersionPage";
 import * as templateVersionUtils from "utils/templateVersion";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import * as CreateDayString from "utils/createDayString";
 
 const TEMPLATE_NAME = "coder-ts";
@@ -36,7 +36,8 @@ describe("TemplateVersionPage", () => {
   beforeEach(setup);
 
   it("shows files", () => {
-    expect(screen.getByText(TERRAFORM_FILENAME)).toBeInTheDocument();
-    expect(screen.getByText(README_FILENAME)).toBeInTheDocument();
+    const files = screen.getByTestId("template-files-content");
+    expect(within(files).getByText(TERRAFORM_FILENAME)).toBeInTheDocument();
+    expect(within(files).getByText(README_FILENAME)).toBeInTheDocument();
   });
 });

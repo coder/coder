@@ -67,19 +67,19 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 8, 27),
+					Date:   metricscache.OnlyDate(date(2022, 8, 27)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 28),
+					Date:   metricscache.OnlyDate(date(2022, 8, 28)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 8, 29),
+					Date:   metricscache.OnlyDate(date(2022, 8, 29)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 8, 30),
+					Date:   metricscache.OnlyDate(date(2022, 8, 30)),
 					Amount: 1,
 				},
 			}, 1},
@@ -95,15 +95,15 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 8, 27),
+					Date:   metricscache.OnlyDate(date(2022, 8, 27)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 28),
+					Date:   metricscache.OnlyDate(date(2022, 8, 28)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 8, 29),
+					Date:   metricscache.OnlyDate(date(2022, 8, 29)),
 					Amount: 1,
 				},
 			}, 1},
@@ -121,31 +121,31 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 3),
+					Date:   metricscache.OnlyDate(date(2022, 1, 3)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 4),
+					Date:   metricscache.OnlyDate(date(2022, 1, 4)),
 					Amount: 1,
 				},
 				{
-					Date:   date(2022, 1, 5),
+					Date:   metricscache.OnlyDate(date(2022, 1, 5)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 6),
+					Date:   metricscache.OnlyDate(date(2022, 1, 6)),
 					Amount: 0,
 				},
 				{
-					Date:   date(2022, 1, 7),
+					Date:   metricscache.OnlyDate(date(2022, 1, 7)),
 					Amount: 2,
 				},
 			}, 2},
@@ -164,17 +164,17 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			}, 2},
 			dauWant: []codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			},
@@ -192,13 +192,13 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 			dauWant: []codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 1),
+					Date:   metricscache.OnlyDate(date(2022, 1, 1)),
 					Amount: 2,
 				},
 			},
 			tplWant: want{[]codersdk.DAUEntry{
 				{
-					Date:   date(2022, 1, 2),
+					Date:   metricscache.OnlyDate(date(2022, 1, 2)),
 					Amount: 2,
 				},
 			}, 2},

@@ -11,14 +11,14 @@ December 13, 2023
 ---
 
 This is a guide on how to make Coder guides, it is not listed on our
-[official guides page](coder.com/docs/v2/latest/guides) in the docs. This is
-intended for those who don't frequently contribute documentation changes to the
+[official guides page](https://coder.com/docs/v2/latest/guides) in the docs.
+Intended for those who don't frequently contribute documentation changes to the
 `coder/coder` repository.
 
 ## Content
 
 Defer to our
-[Contributing/Documentation](coder.com/docs/v2/latest/contributing/documentation)
+[Contributing/Documentation](https://coder.com/docs/v2/latest/contributing/documentation)
 page for rules on technical writing.
 
 ### Adding Photos

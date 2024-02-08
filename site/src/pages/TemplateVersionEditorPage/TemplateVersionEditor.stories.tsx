@@ -26,6 +26,7 @@ const meta: Meta<typeof TemplateVersionEditor> = {
   },
   component: TemplateVersionEditor,
   args: {
+    activePath: "main.tf",
     template: MockTemplate,
     templateVersion: MockTemplateVersion,
     defaultFileTree: MockTemplateVersionFileTree,

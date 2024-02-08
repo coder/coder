@@ -1,3 +1,0 @@
-deb https://mirror.pit.teraswitch.com/ubuntu/ jammy main restricted universe
-deb https://mirror.pit.teraswitch.com/ubuntu/ jammy-updates main restricted universe
-deb https://mirror.pit.teraswitch.com/ubuntu/ jammy-backports main restricted universe

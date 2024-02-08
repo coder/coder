@@ -9,7 +9,7 @@ tags: [container, docker, devcontainer]
 
 # Remote Development on Docker Containers (with Devcontainers)
 
-Provision Docker containers as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
+Provision Docker containers as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 

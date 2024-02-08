@@ -4,6 +4,7 @@ package db2sdk
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -226,19 +227,29 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	return options, nil
 }
 
-func OAuth2ProviderApp(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 	return codersdk.OAuth2ProviderApp{
 		ID:          dbApp.ID,
 		Name:        dbApp.Name,
 		CallbackURL: dbApp.CallbackURL,
 		Icon:        dbApp.Icon,
+		Endpoints: codersdk.OAuth2AppEndpoints{
+			Authorization: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/authorize",
+			}).String(),
+			Token: accessURL.ResolveReference(&url.URL{
+				Path: "/login/oauth2/tokens",
+			}).String(),
+			// We do not currently support DeviceAuth.
+			DeviceAuth: "",
+		},
 	}
 }
 
-func OAuth2ProviderApps(dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
+func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	apps := []codersdk.OAuth2ProviderApp{}
 	for _, dbApp := range dbApps {
-		apps = append(apps, OAuth2ProviderApp(dbApp))
+		apps = append(apps, OAuth2ProviderApp(accessURL, dbApp))
 	}
 	return apps
 }
@@ -255,16 +266,25 @@ func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
 	return dapps
 }
 
+func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[string]string, error) {
+	var envs map[string]string
+	if workspaceAgent.EnvironmentVariables.Valid {
+		err := json.Unmarshal(workspaceAgent.EnvironmentVariables.RawMessage, &envs)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal environment variables: %w", err)
+		}
+	}
+
+	return envs, nil
+}
+
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
 ) (codersdk.WorkspaceAgent, error) {
-	var envs map[string]string
-	if dbAgent.EnvironmentVariables.Valid {
-		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
-		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
-		}
+	envs, err := WorkspaceAgentEnvironment(dbAgent)
+	if err != nil {
+		return codersdk.WorkspaceAgent{}, err
 	}
 	troubleshootingURL := agentFallbackTroubleshootingURL
 	if dbAgent.TroubleshootingURL != "" {

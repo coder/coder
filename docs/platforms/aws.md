@@ -3,8 +3,8 @@
 This guide is designed to get you up and running with a Coder proof-of-concept
 VM on AWS EC2 using a [Coder-provided AMI](https://github.com/coder/packages).
 If you are familiar with EC2 however, you can use our
-[install script](../install/install.sh.md) to run Coder on any popular Linux
-distribution.
+[install script](../install/index.md#install-coder) to run Coder on any popular
+Linux distribution.
 
 ## Requirements
 

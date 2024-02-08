@@ -7,7 +7,7 @@ Docker is required. See the
 [official installation documentation](https://docs.docker.com/install/).
 
 > Note that the below steps are only supported on a Linux distribution. If on
-> macOS, please [run Coder via the standalone binary](./binary.md).
+> macOS, please [run Coder via the standalone binary](./index.md#manual).
 
 ## Run Coder with the built-in database (quick)
 

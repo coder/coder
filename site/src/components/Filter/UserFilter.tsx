@@ -1,10 +1,10 @@
 import { type FC } from "react";
-import { useMe } from "hooks";
-import { BaseOption } from "./options";
 import { getUsers } from "api/api";
-import { UseFilterMenuOptions, useFilterMenu } from "./menu";
+import { useMe } from "contexts/auth/useMe";
+import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UseFilterMenuOptions, useFilterMenu } from "./menu";
+import { BaseOption } from "./options";
 
 export type UserOption = BaseOption & {
   avatarUrl?: string;

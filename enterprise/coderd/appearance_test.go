@@ -6,18 +6,20 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -125,13 +127,15 @@ func TestServiceBanners(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		store, ps := dbtestutil.NewDB(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
+				Database: store,
+				Pubsub:   ps,
 			},
 			DontAddLicense: true,
 		})
-		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		lic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureAppearance: 1,
 			},
@@ -146,39 +150,41 @@ func TestServiceBanners(t *testing.T) {
 		err := client.UpdateAppearance(ctx, cfg)
 		require.NoError(t, err)
 
-		authToken := uuid.NewString()
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
 
-		banner, err := agentClient.GetServiceBanner(ctx)
-		require.NoError(t, err)
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+		banner := requireGetServiceBanner(ctx, t, agentClient)
 		require.Equal(t, cfg.ServiceBanner, banner)
 
-		// No enterprise means a 404 on the endpoint meaning no banner.
-		client = coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
-		agentClient = agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		banner, err = agentClient.GetServiceBanner(ctx)
-		require.NoError(t, err)
+		// Create an AGPL Coderd against the same database
+		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
+		agplAgentClient := agentsdk.New(agplClient.URL)
+		agplAgentClient.SetSessionToken(r.AgentToken)
+		banner = requireGetServiceBanner(ctx, t, agplAgentClient)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 
 		// No license means no banner.
-		client.DeleteLicense(ctx, license.ID)
-		banner, err = agentClient.GetServiceBanner(ctx)
+		err = client.DeleteLicense(ctx, lic.ID)
 		require.NoError(t, err)
+		banner = requireGetServiceBanner(ctx, t, agentClient)
 		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
 	})
+}
+
+func requireGetServiceBanner(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
+	cc, err := client.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_ = cc.Close()
+	}()
+	aAPI := proto.NewDRPCAgentClient(cc)
+	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+	require.NoError(t, err)
+	return agentsdk.ServiceBannerFromProto(sbp)
 }
 
 func TestCustomSupportLinks(t *testing.T) {
@@ -216,9 +222,9 @@ func TestCustomSupportLinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := anotherClient.Appearance(ctx)
+	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, supportLinks, appearance.SupportLinks)
+	require.Equal(t, supportLinks, appr.SupportLinks)
 }
 
 func TestDefaultSupportLinks(t *testing.T) {
@@ -231,7 +237,7 @@ func TestDefaultSupportLinks(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	appearance, err := anotherClient.Appearance(ctx)
+	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, coderd.DefaultSupportLinks, appearance.SupportLinks)
+	require.Equal(t, appearance.DefaultSupportLinks, appr.SupportLinks)
 }

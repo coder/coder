@@ -170,10 +170,10 @@
     "workspaceapps",
     "workspacebuilds",
     "workspacename",
-    "wsconncache",
     "wsjson",
     "xerrors",
     "xlarge",
+    "xsmall",
     "yamux"
   ],
   "cSpell.ignorePaths": ["site/package.json", ".vscode/settings.json"],

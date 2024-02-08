@@ -30,20 +30,20 @@ class CoderReporter implements Reporter {
   }
 
   onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
+    for (const line of filteredServerLogLines(chunk)) {
+      console.log(`[stdout] ${line}`);
+    }
     if (!test) {
-      for (const line of filteredServerLogLines(chunk)) {
-        console.log(`[stdout] ${line}`);
-      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stdout, chunk]);
   }
 
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
+    for (const line of filteredServerLogLines(chunk)) {
+      console.error(`[stderr] ${line}`);
+    }
     if (!test) {
-      for (const line of filteredServerLogLines(chunk)) {
-        console.error(`[stderr] ${line}`);
-      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stderr, chunk]);
@@ -119,7 +119,7 @@ const filteredServerLogLines = (chunk: string): string[] =>
 
 const exportDebugPprof = async (outputFile: string) => {
   const response = await axios.get(
-    "http://127.0.0.1:6060/debug/pprof/goroutine?debug=1",
+    "http://127.0.0.1:6062/debug/pprof/goroutine?debug=1",
   );
   if (response.status !== 200) {
     throw new Error(`Error: Received status code ${response.status}`);
