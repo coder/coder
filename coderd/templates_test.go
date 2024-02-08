@@ -635,6 +635,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		// AGPL cannot change max port sharing level
 		require.ErrorContains(t, err, "port sharing level is an enterprise feature")
+
+		// Ensure the same value port share level is a no-op
+		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:              template.Name + "2",
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {

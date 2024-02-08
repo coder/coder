@@ -632,7 +632,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
-	if req.MaxPortShareLevel != nil {
+	if req.MaxPortShareLevel != nil && *req.MaxPortShareLevel != codersdk.WorkspaceAgentPortShareLevel(maxPortShareLevel) {
 		err := portSharer.ValidateTemplateMaxPortSharingLevel(*req.MaxPortShareLevel)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: err.Error()})
