@@ -147,6 +147,7 @@ export const WithFarAwayDeadline: Story = {
     });
   },
 };
+
 export const WithFarAwayDeadlineRequiredByTemplate: Story = {
   args: {
     workspace: {
@@ -168,7 +169,7 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
       await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
       await waitFor(() =>
         expect(screen.getByRole("tooltip")).toHaveTextContent(
-          /template has an autostop requirment/,
+          /template has an autostop requirement/,
         ),
       );
     });

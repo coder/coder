@@ -121,7 +121,7 @@ export const autostopDisplay = (
       let title = (
         <HelpTooltipTitle>Template Autostop requirement</HelpTooltipTitle>
       );
-      let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirment.`;
+      let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirement.`;
       if (template.autostop_requirement && template.allow_user_autostop) {
         title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
         reason = (
