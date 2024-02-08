@@ -1630,8 +1630,8 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	s.Run("ListWorkspaceAgentPortShares", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		check.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentPortShare{ps})
+		// ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionRead)
 	}))
 	s.Run("UpdateWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

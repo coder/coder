@@ -2543,7 +2543,7 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
-	workspace, err := q.GetWorkspaceByID(ctx, workspaceID)
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
