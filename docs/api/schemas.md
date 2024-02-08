@@ -2093,6 +2093,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteWorkspaceAgentPortShareRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `agent_name` | string  | false    |              |             |
+| `port`       | integer | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json

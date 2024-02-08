@@ -29,6 +29,10 @@ type (
 		Port       int32                        `json:"port"`
 		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
 	}
+	DeleteWorkspaceAgentPortShareRequest struct {
+		AgentName string `json:"agent_name"`
+		Port      int32  `json:"port"`
+	}
 )
 
 func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {

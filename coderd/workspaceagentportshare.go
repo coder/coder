@@ -15,10 +15,11 @@ import (
 // @ID create-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
+// @Produce json
 // @Tags PortSharing
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAgentPortShareRequest true "Create port sharing level request"
-// @Success 200
+// @Success 200 {object} codersdk.WorkspaceAgentPortShare
 // @Router /workspaces/{workspace}/port-share [post]
 func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -107,7 +108,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	rw.WriteHeader(http.StatusOK)
+	httpapi.Write(ctx, rw, http.StatusOK, convertPortShare(psl))
 }
 
 // @Summary Get workspace agent port shares
@@ -133,14 +134,48 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 	})
 }
 
+// @Summary Get workspace agent port shares
+// @ID get-workspace-agent-port-shares
+// @Security CoderSessionToken
+// @Accept json
+// @Tags PortSharing
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.DeleteWorkspaceAgentPortShareRequest true "Delete port sharing level request"
+// @Success 200
+// @Router /workspaces/{workspace}/port-share [delete]
+func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	var req codersdk.UpdateWorkspaceAgentPortShareRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{
+		WorkspaceID: workspace.ID,
+		AgentName:   req.AgentName,
+		Port:        req.Port,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+}
+
 func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.WorkspaceAgentPortShare {
 	var converted []codersdk.WorkspaceAgentPortShare
 	for _, share := range shares {
-		converted = append(converted, codersdk.WorkspaceAgentPortShare{
-			AgentName:  share.AgentName,
-			Port:       share.Port,
-			ShareLevel: codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
-		})
+		converted = append(converted, convertPortShare(share))
 	}
 	return converted
+}
+
+func convertPortShare(share database.WorkspaceAgentPortShare) codersdk.WorkspaceAgentPortShare {
+	return codersdk.WorkspaceAgentPortShare{
+		AgentName:  share.AgentName,
+		Port:       share.Port,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
+	}
 }

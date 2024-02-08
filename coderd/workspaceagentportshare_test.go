@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestWorkspacePortShare(t *testing.T) {
+func TestWorkspaceAgentPortShare(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

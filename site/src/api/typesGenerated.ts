@@ -368,6 +368,12 @@ export interface DangerousConfig {
   readonly allow_all_cors: boolean;
 }
 
+// From codersdk/workspaceagentportshare.go
+export interface DeleteWorkspaceAgentPortShareRequest {
+  readonly agent_name: string;
+  readonly port: number;
+}
+
 // From codersdk/deployment.go
 export interface DeploymentConfig {
   readonly config?: DeploymentValues;
@@ -1325,7 +1331,7 @@ export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
 }
 
-// From codersdk/workspaceportshare.go
+// From codersdk/workspaceagentportshare.go
 export interface UpdateWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
@@ -1617,14 +1623,14 @@ export interface WorkspaceAgentMetadataResult {
   readonly error: string;
 }
 
-// From codersdk/workspaceportshare.go
+// From codersdk/workspaceagentportshare.go
 export interface WorkspaceAgentPortShare {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
 }
 
-// From codersdk/workspaceportshare.go
+// From codersdk/workspaceagentportshare.go
 export interface WorkspaceAgentPortShares {
   readonly shares: WorkspaceAgentPortShare[];
 }
@@ -2168,7 +2174,7 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "starting",
 ];
 
-// From codersdk/workspaceportshare.go
+// From codersdk/workspaceagentportshare.go
 export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
 export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
   "authenticated",
