@@ -147,6 +147,7 @@ type data struct {
 	workspaceAgentLogs            []database.WorkspaceAgentLog
 	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
 	workspaceAgentScripts         []database.WorkspaceAgentScript
+	workspaceAgentPortShare       []database.WorkspaceAgentPortShare
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
@@ -1002,13 +1003,30 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
+func (q *FakeQuerier) CreateWorkspaceAgentPortShare(_ context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, share := range q.workspaceAgentPortShare {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			return xerrors.New("port share already exists")
+		}
+	}
+
+	//nolint:gosimple // I disagree
+	q.workspaceAgentPortShare = append(q.workspaceAgentPortShare, database.WorkspaceAgentPortShare{
+		WorkspaceID: arg.WorkspaceID,
+		AgentName:   arg.AgentName,
+		Port:        arg.Port,
+		ShareLevel:  arg.ShareLevel,
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
@@ -1326,13 +1344,23 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
+func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShare {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			q.workspaceAgentPortShare = append(q.workspaceAgentPortShare[:i], q.workspaceAgentPortShare[i+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -4172,13 +4200,22 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, arg database.
 	return metadata, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
+func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.WorkspaceAgentPortSharing{}, err
+		return database.WorkspaceAgentPortShare{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, share := range q.workspaceAgentPortShare {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			return share, nil
+		}
+	}
+
+	return database.WorkspaceAgentPortShare{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {

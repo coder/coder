@@ -1,4 +1,4 @@
-DROP TABLE workspace_agent_port_sharing;
+DROP TABLE workspace_agent_port_share;
 DROP VIEW template_with_users;
 ALTER TABLE templates DROP COLUMN max_port_sharing_level;
 

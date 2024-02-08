@@ -2274,7 +2274,7 @@ type WorkspaceAgentMetadatum struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
-type WorkspaceAgentPortSharing struct {
+type WorkspaceAgentPortShare struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	AgentName   string    `db:"agent_name" json:"agent_name"`
 	Port        int32     `db:"port" json:"port"`

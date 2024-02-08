@@ -958,7 +958,7 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
 
 COMMENT ON COLUMN workspace_agent_metadata.display_order IS 'Specifies the order in which to display agent metadata in user interfaces.';
 
-CREATE TABLE workspace_agent_port_sharing (
+CREATE TABLE workspace_agent_port_share (
     workspace_id uuid NOT NULL,
     agent_name text NOT NULL,
     port integer NOT NULL,
@@ -1635,8 +1635,8 @@ ALTER TABLE ONLY workspace_agent_log_sources
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_agent_port_sharing
-    ADD CONSTRAINT workspace_agent_port_sharing_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_agent_port_share
+    ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

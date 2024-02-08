@@ -726,7 +726,8 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CreateWorkspaceAgentPortShare(ctx context.Context, arg database.CreateWorkspaceAgentPortShareParams) error {
-	panic("not implemented")
+	// TODO: do authz
+	return q.db.CreateWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -896,7 +897,8 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
-	panic("not implemented")
+	// TODO: do authz
+	return q.db.DeleteWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
@@ -1876,8 +1878,9 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.Ge
 	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
-	panic("not implemented")
+func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	// TODO: do authz
+	return q.db.GetWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
@@ -3020,7 +3023,8 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 }
 
 func (q *querier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
-	panic("not implemented")
+	// TODO: do authz
+	return q.db.UpdateWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {

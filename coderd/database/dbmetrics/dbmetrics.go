@@ -1096,7 +1096,7 @@ func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAg
 	return metadata, err
 }
 
-func (m metricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortSharing, error) {
+func (m metricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentPortShare(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
