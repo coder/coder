@@ -6,17 +6,18 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
-import { getAgentListeningPorts } from "api/api";
+import { getAgentListeningPorts, getWorkspaceAgentSharedPorts } from "api/api";
 import type {
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
   WorkspaceAgentListeningPortsResponse,
+  WorkspaceAgentPortShare,
+  WorkspaceAgentPortShares,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
-  HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
@@ -31,29 +32,28 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import TextField from "@mui/material/TextField";
-import SensorsIcon from '@mui/icons-material/Sensors';
-import Add from '@mui/icons-material/Add';
-import IconButton from "@mui/material/IconButton";
-import LockIcon from '@mui/icons-material/Lock';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
-import DeleteIcon from '@mui/icons-material/Delete';
+import SensorsIcon from "@mui/icons-material/Sensors";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
 
 export interface PortForwardButtonProps {
   host: string;
   username: string;
   workspaceName: string;
+  workspaceID: string;
   agent: WorkspaceAgent;
 
   /**
    * Only for use in Storybook
    */
   storybook?: {
-    portsQueryData?: WorkspaceAgentListeningPortsResponse;
+    listeningPortsQueryData?: WorkspaceAgentListeningPortsResponse;
+    sharedPortsQueryData?: WorkspaceAgentPortShares;
   };
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent, storybook } = props;
+  const { agent, workspaceID, storybook } = props;
 
   const paper = useClassName(classNames.paper, []);
 
@@ -64,21 +64,34 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
     refetchInterval: 5_000,
   });
 
-  const data = storybook ? storybook.portsQueryData : portsQuery.data;
+  const sharedPortsQuery = useQuery({
+    queryKey: ["sharedPorts", agent.id],
+    queryFn: () => getWorkspaceAgentSharedPorts(workspaceID),
+    enabled: !storybook && agent.status === "connected",
+  });
+
+  const listeningPorts = storybook
+    ? storybook.listeningPortsQueryData
+    : portsQuery.data;
+  const sharedPorts = storybook
+    ? storybook.sharedPortsQueryData
+    : sharedPortsQuery.data;
 
   return (
     <Popover>
       <PopoverTrigger>
         <Button
-          disabled={!data}
+          disabled={!listeningPorts}
           size="small"
           variant="text"
           endIcon={<KeyboardArrowDown />}
           css={{ fontSize: 13, padding: "8px 12px" }}
           startIcon={
-            data ? (
+            listeningPorts ? (
               <div>
-                <span css={styles.portCount}>{data.ports.length}</span>
+                <span css={styles.portCount}>
+                  {listeningPorts.ports.length}
+                </span>
               </div>
             ) : (
               <CircularProgress size={10} />
@@ -89,14 +102,19 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
         </Button>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
-        <PortForwardPopoverView {...props} ports={data?.ports} />
+        <PortForwardPopoverView
+          {...props}
+          listeningPorts={listeningPorts?.ports}
+          sharedPorts={sharedPorts?.shares}
+        />
       </PopoverContent>
     </Popover>
   );
 };
 
 interface PortForwardPopoverViewProps extends PortForwardButtonProps {
-  ports?: WorkspaceAgentListeningPort[];
+  listeningPorts?: WorkspaceAgentListeningPort[];
+  sharedPorts?: WorkspaceAgentPortShare[];
 }
 
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
@@ -104,19 +122,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   workspaceName,
   agent,
   username,
-  ports,
+  listeningPorts,
+  sharedPorts,
 }) => {
   const theme = useTheme();
-  const sharedPorts = [
-    {
-      port: 8090,
-      share_level: "Authenticated",
-    },
-    {
-      port: 8091,
-      share_level: "Public",
-    }
-  ];
 
   return (
     <>
@@ -126,18 +135,20 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Stack direction="row" justifyContent="space-between" alignItems="start">
-        <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="start"
+        >
+          <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
           <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
             Learn more
           </HelpTooltipLink>
         </Stack>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          {ports?.length === 0
+          {listeningPorts?.length === 0
             ? "No open ports were detected."
-            : "The listening ports are exclusively accessible to you."
-          }
-
+            : "The listening ports are exclusively accessible to you."}
         </HelpTooltipText>
         <form
           css={styles.newPortForm}
@@ -186,10 +197,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </Button>
         </form>
         <div
-        css={{
-          paddingTop: 10,
-        }}>
-          {ports?.map((port) => {
+          css={{
+            paddingTop: 10,
+          }}
+        >
+          {listeningPorts?.map((port) => {
             const url = portForwardURL(
               host,
               port.port,
@@ -200,7 +212,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             const label =
               port.process_name !== "" ? port.process_name : port.port;
             return (
-              <Stack key={port.port} direction="row" justifyContent="space-between" alignItems="center">
+              <Stack
+                key={port.port}
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+              >
                 <Link
                   underline="none"
                   css={styles.portLink}
@@ -227,28 +244,35 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             );
           })}
         </div>
-        </div>
-        <div css={{
+      </div>
+      <div
+        css={{
           padding: 20,
-        }}>
+        }}
+      >
         <HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          {ports?.length === 0
+          {listeningPorts?.length === 0
             ? "No ports are shared."
             : "Ports can be shared with other Coder users or with the public."}
         </HelpTooltipText>
         <div>
-          {sharedPorts?.map((port) => {
+          {sharedPorts?.map((share) => {
             const url = portForwardURL(
               host,
-              port.port,
+              share.port,
               agent.name,
               workspaceName,
               username,
             );
-            const label = port.port;
+            const label = share.port;
             return (
-              <Stack key={port.port} direction="row" justifyContent="space-between" alignItems="center">
+              <Stack
+                key={share.port}
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+              >
                 <Link
                   underline="none"
                   css={styles.portLink}
@@ -256,65 +280,57 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {port.share_level === "Public" ?
-                  (
+                  {share.share_level === "public" ? (
                     <LockOpenIcon css={{ width: 14, height: 14 }} />
-                  )
-                  : (
+                  ) : (
                     <LockIcon css={{ width: 14, height: 14 }} />
                   )}
                   {label}
                 </Link>
                 <Stack direction="row" gap={1}>
-                <FormControl size="small">
-                  <Select
-                    sx={{
-                      boxShadow: "none",
-                      ".MuiOutlinedInput-notchedOutline": { border: 0 },
-                      "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
-                        {
-                          border: 0,
-                        },
-                      "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-                        {
-                          border: 0,
-                        },
-                    }}
-                    value={port.share_level}
-                  >
-                    <MenuItem value="Owner">Owner</MenuItem>
-                    <MenuItem value="Authenticated">Authenticated</MenuItem>
-                    <MenuItem value="Public">Public</MenuItem>
-                  </Select>
-                </FormControl>
+                  <FormControl size="small">
+                    <Select
+                      sx={{
+                        boxShadow: "none",
+                        ".MuiOutlinedInput-notchedOutline": { border: 0 },
+                        "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
+                          {
+                            border: 0,
+                          },
+                        "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                          {
+                            border: 0,
+                          },
+                      }}
+                      value={share.share_level}
+                    >
+                      <MenuItem value="Authenticated">Authenticated</MenuItem>
+                      <MenuItem value="Public">Public</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Stack>
-
               </Stack>
             );
           })}
-          </div>
-          <Stack direction="column" gap={1} justifyContent="flex-end" sx={{
-          marginTop: 2,
-        }}>
-          <TextField
-            label="Port"
-            variant="outlined"
-            size="small"
-          />
+        </div>
+        <Stack
+          direction="column"
+          gap={1}
+          justifyContent="flex-end"
+          sx={{
+            marginTop: 2,
+          }}
+        >
+          <TextField label="Port" variant="outlined" size="small" />
           <FormControl size="small">
-                  <Select
-                    value="Authenticated"
-                  >
-                    <MenuItem value="Authenticated">Authenticated</MenuItem>
-                    <MenuItem value="Public">Public</MenuItem>
-                  </Select>
+            <Select value="Authenticated">
+              <MenuItem value="Authenticated">Authenticated</MenuItem>
+              <MenuItem value="Public">Public</MenuItem>
+            </Select>
           </FormControl>
-          <Button variant="contained">
-            Add Shared Port
-          </Button>
+          <Button variant="contained">Add Shared Port</Button>
         </Stack>
       </div>
-
 
       {/* <div css={{ padding: 20 }}>
         <HelpTooltipTitle>Forward port</HelpTooltipTitle>

@@ -2,6 +2,7 @@ import { PortForwardPopoverView } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
+  MockSharedPortsResponse,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 
@@ -32,12 +33,14 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 
 export const WithPorts: Story = {
   args: {
-    ports: MockListeningPortsResponse.ports,
+    listeningPorts: MockListeningPortsResponse.ports,
+    sharedPorts: MockSharedPortsResponse.shares,
   },
 };
 
 export const Empty: Story = {
   args: {
-    ports: [],
+    listeningPorts: [],
+    sharedPorts: [],
   },
 };

@@ -220,6 +220,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   workspaceName={workspace.name}
                   agent={agent}
                   username={workspace.owner_name}
+                  workspaceID={workspace.id}
                 />
               )}
           </div>
