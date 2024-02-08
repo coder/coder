@@ -144,11 +144,12 @@ from `172.16.1.254`. However, traffic from the agent to services on the public
 Internet will also see traffic originating from the public IP address assigned
 to the corporate router.
 
-If the client and agent both use the public STUN server, the addresses discoverd
-by STUN will both be the public IP address of the corporate router. To correctly
-route the traffic backwards, the corporate router must correctly map packets
-sent from the client to the cluster router, and from the agent to the VPN exit
-node. This behaviour is known as "hairpinning", and does not work in all cases.
+If the client and agent both use the public STUN server, the addresses
+discovered by STUN will both be the public IP address of the corporate router.
+To correctly route the traffic backwards, the corporate router must correctly
+map packets sent from the client to the cluster router, and from the agent to
+the VPN exit node. This behaviour is known as "hairpinning", and does not work
+in all cases.
 
 In this configuration, deploying an internal STUN server can aid establishing
 direct connections between client and agent. When the agent and client query
