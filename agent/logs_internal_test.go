@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"golang.org/x/exp/slices"
 
 	"github.com/google/uuid"
@@ -31,15 +33,14 @@ func TestLogSender_Mainline(t *testing.T) {
 	t0 := dbtime.Now()
 
 	ls1 := uuid.UUID{0x11}
-	err := uut.enqueue(ls1, agentsdk.Log{
+	uut.enqueue(ls1, agentsdk.Log{
 		CreatedAt: t0,
 		Output:    "test log 0, src 1",
 		Level:     codersdk.LogLevelInfo,
 	})
-	require.NoError(t, err)
 
 	ls2 := uuid.UUID{0x22}
-	err = uut.enqueue(ls2,
+	uut.enqueue(ls2,
 		agentsdk.Log{
 			CreatedAt: t0,
 			Output:    "test log 0, src 2",
@@ -51,7 +52,6 @@ func TestLogSender_Mainline(t *testing.T) {
 			Level:     codersdk.LogLevelWarn,
 		},
 	)
-	require.NoError(t, err)
 
 	loopErr := make(chan error, 1)
 	go func() {
@@ -90,14 +90,12 @@ func TestLogSender_Mainline(t *testing.T) {
 	}
 
 	t1 := dbtime.Now()
-	err = uut.enqueue(ls1, agentsdk.Log{
+	uut.enqueue(ls1, agentsdk.Log{
 		CreatedAt: t1,
 		Output:    "test log 1, src 1",
 		Level:     codersdk.LogLevelDebug,
 	})
-	require.NoError(t, err)
-	err = uut.flush(ls1)
-	require.NoError(t, err)
+	uut.flush(ls1)
 
 	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
@@ -110,16 +108,15 @@ func TestLogSender_Mainline(t *testing.T) {
 	require.Equal(t, t1, req.Logs[0].GetCreatedAt().AsTime())
 
 	cancel()
-	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
 	require.NoError(t, err)
 
 	// we can still enqueue more logs after sendLoop returns
-	err = uut.enqueue(ls1, agentsdk.Log{
+	uut.enqueue(ls1, agentsdk.Log{
 		CreatedAt: t1,
 		Output:    "test log 2, src 1",
 		Level:     codersdk.LogLevelTrace,
 	})
-	require.NoError(t, err)
 }
 
 func TestLogSender_LogLimitExceeded(t *testing.T) {
@@ -132,12 +129,11 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 	t0 := dbtime.Now()
 
 	ls1 := uuid.UUID{0x11}
-	err := uut.enqueue(ls1, agentsdk.Log{
+	uut.enqueue(ls1, agentsdk.Log{
 		CreatedAt: t0,
 		Output:    "test log 0, src 1",
 		Level:     codersdk.LogLevelInfo,
 	})
-	require.NoError(t, err)
 
 	loopErr := make(chan error, 1)
 	go func() {
@@ -150,20 +146,27 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 	testutil.RequireSendCtx(ctx, t, fDest.resps,
 		&proto.BatchCreateLogsResponse{LogLimitExceeded: true})
 
-	err = testutil.RequireRecvCtx(ctx, t, loopErr)
+	err := testutil.RequireRecvCtx(ctx, t, loopErr)
 	require.NoError(t, err)
 
 	// we can still enqueue more logs after sendLoop returns, but they don't
 	// actually get enqueued
-	err = uut.enqueue(ls1, agentsdk.Log{
+	uut.enqueue(ls1, agentsdk.Log{
 		CreatedAt: t0,
 		Output:    "test log 2, src 1",
 		Level:     codersdk.LogLevelTrace,
 	})
-	require.NoError(t, err)
 	uut.L.Lock()
-	defer uut.L.Unlock()
 	require.Len(t, uut.queues, 0)
+	uut.L.Unlock()
+
+	// Also, if we run sendLoop again, it should immediately exit.
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+	err = testutil.RequireRecvCtx(ctx, t, loopErr)
+	require.NoError(t, err)
 }
 
 func TestLogSender_SkipHugeLog(t *testing.T) {
@@ -176,11 +179,13 @@ func TestLogSender_SkipHugeLog(t *testing.T) {
 
 	t0 := dbtime.Now()
 	ls1 := uuid.UUID{0x11}
-	hugeLog := make([]byte, logOutputMaxBytes+1)
+	// since we add some overhead to the actual length of the output, a log just
+	// under the perBatch limit will not be accepted.
+	hugeLog := make([]byte, maxBytesPerBatch-1)
 	for i := range hugeLog {
 		hugeLog[i] = 'q'
 	}
-	err := uut.enqueue(ls1,
+	uut.enqueue(ls1,
 		agentsdk.Log{
 			CreatedAt: t0,
 			Output:    string(hugeLog),
@@ -191,7 +196,6 @@ func TestLogSender_SkipHugeLog(t *testing.T) {
 			Output:    "test log 1, src 1",
 			Level:     codersdk.LogLevelInfo,
 		})
-	require.NoError(t, err)
 
 	loopErr := make(chan error, 1)
 	go func() {
@@ -207,7 +211,7 @@ func TestLogSender_SkipHugeLog(t *testing.T) {
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 
 	cancel()
-	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
 	require.NoError(t, err)
 }
 
@@ -229,8 +233,7 @@ func TestLogSender_Batch(t *testing.T) {
 			Level:     codersdk.LogLevelInfo,
 		})
 	}
-	err := uut.enqueue(ls1, logs...)
-	require.NoError(t, err)
+	uut.enqueue(ls1, logs...)
 
 	loopErr := make(chan error, 1)
 	go func() {
@@ -246,14 +249,14 @@ func TestLogSender_Batch(t *testing.T) {
 	gotLogs += len(req.Logs)
 	wire, err := protobuf.Marshal(req)
 	require.NoError(t, err)
-	require.Less(t, len(wire), logOutputMaxBytes, "wire should not exceed 1MiB")
+	require.Less(t, len(wire), maxBytesPerBatch, "wire should not exceed 1MiB")
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	req = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
 	require.NotNil(t, req)
 	gotLogs += len(req.Logs)
 	wire, err = protobuf.Marshal(req)
 	require.NoError(t, err)
-	require.Less(t, len(wire), logOutputMaxBytes, "wire should not exceed 1MiB")
+	require.Less(t, len(wire), maxBytesPerBatch, "wire should not exceed 1MiB")
 	require.Equal(t, 60000, gotLogs)
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 
@@ -262,9 +265,111 @@ func TestLogSender_Batch(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLogSender_MaxQueuedLogs(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fDest := newFakeLogDest()
+	uut := newLogSender(logger)
+
+	t0 := dbtime.Now()
+	ls1 := uuid.UUID{0x11}
+	n := 4
+	hugeLog := make([]byte, maxBytesQueued/n)
+	for i := range hugeLog {
+		hugeLog[i] = 'q'
+	}
+	var logs []agentsdk.Log
+	for i := 0; i < n; i++ {
+		logs = append(logs, agentsdk.Log{
+			CreatedAt: t0,
+			Output:    string(hugeLog),
+			Level:     codersdk.LogLevelInfo,
+		})
+	}
+	uut.enqueue(ls1, logs...)
+
+	// we're now right at the limit of output
+	require.Equal(t, maxBytesQueued, uut.outputLen)
+
+	// adding more logs should not error...
+	ls2 := uuid.UUID{0x22}
+	uut.enqueue(ls2, logs...)
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	// It should still queue up one log from source #2, so that we would exceed the database
+	// limit. These come over a total of 3 updates, because due to overhead, the n logs from source
+	// #1 come in 2 updates, plus 1 update for source #2.
+	logsBySource := make(map[uuid.UUID]int)
+	for i := 0; i < 3; i++ {
+		req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+		require.NotNil(t, req)
+		srcID, err := uuid.FromBytes(req.LogSourceId)
+		require.NoError(t, err)
+		logsBySource[srcID] += len(req.Logs)
+		testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+	}
+	require.Equal(t, map[uuid.UUID]int{
+		ls1: n,
+		ls2: 1,
+	}, logsBySource)
+
+	cancel()
+	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
+	require.NoError(t, err)
+}
+
+func TestLogSender_SendError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fDest := newFakeLogDest()
+	expectedErr := xerrors.New("test")
+	fDest.err = expectedErr
+	uut := newLogSender(logger)
+
+	t0 := dbtime.Now()
+
+	ls1 := uuid.UUID{0x11}
+	uut.enqueue(ls1, agentsdk.Log{
+		CreatedAt: t0,
+		Output:    "test log 0, src 1",
+		Level:     codersdk.LogLevelInfo,
+	})
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+
+	err := testutil.RequireRecvCtx(ctx, t, loopErr)
+	require.ErrorIs(t, err, expectedErr)
+
+	// we can still enqueue more logs after sendLoop returns
+	uut.enqueue(ls1, agentsdk.Log{
+		CreatedAt: t0,
+		Output:    "test log 2, src 1",
+		Level:     codersdk.LogLevelTrace,
+	})
+	uut.L.Lock()
+	require.Len(t, uut.queues, 1)
+	uut.L.Unlock()
+}
+
 type fakeLogDest struct {
 	reqs  chan *proto.BatchCreateLogsRequest
 	resps chan *proto.BatchCreateLogsResponse
+	err   error
 }
 
 func (f fakeLogDest) BatchCreateLogs(ctx context.Context, req *proto.BatchCreateLogsRequest) (*proto.BatchCreateLogsResponse, error) {
@@ -275,6 +380,9 @@ func (f fakeLogDest) BatchCreateLogs(ctx context.Context, req *proto.BatchCreate
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case f.reqs <- req:
+		if f.err != nil {
+			return nil, f.err
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
