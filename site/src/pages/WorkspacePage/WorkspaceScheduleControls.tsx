@@ -9,6 +9,7 @@ import { type Dayjs } from "dayjs";
 import { forwardRef, type FC, useRef } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { useTime } from "hooks/useTime";
 import { isWorkspaceOn } from "utils/workspace";
 import type { Template, Workspace } from "api/typesGenerated";
 import {
@@ -138,6 +139,7 @@ interface AutoStopDisplayProps {
 }
 
 const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace, template }) => {
+  useTime();
   const { message, tooltip } = autostopDisplay(workspace, template);
 
   const display = (

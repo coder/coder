@@ -2083,10 +2083,11 @@ export const ResourceTypes: ResourceType[] = [
 ];
 
 // From codersdk/serversentevents.go
-export type ServerSentEventType = "data" | "error" | "ping";
+export type ServerSentEventType = "data" | "error" | "partial" | "ping";
 export const ServerSentEventTypes: ServerSentEventType[] = [
   "data",
   "error",
+  "partial",
   "ping",
 ];
 

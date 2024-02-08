@@ -56,7 +56,7 @@ export const Ready: Story = {
       last_used_at: new Date().toISOString(),
       latest_build: {
         ...baseWorkspace.latest_build,
-        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
     },
   },

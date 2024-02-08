@@ -1,6 +1,7 @@
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import merge from "lodash/merge";
 import { watchWorkspace } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
@@ -87,6 +88,19 @@ export const WorkspacePage: FC = () => {
     eventSource.addEventListener("data", async (event) => {
       const newWorkspaceData = JSON.parse(event.data) as Workspace;
       await updateWorkspaceData(newWorkspaceData);
+    });
+
+    eventSource.addEventListener("partial", async (event) => {
+      const newWorkspaceData = JSON.parse(event.data) as Partial<Workspace>;
+      // Merge with a fresh object `{}` as the base, because `merge` uses an in-place algorithm,
+      // and would otherwise mutate the `queryClient`'s internal state.
+      await updateWorkspaceData(
+        merge(
+          {},
+          queryClient.getQueryData(workspaceQueryOptions.queryKey) as Workspace,
+          newWorkspaceData,
+        ),
+      );
     });
 
     eventSource.addEventListener("error", (event) => {
