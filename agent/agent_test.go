@@ -2062,6 +2062,80 @@ func TestAgent_DebugServer(t *testing.T) {
 	})
 }
 
+func TestAgent_ScriptLogging(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash scripts only")
+	}
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	logsCh := make(chan *proto.BatchCreateLogsRequest, 100)
+	lsStart := uuid.UUID{0x11}
+	lsStop := uuid.UUID{0x22}
+	//nolint:dogsled
+	_, _, _, _, agnt := setupAgent(
+		t,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{
+				{
+					LogSourceID: lsStart,
+					RunOnStart:  true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 5 ]
+do
+        i=$(($i+1))
+        echo "start $i"
+done
+`,
+				},
+				{
+					LogSourceID: lsStop,
+					RunOnStop:   true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 3000 ]
+do
+        i=$(($i+1))
+        echo "stop $i"
+done
+`, // send a lot of stop logs to make sure we don't truncate shutdown logs before closing the API conn
+				},
+			},
+		},
+		0,
+		func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		},
+	)
+
+	n := 1
+	for n <= 5 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("start %d", n), l.GetOutput())
+			n++
+		}
+	}
+
+	err := agnt.Close()
+	require.NoError(t, err)
+
+	n = 1
+	for n <= 3000 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("stop %d", n), l.GetOutput())
+			n++
+		}
+		t.Logf("got %d stop logs", n-1)
+	}
+}
+
 // setupAgentSSHClient creates an agent, dials it, and sets up an ssh.Client for it
 func setupAgentSSHClient(ctx context.Context, t *testing.T) *ssh.Client {
 	//nolint: dogsled
@@ -2137,7 +2211,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{
@@ -2152,9 +2226,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		opt(c, &options)
 	}
 
-	closer := agent.New(options)
+	agnt := agent.New(options)
 	t.Cleanup(func() {
-		_ = closer.Close()
+		_ = agnt.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -2191,7 +2265,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
 	}
-	return agentConn, c, statsCh, fs, closer
+	return agentConn, c, statsCh, fs, agnt
 }
 
 var dialTestPayload = []byte("dean-was-here123")
