@@ -50,7 +50,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		ctx, nc := websocketNetConn(r.Context(), sws, websocket.MessageBinary)
+		ctx, nc := WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
 		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
 			Name: "client",
 			ID:   clientID,
