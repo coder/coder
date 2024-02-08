@@ -119,15 +119,104 @@ Below are some example scenarios:
 
     ```mermaid
     flowchart LR
+        subgraph corpnet["Private Network\ne.g. Corp. LAN"]
         A[Client Workstation\n192.168.21.47:38297]
-        B((Private Network\ne.g. Corp. LAN))
         C[Workspace Agent\n192.168.21.147:41563]
-        A <--> B
-        B <--> C
+        A <--> C
+        end
     ```
 
    In this example, both the client and agent are located on the network `192.168.21.0/24`. Assuming no firewalls are blocking packets in either direction, both client and agent are able to communicate directly with each other's locally assigned IP address.
 
+2. Direct connections with one layer of NAT
+
+    ```mermaid
+    flowchart LR
+      subgraph homenet["Network A"]
+        client["Client workstation\n192.168.1.101:38297"]
+        homenat["NAT\n??.??.??.??:?????"]
+      end
+      subgraph internet["Public Internet"]
+        stun1["STUN server"]
+      end
+      subgraph corpnet["Network B"]
+        agent["Workspace agent\n10.21.43.241:56812"]
+        corpnat["NAT\n??.??.??.??:?????"]
+      end
+
+      client --- homenat
+      agent --- corpnat
+      corpnat -- "[I see 12.34.56.7:41563]" --> stun1
+      homenat -- "[I see 65.4.3.21:29187]" --> stun1
+    ```
+
+    In this example, client and agent are located on different networks and connect to each other over the public Internet. Both client and agent connect to a configured STUN server located on the public Internet to determine the public IP address and port on which they can be reached. They then exchange this information through Coder server, and can then communicate directly with each other through their respective NATs.
+
+    ```mermaid
+    flowchart LR
+      subgraph homenet["Home Network"]
+        direction LR
+        client["Client workstation\n192.168.1.101:38297"]
+        homenat["Home Router/NAT\n65.4.3.21:29187"]
+      end
+      subgraph corpnet["Corp Network"]
+        direction LR
+        agent["Workspace agent\n10.21.43.241:56812"]
+        corpnat["Corp Router/NAT\n12.34.56.7:41563"]
+      end
+
+      subgraph internet["Public Internet"]
+      end
+
+      client -- "[12.34.56.7:41563]" --- homenat
+      homenat -- "[12.34.56.7:41563]" --- internet
+      internet -- "[12.34.56.7:41563]" --- corpnat
+      corpnat -- "[10.21.43.241:56812]" --> agent
+    ```
+
+3. Direct connections with VPN.
+
+    In this example, the client workstation must use a VPN to connect to the corporate network. All traffic from the client will enter through the VPN entry node and exit at the VPN exit node inside the corporate network. Traffic from the client inside the corporate network will appear to be coming from the IP address of the VPN exit node `172.16.1.2`. Traffic from the client to the public internet will appear to have the public IP address of the corporate router `12.34.56.7`.
+
+    The workspace agent is running on a Kubernetes cluster inside the corporate network, which is behind its own layer of NAT. To anyone inside the corporate network but outside the cluster network, its traffic will appear to be coming from `172.16.1.254`. However, traffic from the agent  to services on the public Internet will also see traffic originating from the public IP address assigned to the corporate router.
+
+    If the client and agent both use the public STUN server, the addresses discoverd by STUN will both be the public IP address of the corporate router. To correctly route the traffic backwards, the corporate router must correctly map packets sent from the client to the cluster router, and from the agent to the VPN exit node. This behaviour is known as "hairpinning", and does not work in all cases.
+
+    In this configuration, deploying an internal STUN server can aid establishing direct connections between client and agent. When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate. Using these internal addresses is much more likely to result in a successful direct connection.
+
+    ```mermaid
+    flowchart TD
+      subgraph homenet["Home Network"]
+        client["Client workstation\n192.168.1.101"]
+        homenat["Home Router/NAT\n65.4.3.21"]
+      end
+
+      subgraph internet["Public Internet"]
+        stun1["Public STUN"]
+        vpn1["VPN entry node"]
+      end
+
+      subgraph corpnet["Corp Network 172.16.1.0/24"]
+        corpnat["Corp Router/NAT\n172.16.1.1\n12.34.56.7"]
+        vpn2["VPN exit node\n172.16.1.2"]
+        stun2["Private STUN"]
+
+        subgraph cluster["Cluster Network 10.11.12.0/16"]
+          clusternat["Cluster Router/NAT\n10.11.12.1\n172.16.1.254"]
+          agent["Workspace agent\n10.11.12.34"]
+        end
+      end
+
+      vpn1 === vpn2
+      vpn2 --> stun2
+      client === homenat
+      homenat === vpn1
+      homenat x-.-x stun1
+      agent --- clusternat
+      clusternat --- corpnat
+      corpnat --> stun1
+      corpnat --> stun2
+    ```
 
 ## coder server
 
