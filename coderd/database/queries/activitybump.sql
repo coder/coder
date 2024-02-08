@@ -69,7 +69,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 -- We only bump if the template has an activity bump duration set.
-AND l.activity_bump IS NOT NULL
+AND l.activity_bump != 0
 AND l.build_transition = 'start'
 -- We only bump if the raw interval is positive and non-zero.
 AND l.ttl_interval > '0 seconds'::interval

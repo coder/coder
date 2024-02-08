@@ -874,7 +874,7 @@ func (api *API) convertTemplate(
 		autostopRequirementWeeks = 1
 	}
 
-	x := codersdk.Template{
+	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
 		UpdatedAt:                      template.UpdatedAt,
@@ -911,5 +911,4 @@ func (api *API) convertTemplate(
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
 	}
-	return x
 }
