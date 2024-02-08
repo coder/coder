@@ -8457,7 +8457,7 @@ func (q *sqlQuerier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWork
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
 SELECT
-	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at
+	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at, display_order
 FROM
 	workspace_agent_metadata
 WHERE
@@ -8489,6 +8489,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 			&i.Timeout,
 			&i.Interval,
 			&i.CollectedAt,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -8925,10 +8926,11 @@ INSERT INTO
 		key,
 		script,
 		timeout,
-		interval
+		interval,
+		display_order
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6)
+	($1, $2, $3, $4, $5, $6, $7)
 `
 
 type InsertWorkspaceAgentMetadataParams struct {
@@ -8938,6 +8940,7 @@ type InsertWorkspaceAgentMetadataParams struct {
 	Script           string    `db:"script" json:"script"`
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
+	DisplayOrder     int32     `db:"display_order" json:"display_order"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error {
@@ -8948,6 +8951,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 		arg.Script,
 		arg.Timeout,
 		arg.Interval,
+		arg.DisplayOrder,
 	)
 	return err
 }

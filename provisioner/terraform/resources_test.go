@@ -250,6 +250,7 @@ func TestConvertResources(t *testing.T) {
 						Script:      "ps -ef | wc -l",
 						Interval:    5,
 						Timeout:     1,
+						Order:       7,
 					}},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,

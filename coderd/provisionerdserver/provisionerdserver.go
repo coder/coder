@@ -1538,6 +1538,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Key:              md.Key,
 				Timeout:          md.Timeout,
 				Interval:         md.Interval,
+				DisplayOrder:     int32(md.Order),
 			}
 			err := db.InsertWorkspaceAgentMetadata(ctx, p)
 			if err != nil {

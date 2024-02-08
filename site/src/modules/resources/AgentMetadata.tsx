@@ -98,13 +98,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
     );
   }
 
-  return (
-    <AgentMetadataView
-      metadata={[...metadata].sort((a, b) =>
-        a.description.display_name.localeCompare(b.description.display_name),
-      )}
-    />
-  );
+  return <AgentMetadataView metadata={metadata} />;
 };
 
 export const AgentMetadataSkeleton: FC = () => {

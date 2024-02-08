@@ -1248,6 +1248,92 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	post(ctx, "unknown", unknownKeyMetadata)
 }
 
+func TestWorkspaceAgent_Metadata_DisplayOrder(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Metadata = []*proto.Agent_Metadata{
+			{
+				DisplayName: "First Meta",
+				Key:         "foo1",
+				Script:      "echo hi",
+				Interval:    10,
+				Timeout:     3,
+				Order:       2,
+			},
+			{
+				DisplayName: "Second Meta",
+				Key:         "foo2",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
+				Order:       1,
+			},
+			{
+				DisplayName: "Third Meta",
+				Key:         "foo3",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
+				Order:       2,
+			},
+			{
+				DisplayName: "Fourth Meta",
+				Key:         "foo4",
+				Script:      "echo howdy",
+				Interval:    10,
+				Timeout:     3,
+				Order:       3,
+			},
+		}
+		return agents
+	}).Do()
+
+	workspace, err := client.Workspace(context.Background(), r.Workspace.ID)
+	require.NoError(t, err)
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+
+	var update []codersdk.WorkspaceAgentMetadata
+
+	// Setup is complete, reset the context.
+	ctx = testutil.Context(t, testutil.WaitMedium)
+	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
+
+	recvUpdate := func() []codersdk.WorkspaceAgentMetadata {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context done: %v", ctx.Err())
+		case err := <-errors:
+			t.Fatalf("error watching metadata: %v", err)
+		case update := <-updates:
+			return update
+		}
+		return nil
+	}
+
+	update = recvUpdate()
+	require.Len(t, update, 4)
+	require.Equal(t, "Second Meta", update[0].Description.DisplayName)
+	require.Equal(t, "First Meta", update[1].Description.DisplayName)
+	require.Equal(t, "Third Meta", update[2].Description.DisplayName)
+	require.Equal(t, "Fourth Meta", update[3].Description.DisplayName)
+}
+
 type testWAMErrorStore struct {
 	database.Store
 	err atomic.Pointer[error]

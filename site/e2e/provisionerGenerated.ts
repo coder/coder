@@ -131,6 +131,7 @@ export interface Agent_Metadata {
   script: string;
   interval: number;
   timeout: number;
+  order: number;
 }
 
 export interface Agent_EnvEntry {
@@ -556,6 +557,9 @@ export const Agent_Metadata = {
     }
     if (message.timeout !== 0) {
       writer.uint32(40).int64(message.timeout);
+    }
+    if (message.order !== 0) {
+      writer.uint32(48).int64(message.order);
     }
     return writer;
   },
