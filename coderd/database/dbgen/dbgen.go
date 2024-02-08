@@ -707,6 +707,7 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 	app, err := db.InsertOAuth2ProviderAppSecret(genCtx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:            takeFirst(seed.ID, uuid.New()),
 		CreatedAt:     takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix:  takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret:  takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		DisplaySecret: takeFirst(seed.DisplaySecret, "secret"),
 		AppID:         takeFirst(seed.AppID, uuid.New()),
@@ -720,6 +721,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		ID:           takeFirst(seed.ID, uuid.New()),
 		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix: takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		AppID:        takeFirst(seed.AppID, uuid.New()),
 		UserID:       takeFirst(seed.UserID, uuid.New()),
@@ -733,6 +735,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
 		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),

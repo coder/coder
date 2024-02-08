@@ -38,13 +38,14 @@ SELECT * FROM oauth2_provider_app_secrets WHERE id = $1;
 -- name: GetOAuth2ProviderAppSecretsByAppID :many
 SELECT * FROM oauth2_provider_app_secrets WHERE app_id = $1 ORDER BY (created_at, id) ASC;
 
--- name: GetOAuth2ProviderAppSecretByAppIDAndSecret :one
-SELECT * FROM oauth2_provider_app_secrets WHERE app_id = $1 AND hashed_secret = $2;
+-- name: GetOAuth2ProviderAppSecretByPrefix :one
+SELECT * FROM oauth2_provider_app_secrets WHERE secret_prefix = $1;
 
 -- name: InsertOAuth2ProviderAppSecret :one
 INSERT INTO oauth2_provider_app_secrets (
     id,
     created_at,
+    secret_prefix,
     hashed_secret,
     display_secret,
     app_id
@@ -53,7 +54,8 @@ INSERT INTO oauth2_provider_app_secrets (
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6
 ) RETURNING *;
 
 -- name: UpdateOAuth2ProviderAppSecretByID :one
@@ -67,14 +69,15 @@ DELETE FROM oauth2_provider_app_secrets WHERE id = $1;
 -- name: GetOAuth2ProviderAppCodeByID :one
 SELECT * FROM oauth2_provider_app_codes WHERE id = $1;
 
--- name: GetOAuth2ProviderAppCodeByAppIDAndSecret :one
-SELECT * FROM oauth2_provider_app_codes WHERE app_id = $1 AND hashed_secret = $2;
+-- name: GetOAuth2ProviderAppCodeByPrefix :one
+SELECT * FROM oauth2_provider_app_codes WHERE secret_prefix = $1;
 
 -- name: InsertOAuth2ProviderAppCode :one
 INSERT INTO oauth2_provider_app_codes (
     id,
     created_at,
     expires_at,
+    secret_prefix,
     hashed_secret,
     app_id,
     user_id
@@ -84,7 +87,8 @@ INSERT INTO oauth2_provider_app_codes (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
@@ -98,6 +102,7 @@ INSERT INTO oauth2_provider_app_tokens (
     id,
     created_at,
     expires_at,
+    hash_prefix,
     refresh_hash,
     app_secret_id,
     api_key_id
@@ -107,8 +112,12 @@ INSERT INTO oauth2_provider_app_tokens (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 ) RETURNING *;
+
+-- name: GetOAuth2ProviderAppTokenByPrefix :one
+SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
 SELECT

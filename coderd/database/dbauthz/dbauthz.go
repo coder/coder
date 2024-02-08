@@ -1202,16 +1202,12 @@ func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (d
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
 }
 
-func (q *querier) GetOAuth2ProviderAppCodeByAppIDAndSecret(ctx context.Context, arg database.GetOAuth2ProviderAppCodeByAppIDAndSecretParams) (database.OAuth2ProviderAppCode, error) {
-	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByAppIDAndSecret)(ctx, arg)
-}
-
 func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByID)(ctx, id)
 }
 
-func (q *querier) GetOAuth2ProviderAppSecretByAppIDAndSecret(ctx context.Context, arg database.GetOAuth2ProviderAppSecretByAppIDAndSecretParams) (database.OAuth2ProviderAppSecret, error) {
-	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppSecretByAppIDAndSecret)(ctx, arg)
+func (q *querier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByPrefix)(ctx, secretPrefix)
 }
 
 func (q *querier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
@@ -1221,11 +1217,31 @@ func (q *querier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UU
 	return q.db.GetOAuth2ProviderAppSecretByID(ctx, id)
 }
 
+func (q *querier) GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppSecret, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppSecretByPrefix)(ctx, secretPrefix)
+}
+
 func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
 		return []database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
+}
+
+func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
+	token, err := q.db.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	// The user ID is on the API key so that has to be fetched.
+	key, err := q.db.GetAPIKeyByID(ctx, token.APIKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(key.UserID.String())); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	return token, nil
 }
 
 func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
