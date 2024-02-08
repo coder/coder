@@ -5687,6 +5687,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 		Key:              arg.Key,
 		Timeout:          arg.Timeout,
 		Interval:         arg.Interval,
+		DisplayOrder:     arg.DisplayOrder,
 	}
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
