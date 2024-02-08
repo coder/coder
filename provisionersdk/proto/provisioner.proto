@@ -94,6 +94,7 @@ message Agent {
         string script = 3;
         int64 interval = 4;
         int64 timeout = 5;
+        int64 order = 6;
     }
     reserved 14;
     reserved "login_before_ready";

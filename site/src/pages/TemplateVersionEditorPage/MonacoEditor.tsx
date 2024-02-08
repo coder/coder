@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { type FC, useEffect, useMemo } from "react";
+import { type FC, useEffect } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 loader.config({ monaco });
@@ -18,24 +18,6 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
   path,
 }) => {
   const theme = useTheme();
-
-  const language = useMemo(() => {
-    if (path?.endsWith(".tf")) {
-      return "hcl";
-    }
-    if (path?.endsWith(".md")) {
-      return "markdown";
-    }
-    if (path?.endsWith(".json")) {
-      return "json";
-    }
-    if (path?.endsWith(".yaml")) {
-      return "yaml";
-    }
-    if (path?.endsWith("Dockerfile")) {
-      return "dockerfile";
-    }
-  }, [path]);
 
   useEffect(() => {
     document.fonts.ready
@@ -54,7 +36,6 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
   return (
     <Editor
       value={value}
-      language={language}
       theme="vs-dark"
       options={{
         automaticLayout: true,

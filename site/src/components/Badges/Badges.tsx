@@ -1,4 +1,9 @@
-import type { PropsWithChildren, FC } from "react";
+import {
+  type PropsWithChildren,
+  type FC,
+  forwardRef,
+  HTMLAttributes,
+} from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
@@ -74,9 +79,14 @@ export const NotReachableBadge: FC = () => {
   );
 };
 
-export const DisabledBadge: FC = () => {
+export const DisabledBadge: FC = forwardRef<
+  HTMLSpanElement,
+  HTMLAttributes<HTMLSpanElement>
+>((props, ref) => {
   return (
     <span
+      {...props}
+      ref={ref}
       css={[
         styles.badge,
         (theme) => ({
@@ -89,7 +99,7 @@ export const DisabledBadge: FC = () => {
       Disabled
     </span>
   );
-};
+});
 
 export const EnterpriseBadge: FC = () => {
   return (

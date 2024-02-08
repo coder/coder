@@ -1,5 +1,3 @@
-import { action } from "@storybook/addon-actions";
-import { UseTabResult } from "hooks/useTab";
 import {
   mockApiError,
   MockTemplate,
@@ -10,11 +8,6 @@ import {
   TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
 import type { Meta, StoryObj } from "@storybook/react";
-
-const tab: UseTabResult = {
-  value: "0",
-  set: action("changeTab"),
-};
 
 const readmeContent = `---
 name:Template test
@@ -28,7 +21,6 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
-  tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
   currentVersion: MockTemplateVersion,

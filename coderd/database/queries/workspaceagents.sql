@@ -103,10 +103,11 @@ INSERT INTO
 		key,
 		script,
 		timeout,
-		interval
+		interval,
+		display_order
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6);
+	($1, $2, $3, $4, $5, $6, $7);
 
 -- name: UpdateWorkspaceAgentMetadata :exec
 WITH metadata AS (

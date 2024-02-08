@@ -228,7 +228,8 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Page limit",
                         "name": "limit",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "type": "integer",
@@ -1122,6 +1123,22 @@ const docTemplate = `{
                 ],
                 "summary": "Get insights about templates",
                 "operationId": "get-insights-about-templates",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Start time",
+                        "name": "before",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "End time",
+                        "name": "after",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1147,6 +1164,22 @@ const docTemplate = `{
                 ],
                 "summary": "Get insights about user activity",
                 "operationId": "get-insights-about-user-activity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Start time",
+                        "name": "before",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "End time",
+                        "name": "after",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1172,6 +1205,22 @@ const docTemplate = `{
                 ],
                 "summary": "Get insights about user latency",
                 "operationId": "get-insights-about-user-latency",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Start time",
+                        "name": "before",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "End time",
+                        "name": "after",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

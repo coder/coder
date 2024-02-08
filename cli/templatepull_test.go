@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -81,6 +83,7 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 	coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, updatedVersion.ID)
 
+	// Verify .tar format
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 	clitest.SetupConfig(t, templateAdmin, root)
 
@@ -89,8 +92,21 @@ func TestTemplatePull_Stdout(t *testing.T) {
 
 	err = inv.Run()
 	require.NoError(t, err)
-
 	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+
+	// Verify .zip format
+	tarReader := tar.NewReader(bytes.NewReader(expected))
+	expectedZip, err := coderd.CreateZipFromTar(tarReader)
+	require.NoError(t, err)
+
+	inv, root = clitest.New(t, "templates", "pull", "--zip", template.Name)
+	clitest.SetupConfig(t, templateAdmin, root)
+	buf.Reset()
+	inv.Stdout = &buf
+
+	err = inv.Run()
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(expectedZip, buf.Bytes()), "zip files differ")
 }
 
 // Stdout tests that 'templates pull' pulls down the non-latest active template

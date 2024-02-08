@@ -266,12 +266,15 @@ export const previousTemplateVersion = (
       versionName,
       "previous",
     ],
-    queryFn: () =>
-      API.getPreviousTemplateVersionByName(
+    queryFn: async () => {
+      const result = await API.getPreviousTemplateVersionByName(
         organizationId,
         templateName,
         versionName,
-      ),
+      );
+
+      return result ?? null;
+    },
   };
 };
 

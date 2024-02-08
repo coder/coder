@@ -379,3 +379,37 @@ describe("templateInheritance", () => {
     expect(ttlInput).toBeDisabled();
   });
 });
+
+test("form should be enabled when both auto stop and auto start features are disabled, given that the template permits these actions", async () => {
+  jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+  render(
+    <WorkspaceScheduleForm
+      {...defaultFormProps}
+      initialValues={{
+        ...defaultFormProps.initialValues,
+        autostopEnabled: false,
+        autostartEnabled: false,
+      }}
+    />,
+  );
+
+  const submitButton = await screen.findByRole("button", { name: "Submit" });
+  expect(submitButton).toBeEnabled();
+});
+
+test("form should be disabled when both auto stop and auto start features are disabled at template level", async () => {
+  jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+  render(
+    <WorkspaceScheduleForm
+      {...defaultFormProps}
+      allowTemplateAutoStart={false}
+      allowTemplateAutoStop={false}
+      initialValues={{
+        ...defaultFormProps.initialValues,
+      }}
+    />,
+  );
+
+  const submitButton = await screen.findByRole("button", { name: "Submit" });
+  expect(submitButton).toBeDisabled();
+});

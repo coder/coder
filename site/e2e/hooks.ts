@@ -23,7 +23,7 @@ export const beforeCoderTest = async (page: Page) => {
 
     const shouldLogResponse =
       !response.url().endsWith("/api/v2/deployment/config") &&
-      !response.url().endsWith("/api/v2/debug/health");
+      !response.url().endsWith("/api/v2/debug/health?force=false");
 
     let responseText = "";
     try {

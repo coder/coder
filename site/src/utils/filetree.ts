@@ -74,6 +74,14 @@ export const getFileContent = (path: string, fileTree: FileTree) => {
   return get(fileTree, path.split("/")) as string | FileTree;
 };
 
+export const getFileText = (path: string, fileTree: FileTree) => {
+  const content = getFileContent(path, fileTree);
+  if (typeof content !== "string") {
+    throw new Error("File is not a text file");
+  }
+  return content;
+};
+
 export const isFolder = (path: string, fileTree: FileTree) => {
   const content = getFileContent(path, fileTree);
   return typeof content === "object";

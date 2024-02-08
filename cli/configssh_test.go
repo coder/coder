@@ -462,6 +462,9 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 					"# Last config-ssh options:",
 					"# :wait=yes",
 					"# :ssh-host-prefix=coder-test.",
+					"# :header=X-Test-Header=foo",
+					"# :header=X-Test-Header2=bar",
+					"# :header-command=printf h1=v1 h2=\"v2\" h3='v3'",
 					"#",
 					headerEnd,
 					"",
@@ -471,6 +474,9 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 				"--wait=yes",
 				"--ssh-host-prefix", "coder-test.",
+				"--header", "X-Test-Header=foo",
+				"--header", "X-Test-Header2=bar",
+				"--header-command", "printf h1=v1 h2=\"v2\" h3='v3'",
 			},
 		},
 		{
@@ -561,6 +567,55 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: "ProxyCommand /foo/bar/coder",
+			},
+		},
+		{
+			name: "Header",
+			args: []string{
+				"--yes",
+				"--header", "X-Test-Header=foo",
+				"--header", "X-Test-Header2=bar",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header "X-Test-Header=foo" --header "X-Test-Header2=bar" ssh`,
+			},
+		},
+		{
+			name: "Header command",
+			args: []string{
+				"--yes",
+				"--header-command", "printf h1=v1",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1" ssh`,
+			},
+		},
+		{
+			name: "Header command with double quotes",
+			args: []string{
+				"--yes",
+				"--header-command", "printf h1=v1 h2=\"v2\"",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2=\\\"v2\\\"" ssh`,
+			},
+		},
+		{
+			name: "Header command with single quotes",
+			args: []string{
+				"--yes",
+				"--header-command", "printf h1=v1 h2='v2'",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh`,
 			},
 		},
 	}

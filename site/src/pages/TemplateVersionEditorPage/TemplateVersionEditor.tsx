@@ -26,11 +26,10 @@ import {
   createFile,
   existsFile,
   FileTree,
-  getFileContent,
+  getFileText,
   isFolder,
   moveFile,
   removeFile,
-  traverse,
   updateFile,
 } from "utils/filetree";
 import {
@@ -38,7 +37,7 @@ import {
   DeleteFileDialog,
   RenameFileDialog,
 } from "./FileDialog";
-import { FileTreeView } from "./FileTreeView";
+import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 import { MonacoEditor } from "./MonacoEditor";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
@@ -55,6 +54,8 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -82,19 +83,9 @@ export interface TemplateVersionEditorProps {
   defaultTab?: Tab;
   provisionerTags: Record<string, string>;
   onUpdateProvisionerTags: (tags: Record<string, string>) => void;
+  activePath: string | undefined;
+  onActivePathChange: (path: string | undefined) => void;
 }
-
-const findInitialFile = (fileTree: FileTree): string | undefined => {
-  let initialFile: string | undefined;
-
-  traverse(fileTree, (content, filename, path) => {
-    if (filename.endsWith(".tf")) {
-      initialFile = path;
-    }
-  });
-
-  return initialFile;
-};
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
@@ -120,6 +111,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   defaultTab,
   provisionerTags,
   onUpdateProvisionerTags,
+  activePath,
+  onActivePathChange,
 }) => {
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
@@ -128,9 +121,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
   const [renameFileOpen, setRenameFileOpen] = useState<string>();
   const [dirty, setDirty] = useState(false);
-  const [activePath, setActivePath] = useState<string | undefined>(() =>
-    findInitialFile(fileTree),
-  );
 
   const triggerPreview = useCallback(() => {
     onPreview(fileTree);
@@ -177,7 +167,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     previousVersion.current = templateVersion;
   }, [templateVersion]);
 
-  const editorValue = getFileContent(activePath ?? "", fileTree) as string;
+  const editorValue = activePath ? getFileText(activePath, fileTree) : "";
+  const isEditorValueBinary =
+    typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
   // Auto scroll
   const buildLogsRef = useRef<HTMLDivElement>(null);
@@ -380,7 +372,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 checkExists={(path) => existsFile(path, fileTree)}
                 onConfirm={(path) => {
                   setFileTree((fileTree) => createFile(path, fileTree, ""));
-                  setActivePath(path);
+                  onActivePathChange(path);
                   setCreateFileOpen(false);
                   setDirty(true);
                 }}
@@ -395,7 +387,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   );
                   setDeleteFileOpen(undefined);
                   if (activePath === deleteFileOpen) {
-                    setActivePath(undefined);
+                    onActivePathChange(undefined);
                   }
                   setDirty(true);
                 }}
@@ -418,18 +410,18 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   setFileTree((fileTree) =>
                     moveFile(renameFileOpen, newPath, fileTree),
                   );
-                  setActivePath(newPath);
+                  onActivePathChange(newPath);
                   setRenameFileOpen(undefined);
                   setDirty(true);
                 }}
               />
             </div>
-            <FileTreeView
+            <TemplateFileTree
               fileTree={fileTree}
               onDelete={(file) => setDeleteFileOpen(file)}
               onSelect={(filePath) => {
                 if (!isFolder(filePath, fileTree)) {
-                  setActivePath(filePath);
+                  onActivePathChange(filePath);
                 }
               }}
               onRename={(file) => setRenameFileOpen(file)}
@@ -448,19 +440,60 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           >
             <div css={{ flex: 1, overflowY: "auto" }} data-chromatic="ignore">
               {activePath ? (
-                <MonacoEditor
-                  value={editorValue}
-                  path={activePath}
-                  onChange={(value) => {
-                    if (!activePath) {
-                      return;
-                    }
-                    setFileTree((fileTree) =>
-                      updateFile(activePath, value, fileTree),
-                    );
-                    setDirty(true);
-                  }}
-                />
+                isEditorValueBinary ? (
+                  <div
+                    role="alert"
+                    css={{
+                      width: "100%",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 40,
+                    }}
+                  >
+                    <div
+                      css={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        maxWidth: 420,
+                        textAlign: "center",
+                      }}
+                    >
+                      <WarningOutlined
+                        css={{
+                          fontSize: 48,
+                          color: theme.roles.warning.fill.outline,
+                        }}
+                      />
+                      <p
+                        css={{
+                          margin: 0,
+                          padding: 0,
+                          marginTop: 24,
+                        }}
+                      >
+                        The file is not displayed in the text editor because it
+                        is either binary or uses an unsupported text encoding.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <MonacoEditor
+                    value={editorValue}
+                    path={activePath}
+                    onChange={(value) => {
+                      if (!activePath) {
+                        return;
+                      }
+                      setFileTree((fileTree) =>
+                        updateFile(activePath, value, fileTree),
+                      );
+                      setDirty(true);
+                    }}
+                  />
+                )
               ) : (
                 <div>No file opened</div>
               )}

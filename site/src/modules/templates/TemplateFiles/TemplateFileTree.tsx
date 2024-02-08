@@ -28,30 +28,59 @@ type ContextMenu = {
   clientY: number;
 };
 
-interface FileTreeViewProps {
+interface TemplateFilesTreeProps {
   onSelect: (path: string) => void;
-  onDelete: (path: string) => void;
-  onRename: (path: string) => void;
+  onDelete?: (path: string) => void;
+  onRename?: (path: string) => void;
   fileTree: FileTree;
   activePath?: string;
+  Label?: FC<{
+    path: string;
+    filename: string;
+    label: string;
+    isFolder: boolean;
+  }>;
 }
 
-export const FileTreeView: FC<FileTreeViewProps> = ({
+export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
   fileTree,
   activePath,
   onDelete,
   onRename,
   onSelect,
+  Label,
 }) => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
+
+  const isFolder = (content?: FileTree | string): content is FileTree =>
+    typeof content === "object";
+
   const buildTreeItems = (
+    label: string,
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
-    const isFolder = typeof content === "object";
-    let icon: JSX.Element | null = isFolder ? null : (
+    // Used to group empty folders in one single label like VSCode does
+    const shouldGroupFolder =
+      isFolder(content) &&
+      Object.keys(content).length === 1 &&
+      isFolder(Object.values(content)[0]);
+    const isHiddenFile = currentPath.startsWith(".");
+
+    if (shouldGroupFolder) {
+      const firstChildFileName = Object.keys(content)[0];
+      const child = content[firstChildFileName];
+      return buildTreeItems(
+        `${label} / ${firstChildFileName}`,
+        firstChildFileName,
+        child,
+        currentPath,
+      );
+    }
+
+    let icon: JSX.Element | null = isFolder(content) ? null : (
       <FormatAlignLeftOutlined />
     );
 
@@ -69,26 +98,40 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
       <TreeItem
         nodeId={currentPath}
         key={currentPath}
-        label={filename}
+        label={
+          Label ? (
+            <Label
+              path={currentPath}
+              label={label}
+              filename={filename}
+              isFolder={isFolder(content)}
+            />
+          ) : (
+            label
+          )
+        }
         css={(theme) => css`
           overflow: hidden;
           user-select: none;
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
-            color: ${theme.palette.text.secondary};
+            color: ${isHiddenFile
+              ? theme.palette.text.disabled
+              : theme.palette.text.secondary};
             height: 32px;
 
             & svg {
               width: 12px;
               height: 12px;
-              color: ${theme.palette.text.secondary};
+              color: currentColor;
             }
 
             & > .MuiTreeItem-label {
               margin-left: 4px;
               font-size: 13px;
               color: inherit;
+              white-space: nowrap;
             }
 
             &.Mui-selected {
@@ -103,10 +146,11 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
 
           & .MuiTreeItem-group {
             margin-left: 0;
+            position: relative;
 
             // We need to find a better way to recursive padding here
             & .MuiTreeItem-content {
-              padding-left: calc(var(--level) * 40px);
+              padding-left: calc(8px + (var(--level) + 1) * 8px);
             }
           }
         `}
@@ -114,6 +158,10 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
           onSelect(currentPath);
         }}
         onContextMenu={(event) => {
+          const hasContextActions = onRename || onDelete;
+          if (!hasContextActions) {
+            return;
+          }
           event.preventDefault(); // Avoid default browser behavior
           event.stopPropagation(); // Avoid trigger parent context menu
           setContextMenu(
@@ -133,12 +181,12 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
           } as CSSProperties
         }
       >
-        {isFolder &&
+        {isFolder(content) &&
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
               const child = content[filename];
-              return buildTreeItems(filename, child, currentPath);
+              return buildTreeItems(filename, filename, child, currentPath);
             })}
       </TreeItem>
     );
@@ -149,13 +197,14 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
+      defaultExpanded={activePath ? expandablePaths(activePath) : []}
       defaultSelected={activePath}
     >
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
         .map((filename) => {
           const child = fileTree[filename];
-          return buildTreeItems(filename, child);
+          return buildTreeItems(filename, filename, child);
         })}
 
       <Menu
@@ -184,7 +233,7 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
             if (!contextMenu) {
               return;
             }
-            onRename(contextMenu.path);
+            onRename && onRename(contextMenu.path);
             setContextMenu(undefined);
           }}
         >
@@ -195,7 +244,7 @@ export const FileTreeView: FC<FileTreeViewProps> = ({
             if (!contextMenu) {
               return;
             }
-            onDelete(contextMenu.path);
+            onDelete && onDelete(contextMenu.path);
             setContextMenu(undefined);
           }}
         >
@@ -232,3 +281,12 @@ const FileTypeMarkdown: FC = () => (
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
 );
+
+const expandablePaths = (path: string) => {
+  const paths = path.split("/");
+  const result = [];
+  for (let i = 1; i < paths.length; i++) {
+    result.push(paths.slice(0, i).join("/"));
+  }
+  return result;
+};

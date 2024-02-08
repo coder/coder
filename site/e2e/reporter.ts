@@ -30,20 +30,20 @@ class CoderReporter implements Reporter {
   }
 
   onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
+    for (const line of filteredServerLogLines(chunk)) {
+      console.log(`[stdout] ${line}`);
+    }
     if (!test) {
-      for (const line of filteredServerLogLines(chunk)) {
-        console.log(`[stdout] ${line}`);
-      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stdout, chunk]);
   }
 
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
+    for (const line of filteredServerLogLines(chunk)) {
+      console.error(`[stderr] ${line}`);
+    }
     if (!test) {
-      for (const line of filteredServerLogLines(chunk)) {
-        console.error(`[stderr] ${line}`);
-      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stderr, chunk]);

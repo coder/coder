@@ -950,8 +950,11 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
     error character varying(65535) DEFAULT ''::character varying NOT NULL,
     timeout bigint NOT NULL,
     "interval" bigint NOT NULL,
-    collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agent_metadata.display_order IS 'Specifies the order in which to display agent metadata in user interfaces.';
 
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,

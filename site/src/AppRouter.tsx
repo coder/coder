@@ -387,7 +387,7 @@ export const AppRouter: FC = () => {
               </Route>
 
               <Route path="/health" element={<HealthLayout />}>
-                <Route index element={<Navigate to="access-url" />} />
+                <Route index element={<Navigate to="access-url" replace />} />
                 <Route path="access-url" element={<AccessURLPage />} />
                 <Route path="database" element={<DatabasePage />} />
                 <Route path="derp" element={<DERPPage />} />
