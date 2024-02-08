@@ -138,26 +138,27 @@ interface AutoStopDisplayProps {
 }
 
 const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace, template }) => {
-  const display = autostopDisplay(workspace, template);
+  const { message, tooltip } = autostopDisplay(workspace, template);
 
-  if (display.tooltip) {
-    return (
-      <Tooltip title={display.tooltip}>
-        <ScheduleSettingsLink
-          css={
-            isShutdownSoon(workspace) &&
-            ((theme) => ({
-              color: `${theme.palette.warning.light} !important`,
-            }))
-          }
-        >
-          {display.message}
-        </ScheduleSettingsLink>
-      </Tooltip>
-    );
+  const display = (
+    <ScheduleSettingsLink
+      data-testid="schedule-controls-autostop"
+      css={
+        isShutdownSoon(workspace) &&
+        ((theme) => ({
+          color: `${theme.palette.warning.light} !important`,
+        }))
+      }
+    >
+      {message}
+    </ScheduleSettingsLink>
+  );
+
+  if (tooltip) {
+    return <Tooltip title={tooltip}>{display}</Tooltip>;
   }
 
-  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
+  return display;
 };
 
 const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(

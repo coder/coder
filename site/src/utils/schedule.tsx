@@ -9,6 +9,10 @@ import utc from "dayjs/plugin/utc";
 import { type ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
+import {
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/HelpTooltip/HelpTooltip";
 import { isWorkspaceOn } from "./workspace";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -114,15 +118,19 @@ export const autostopDisplay = (
       };
     } else {
       const deadlineTz = deadline.tz(dayjs.tz.guess());
-      let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirment`;
+      let title = (
+        <HelpTooltipTitle>Template Autostop requirement</HelpTooltipTitle>
+      );
+      let reason: ReactNode = ` because the ${template.display_name} template has an autostop requirment.`;
       if (template.autostop_requirement && template.allow_user_autostop) {
+        title = <HelpTooltipTitle>Autostop schedule</HelpTooltipTitle>;
         reason = (
           <>
             {" "}
-            because this workspace has enabled autostop. You can disable it from
-            the{" "}
+            because this workspace has enabled autostop. You can disable
+            autostop from this workspace's{" "}
             <Link component={RouterLink} to="settings/schedule">
-              Workspace Schedule settings page
+              schedule settings
             </Link>
             .
           </>
@@ -132,9 +140,12 @@ export const autostopDisplay = (
         message: `Stop ${deadlineTz.fromNow()}`,
         tooltip: (
           <>
-            This workspace will be stopped on{" "}
-            {deadlineTz.format("MMMM D, YYYY [at] h:mm A")}
-            {reason}
+            {title}
+            <HelpTooltipText>
+              This workspace will be stopped on{" "}
+              {deadlineTz.format("MMMM D [at] h:mm A")}
+              {reason}
+            </HelpTooltipText>
           </>
         ),
       };
