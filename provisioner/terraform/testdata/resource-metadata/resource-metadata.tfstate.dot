@@ -1,20 +1,9 @@
-digraph {
-	compound = "true"
-	newrank = "true"
-	subgraph "root" {
-		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
-		"[root] coder_metadata.about_info (expand)" [label = "coder_metadata.about_info", shape = "box"]
-		"[root] null_resource.about (expand)" [label = "null_resource.about", shape = "box"]
-		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
-		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
-		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
-		"[root] coder_metadata.about_info (expand)" -> "[root] null_resource.about (expand)"
-		"[root] null_resource.about (expand)" -> "[root] coder_agent.main (expand)"
-		"[root] null_resource.about (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
-		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_metadata.about_info (expand)"
-		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.about (expand)"
-		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
-		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
-	}
+digraph G {
+  rankdir = "RL";
+  node [shape = rect, fontname = "sans-serif"];
+  "coder_agent.main" [label="coder_agent.main"];
+  "coder_metadata.about_info" [label="coder_metadata.about_info"];
+  "null_resource.about" [label="null_resource.about"];
+  "coder_metadata.about_info" -> "null_resource.about";
+  "null_resource.about" -> "coder_agent.main";
 }
-
