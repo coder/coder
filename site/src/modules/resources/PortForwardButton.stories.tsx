@@ -19,7 +19,7 @@ type Story = StoryObj<typeof PortForwardButton>;
 export const Example: Story = {
   args: {
     storybook: {
-      portsQueryData: MockListeningPortsResponse,
+      listeningPortsQueryData: MockListeningPortsResponse,
     },
   },
 };

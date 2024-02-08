@@ -1163,6 +1163,15 @@ export const getAgentListeningPorts = async (
   return response.data;
 };
 
+export const getWorkspaceAgentSharedPorts = async (
+  workspaceID: string,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.get(
+    `/api/v2/workspaces/${workspaceID}/shared-ports`,
+  );
+  return response.data;
+};
+
 // getDeploymentSSHConfig is used by the VSCode-Extension.
 export const getDeploymentSSHConfig =
   async (): Promise<TypesGen.SSHConfigResponse> => {
