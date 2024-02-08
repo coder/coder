@@ -738,7 +738,7 @@ export const updateTemplateSettings = async (
   for (const [key, value] of Object.entries(templateSettingValues)) {
     // Skip max_port_share_level for now since the frontend is not yet able to handle it
     if (key === "max_port_share_level") {
-      continue
+      continue;
     }
     const labelText = capitalize(key).replace("_", " ");
     await page.getByLabel(labelText, { exact: true }).fill(value);
