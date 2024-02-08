@@ -118,8 +118,6 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentPortShares
 // @Router /workspaces/{workspace}/port-share [get]
-//
-//nolint:revive // this is not a getter
 func (api *API) getWorkspaceAgentPortShares(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
