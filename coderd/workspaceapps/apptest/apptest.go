@@ -909,72 +909,78 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 
-		// TODO: make these work
-		// t.Run("PortSharingNoShare", func(t *testing.T) {
-		// 	t.Parallel()
+		t.Run("PortSharingNoShare", func(t *testing.T) {
+			t.Parallel()
 
-		// 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		// 	defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		// 	userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-		// 	userAppClient := appDetails.AppClient(t)
-		// 	userAppClient.SetSessionToken(userClient.SessionToken())
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
 
-		// 	resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-		// 	require.NoError(t, err)
-		// 	defer resp.Body.Close()
-		// 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		// })
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		})
 
-		// t.Run("PortSharingAuthenticatedOK", func(t *testing.T) {
-		// 	t.Parallel()
+		t.Run("PortSharingAuthenticatedOK", func(t *testing.T) {
+			t.Parallel()
 
-		// 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		// 	defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		// 	port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
-		// 	require.NoError(t, err)
-		// 	err = appDetails.SDKClient.UpdateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
-		// 		AgentName:  proxyTestAgentName,
-		// 		Port:       int32(port),
-		// 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
-		// 	})
-		// 	require.NoError(t, err)
+			// we are shadowing the parent since we are changing the state
+			appDetails := setupProxyTest(t, nil)
 
-		// 	userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-		// 	userAppClient := appDetails.AppClient(t)
-		// 	userAppClient.SetSessionToken(userClient.SessionToken())
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			// set the port we have to be shared with authenticated users
+			err = appDetails.SDKClient.CreateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+			})
+			require.NoError(t, err)
 
-		// 	resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-		// 	require.NoError(t, err)
-		// 	defer resp.Body.Close()
-		// 	require.Equal(t, http.StatusOK, resp.StatusCode)
-		// })
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
 
-		// t.Run("PortSharingPublicOK", func(t *testing.T) {
-		// 	t.Parallel()
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
 
-		// 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		// 	defer cancel()
+		t.Run("PortSharingPublicOK", func(t *testing.T) {
+			t.Parallel()
 
-		// 	port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
-		// 	require.NoError(t, err)
-		// 	err = appDetails.SDKClient.UpdateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
-		// 		AgentName:  proxyTestAgentName,
-		// 		Port:       int32(port),
-		// 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
-		// 	})
-		// 	require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		// 	_, _ = coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-		// 	userAppClient := appDetails.AppClient(t)
-		// 	userAppClient.SetSessionToken("")
+			// we are shadowing the parent since we are changing the state
+			appDetails := setupProxyTest(t, nil)
 
-		// 	resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-		// 	require.NoError(t, err)
-		// 	defer resp.Body.Close()
-		// 	require.Equal(t, http.StatusOK, resp.StatusCode)
-		// })
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			// set the port we have to be shared with public
+			err = appDetails.SDKClient.CreateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+			})
+			require.NoError(t, err)
+
+			publicAppClient := appDetails.AppClient(t)
+			publicAppClient.SetSessionToken("")
+
+			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
 
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
