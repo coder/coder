@@ -1590,10 +1590,18 @@ func appendUnique[T comparable](dst, src []T) []T {
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
+	// Sort the input database slice by DisplayOrder and then by Key before processing
+	sort.Slice(db, func(i, j int) bool {
+		if db[i].DisplayOrder == db[j].DisplayOrder {
+			return db[i].Key < db[j].Key
+		}
+		return db[i].DisplayOrder < db[j].DisplayOrder
+	})
+
 	// An empty array is easier for clients to handle than a null.
-	result := make([]codersdk.WorkspaceAgentMetadata, 0, len(db))
-	for _, datum := range db {
-		result = append(result, codersdk.WorkspaceAgentMetadata{
+	result := make([]codersdk.WorkspaceAgentMetadata, len(db))
+	for i, datum := range db {
+		result[i] = codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,
@@ -1607,12 +1615,8 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 				Interval:    datum.Interval,
 				Timeout:     datum.Timeout,
 			},
-		})
+		}
 	}
-	// Sorting prevents the metadata from jumping around in the frontend.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Description.Key < result[j].Description.Key
-	})
 	return result
 }
 
