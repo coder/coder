@@ -42,7 +42,7 @@ In order for clients to be able to establish direct connections:
   agent will contact
   [the configured STUN servers](../cli/server.md#derp-server-stun-addresses) to
   try and determine which `ip:port` can be used to communicate with their
-  counterpart. See [below](#stun-in-a-natshell) for more details on how this
+  counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on
   **all ports** to each others' respective networks.
@@ -55,168 +55,6 @@ In order for clients to be able to establish direct connections:
     [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on
     ephemeral (high) ports. If a firewall between the client and the agent
     blocks this UDP traffic, direct connections will not be possible.
-
-### STUN in a NATshell
-
-In order for one application to connect to another across a network, the
-connecting application needs to know the IP address and port under which the
-target application is reachable. If both applications reside on the same
-network, then they can most likely connect directly to each other. In the
-context of a Coder workspace agent and client, this is generally not the case,
-as both agent and client will most likely be running in different _private_
-networks (e.g. `192.168.1.0/24`). In this case, at least one of the two will
-need to know an IP address and port under which they can reach their
-counterpart.
-
-This problem is often referred to as NAT traversal, and Coder uses a standard
-protocol named STUN to address this.
-
-> [Session Traversal Utilities for NAT (STUN)](https://www.rfc-editor.org/rfc/rfc8489.html)
-> is a protocol used to assist applications in establishing peer-to-peer
-> communications across Network Address Translations (NATs) or firewalls.
->
-> [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
-> is commonly used in private networks to allow multiple devices to share a
-> single public IP address. The vast majority of ISPs today use at least one
-> level of NAT.
-
-Inside of that network, packets from the agent or client will show up as having
-source address `192.168.1.X:12345`. However, outside of this private network,
-the source address will show up differently (for example, `12.3.4.56:54321`). In
-order for the Coder client and agent to establish a direct connection with each
-other, one of them needs to know the `ip:port` pair under which their
-counterpart can be reached. Once communication succeeds in one direction, we can
-inspect the source address of the received packet to determine the return
-address.
-
-At a high level, STUN works like this:
-
-> The below glosses over a lot of the complexity of traversing NATs. For a more
-> in-depth technical explanation, see
-> [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
-
-- **Discovery:** Both the client and agent will send UDP traffic to one or more
-  configured STUN servers. These STUN servers are generally located on the
-  public internet, and respond with the public IP address and port from which
-  the request came.
-- **Port Mapping:** The client and agent then exchange this information through
-  the Coder server. They will then construct packets that should be able to
-  successfully traverse their counterpart's NATs successfully.
-- **NAT Traversal:** The client and agent then send these crafted packets to
-  their counterpart's public addresses. If all goes well, the NATs on the other
-  end should route these packets to the correct internal address.
-- **Connection:** Once the packets reach the other side, they send a response
-  back to the source `ip:port` from the packet. Again, the NATs should recognize
-  these responses as belonging to an ongoing communication, and forward them
-  accordingly.
-
-At this point, both the client and agent should be able to send traffic directly
-to each other.
-
-Below are some example scenarios:
-
-1. Direct connections without NAT or STUN
-
-    ```mermaid
-    flowchart LR
-        subgraph corpnet["Private Network\ne.g. Corp. LAN"]
-        A[Client Workstation\n192.168.21.47:38297]
-        C[Workspace Agent\n192.168.21.147:41563]
-        A <--> C
-        end
-    ```
-
-   In this example, both the client and agent are located on the network `192.168.21.0/24`. Assuming no firewalls are blocking packets in either direction, both client and agent are able to communicate directly with each other's locally assigned IP address.
-
-2. Direct connections with one layer of NAT
-
-    ```mermaid
-    flowchart LR
-      subgraph homenet["Network A"]
-        client["Client workstation\n192.168.1.101:38297"]
-        homenat["NAT\n??.??.??.??:?????"]
-      end
-      subgraph internet["Public Internet"]
-        stun1["STUN server"]
-      end
-      subgraph corpnet["Network B"]
-        agent["Workspace agent\n10.21.43.241:56812"]
-        corpnat["NAT\n??.??.??.??:?????"]
-      end
-
-      client --- homenat
-      agent --- corpnat
-      corpnat -- "[I see 12.34.56.7:41563]" --> stun1
-      homenat -- "[I see 65.4.3.21:29187]" --> stun1
-    ```
-
-    In this example, client and agent are located on different networks and connect to each other over the public Internet. Both client and agent connect to a configured STUN server located on the public Internet to determine the public IP address and port on which they can be reached. They then exchange this information through Coder server, and can then communicate directly with each other through their respective NATs.
-
-    ```mermaid
-    flowchart LR
-      subgraph homenet["Home Network"]
-        direction LR
-        client["Client workstation\n192.168.1.101:38297"]
-        homenat["Home Router/NAT\n65.4.3.21:29187"]
-      end
-      subgraph corpnet["Corp Network"]
-        direction LR
-        agent["Workspace agent\n10.21.43.241:56812"]
-        corpnat["Corp Router/NAT\n12.34.56.7:41563"]
-      end
-
-      subgraph internet["Public Internet"]
-      end
-
-      client -- "[12.34.56.7:41563]" --- homenat
-      homenat -- "[12.34.56.7:41563]" --- internet
-      internet -- "[12.34.56.7:41563]" --- corpnat
-      corpnat -- "[10.21.43.241:56812]" --> agent
-    ```
-
-3. Direct connections with VPN.
-
-    In this example, the client workstation must use a VPN to connect to the corporate network. All traffic from the client will enter through the VPN entry node and exit at the VPN exit node inside the corporate network. Traffic from the client inside the corporate network will appear to be coming from the IP address of the VPN exit node `172.16.1.2`. Traffic from the client to the public internet will appear to have the public IP address of the corporate router `12.34.56.7`.
-
-    The workspace agent is running on a Kubernetes cluster inside the corporate network, which is behind its own layer of NAT. To anyone inside the corporate network but outside the cluster network, its traffic will appear to be coming from `172.16.1.254`. However, traffic from the agent  to services on the public Internet will also see traffic originating from the public IP address assigned to the corporate router.
-
-    If the client and agent both use the public STUN server, the addresses discoverd by STUN will both be the public IP address of the corporate router. To correctly route the traffic backwards, the corporate router must correctly map packets sent from the client to the cluster router, and from the agent to the VPN exit node. This behaviour is known as "hairpinning", and does not work in all cases.
-
-    In this configuration, deploying an internal STUN server can aid establishing direct connections between client and agent. When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate. Using these internal addresses is much more likely to result in a successful direct connection.
-
-    ```mermaid
-    flowchart TD
-      subgraph homenet["Home Network"]
-        client["Client workstation\n192.168.1.101"]
-        homenat["Home Router/NAT\n65.4.3.21"]
-      end
-
-      subgraph internet["Public Internet"]
-        stun1["Public STUN"]
-        vpn1["VPN entry node"]
-      end
-
-      subgraph corpnet["Corp Network 172.16.1.0/24"]
-        corpnat["Corp Router/NAT\n172.16.1.1\n12.34.56.7"]
-        vpn2["VPN exit node\n172.16.1.2"]
-        stun2["Private STUN"]
-
-        subgraph cluster["Cluster Network 10.11.12.0/16"]
-          clusternat["Cluster Router/NAT\n10.11.12.1\n172.16.1.254"]
-          agent["Workspace agent\n10.11.12.34"]
-        end
-      end
-
-      vpn1 === vpn2
-      vpn2 --> stun2
-      client === homenat
-      homenat === vpn1
-      homenat x-.-x stun1
-      agent --- clusternat
-      clusternat --- corpnat
-      corpnat --> stun1
-      corpnat --> stun2
-    ```
 
 ## coder server
 
@@ -261,7 +99,7 @@ Establishing a direct connection can be an involved process because both the
 client and workspace agent will likely be behind at least one level of NAT,
 meaning that we need to use STUN to learn the IP address and port under which
 the client and agent can both contact each other. See
-[above](#stun-in-a-natshell) for more information on how this process works.
+[STUN and NAT](./stun.md) for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
