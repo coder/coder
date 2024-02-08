@@ -148,7 +148,7 @@ const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace, template }) => {
       css={
         isShutdownSoon(workspace) &&
         ((theme) => ({
-          color: `${theme.palette.warning.light} !important`,
+          color: `${theme.roles.danger.fill.outline} !important`,
         }))
       }
     >
