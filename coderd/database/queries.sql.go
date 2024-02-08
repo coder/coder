@@ -8457,7 +8457,7 @@ func (q *sqlQuerier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWork
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
 SELECT
-	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at
+	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at, display_order
 FROM
 	workspace_agent_metadata
 WHERE
@@ -8489,6 +8489,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 			&i.Timeout,
 			&i.Interval,
 			&i.CollectedAt,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}

@@ -2268,6 +2268,8 @@ type WorkspaceAgentMetadatum struct {
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+	// Specifies the order in which to display agent metadata in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type WorkspaceAgentScript struct {
