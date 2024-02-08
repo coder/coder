@@ -130,6 +130,23 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 }) => {
   const theme = useTheme();
 
+  // we don't want to show listening ports if it's already a shared port
+  const filteredListeningPorts = listeningPorts?.filter(
+    (port) => {
+      if (sharedPorts === undefined) {
+        return true;
+      }
+
+      for (let i = 0; i < sharedPorts.length; i++) {
+        if (sharedPorts[i].port === port.port && sharedPorts[i].agent_name === agent.name) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+  );
+
   return (
     <>
       <div
@@ -149,7 +166,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </HelpTooltipLink>
         </Stack>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          {listeningPorts?.length === 0
+          {filteredListeningPorts?.length === 0
             ? "No open ports were detected."
             : "The listening ports are exclusively accessible to you."}
         </HelpTooltipText>
@@ -204,7 +221,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             paddingTop: 10,
           }}
         >
-          {listeningPorts?.map((port) => {
+          {filteredListeningPorts?.map((port) => {
             const url = portForwardURL(
               host,
               port.port,
