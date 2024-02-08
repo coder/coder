@@ -98,8 +98,8 @@ move the user and workspace closer together.
 Establishing a direct connection can be an involved process because both the
 client and workspace agent will likely be behind at least one level of NAT,
 meaning that we need to use STUN to learn the IP address and port under which
-the client and agent can both contact each other. See
-[STUN and NAT](./stun.md) for more information on how this process works.
+the client and agent can both contact each other. See [STUN and NAT](./stun.md)
+for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,
