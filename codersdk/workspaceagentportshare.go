@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -46,8 +47,35 @@ func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
 		l == WorkspaceAgentPortShareLevelPublic
 }
 
-func (c *Client) UpdateWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceAgentPortShareRequest) error {
+func (c *Client) GetWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) (WorkspaceAgentPortShares, error) {
+	var shares WorkspaceAgentPortShares
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/port-shares", workspaceID), nil)
+	if err != nil {
+		return shares, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return shares, ReadBodyAsError(res)
+	}
+
+	var resp WorkspaceAgentPortShares
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) CreateWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceAgentPortShareRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/port-share", workspaceID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) DeleteWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req DeleteWorkspaceAgentPortShareRequest) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/port-share", workspaceID), req)
 	if err != nil {
 		return err
 	}
