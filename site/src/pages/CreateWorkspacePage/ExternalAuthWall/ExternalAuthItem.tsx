@@ -6,6 +6,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FC, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- used to allow extension with "component"
 import Box, { BoxProps } from "@mui/material/Box";
+import { Pill } from "components/Pill/Pill";
 
 type Status = "idle" | "connecting";
 
@@ -36,6 +37,9 @@ export const ExternalAuthItem: FC<ExternalAuthItemProps> = ({
       <span css={styles.providerHeader}>
         <ExternalImage src={provider.display_icon} css={styles.providerIcon} />
         <strong css={styles.providerName}>{provider.display_name}</strong>
+        {!provider.authenticated && (provider as any).optional && (
+          <Pill type="notice">Optional</Pill>
+        )}
       </span>
       {provider.authenticated ? (
         <span css={styles.providerConnectedLabel}>
