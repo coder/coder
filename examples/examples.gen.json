@@ -161,7 +161,7 @@
     "id": "scratch",
     "url": "",
     "name": "Scratch",
-    "description": "A minimal Scaffolding for a Coder Template",
+    "description": "A minimal starter template for Coder",
     "icon": "/emojis/1f4e6.png",
     "tags": [],
     "markdown": "\n# A minimal Scaffolding for a Coder Template\n\nUse this starter template as a basis to create your own unique template from scratch.\n"
