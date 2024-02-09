@@ -1,24 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { type FC } from "react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import * as API from "api/api";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
+import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-
-const Wrapper: FC = () => {
-  return (
-    <WorkspaceScheduleControls
-      workspace={MockWorkspace}
-      template={MockTemplate}
-      canUpdateSchedule
-    />
-  );
-};
 
 const BASE_DEADLINE = dayjs().add(3, "hour");
 
@@ -27,7 +17,19 @@ const renderScheduleControls = async () => {
     <ThemeProvider>
       <QueryClientProvider client={new QueryClient()}>
         <RouterProvider
-          router={createMemoryRouter([{ path: "/", element: <Wrapper /> }])}
+          router={createMemoryRouter([
+            {
+              path: "/",
+              element: (
+                <WorkspaceScheduleControls
+                  workspace={MockWorkspace}
+                  status={getWorkspaceActivityStatus(MockWorkspace)}
+                  template={MockTemplate}
+                  canUpdateSchedule
+                />
+              ),
+            },
+          ])}
         />
       </QueryClientProvider>
       <GlobalSnackbar />

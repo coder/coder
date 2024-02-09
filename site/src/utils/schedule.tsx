@@ -9,15 +9,9 @@ import utc from "dayjs/plugin/utc";
 import { type ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
-import {
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import { isWorkspaceOn } from "./workspace";
-import {
-  WorkspaceActivityStatus,
-  getWorkspaceActivityStatus,
-} from "modules/workspaces/activity";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -133,7 +127,7 @@ export const autostopDisplay = (
         message: `Required to stop soon`,
         tooltip: (
           <>
-            <HelpTooltipTitle>Upcoming autostop required</HelpTooltipTitle>
+            <HelpTooltipTitle>Upcoming stop required</HelpTooltipTitle>
             This workspace will be required to stop by{" "}
             {dayjs(workspace.latest_build.max_deadline).format(
               "MMMM D [at] h:mm A",
@@ -154,7 +148,7 @@ export const autostopDisplay = (
           <>
             {" "}
             because this workspace has enabled autostop. You can disable
-            autostop from this workspace's{" "}
+            autostop from this workspace&apos;s{" "}
             <Link component={RouterLink} to="settings/schedule">
               schedule settings
             </Link>
