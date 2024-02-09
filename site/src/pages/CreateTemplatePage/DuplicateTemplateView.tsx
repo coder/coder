@@ -15,8 +15,15 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
+import { Template } from "api/typesGenerated";
 
-export const DuplicateTemplateView: FC = () => {
+type DuplicateTemplateViewProps = {
+  onSuccess: (template: Template) => void;
+};
+
+export const DuplicateTemplateView: FC<DuplicateTemplateViewProps> = ({
+  onSuccess,
+}) => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();
@@ -79,7 +86,7 @@ export const DuplicateTemplateView: FC = () => {
           ),
           template: newTemplate(formData),
         });
-        navigate(`/templates/${template.name}`);
+        onSuccess(template);
       }}
     />
   );
