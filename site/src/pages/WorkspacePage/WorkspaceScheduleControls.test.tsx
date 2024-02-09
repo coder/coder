@@ -1,35 +1,63 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { type FC } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import dayjs from "dayjs";
+import { rest } from "msw";
 import * as API from "api/api";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
-import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
+import { server } from "testHelpers/server";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
+import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
+
+const Wrapper: FC = () => {
+  const { data: workspace } = useQuery(
+    workspaceByOwnerAndName(MockWorkspace.owner_name, MockWorkspace.name),
+  );
+
+  if (!workspace) {
+    return null;
+  }
+
+  return (
+    <WorkspaceScheduleControls
+      workspace={workspace}
+      status={getWorkspaceActivityStatus(workspace)}
+      template={MockTemplate}
+      canUpdateSchedule
+    />
+  );
+};
 
 const BASE_DEADLINE = dayjs().add(3, "hour");
 
 const renderScheduleControls = async () => {
+  server.use(
+    rest.get(
+      "/api/v2/users/:username/workspace/:workspaceName",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            ...MockWorkspace,
+            latest_build: {
+              ...MockWorkspace.latest_build,
+              deadline: BASE_DEADLINE.toISOString(),
+            },
+          }),
+        );
+      },
+    ),
+  );
   render(
     <ThemeProvider>
       <QueryClientProvider client={new QueryClient()}>
         <RouterProvider
-          router={createMemoryRouter([
-            {
-              path: "/",
-              element: (
-                <WorkspaceScheduleControls
-                  workspace={MockWorkspace}
-                  status={getWorkspaceActivityStatus(MockWorkspace)}
-                  template={MockTemplate}
-                  canUpdateSchedule
-                />
-              ),
-            },
-          ])}
+          router={createMemoryRouter([{ path: "/", element: <Wrapper /> }])}
         />
       </QueryClientProvider>
       <GlobalSnackbar />
