@@ -72,7 +72,7 @@ test("Use custom name, message and set it as active when publishing", async () =
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
+      options.onDone?.();
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {
@@ -135,7 +135,7 @@ test("Do not mark as active if promote is not checked", async () => {
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
+      options.onDone?.();
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {
@@ -200,7 +200,7 @@ test("Patch request is not send when there are no changes", async () => {
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
+      options.onDone?.();
       return jest.fn() as never;
     });
   const buildButton = within(topbar).getByRole("button", {

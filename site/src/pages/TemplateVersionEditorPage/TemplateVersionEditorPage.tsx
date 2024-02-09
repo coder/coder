@@ -5,14 +5,9 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
-import {
-  patchTemplateVersion,
-  updateActiveTemplateVersion,
-  watchBuildLogsByTemplateVersionId,
-} from "api/api";
+import { patchTemplateVersion, updateActiveTemplateVersion } from "api/api";
 import type {
   PatchTemplateVersionRequest,
-  ProvisionerJobLog,
   TemplateVersion,
 } from "api/typesGenerated";
 import {
@@ -28,6 +23,7 @@ import { FileTree, traverse } from "utils/filetree";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { useVersionLogs } from "modules/templates/useVersionLogs";
 
 type Params = {
   version: string;
@@ -274,45 +270,6 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
   }, [fileQuery.data]);
 
   return state;
-};
-
-const useVersionLogs = (
-  templateVersion: TemplateVersion | undefined,
-  options: { onDone: () => Promise<unknown> },
-) => {
-  const [logs, setLogs] = useState<ProvisionerJobLog[]>();
-  const templateVersionId = templateVersion?.id;
-  const refetchTemplateVersion = options.onDone;
-  const templateVersionStatus = templateVersion?.job.status;
-
-  useEffect(() => {
-    if (!templateVersionId || !templateVersionStatus) {
-      return;
-    }
-
-    if (templateVersionStatus !== "running") {
-      return;
-    }
-
-    const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
-      onMessage: (log) => {
-        setLogs((logs) => (logs ? [...logs, log] : [log]));
-      },
-      onDone: refetchTemplateVersion,
-      onError: (error) => {
-        console.error(error);
-      },
-    });
-
-    return () => {
-      socket.close();
-    };
-  }, [refetchTemplateVersion, templateVersionId, templateVersionStatus]);
-
-  return {
-    logs,
-    setLogs,
-  };
 };
 
 const useMissingVariables = (templateVersion: TemplateVersion | undefined) => {

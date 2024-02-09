@@ -206,15 +206,19 @@ export const createTemplate = () => {
   };
 };
 
-const createTemplateFn = async (options: {
+export type CreateTemplateOptions = {
   organizationId: string;
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
-}) => {
+  onCreateVersion?: (version: TemplateVersion) => void;
+};
+
+const createTemplateFn = async (options: CreateTemplateOptions) => {
   const version = await API.createTemplateVersion(
     options.organizationId,
     options.version,
   );
+  options.onCreateVersion?.(version);
   await waitBuildToBeFinished(version);
   return API.createTemplate(options.organizationId, {
     ...options.template,
