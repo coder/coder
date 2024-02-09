@@ -535,9 +535,9 @@ https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
   <summary style="font-size: larger; font-weight: bold;">How can I resolve disconnects when connected to Coder via JetBrains Gateway?</summary>
 
 If your JetBrains IDE is disconnected for a long period of time due to a network
-change (for example turning off a VPN), you may find that the IDE will not reconnect
-once the network is re-established (for example turning a VPN back on). When this
-happens a persistent message will appear similar to the below:
+change (for example turning off a VPN), you may find that the IDE will not
+reconnect once the network is re-established (for example turning a VPN back
+on). When this happens a persistent message will appear similar to the below:
 
 ```console
 No internet connection. Changes in the document might be lost. Trying to reconnect…
