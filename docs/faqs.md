@@ -534,14 +534,16 @@ https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
 <details style="margin-bottom: 28px;">
   <summary style="font-size: larger; font-weight: bold;">How can I resolve disconnects when connected to Coder via JetBrains Gateway?</summary>
 
-If you leave your JetBrains IDE open for some time while connected to Coder, you
-may encounter a message similar to the below:
+If your JetBrains IDE is disconnected for a long period of time due to a network
+change (for example turning off a VPN), you may find that the IDE will not reconnect
+once the network is re-established (for example turning a VPN back on). When this
+happens a persistent message will appear similar to the below:
 
 ```console
 No internet connection. Changes in the document might be lost. Trying to reconnect…
 ```
 
-To resolve this, add this entry to your SSH host file on your local machine:
+To resolve this, add this entry to your SSH config file on your local machine:
 
 ```console
 Host coder-jetbrains--*
@@ -549,4 +551,6 @@ Host coder-jetbrains--*
 ```
 
 Note that your SSH config file will be overwritten by the JetBrains Gateway
-client if it is re-authenticated to your Coder deployment.
+client when it re-authenticates to your Coder deployment.
+
+</details>
