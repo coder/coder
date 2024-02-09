@@ -26,7 +26,12 @@ type WorkspaceAppHealthReporter func(ctx context.Context)
 
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
 func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
+	logger = logger.Named("apphealth")
+
 	runHealthcheckLoop := func(ctx context.Context) error {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		// no need to run this loop if no apps for this workspace.
 		if len(apps) == 0 {
 			return nil
@@ -87,6 +92,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 						return nil
 					}()
 					if err != nil {
+						nowUnhealthy := false
 						mu.Lock()
 						if failures[app.ID] < int(app.Healthcheck.Threshold) {
 							// increment the failure count and keep status the same.
@@ -96,14 +102,21 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 							// set to unhealthy if we hit the failure threshold.
 							// we stop incrementing at the threshold to prevent the failure value from increasing forever.
 							health[app.ID] = codersdk.WorkspaceAppHealthUnhealthy
+							nowUnhealthy = true
 						}
 						mu.Unlock()
+						logger.Debug(ctx, "error checking app health",
+							slog.F("id", app.ID.String()),
+							slog.F("slug", app.Slug),
+							slog.F("now_unhealthy", nowUnhealthy), slog.Error(err),
+						)
 					} else {
 						mu.Lock()
 						// we only need one successful health check to be considered healthy.
 						health[app.ID] = codersdk.WorkspaceAppHealthHealthy
 						failures[app.ID] = 0
 						mu.Unlock()
+						logger.Debug(ctx, "workspace app healthy", slog.F("id", app.ID.String()), slog.F("slug", app.Slug))
 					}
 
 					t.Reset(time.Duration(app.Healthcheck.Interval) * time.Second)
@@ -137,7 +150,9 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 					Healths: lastHealth,
 				})
 				if err != nil {
-					logger.Error(ctx, "failed to report workspace app stat", slog.Error(err))
+					logger.Error(ctx, "failed to report workspace app health", slog.Error(err))
+				} else {
+					logger.Debug(ctx, "sent workspace app health", slog.F("health", lastHealth))
 				}
 			}
 		}
