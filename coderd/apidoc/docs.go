@@ -11470,6 +11470,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "optional": {
+                    "type": "boolean"
+                },
                 "type": {
                     "type": "string"
                 }

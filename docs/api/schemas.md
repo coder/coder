@@ -5169,6 +5169,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "optional": true,
   "type": "string"
 }
 ```
@@ -5182,6 +5183,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `display_icon`     | string  | false    |              |             |
 | `display_name`     | string  | false    |              |             |
 | `id`               | string  | false    |              |             |
+| `optional`         | boolean | false    |              |             |
 | `type`             | string  | false    |              |             |
 
 ## codersdk.TemplateVersionParameter

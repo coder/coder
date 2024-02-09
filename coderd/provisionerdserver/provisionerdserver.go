@@ -1133,7 +1133,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {
 			contains := false
 			for _, configuredProvider := range s.ExternalAuthConfigs {
-				if configuredProvider.ID == externalAuthProvider {
+				if configuredProvider.ID == externalAuthProvider.Id {
 					contains = true
 					break
 				}
@@ -1147,9 +1147,17 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
+		externalAuthProviderIds := jobType.TemplateImport.ExternalAuthProvidersNames
+		if providersLen := len(jobType.TemplateImport.ExternalAuthProviders); providersLen > 0 {
+			externalAuthProviderIds = make([]string, 0, providersLen)
+			for _, provider := range jobType.TemplateImport.ExternalAuthProviders {
+				externalAuthProviderIds = append(externalAuthProviderIds, provider.Id)
+			}
+		}
+
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
-			ExternalAuthProviders: jobType.TemplateImport.ExternalAuthProviders,
+			ExternalAuthProviders: externalAuthProviderIds,
 			UpdatedAt:             dbtime.Now(),
 		})
 		if err != nil {

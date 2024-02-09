@@ -629,7 +629,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
-	ExternalAuthProviders []string
+	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 }
 
 // Performs a dry-run provision when importing a template.
