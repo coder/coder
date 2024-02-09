@@ -13,7 +13,6 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = data.coder_provisioner.me.os
-  startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
     # Run programs at workspace startup
@@ -38,11 +37,10 @@ resource "coder_agent" "main" {
 
 # Use this to set environment variables in your workspace
 # details: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env
-resource "coder_env" "my_env" {
+resource "coder_env" "welcome_message" {
   agent_id = coder_agent.main.id
-  name     = "FOO"
-  value    = "bar"
-}
+  name     = "WELCOME_MESSAGE"
+  value    = "Welcome to your Coder workspace!"
 
 # Adds code-server
 # See all available modules at https://registry.coder.com
