@@ -4,14 +4,17 @@ import CircularProgress from "@mui/material/CircularProgress";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { FC } from "react";
-import { useQuery } from "react-query";
+import { useQuery, useMutation } from "react-query";
 import { docs } from "utils/docs";
-import { getAgentListeningPorts, getWorkspaceAgentSharedPorts } from "api/api";
+import { deleteWorkspaceAgentSharedPort, getAgentListeningPorts, getWorkspaceAgentSharedPorts, postWorkspaceAgentSharedPort } from "api/api";
 import type {
+  DeleteWorkspaceAgentPortShareRequest,
+  UpdateWorkspaceAgentPortShareRequest,
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
   WorkspaceAgentListeningPortsResponse,
   WorkspaceAgentPortShare,
+  WorkspaceAgentPortShareLevel,
   WorkspaceAgentPortShares,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
@@ -37,7 +40,6 @@ import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
-import Grid from "@mui/material/Grid";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -68,7 +70,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   });
 
   const sharedPortsQuery = useQuery({
-    queryKey: ["sharedPorts", agent.id],
+    queryKey: ["sharedPorts", workspaceID],
     queryFn: () => getWorkspaceAgentSharedPorts(workspaceID),
     enabled: !storybook && agent.status === "connected",
   });
@@ -123,12 +125,26 @@ interface PortForwardPopoverViewProps extends PortForwardButtonProps {
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   host,
   workspaceName,
+  workspaceID,
   agent,
   username,
   listeningPorts,
   sharedPorts,
 }) => {
   const theme = useTheme();
+
+
+  const createSharedPortMutation = useMutation({
+    mutationFn: async (options: UpdateWorkspaceAgentPortShareRequest) => {
+      await postWorkspaceAgentSharedPort(workspaceID, options);
+    },
+  });
+
+  const deleteSharedPortMutation = useMutation({
+    mutationFn: async (options: DeleteWorkspaceAgentPortShareRequest) => {
+      await deleteWorkspaceAgentSharedPort(workspaceID, options);
+    },
+  });
 
   // we don't want to show listening ports if it's already a shared port
   const filteredListeningPorts = listeningPorts?.filter(
@@ -258,7 +274,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                 >
                   <span css={styles.portNumber}>{port.port}</span>
                 </Link>
-                <Button size="small" variant="text">
+                <Button size="small" variant="text" onClick={
+                  () => {
+                    createSharedPortMutation.mutate({
+                      agent_name: agent.name,
+                      port: port.port,
+                      share_level: "authenticated",
+                    });
+                  }
+                }>
                   Share
                 </Button>
                 </Stack>
@@ -328,7 +352,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     <MenuItem value="public">Public</MenuItem>
                   </Select>
                 </FormControl>
-                <IconButton>
+                <IconButton onClick={() => {
+                  deleteSharedPortMutation.mutate({
+                    agent_name: agent.name,
+                    port: share.port,
+                  });
+                }}>
                   <CloseIcon
                     css={{
                       width: 14,
@@ -352,11 +381,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
         >
           <TextField label="Port" variant="outlined" size="small" />
           <FormControl size="small">
-            <Select value="Authenticated">
-              <MenuItem value="Authenticated">Authenticated</MenuItem>
-              <MenuItem value="Public">Public</MenuItem>
+            <Select value="authenticated">
+              <MenuItem value="authenticated">Authenticated</MenuItem>
+              <MenuItem value="public">Public</MenuItem>
             </Select>
           </FormControl>
+          {/* How do I use the value from the select in the mutation? */}
           <Button variant="contained">Share Port</Button>
         </Stack>
       </div>
