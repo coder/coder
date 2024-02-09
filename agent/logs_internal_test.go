@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestLogSender(t *testing.T) {
+func TestLogSender_Mainline(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
@@ -62,7 +62,9 @@ func TestLogSender(t *testing.T) {
 	// both, although the order is not controlled
 	var logReqs []*proto.BatchCreateLogsRequest
 	logReqs = append(logReqs, testutil.RequireRecvCtx(ctx, t, fDest.reqs))
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	logReqs = append(logReqs, testutil.RequireRecvCtx(ctx, t, fDest.reqs))
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	for _, req := range logReqs {
 		require.NotNil(t, req)
 		srcID, err := uuid.FromBytes(req.LogSourceId)
@@ -97,6 +99,7 @@ func TestLogSender(t *testing.T) {
 	require.NoError(t, err)
 
 	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
 	// give ourselves a 25% buffer if we're right on the cusp of a tick
 	require.LessOrEqual(t, time.Since(t1), flushInterval*5/4)
 	require.NotNil(t, req)
@@ -118,8 +121,53 @@ func TestLogSender(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLogSender_LogLimitExceeded(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fDest := newFakeLogDest()
+	uut := newLogSender(logger)
+
+	t0 := dbtime.Now()
+
+	ls1 := uuid.UUID{0x11}
+	err := uut.enqueue(ls1, agentsdk.Log{
+		CreatedAt: t0,
+		Output:    "test log 0, src 1",
+		Level:     codersdk.LogLevelInfo,
+	})
+	require.NoError(t, err)
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.sendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	testutil.RequireSendCtx(ctx, t, fDest.resps,
+		&proto.BatchCreateLogsResponse{LogLimitExceeded: true})
+
+	err = testutil.RequireRecvCtx(ctx, t, loopErr)
+	require.NoError(t, err)
+
+	// we can still enqueue more logs after sendLoop returns, but they don't
+	// actually get enqueued
+	err = uut.enqueue(ls1, agentsdk.Log{
+		CreatedAt: t0,
+		Output:    "test log 2, src 1",
+		Level:     codersdk.LogLevelTrace,
+	})
+	require.NoError(t, err)
+	uut.L.Lock()
+	defer uut.L.Unlock()
+	require.Len(t, uut.queues, 0)
+}
+
 type fakeLogDest struct {
-	reqs chan *proto.BatchCreateLogsRequest
+	reqs  chan *proto.BatchCreateLogsRequest
+	resps chan *proto.BatchCreateLogsResponse
 }
 
 func (f fakeLogDest) BatchCreateLogs(ctx context.Context, req *proto.BatchCreateLogsRequest) (*proto.BatchCreateLogsResponse, error) {
@@ -130,12 +178,18 @@ func (f fakeLogDest) BatchCreateLogs(ctx context.Context, req *proto.BatchCreate
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case f.reqs <- req:
-		return &proto.BatchCreateLogsResponse{}, nil
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case resp := <-f.resps:
+			return resp, nil
+		}
 	}
 }
 
 func newFakeLogDest() *fakeLogDest {
 	return &fakeLogDest{
-		reqs: make(chan *proto.BatchCreateLogsRequest),
+		reqs:  make(chan *proto.BatchCreateLogsRequest),
+		resps: make(chan *proto.BatchCreateLogsResponse),
 	}
 }

@@ -26,8 +26,9 @@ type logQueue struct {
 // the agent calls sendLoop to send pending logs.
 type logSender struct {
 	*sync.Cond
-	queues map[uuid.UUID]*logQueue
-	logger slog.Logger
+	queues           map[uuid.UUID]*logQueue
+	logger           slog.Logger
+	exceededLogLimit bool
 }
 
 type logDest interface {
@@ -50,6 +51,11 @@ func (l *logSender) enqueue(src uuid.UUID, logs ...agentsdk.Log) error {
 	}
 	l.L.Lock()
 	defer l.L.Unlock()
+	if l.exceededLogLimit {
+		logger.Warn(context.Background(), "dropping enqueued logs because we have reached the server limit")
+		// don't error, as we also write to file and don't want the overall write to fail
+		return nil
+	}
 	defer l.Broadcast()
 	q, ok := l.queues[src]
 	if !ok {
@@ -88,6 +94,8 @@ func (l *logSender) sendLoop(ctx context.Context, dest logDest) error {
 	defer l.logger.Debug(ctx, "sendLoop exiting")
 
 	// wake 4 times per flush interval to check if anything needs to be flushed
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go func() {
 		tkr := time.NewTicker(flushInterval / 4)
 		defer tkr.Stop()
@@ -110,10 +118,16 @@ func (l *logSender) sendLoop(ctx context.Context, dest logDest) error {
 	l.L.Lock()
 	defer l.L.Unlock()
 	for {
-		for !ctxDone && !l.hasPendingWorkLocked() {
+		for !ctxDone && !l.exceededLogLimit && !l.hasPendingWorkLocked() {
 			l.Wait()
 		}
 		if ctxDone {
+			return nil
+		}
+		if l.exceededLogLimit {
+			l.logger.Debug(ctx, "aborting sendLoop because log limit is already exceeded")
+			// no point in keeping this loop going, if log limit is exceeded, but don't return an
+			// error because we're already handled it
 			return nil
 		}
 		src, q := l.getPendingWorkLocked()
@@ -125,10 +139,19 @@ func (l *logSender) sendLoop(ctx context.Context, dest logDest) error {
 
 		l.L.Unlock()
 		l.logger.Debug(ctx, "sending logs to agent API", slog.F("log_source_id", src), slog.F("num_logs", len(req.Logs)))
-		_, err := dest.BatchCreateLogs(ctx, req)
+		resp, err := dest.BatchCreateLogs(ctx, req)
 		l.L.Lock()
 		if err != nil {
 			return xerrors.Errorf("failed to upload logs: %w", err)
+		}
+		if resp.LogLimitExceeded {
+			l.logger.Warn(ctx, "server log limit exceeded; logs truncated")
+			l.exceededLogLimit = true
+			// no point in keeping anything we have queued around, server will not accept them
+			l.queues = make(map[uuid.UUID]*logQueue)
+			// We've handled the error as best as we can. We don't want the server limit to grind
+			// other things to a halt, so this is all we can do.
+			return nil
 		}
 
 		// Since elsewhere we only append to the logs, here we can remove them
