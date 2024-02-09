@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.7.0"
+      version = "0.14.1"
     }
   }
 }
@@ -16,6 +16,7 @@ resource "coder_agent" "main" {
     script       = "ps -ef | wc -l"
     interval     = 5
     timeout      = 1
+    order        = 7
   }
 }
 

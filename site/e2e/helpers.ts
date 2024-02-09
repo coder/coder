@@ -134,7 +134,7 @@ export const createTemplate = async (
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();
-  await expect(page).toHaveURL("/templates/" + name, {
+  await expect(page).toHaveURL(`/templates/${name}/files`, {
     timeout: 30000,
   });
   return name;

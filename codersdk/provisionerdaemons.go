@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"time"
@@ -248,7 +247,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	// Use background context because caller should close the client.
-	_, wsNetConn := websocketNetConn(context.Background(), conn, websocket.MessageBinary)
+	_, wsNetConn := WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
 	session, err := yamux.Client(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
@@ -256,46 +255,4 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
-}
-
-// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
-// is called if a read or write error is encountered.
-// @typescript-ignore wsNetConn
-type wsNetConn struct {
-	cancel context.CancelFunc
-	net.Conn
-}
-
-func (c *wsNetConn) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Write(b []byte) (n int, err error) {
-	n, err = c.Conn.Write(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Close() error {
-	defer c.cancel()
-	return c.Conn.Close()
-}
-
-// websocketNetConn wraps websocket.NetConn and returns a context that
-// is tied to the parent context and the lifetime of the conn. Any error
-// during read or write will cancel the context, but not close the
-// conn. Close should be called to release context resources.
-func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
-	ctx, cancel := context.WithCancel(ctx)
-	nc := websocket.NetConn(ctx, conn, msgType)
-	return ctx, &wsNetConn{
-		cancel: cancel,
-		Conn:   nc,
-	}
 }

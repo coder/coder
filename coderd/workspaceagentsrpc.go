@@ -100,7 +100,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
 	ycfg := yamux.DefaultConfig()

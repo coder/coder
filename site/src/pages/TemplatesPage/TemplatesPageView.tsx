@@ -6,9 +6,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import { type FC } from "react";
-import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import {
   formatTemplateBuildTime,
@@ -45,6 +44,7 @@ import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
+import { CreateTemplateButton } from "./CreateTemplateButton";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -165,26 +165,13 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
   const isLoading = !templates;
   const isEmpty = templates && templates.length === 0;
+  const navigate = useNavigate();
 
   return (
     <Margins>
       <PageHeader
         actions={
-          canCreateTemplates && (
-            <>
-              <Button component={RouterLink} to="/starter-templates">
-                Starter Templates
-              </Button>
-              <Button
-                startIcon={<AddIcon />}
-                component={RouterLink}
-                to="new"
-                variant="contained"
-              >
-                Create Template
-              </Button>
-            </>
-          )
+          canCreateTemplates && <CreateTemplateButton onNavigate={navigate} />
         }
       >
         <PageHeaderTitle>
