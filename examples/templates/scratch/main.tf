@@ -45,7 +45,7 @@ resource "coder_env" "my_env" {
 }
 
 # Adds code-server
-# See all available modules at https://regsitry.coder.com
+# See all available modules at https://registry.coder.com
 module "code-server" {
   source   = "registry.coder.com/modules/code-server/coder"
   version  = "1.0.2"
