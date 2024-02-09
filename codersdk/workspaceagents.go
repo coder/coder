@@ -844,7 +844,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}
 	logChunks := make(chan []WorkspaceAgentLog, 1)
 	closed := make(chan struct{})
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)
 	go func() {
 		defer close(closed)

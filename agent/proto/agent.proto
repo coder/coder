@@ -247,7 +247,9 @@ message BatchCreateLogsRequest {
 	repeated Log logs = 2;
 }
 
-message BatchCreateLogsResponse {}
+message BatchCreateLogsResponse {
+	bool log_limit_exceeded = 1;
+}
 
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);

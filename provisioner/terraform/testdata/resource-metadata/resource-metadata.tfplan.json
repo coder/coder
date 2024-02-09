@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.1-dev",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -23,6 +23,7 @@
                 "display_name": "Process Count",
                 "interval": 5,
                 "key": "process_count",
+                "order": 7,
                 "script": "ps -ef | wc -l",
                 "timeout": 1
               }
@@ -32,10 +33,12 @@
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [],
             "metadata": [
               {}
             ]
@@ -123,6 +126,7 @@
               "display_name": "Process Count",
               "interval": 5,
               "key": "process_count",
+              "order": 7,
               "script": "ps -ef | wc -l",
               "timeout": 1
             }
@@ -132,10 +136,12 @@
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [
@@ -145,6 +151,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [
             {}
           ],
@@ -246,7 +253,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.7.0"
+        "version_constraint": "0.14.1"
       },
       "null": {
         "name": "null",
@@ -275,6 +282,9 @@
                 },
                 "key": {
                   "constant_value": "process_count"
+                },
+                "order": {
+                  "constant_value": 7
                 },
                 "script": {
                   "constant_value": "ps -ef | wc -l"
@@ -371,5 +381,6 @@
       ]
     }
   ],
-  "timestamp": "2023-08-30T19:25:25Z"
+  "timestamp": "2024-02-08T11:45:52Z",
+  "errored": false
 }

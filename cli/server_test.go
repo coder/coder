@@ -685,11 +685,17 @@ func TestServer(t *testing.T) {
 						require.Equal(t, c.expectRedirect, resp.Header.Get("Location"))
 					}
 
+					// We should never readirect /healthz
+					respHealthz, err := client.Request(ctx, http.MethodGet, "/healthz", nil)
+					require.NoError(t, err)
+					defer respHealthz.Body.Close()
+					require.Equal(t, http.StatusOK, respHealthz.StatusCode, "/healthz should never redirect")
+
 					// We should never redirect DERP
 					respDERP, err := client.Request(ctx, http.MethodGet, "/derp", nil)
 					require.NoError(t, err)
 					defer respDERP.Body.Close()
-					require.Equal(t, http.StatusUpgradeRequired, respDERP.StatusCode)
+					require.Equal(t, http.StatusUpgradeRequired, respDERP.StatusCode, "/derp should never redirect")
 				}
 
 				// Verify TLS

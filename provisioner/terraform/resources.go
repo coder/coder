@@ -25,6 +25,7 @@ type agentMetadata struct {
 	Script      string `mapstructure:"script"`
 	Interval    int64  `mapstructure:"interval"`
 	Timeout     int64  `mapstructure:"timeout"`
+	Order       int64  `mapstructure:"order"`
 }
 
 // A mapping of attributes on the "coder_agent" resource.
@@ -209,6 +210,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 					Script:      item.Script,
 					Interval:    item.Interval,
 					Timeout:     item.Timeout,
+					Order:       item.Order,
 				})
 			}
 
