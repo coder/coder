@@ -7562,7 +7562,7 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	return database.TailnetTunnel{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceAgentPortShare{}, err
