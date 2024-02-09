@@ -11,12 +11,8 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  arch           = data.coder_provisioner.me.arch
-  os             = data.coder_provisioner.me.os
-  startup_script = <<-EOT
-    set -e
-    # Run programs at workspace startup
-  EOT
+  arch = data.coder_provisioner.me.arch
+  os   = data.coder_provisioner.me.os
 
   metadata {
     display_name = "CPU Usage"
@@ -53,11 +49,14 @@ module "code-server" {
 
 # Runs a script at workspace start/stop or on a cron schedule
 # details: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script
-resource "coder_script" "my_script" {
-  agent_id     = coder_agent.main.id
-  display_name = "My Script"
-  run_on_start = true
-  script       = <<-EOF
-  echo "Hello ${data.coder_workspace.me.owner}!"
+resource "coder_script" "startup_script" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Startup Script"
+  script             = <<-EOF
+    #!/bin/sh
+    set -e
+    # Run programs at workspace startup
   EOF
+  run_on_start       = true
+  start_blocks_login = true
 }
