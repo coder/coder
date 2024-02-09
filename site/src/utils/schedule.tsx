@@ -14,6 +14,10 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { isWorkspaceOn } from "./workspace";
+import {
+  WorkspaceActivityStatus,
+  getWorkspaceActivityStatus,
+} from "modules/workspaces/activity";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -97,10 +101,12 @@ export const isShuttingDown = (
 
 export const autostopDisplay = (
   workspace: Workspace,
+  activityStatus: WorkspaceActivityStatus,
   template: Template,
 ): {
   message: ReactNode;
   tooltip?: ReactNode;
+  danger?: boolean;
 } => {
   const ttl = workspace.ttl_ms;
 
@@ -111,13 +117,33 @@ export const autostopDisplay = (
     // represent the previously defined ttl. Thus, we always derive from the
     // deadline as the source of truth.
 
-    const deadline = dayjs(workspace.latest_build.deadline).utc();
+    const deadline = dayjs(workspace.latest_build.deadline).tz(
+      dayjs.tz.guess(),
+    );
+    const now = dayjs(workspace.latest_build.deadline).utc();
     if (isShuttingDown(workspace, deadline)) {
       return {
         message: Language.workspaceShuttingDownLabel,
       };
+    } else if (
+      activityStatus === "connected" &&
+      deadline.isBefore(now.add(2, "hour"))
+    ) {
+      return {
+        message: `Required to stop soon`,
+        tooltip: (
+          <>
+            <HelpTooltipTitle>Upcoming autostop required</HelpTooltipTitle>
+            This workspace will be required to stop by{" "}
+            {dayjs(workspace.latest_build.max_deadline).format(
+              "MMMM D [at] h:mm A",
+            )}
+            . You can restart your workspace before then to avoid interruption.
+          </>
+        ),
+        danger: true,
+      };
     } else {
-      const deadlineTz = deadline.tz(dayjs.tz.guess());
       let title = (
         <HelpTooltipTitle>Template Autostop requirement</HelpTooltipTitle>
       );
@@ -137,17 +163,16 @@ export const autostopDisplay = (
         );
       }
       return {
-        message: `Stop ${deadlineTz.fromNow()}`,
+        message: `Stop ${deadline.fromNow()}`,
         tooltip: (
           <>
             {title}
-            <HelpTooltipText>
-              This workspace will be stopped on{" "}
-              {deadlineTz.format("MMMM D [at] h:mm A")}
-              {reason}
-            </HelpTooltipText>
+            This workspace will be stopped on{" "}
+            {deadline.format("MMMM D [at] h:mm A")}
+            {reason}
           </>
         ),
+        danger: isShutdownSoon(workspace),
       };
     }
   } else if (!ttl || ttl < 1) {
@@ -161,9 +186,21 @@ export const autostopDisplay = (
     // not running. Therefore, we derive from workspace.ttl.
     const duration = dayjs.duration(ttl, "milliseconds");
     return {
-      message: `${duration.humanize()} ${Language.afterStart}`,
+      message: `Stop ${duration.humanize()} ${Language.afterStart}`,
     };
   }
+};
+
+const isShutdownSoon = (workspace: Workspace): boolean => {
+  const deadline = workspace.latest_build.deadline;
+  if (!deadline) {
+    return false;
+  }
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diff = deadlineDate.getTime() - now.getTime();
+  const oneHour = 1000 * 60 * 60;
+  return diff < oneHour;
 };
 
 export const deadlineExtensionMin = dayjs.duration(30, "minutes");

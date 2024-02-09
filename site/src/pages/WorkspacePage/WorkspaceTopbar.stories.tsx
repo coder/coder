@@ -8,7 +8,7 @@ import {
 } from "testHelpers/entities";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { addDays } from "date-fns";
+import { addDays, addHours, addMinutes } from "date-fns";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 
 // We want a workspace without a deadline to not pollute the screenshot
@@ -53,10 +53,33 @@ export const Ready: Story = {
   args: {
     workspace: {
       ...baseWorkspace,
-      last_used_at: new Date().toISOString(),
+      get last_used_at() {
+        return new Date().toISOString();
+      },
       latest_build: {
         ...baseWorkspace.latest_build,
-        updated_at: new Date().toISOString(),
+        get created_at() {
+          return new Date().toISOString();
+        },
+      },
+    },
+  },
+};
+export const ReadyWithDeadline: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      get last_used_at() {
+        return new Date().toISOString();
+      },
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        get created_at() {
+          return new Date().toISOString();
+        },
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
       },
     },
   },
@@ -66,7 +89,44 @@ export const Connected: Story = {
   args: {
     workspace: {
       ...baseWorkspace,
-      last_used_at: new Date().toISOString(),
+      get last_used_at() {
+        return new Date().toISOString();
+      },
+    },
+  },
+};
+export const ConnectedWithDeadline: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      get last_used_at() {
+        return new Date().toISOString();
+      },
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
+      },
+    },
+  },
+};
+export const ConnectedWithMaxDeadline: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      get last_used_at() {
+        return new Date().toISOString();
+      },
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        get deadline() {
+          return addHours(new Date(), 1).toISOString();
+        },
+        get max_deadline() {
+          return addHours(new Date(), 1).toISOString();
+        },
+      },
     },
   },
 };
@@ -96,15 +156,15 @@ export const WithExceededDeadline: Story = {
   },
 };
 
-const in30Minutes = new Date();
-in30Minutes.setMinutes(in30Minutes.getMinutes() + 30);
 export const WithApproachingDeadline: Story = {
   args: {
     workspace: {
       ...MockWorkspace,
       latest_build: {
         ...MockWorkspace.latest_build,
-        deadline: in30Minutes.toISOString(),
+        get deadline() {
+          return addMinutes(new Date(), 30).toISOString();
+        },
       },
     },
   },
@@ -122,15 +182,15 @@ export const WithApproachingDeadline: Story = {
   },
 };
 
-const in8Hours = new Date();
-in8Hours.setHours(in8Hours.getHours() + 8);
 export const WithFarAwayDeadline: Story = {
   args: {
     workspace: {
       ...MockWorkspace,
       latest_build: {
         ...MockWorkspace.latest_build,
-        deadline: in8Hours.toISOString(),
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
       },
     },
   },
@@ -154,7 +214,9 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
       ...MockWorkspace,
       latest_build: {
         ...MockWorkspace.latest_build,
-        deadline: in8Hours.toISOString(),
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
       },
     },
     template: {

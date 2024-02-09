@@ -1,8 +1,9 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
 import IconButton from "@mui/material/IconButton";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
 import AddIcon from "@mui/icons-material/AddOutlined";
+import RemoveIcon from "@mui/icons-material/RemoveOutlined";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import { type Dayjs } from "dayjs";
@@ -25,16 +26,54 @@ import {
   updateDeadline,
   workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
+import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
+
+export interface WorkspaceScheduleProps {
+  status: WorkspaceActivityStatus;
+  workspace: Workspace;
+  template: Template;
+  canUpdateWorkspace: boolean;
+}
+
+export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
+  status,
+  workspace,
+  template,
+  canUpdateWorkspace,
+}) => {
+  if (!shouldDisplayScheduleControls(workspace, status)) {
+    return null;
+  }
+
+  return (
+    <TopbarData>
+      <TopbarIcon>
+        <Tooltip title="Schedule">
+          <ScheduleOutlined aria-label="Schedule" />
+        </Tooltip>
+      </TopbarIcon>
+      <WorkspaceScheduleControls
+        workspace={workspace}
+        status={status}
+        template={template}
+        canUpdateSchedule={canUpdateWorkspace}
+      />
+    </TopbarData>
+  );
+};
 
 export interface WorkspaceScheduleControlsProps {
   workspace: Workspace;
+  status: WorkspaceActivityStatus;
   template: Template;
   canUpdateSchedule: boolean;
 }
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   workspace,
+  status,
   template,
   canUpdateSchedule,
 }) => {
@@ -92,7 +131,11 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   return (
     <div css={styles.scheduleValue} data-testid="schedule-controls">
       {isWorkspaceOn(workspace) ? (
-        <AutoStopDisplay workspace={workspace} template={template} />
+        <AutoStopDisplay
+          workspace={workspace}
+          status={status}
+          template={template}
+        />
       ) : (
         <ScheduleSettingsLink>
           Starts at {autostartDisplay(workspace.autostart_schedule)}
@@ -135,18 +178,27 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 
 interface AutoStopDisplayProps {
   workspace: Workspace;
+  status: WorkspaceActivityStatus;
   template: Template;
 }
 
-const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace, template }) => {
+const AutoStopDisplay: FC<AutoStopDisplayProps> = ({
+  workspace,
+  status,
+  template,
+}) => {
   useTime();
-  const { message, tooltip } = autostopDisplay(workspace, template);
+  const { message, tooltip, danger } = autostopDisplay(
+    workspace,
+    status,
+    template,
+  );
 
   const display = (
     <ScheduleSettingsLink
       data-testid="schedule-controls-autostop"
       css={
-        isShutdownSoon(workspace) &&
+        danger &&
         ((theme) => ({
           color: `${theme.roles.danger.fill.outline} !important`,
         }))
@@ -196,22 +248,13 @@ export const canEditDeadline = (workspace: Workspace): boolean => {
 
 export const shouldDisplayScheduleControls = (
   workspace: Workspace,
+  status: WorkspaceActivityStatus,
 ): boolean => {
   const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
   const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
-  return willAutoStop || willAutoStart;
-};
-
-const isShutdownSoon = (workspace: Workspace): boolean => {
-  const deadline = workspace.latest_build.deadline;
-  if (!deadline) {
-    return false;
-  }
-  const deadlineDate = new Date(deadline);
-  const now = new Date();
-  const diff = deadlineDate.getTime() - now.getTime();
-  const oneHour = 1000 * 60 * 60;
-  return diff < oneHour;
+  const hasActivity =
+    status === "connected" && !workspace.latest_build.max_deadline;
+  return (willAutoStop || willAutoStart) && !hasActivity;
 };
 
 const styles = {

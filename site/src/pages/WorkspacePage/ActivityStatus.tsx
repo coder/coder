@@ -1,47 +1,59 @@
 import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import Tooltip from "@mui/material/Tooltip";
 import type { Workspace } from "api/typesGenerated";
 import { useTime } from "hooks/useTime";
+import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
 import { Pill } from "components/Pill/Pill";
 
 dayjs.extend(relativeTime);
 
 interface ActivityStatusProps {
   workspace: Workspace;
+  status: WorkspaceActivityStatus;
 }
 
-export const ActivityStatus: FC<ActivityStatusProps> = ({ workspace }) => {
-  const builtAt = dayjs(workspace.latest_build.updated_at);
-  const usedAt = dayjs(workspace.last_used_at);
-  const now = dayjs();
+export const ActivityStatus: FC<ActivityStatusProps> = ({
+  workspace,
+  status,
+}) => {
+  const usedAt = dayjs(workspace.last_used_at).tz(dayjs.tz.guess());
 
-  // This needs to compare to `usedAt` instead of `now`, because the "grace period" for
-  // marking a workspace as "Connected" is a lot longer. If you compared `builtAt` to `now`,
-  // you could end up switching from "Ready" to "Connected" without ever actually connecting.
-  const isBuiltRecently = builtAt.isAfter(usedAt.subtract(1, "second"));
-  const isUsedRecently = usedAt.isAfter(now.subtract(15, "minute"));
+  // Don't bother updating if `status` will need to change before anything can happen.
+  useTime(status === "ready" || status === "connected");
 
-  useTime(isUsedRecently);
-
-  switch (workspace.latest_build.status) {
-    // If the build is still "fresh", it'll be a while before the `last_used_at` gets bumped in
-    // a significant way by the agent, so just label it as ready instead of connected.
-    // Wait until `last_used_at` is after the time that the build finished, _and_ still
-    // make sure to check that it's recent, so that we don't show "Ready" indefinitely.
-    case isBuiltRecently &&
-      isUsedRecently &&
-      workspace.health.healthy &&
-      "running":
+  switch (status) {
+    case "ready":
       return <Pill type="active">Ready</Pill>;
-    // Since the agent reports on a 10m interval, we present any connection within that period
-    // plus a little wiggle room as an active connection.
-    case isUsedRecently && "running":
+    case "connected":
       return <Pill type="active">Connected</Pill>;
-    case "running":
-    case "stopping":
-    case "stopped":
-      return <Pill type="inactive">Not connected</Pill>;
+    case "inactive":
+      return (
+        <Tooltip
+          title={
+            <>
+              This workspace was last active on{" "}
+              {usedAt.format("MMMM D [at] h:mm A")}
+            </>
+          }
+        >
+          <Pill type="inactive">Inactive</Pill>
+        </Tooltip>
+      );
+    case "notConnected":
+      return (
+        <Tooltip
+          title={
+            <>
+              This workspace was last active on{" "}
+              {usedAt.format("MMMM D [at] h:mm A")}
+            </>
+          }
+        >
+          <Pill type="inactive">Not connected</Pill>
+        </Tooltip>
+      );
   }
 
   return null;
