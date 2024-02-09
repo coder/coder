@@ -11,9 +11,9 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  arch                   = data.coder_provisioner.me.arch
-  os                     = data.coder_provisioner.me.os
-  startup_script         = <<-EOT
+  arch           = data.coder_provisioner.me.arch
+  os             = data.coder_provisioner.me.os
+  startup_script = <<-EOT
     set -e
     # Run programs at workspace startup
   EOT
@@ -41,6 +41,7 @@ resource "coder_env" "welcome_message" {
   agent_id = coder_agent.main.id
   name     = "WELCOME_MESSAGE"
   value    = "Welcome to your Coder workspace!"
+}
 
 # Adds code-server
 # See all available modules at https://registry.coder.com
