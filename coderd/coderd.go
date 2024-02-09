@@ -959,9 +959,15 @@ func New(options *Options) *API {
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
-				r.Post("/port-share", api.postWorkspaceAgentPortShare)
-				r.Get("/port-shares", api.workspaceAgentPortShares)
-				r.Delete("/port-share", api.deleteWorkspaceAgentPortShare)
+				r.Route("/", func(r chi.Router) {
+					r.Use(
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentSharedPorts),
+					)
+					r.Post("/port-share", api.postWorkspaceAgentPortShare)
+					r.Get("/port-shares", api.workspaceAgentPortShares)
+					r.Delete("/port-share", api.deleteWorkspaceAgentPortShare)
+				})
+
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
