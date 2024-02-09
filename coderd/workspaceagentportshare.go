@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -71,36 +69,10 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	psl, err := api.Database.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+	psl, err := api.Database.UpsertWorkspaceAgentPortShare(ctx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: workspace.ID,
 		AgentName:   req.AgentName,
 		Port:        req.Port,
-	})
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		_, err = api.Database.InsertWorkspaceAgentPortShare(ctx, database.InsertWorkspaceAgentPortShareParams{
-			WorkspaceID: workspace.ID,
-			AgentName:   req.AgentName,
-			Port:        req.Port,
-			ShareLevel:  database.AppSharingLevel(req.ShareLevel),
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		rw.WriteHeader(http.StatusOK)
-		return
-	}
-
-	err = api.Database.UpdateWorkspaceAgentPortShare(ctx, database.UpdateWorkspaceAgentPortShareParams{
-		WorkspaceID: psl.WorkspaceID,
-		AgentName:   psl.AgentName,
-		Port:        psl.Port,
 		ShareLevel:  database.AppSharingLevel(req.ShareLevel),
 	})
 	if err != nil {

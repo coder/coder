@@ -2164,6 +2164,13 @@ func (m metricsStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upse
 	return r0, r1
 }
 
+func (m metricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)

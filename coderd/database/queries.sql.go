@@ -8254,6 +8254,36 @@ func (q *sqlQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg Upda
 	return err
 }
 
+const upsertWorkspaceAgentPortShare = `-- name: UpsertWorkspaceAgentPortShare :one
+INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (workspace_id, agent_name, port) DO UPDATE SET share_level = $4 RETURNING workspace_id, agent_name, port, share_level
+`
+
+type UpsertWorkspaceAgentPortShareParams struct {
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentName   string          `db:"agent_name" json:"agent_name"`
+	Port        int32           `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+}
+
+func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceAgentPortShare,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Port,
+		arg.ShareLevel,
+	)
+	var i WorkspaceAgentPortShare
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.AgentName,
+		&i.Port,
+		&i.ShareLevel,
+	)
+	return i, err
+}
+
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
 DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL

@@ -1604,19 +1604,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 }
 
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
-	s.Run("InsertWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		ps.Port = 8081
-		//nolint:gosimple // casting is not a simplification
-		check.Args(database.InsertWorkspaceAgentPortShareParams{
-			WorkspaceID: ps.WorkspaceID,
-			AgentName:   ps.AgentName,
-			Port:        ps.Port,
-			ShareLevel:  ps.ShareLevel,
-		}).Asserts(ws, rbac.ActionUpdate).Returns(ps)
-	}))
 	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
@@ -1632,17 +1619,6 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentPortShare{ps})
-	}))
-	s.Run("UpdateWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		check.Args(database.UpdateWorkspaceAgentPortShareParams{
-			WorkspaceID: ps.WorkspaceID,
-			AgentName:   ps.AgentName,
-			Port:        ps.Port,
-			ShareLevel:  database.AppSharingLevelAuthenticated,
-		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

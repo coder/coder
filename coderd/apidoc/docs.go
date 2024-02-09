@@ -7189,6 +7189,39 @@ const docTemplate = `{
             }
         },
         "/workspaces/{workspace}/port-share": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Get workspace agent port shares",
+                "operationId": "get-workspace-agent-port-shares",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -7270,41 +7303,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                }
-            }
-        },
-        "/workspaces/{workspace}/port-shares": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "PortSharing"
-                ],
-                "summary": "Get workspace agent port shares",
-                "operationId": "get-workspace-agent-port-shares",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
-                        }
                     }
                 }
             }
@@ -9465,13 +9463,15 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "example"
+                "example",
+                "shared-ports"
             ],
             "x-enum-comments": {
                 "ExperimentExample": "This isn't used for anything."
             },
             "x-enum-varnames": [
-                "ExperimentExample"
+                "ExperimentExample",
+                "ExperimentSharedPorts"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -12686,6 +12686,9 @@ const docTemplate = `{
                 },
                 "share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "workspace_id": {
+                    "type": "string"
                 }
             }
         },

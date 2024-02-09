@@ -5733,33 +5733,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentPortShare(_ context.Context, arg database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.WorkspaceAgentPortShare{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for _, share := range q.workspaceAgentPortShares {
-		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
-			return database.WorkspaceAgentPortShare{}, xerrors.New("port share already exists")
-		}
-	}
-
-	//nolint:gosimple // casting objects is not a simplification imo.
-	ps := database.WorkspaceAgentPortShare{
-		WorkspaceID: arg.WorkspaceID,
-		AgentName:   arg.AgentName,
-		Port:        arg.Port,
-		ShareLevel:  arg.ShareLevel,
-	}
-	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, ps)
-
-	return ps, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7083,26 +7056,6 @@ func (q *FakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) UpdateWorkspaceAgentPortShare(_ context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, share := range q.workspaceAgentPortShares {
-		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
-			share.ShareLevel = arg.ShareLevel
-			q.workspaceAgentPortShares[i] = share
-			return nil
-		}
-	}
-
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -7607,6 +7560,15 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	}
 
 	return database.TailnetTunnel{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

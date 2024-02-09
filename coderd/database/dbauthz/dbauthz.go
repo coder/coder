@@ -2408,20 +2408,6 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAgentPortShare(ctx context.Context, arg database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
-	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceAgentPortShare{}, err
-	}
-
-	// inserting a workspace port share is more akin to just updating the workspace.
-	if err = q.authorizeContext(ctx, rbac.ActionUpdate, w.RBACObject()); err != nil {
-		return database.WorkspaceAgentPortShare{}, xerrors.Errorf("authorize context: %w", err)
-	}
-
-	return q.db.InsertWorkspaceAgentPortShare(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return []database.WorkspaceAgentScript{}, err
@@ -3063,20 +3049,6 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg database.UpdateWorkspaceAgentPortShareParams) error {
-	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return err
-	}
-
-	// updating a workspace port share is more akin to just updating the workspace.
-	if err = q.authorizeContext(ctx, rbac.ActionUpdate, w.RBACObject()); err != nil {
-		return xerrors.Errorf("authorize context: %w", err)
-	}
-
-	return q.db.UpdateWorkspaceAgentPortShare(ctx, arg)
-}
-
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
@@ -3341,6 +3313,10 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

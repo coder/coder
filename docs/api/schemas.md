@@ -2915,9 +2915,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value     |
-| --------- |
-| `example` |
+| Value          |
+| -------------- |
+| `example`      |
+| `shared-ports` |
 
 ## codersdk.ExternalAuth
 
@@ -6573,17 +6574,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_name": "string",
   "port": 0,
-  "share_level": "owner"
+  "share_level": "owner",
+  "workspace_id": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                           | Required | Restrictions | Description |
-| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `agent_name`  | string                                                                         | false    |              |             |
-| `port`        | integer                                                                        | false    |              |             |
-| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
+| Name           | Type                                                                           | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`   | string                                                                         | false    |              |             |
+| `port`         | integer                                                                        | false    |              |             |
+| `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
+| `workspace_id` | string                                                                         | false    |              |             |
 
 ## codersdk.WorkspaceAgentPortShareLevel
 
@@ -6609,7 +6612,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "agent_name": "string",
       "port": 0,
-      "share_level": "owner"
+      "share_level": "owner",
+      "workspace_id": "string"
     }
   ]
 }

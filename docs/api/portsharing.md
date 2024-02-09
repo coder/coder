@@ -1,5 +1,42 @@
 # PortSharing
 
+## Get workspace agent port shares
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaces/{workspace}/port-share`
+
+> Body parameter
+
+```json
+{
+  "agent_name": "string",
+  "port": 0
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                                                     | Required | Description                       |
+| ----------- | ---- | -------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
+| `body`      | body | [codersdk.DeleteWorkspaceAgentPortShareRequest](schemas.md#codersdkdeleteworkspaceagentportsharerequest) | true     | Delete port sharing level request |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Create workspace agent port share
 
 ### Code samples
@@ -39,7 +76,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 {
   "agent_name": "string",
   "port": 0,
-  "share_level": "owner"
+  "share_level": "owner",
+  "workspace_id": "string"
 }
 ```
 
@@ -48,48 +86,5 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 | Status | Meaning                                                 | Description | Schema                                                                         |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentPortShare](schemas.md#codersdkworkspaceagentportshare) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get workspace agent port shares
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/port-shares \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /workspaces/{workspace}/port-shares`
-
-### Parameters
-
-| Name        | In   | Type         | Required | Description  |
-| ----------- | ---- | ------------ | -------- | ------------ |
-| `workspace` | path | string(uuid) | true     | Workspace ID |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "shares": [
-    {
-      "agent_name": "string",
-      "port": 0,
-      "share_level": "owner"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                           |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentPortShares](schemas.md#codersdkworkspaceagentportshares) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

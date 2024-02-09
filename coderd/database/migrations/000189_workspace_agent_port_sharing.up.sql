@@ -5,6 +5,8 @@ CREATE TABLE workspace_agent_port_share (
 	share_level app_sharing_level NOT NULL
 );
 
+ALTER TABLE workspace_agent_port_share ADD PRIMARY KEY (workspace_id, agent_name, port);
+
 ALTER TABLE templates ADD COLUMN max_port_sharing_level app_sharing_level NOT NULL DEFAULT 'owner'::app_sharing_level;
 
 -- Update the template_with_users view by recreating it.

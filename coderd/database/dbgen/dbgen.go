@@ -135,7 +135,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 }
 
 func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
-	ps, err := db.InsertWorkspaceAgentPortShare(genCtx, database.InsertWorkspaceAgentPortShareParams{
+	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
 		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
 		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
 		Port:        takeFirst(orig.Port, 8080),
