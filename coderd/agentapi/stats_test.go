@@ -298,8 +298,9 @@ func TestUpdateStates(t *testing.T) {
 		nextAutostart := now.Add(30 * time.Minute).UTC() // always sent to DB as UTC
 
 		var (
-			db                    = dbmock.NewMockStore(gomock.NewController(t))
-			ps                    = pubsub.NewInMemory()
+			db = dbmock.NewMockStore(gomock.NewController(t))
+			ps = pubsub.NewInMemory()
+
 			templateScheduleStore = schedule.MockTemplateScheduleStore{
 				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
