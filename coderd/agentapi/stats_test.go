@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 )
@@ -78,8 +79,10 @@ func TestUpdateStates(t *testing.T) {
 		t.Parallel()
 
 		var (
-			now                   = dbtime.Now()
-			dbM                   = dbmock.NewMockStore(gomock.NewController(t))
+			now = dbtime.Now()
+			db  = dbmock.NewMockStore(gomock.NewController(t))
+			ps  = pubsub.NewInMemory()
+
 			templateScheduleStore = schedule.MockTemplateScheduleStore{
 				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					panic("should not be called")
@@ -124,7 +127,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
+			Database:                  db,
+			Pubsub:                    ps,
 			StatsBatcher:              batcher,
 			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
 			AgentStatsRefreshInterval: 10 * time.Second,
@@ -144,25 +148,25 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
+		db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
 			Workspace:    workspace,
 			TemplateName: template.Name,
 		}, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
-		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+		db.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
+		db.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		}).Return(nil)
 
 		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+		db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -188,7 +192,8 @@ func TestUpdateStates(t *testing.T) {
 
 		var (
 			now                   = dbtime.Now()
-			dbM                   = dbmock.NewMockStore(gomock.NewController(t))
+			db                    = dbmock.NewMockStore(gomock.NewController(t))
+			ps                    = pubsub.NewInMemory()
 			templateScheduleStore = schedule.MockTemplateScheduleStore{
 				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					panic("should not be called")
@@ -213,7 +218,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
+			Database:                  db,
+			Pubsub:                    ps,
 			StatsBatcher:              batcher,
 			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
 			AgentStatsRefreshInterval: 10 * time.Second,
@@ -225,13 +231,13 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
+		db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
 			Workspace:    workspace,
 			TemplateName: template.Name,
 		}, nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
+		db.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		}).Return(nil)
@@ -244,7 +250,8 @@ func TestUpdateStates(t *testing.T) {
 		t.Parallel()
 
 		var (
-			dbM = dbmock.NewMockStore(gomock.NewController(t))
+			db  = dbmock.NewMockStore(gomock.NewController(t))
+			ps  = pubsub.NewInMemory()
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
 					ConnectionsByProto: map[string]int64{}, // len() == 0
@@ -255,7 +262,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
+			Database:                  db,
+			Pubsub:                    ps,
 			StatsBatcher:              nil, // should not be called
 			TemplateScheduleStore:     nil, // should not be called
 			AgentStatsRefreshInterval: 10 * time.Second,
@@ -290,7 +298,8 @@ func TestUpdateStates(t *testing.T) {
 		nextAutostart := now.Add(30 * time.Minute).UTC() // always sent to DB as UTC
 
 		var (
-			dbM                   = dbmock.NewMockStore(gomock.NewController(t))
+			db                    = dbmock.NewMockStore(gomock.NewController(t))
+			ps                    = pubsub.NewInMemory()
 			templateScheduleStore = schedule.MockTemplateScheduleStore{
 				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
@@ -321,7 +330,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
+			Database:                  db,
+			Pubsub:                    ps,
 			StatsBatcher:              batcher,
 			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
 			AgentStatsRefreshInterval: 15 * time.Second,
@@ -341,26 +351,26 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
+		db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
 			Workspace:    workspace,
 			TemplateName: template.Name,
 		}, nil)
 
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
-		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+		db.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: nextAutostart,
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
+		db.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		}).Return(nil)
 
 		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+		db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)

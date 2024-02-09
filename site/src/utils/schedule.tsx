@@ -114,7 +114,7 @@ export const autostopDisplay = (
     const deadline = dayjs(workspace.latest_build.deadline).tz(
       dayjs.tz.guess(),
     );
-    const now = dayjs(workspace.latest_build.deadline).utc();
+    const now = dayjs(workspace.latest_build.deadline);
     if (isShuttingDown(workspace, deadline)) {
       return {
         message: Language.workspaceShuttingDownLabel,
