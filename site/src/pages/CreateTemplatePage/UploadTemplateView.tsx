@@ -11,8 +11,16 @@ import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
+import { Template } from "api/typesGenerated";
+import { FC } from "react";
 
-export const UploadTemplateView = () => {
+type UploadTemplateViewProps = {
+  onSuccess: (template: Template) => void;
+};
+
+export const UploadTemplateView: FC<UploadTemplateViewProps> = ({
+  onSuccess,
+}) => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
 
@@ -61,7 +69,7 @@ export const UploadTemplateView = () => {
           ),
           template: newTemplate(formData),
         });
-        navigate(`/templates/${template.name}`);
+        onSuccess(template);
       }}
     />
   );

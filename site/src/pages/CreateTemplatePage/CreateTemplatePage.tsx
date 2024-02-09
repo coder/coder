@@ -6,10 +6,15 @@ import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizont
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
 import { UploadTemplateView } from "./UploadTemplateView";
+import { Template } from "api/typesGenerated";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const onSuccess = (template: Template) => {
+    navigate(`/templates/${template.name}/files`);
+  };
 
   const onCancel = () => {
     navigate(-1);
@@ -23,11 +28,11 @@ const CreateTemplatePage: FC = () => {
 
       <FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
         {searchParams.has("fromTemplate") ? (
-          <DuplicateTemplateView />
+          <DuplicateTemplateView onSuccess={onSuccess} />
         ) : searchParams.has("exampleId") ? (
-          <ImportStarterTemplateView />
+          <ImportStarterTemplateView onSuccess={onSuccess} />
         ) : (
-          <UploadTemplateView />
+          <UploadTemplateView onSuccess={onSuccess} />
         )}
       </FullPageHorizontalForm>
     </>

@@ -18,8 +18,15 @@ import {
   getFormPermissions,
   newTemplate,
 } from "./utils";
+import { Template } from "api/typesGenerated";
 
-export const ImportStarterTemplateView: FC = () => {
+type ImportStarterTemplateViewProps = {
+  onSuccess: (template: Template) => void;
+};
+
+export const ImportStarterTemplateView: FC<ImportStarterTemplateViewProps> = ({
+  onSuccess,
+}) => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();
@@ -76,7 +83,7 @@ export const ImportStarterTemplateView: FC = () => {
           ),
           template: newTemplate(formData),
         });
-        navigate(`/templates/${template.name}`);
+        onSuccess(template);
       }}
     />
   );
