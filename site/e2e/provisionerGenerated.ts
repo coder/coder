@@ -180,6 +180,7 @@ export interface App {
   healthcheck: Healthcheck | undefined;
   sharingLevel: AppSharingLevel;
   external: boolean;
+  order: number;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
