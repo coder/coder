@@ -7579,6 +7579,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg dat
 		}
 	}
 
+	//nolint:gosimple casts are not a simplification
 	psl := database.WorkspaceAgentPortShare{
 		WorkspaceID: arg.WorkspaceID,
 		AgentName:   arg.AgentName,
