@@ -497,9 +497,7 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
-var (
-	WorkspaceNotifyDescriptionAgentStatsOnly = []byte("agentStatsOnly")
-)
+var WorkspaceNotifyDescriptionAgentStatsOnly = []byte("agentStatsOnly")
 
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY
 // channel to listen for updates on. The payload is empty,
