@@ -6,12 +6,14 @@ import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
+import { TemplateExample } from "api/typesGenerated";
 
 const StarterTemplatesPage: FC = () => {
   const organizationId = useOrganizationId();
   const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const starterTemplatesByTag = templateExamplesQuery.data
-    ? getTemplatesByTag(templateExamplesQuery.data)
+    ? // Currently, the scratch template should not be displayed on the starter templates page.
+      getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))
     : undefined;
 
   return (
@@ -26,6 +28,10 @@ const StarterTemplatesPage: FC = () => {
       />
     </>
   );
+};
+
+const removeScratchExample = (data: TemplateExample[]) => {
+  return data.filter((example) => example.id !== "scratch");
 };
 
 export default StarterTemplatesPage;
