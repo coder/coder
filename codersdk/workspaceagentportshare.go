@@ -26,9 +26,10 @@ type (
 		Shares []WorkspaceAgentPortShare `json:"shares"`
 	}
 	WorkspaceAgentPortShare struct {
-		AgentName  string                       `json:"agent_name"`
-		Port       int32                        `json:"port"`
-		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
+		WorkspaceID uuid.UUID                    `json:"workspace_id"`
+		AgentName   string                       `json:"agent_name"`
+		Port        int32                        `json:"port"`
+		ShareLevel  WorkspaceAgentPortShareLevel `json:"share_level"`
 	}
 	DeleteWorkspaceAgentPortShareRequest struct {
 		AgentName string `json:"agent_name"`
@@ -49,7 +50,7 @@ func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
 
 func (c *Client) GetWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) (WorkspaceAgentPortShares, error) {
 	var shares WorkspaceAgentPortShares
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/port-shares", workspaceID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/port-share", workspaceID), nil)
 	if err != nil {
 		return shares, err
 	}

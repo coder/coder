@@ -118,7 +118,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 // @Tags PortSharing
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentPortShares
-// @Router /workspaces/{workspace}/port-shares [get]
+// @Router /workspaces/{workspace}/port-share [get]
 func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -146,7 +146,7 @@ func (api *API) workspaceAgentPortShares(rw http.ResponseWriter, r *http.Request
 func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-	var req codersdk.UpdateWorkspaceAgentPortShareRequest
+	var req codersdk.DeleteWorkspaceAgentPortShareRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -174,8 +174,9 @@ func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.Wor
 
 func convertPortShare(share database.WorkspaceAgentPortShare) codersdk.WorkspaceAgentPortShare {
 	return codersdk.WorkspaceAgentPortShare{
-		AgentName:  share.AgentName,
-		Port:       share.Port,
-		ShareLevel: codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
+		WorkspaceID: share.WorkspaceID,
+		AgentName:   share.AgentName,
+		Port:        share.Port,
+		ShareLevel:  codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
 	}
 }

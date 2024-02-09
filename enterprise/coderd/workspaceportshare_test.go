@@ -17,9 +17,12 @@ import (
 func TestWorkspacePortShare(t *testing.T) {
 	t.Parallel()
 
+	dep := coderdtest.DeploymentValues(t)
+	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dep,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
