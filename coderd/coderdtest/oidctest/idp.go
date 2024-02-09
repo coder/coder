@@ -539,7 +539,7 @@ func (f *FakeIDP) CreateAuthCode(t testing.TB, state string) string {
 	// it expects some claims to be present.
 	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
 
-	code, err := OAuth2GetCode(f.cfg.AuthCodeURL(state), state, func(req *http.Request) (*http.Response, error) {
+	code, err := OAuth2GetCode(f.cfg.AuthCodeURL(state), func(req *http.Request) (*http.Response, error) {
 		rw := httptest.NewRecorder()
 		f.handler.ServeHTTP(rw, req)
 		resp := rw.Result()

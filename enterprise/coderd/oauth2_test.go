@@ -945,7 +945,6 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 	state := uuid.NewString()
 	return oidctest.OAuth2GetCode(
 		cfg.AuthCodeURL(state),
-		state,
 		func(req *http.Request) (*http.Response, error) {
 			// TODO: Would be better if client had a .Do() method.
 			// TODO: Is this the best way to handle redirects?

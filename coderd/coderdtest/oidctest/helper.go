@@ -122,10 +122,13 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 // unit tests, it's easier to skip this step sometimes. It does make an actual
 // request to the IDP, so it should be equivalent to doing this "manually" with
 // actual requests.
-//
-// TODO: Is state param optional? Can we grab it from the authURL?
-func OAuth2GetCode(authURL string, state string, doRequest func(req *http.Request) (*http.Response, error)) (string, error) {
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, authURL, nil)
+func OAuth2GetCode(rawAuthURL string, doRequest func(req *http.Request) (*http.Response, error)) (string, error) {
+	authURL, err := url.Parse(rawAuthURL)
+	if err != nil {
+		return "", xerrors.Errorf("failed to parse auth URL: %w", err)
+	}
+
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawAuthURL, nil)
 	if err != nil {
 		return "", xerrors.Errorf("failed to create auth request: %w", err)
 	}
@@ -156,6 +159,7 @@ func OAuth2GetCode(authURL string, state string, doRequest func(req *http.Reques
 		return "", xerrors.Errorf("expected code in redirect location")
 	}
 
+	state := authURL.Query().Get("state")
 	newState := toURL.Query().Get("state")
 	if newState != state {
 		return "", xerrors.Errorf("expected state %q, got %q", state, newState)
