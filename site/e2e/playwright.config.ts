@@ -28,6 +28,7 @@ export default defineConfig({
       dependencies: ["setup"],
       use: {
         storageState: STORAGE_STATE,
+        viewport: { width: 2560, height: 1440 },
       },
       timeout: 60_000,
     },
