@@ -39,7 +39,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 			},
 		}})
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		topCtx := testutil.Context(t, testutil.WaitLong)
 
 		tests := []struct {
 			name string
@@ -142,7 +142,7 @@ func TestOAuth2ProviderApps(t *testing.T) {
 			CallbackURL: "http://coder.com",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		_, err := client.PostOAuth2ProviderApp(ctx, req)
+		_, err := client.PostOAuth2ProviderApp(topCtx, req)
 		require.NoError(t, err)
 
 		// Generate an application for testing PUTs.
@@ -151,13 +151,14 @@ func TestOAuth2ProviderApps(t *testing.T) {
 			CallbackURL: "http://coder.com",
 		}
 		//nolint:gocritic // OAauth2 app management requires owner permission.
-		existingApp, err := client.PostOAuth2ProviderApp(ctx, req)
+		existingApp, err := client.PostOAuth2ProviderApp(topCtx, req)
 		require.NoError(t, err)
 
 		for _, test := range tests {
 			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
 				//nolint:gocritic // OAauth2 app management requires owner permission.
 				_, err := client.PostOAuth2ProviderApp(ctx, test.req)
@@ -392,11 +393,11 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			},
 		},
 	})
-	ctx := testutil.Context(t, testutil.WaitLong)
-	apps := generateApps(ctx, t, ownerClient, "token-exchange")
+	topCtx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(topCtx, t, ownerClient, "token-exchange")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
-	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(topCtx, apps.Default.ID)
 	require.NoError(t, err)
 
 	// The typical oauth2 flow from this point is:
