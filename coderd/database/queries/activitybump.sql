@@ -1,8 +1,9 @@
--- Bumps the workspace deadline by 1 hour. If the workspace bump will
--- cross an autostart threshold, then the bump is autostart + TTL. This
--- is the deadline behavior if the workspace was to autostart from a stopped
--- state.
--- Max deadline is respected, and will never be bumped.
+-- Bumps the workspace deadline by the template's configured "activity_bump"
+-- duration (default 1h). If the workspace bump will cross an autostart
+-- threshold, then the bump is autostart + TTL. This is the deadline behavior if
+-- the workspace was to autostart from a stopped state.
+--
+-- Max deadline is respected, and the deadline will never be bumped past it.
 -- The deadline will never decrease.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
@@ -69,7 +70,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 -- We only bump if the template has an activity bump duration set.
-AND l.activity_bump != 0
+AND l.activity_bump > 0
 AND l.build_transition = 'start'
 -- We only bump if the raw interval is positive and non-zero.
 AND l.ttl_interval > '0 seconds'::interval
