@@ -7579,12 +7579,15 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg dat
 		}
 	}
 
-	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, database.WorkspaceAgentPortShare{
+	psl := database.WorkspaceAgentPortShare{
 		WorkspaceID: arg.WorkspaceID,
 		AgentName:   arg.AgentName,
 		Port:        arg.Port,
 		ShareLevel:  arg.ShareLevel,
-	})
+	}
+	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
+
+	return psl, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
