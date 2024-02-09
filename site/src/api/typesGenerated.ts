@@ -1625,6 +1625,7 @@ export interface WorkspaceAgentMetadataResult {
 
 // From codersdk/workspaceagentportshare.go
 export interface WorkspaceAgentPortShare {
+  readonly workspace_id: string;
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
@@ -1884,8 +1885,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "example";
-export const Experiments: Experiment[] = ["example"];
+export type Experiment = "example" | "shared-ports";
+export const Experiments: Experiment[] = ["example", "shared-ports"];
 
 // From codersdk/deployment.go
 export type FeatureName =

@@ -8173,34 +8173,6 @@ func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWork
 	return i, err
 }
 
-const insertWorkspaceAgentPortShare = `-- name: InsertWorkspaceAgentPortShare :one
-INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level) VALUES ($1, $2, $3, $4) RETURNING workspace_id, agent_name, port, share_level
-`
-
-type InsertWorkspaceAgentPortShareParams struct {
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAgentPortShare(ctx context.Context, arg InsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentPortShare,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.Port,
-		arg.ShareLevel,
-	)
-	var i WorkspaceAgentPortShare
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.AgentName,
-		&i.Port,
-		&i.ShareLevel,
-	)
-	return i, err
-}
-
 const listWorkspaceAgentPortShares = `-- name: ListWorkspaceAgentPortShares :many
 SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1
 `
@@ -8231,27 +8203,6 @@ func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspace
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateWorkspaceAgentPortShare = `-- name: UpdateWorkspaceAgentPortShare :exec
-UPDATE workspace_agent_port_share SET share_level = $1 WHERE workspace_id = $2 AND agent_name = $3 AND port = $4
-`
-
-type UpdateWorkspaceAgentPortShareParams struct {
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceAgentPortShare(ctx context.Context, arg UpdateWorkspaceAgentPortShareParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentPortShare,
-		arg.ShareLevel,
-		arg.WorkspaceID,
-		arg.AgentName,
-		arg.Port,
-	)
-	return err
 }
 
 const upsertWorkspaceAgentPortShare = `-- name: UpsertWorkspaceAgentPortShare :one

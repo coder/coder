@@ -3264,21 +3264,6 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), arg0, arg1)
 }
 
-// InsertWorkspaceAgentPortShare mocks base method.
-func (m *MockStore) InsertWorkspaceAgentPortShare(arg0 context.Context, arg1 database.InsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertWorkspaceAgentPortShare", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceAgentPortShare)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertWorkspaceAgentPortShare indicates an expected call of InsertWorkspaceAgentPortShare.
-func (mr *MockStoreMockRecorder) InsertWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentPortShare), arg0, arg1)
-}
-
 // InsertWorkspaceAgentScripts mocks base method.
 func (m *MockStore) InsertWorkspaceAgentScripts(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()
@@ -4089,20 +4074,6 @@ func (m *MockStore) UpdateWorkspaceAgentMetadata(arg0 context.Context, arg1 data
 func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentMetadata(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentMetadata), arg0, arg1)
-}
-
-// UpdateWorkspaceAgentPortShare mocks base method.
-func (m *MockStore) UpdateWorkspaceAgentPortShare(arg0 context.Context, arg1 database.UpdateWorkspaceAgentPortShareParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentPortShare", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateWorkspaceAgentPortShare indicates an expected call of UpdateWorkspaceAgentPortShare.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentPortShare), arg0, arg1)
 }
 
 // UpdateWorkspaceAgentStartupByID mocks base method.
