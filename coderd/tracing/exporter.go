@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -12,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
+	"google.golang.org/grpc/credentials"
 	ddotel "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/opentelemetry"
 	ddtracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	ddprofiler "gopkg.in/DataDog/dd-trace-go.v1/profiler"
-
-	"golang.org/x/xerrors"
-	"google.golang.org/grpc/credentials"
 )
 
 // TracerOpts specifies which telemetry exporters should be configured.
@@ -31,69 +32,43 @@ type TracerOpts struct {
 	Honeycomb string
 }
 
+type OtelTracerProvider interface {
+	trace.TracerProvider
+	Shutdown(context.Context) error
+	ForceFlush(context.Context) error
+}
+
 // TracerProvider creates a grpc otlp exporter and configures a trace provider.
 // Caller is responsible for calling TracerProvider.Shutdown to ensure all data is flushed.
-func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdktrace.TracerProvider, func(context.Context) error, error) {
-	res := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		// the service name used to display traces in backends
-		semconv.ServiceNameKey.String(service),
-	)
-
+func TracerProvider(ctx context.Context, service string, opts TracerOpts) (OtelTracerProvider, func(context.Context) error, error) {
 	var (
-		tracerOpts = []sdktrace.TracerProviderOption{
-			sdktrace.WithResource(res),
+		tracerProvider OtelTracerProvider
+		closers        = []func(context.Context) error{}
+		addCloser      = func(closer func(context.Context) error) {
+			closers = append(closers, closer)
 		}
-		closers = []func(context.Context) error{}
 	)
 
+	// DataDog is very special :) and cannot be configured as an exporter, only
+	// as a provider. This means we can't use DataDog and another exporter at
+	// the same time.
 	if opts.DataDog {
-		// See more:
-		// https://docs.datadoghq.com/tracing/metrics/runtime_metrics/go/
-		dd := ddotel.NewTracerProvider(ddtracer.WithRuntimeMetrics())
-		closers = append(closers, func(_ context.Context) error {
-			// For some reason, this doesn't appear to actually wind down
-			// the goroutines.
-			return dd.Shutdown()
-		})
-
-		// See https://docs.datadoghq.com/profiler/enabling/go/
-		_ = ddprofiler.Start(
-			ddprofiler.WithService("coderd"),
-			ddprofiler.WithProfileTypes(
-				ddprofiler.CPUProfile,
-				ddprofiler.HeapProfile,
-				ddprofiler.GoroutineProfile,
-
-				// In the future, we may want to enable:
-				// ddprofiler.BlockProfile,
-				// ddprofiler.MutexProfile,
-			),
-		)
-		closers = append(closers, func(_ context.Context) error {
-			ddprofiler.Stop()
-			return nil
-		})
-	}
-
-	if opts.Default {
-		exporter, err := DefaultExporter(ctx)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("default exporter: %w", err)
+		if opts.Default {
+			return nil, nil, xerrors.New("cannot use DataDog with another trace exporter, please disable the default exporter (CODER_TRACE_ENABLE)")
 		}
-		closers = append(closers, exporter.Shutdown)
-		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
-	}
-	if opts.Honeycomb != "" {
-		exporter, err := HoneycombExporter(ctx, opts.Honeycomb)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("honeycomb exporter: %w", err)
+		if opts.Honeycomb != "" {
+			return nil, nil, xerrors.New("cannot use DataDog with another trace exporter, please disable the Honeycomb exporter (CODER_TRACE_HONEYCOMB_API_KEY)")
 		}
-		closers = append(closers, exporter.Shutdown)
-		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
+
+		tracerProvider = ddogTracerProvider(service, addCloser)
+	} else {
+		var err error
+		tracerProvider, err = defaultTracerProvider(ctx, service, opts, addCloser)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("default tracer provider: %w", err)
+		}
 	}
 
-	tracerProvider := sdktrace.NewTracerProvider(tracerOpts...)
 	otel.SetTracerProvider(tracerProvider)
 	// Ignore otel errors!
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {}))
@@ -126,7 +101,75 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	}, nil
 }
 
-func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
+func defaultTracerProvider(ctx context.Context, service string, opts TracerOpts, addCloser func(func(ctx context.Context) error)) (OtelTracerProvider, error) {
+	var (
+		res = resource.NewWithAttributes(
+			semconv.SchemaURL,
+			// the service name used to display traces in backends
+			semconv.ServiceNameKey.String(service),
+		)
+		tracerOpts = []sdktrace.TracerProviderOption{
+			sdktrace.WithResource(res),
+		}
+	)
+
+	if opts.Default {
+		exporter, err := defaultExporter(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("default exporter: %w", err)
+		}
+		addCloser(exporter.Shutdown)
+		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
+	}
+	if opts.Honeycomb != "" {
+		exporter, err := honeycombExporter(ctx, opts.Honeycomb)
+		if err != nil {
+			return nil, xerrors.Errorf("honeycomb exporter: %w", err)
+		}
+		addCloser(exporter.Shutdown)
+		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
+	}
+
+	return sdktrace.NewTracerProvider(tracerOpts...), nil
+}
+
+func ddogTracerProvider(service string, addCloser func(func(ctx context.Context) error)) OtelTracerProvider {
+	// Collect profiling data.
+	// See https://docs.datadoghq.com/profiler/enabling/go/
+	_ = ddprofiler.Start(
+		ddprofiler.WithService(service),
+		ddprofiler.WithProfileTypes(
+			ddprofiler.CPUProfile,
+			ddprofiler.HeapProfile,
+			ddprofiler.GoroutineProfile,
+
+			// In the future, we may want to enable:
+			// ddprofiler.BlockProfile,
+			// ddprofiler.MutexProfile,
+		),
+	)
+	addCloser(func(_ context.Context) error {
+		ddprofiler.Stop()
+		return nil
+	})
+
+	// Collect regular ol' traces.
+	//
+	// See more:
+	// https://docs.datadoghq.com/tracing/metrics/runtime_metrics/go/
+	//
+	// NOTE: The Shutdown method does not appear to actually wind down the
+	// goroutines. We only use this in dogfood at the moment and it's a hidden
+	// feature, so we're not going to worry about it for now.
+	return ddogOtelTracerProvider{
+		TracerProvider: ddotel.NewTracerProvider(
+			ddtracer.WithService(service),
+			ddtracer.WithRuntimeMetrics(),
+		),
+	}
+}
+
+func defaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
 	if err != nil {
 		return nil, xerrors.Errorf("create otlp exporter: %w", err)
@@ -135,7 +178,7 @@ func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	return exporter, nil
 }
 
-func HoneycombExporter(ctx context.Context, apiKey string) (*otlptrace.Exporter, error) {
+func honeycombExporter(ctx context.Context, apiKey string) (*otlptrace.Exporter, error) {
 	opts := []otlptracegrpc.Option{
 		otlptracegrpc.WithEndpoint("api.honeycomb.io:443"),
 		otlptracegrpc.WithHeaders(map[string]string{
@@ -150,4 +193,38 @@ func HoneycombExporter(ctx context.Context, apiKey string) (*otlptrace.Exporter,
 	}
 
 	return exporter, nil
+}
+
+// ddogOtelTracerProvider is a wrapper around the DataDog tracer provider that
+// implements the same methods as sdktrace.TracerProvider. DataDog has methods
+// with the same names, but they have different signatures, so we need to wrap
+// them.
+type ddogOtelTracerProvider struct {
+	*ddotel.TracerProvider
+}
+
+var _ OtelTracerProvider = ddogOtelTracerProvider{}
+
+func (p ddogOtelTracerProvider) Shutdown(_ context.Context) error {
+	return p.TracerProvider.Shutdown()
+}
+
+func (p ddogOtelTracerProvider) ForceFlush(ctx context.Context) error {
+	errCh := make(chan error, 1)
+
+	timeout := 10 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = time.Until(deadline)
+		if timeout < 0 {
+			return ctx.Err()
+		}
+	}
+	p.TracerProvider.ForceFlush(timeout, func(ok bool) {
+		if ok {
+			errCh <- nil
+		} else {
+			errCh <- xerrors.New("datadog force flush failed")
+		}
+	})
+	return <-errCh
 }
