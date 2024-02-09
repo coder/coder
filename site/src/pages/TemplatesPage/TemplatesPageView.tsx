@@ -6,7 +6,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -45,15 +44,7 @@ import { docs } from "utils/docs";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
-import {
-  MoreMenu,
-  MoreMenuContent,
-  MoreMenuItem,
-  MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
-import NoteAddOutlined from "@mui/icons-material/NoteAddOutlined";
-import UploadOutlined from "@mui/icons-material/UploadOutlined";
-import Inventory2 from "@mui/icons-material/Inventory2";
+import { CreateTemplateButton } from "./CreateTemplateButton";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -180,41 +171,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          canCreateTemplates && (
-            <MoreMenu>
-              <MoreMenuTrigger>
-                <Button startIcon={<AddIcon />} variant="contained">
-                  Create Template
-                </Button>
-              </MoreMenuTrigger>
-              <MoreMenuContent>
-                <MoreMenuItem
-                  onClick={() => {
-                    navigate(`/templates/new?exampleId=scratch`);
-                  }}
-                >
-                  <NoteAddOutlined />
-                  From scratch
-                </MoreMenuItem>
-                <MoreMenuItem
-                  onClick={() => {
-                    navigate("/templates/new");
-                  }}
-                >
-                  <UploadOutlined />
-                  Upload template
-                </MoreMenuItem>
-                <MoreMenuItem
-                  onClick={() => {
-                    navigate("/starter-templates");
-                  }}
-                >
-                  <Inventory2 />
-                  Choose a starter template
-                </MoreMenuItem>
-              </MoreMenuContent>
-            </MoreMenu>
-          )
+          canCreateTemplates && <CreateTemplateButton onNavigate={navigate} />
         }
       >
         <PageHeaderTitle>
