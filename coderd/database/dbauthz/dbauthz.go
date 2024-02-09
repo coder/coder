@@ -3316,7 +3316,17 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
-	panic("not implemented")
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

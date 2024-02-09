@@ -7568,7 +7568,23 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg dat
 		return database.WorkspaceAgentPortShare{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && arg.AgentName == share.AgentName {
+			share.Port = arg.Port
+			q.workspaceAgentPortShares[i] = share
+			return share, nil
+		}
+	}
+
+	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, database.WorkspaceAgentPortShare{
+		WorkspaceID: arg.WorkspaceID,
+		AgentName:   arg.AgentName,
+		Port:        arg.Port,
+		ShareLevel:  arg.ShareLevel,
+	})
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
