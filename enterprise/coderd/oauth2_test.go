@@ -694,7 +694,8 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			// app at a time and running tests in parallel could clobber each other.
 			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 			if test.setup != nil {
-				err = test.setup(ctx, userClient, user)
+				err := test.setup(ctx, userClient, user)
+				require.NoError(t, err)
 			}
 
 			// Each test gets its own oauth2.Config so they can run in parallel.
@@ -721,6 +722,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			if test.defaultCode != nil {
 				code = *test.defaultCode
 			} else {
+				var err error
 				code, err = authorizationFlow(ctx, userClient, valid)
 				if test.authError != "" {
 					require.Error(t, err)
