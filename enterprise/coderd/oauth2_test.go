@@ -1133,7 +1133,7 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 				// have to click "allow" first, and the way we detect that is using the
 				// origin and referer headers).
 				// Normally origin does not include the path, but it is not relevant to
-				// the check we make..
+				// the check we make.
 				req.Header.Set(httpmw.OriginHeader, client.URL.String())
 				req.Header.Set("Referer", client.URL.String())
 			})
