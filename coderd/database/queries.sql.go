@@ -79,7 +79,7 @@ SET
 FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
-AND l.activity_bump IS NOT NULL
+AND l.activity_bump > 0
 AND l.build_transition = 'start'
 AND l.ttl_interval > '0 seconds'::interval
 AND l.build_deadline != '0001-01-01 00:00:00+00'
@@ -91,11 +91,12 @@ type ActivityBumpWorkspaceParams struct {
 	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
 
-// Bumps the workspace deadline by 1 hour. If the workspace bump will
-// cross an autostart threshold, then the bump is autostart + TTL. This
-// is the deadline behavior if the workspace was to autostart from a stopped
-// state.
-// Max deadline is respected, and will never be bumped.
+// Bumps the workspace deadline by the template's configured "activity_bump"
+// duration (default 1h). If the workspace bump will cross an autostart
+// threshold, then the bump is autostart + TTL. This is the deadline behavior if
+// the workspace was to autostart from a stopped state.
+//
+// Max deadline is respected, and the deadline will never be bumped past it.
 // The deadline will never decrease.
 // We only bump if the template has an activity bump duration set.
 // We only bump if the raw interval is positive and non-zero.
