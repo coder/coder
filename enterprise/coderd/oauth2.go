@@ -300,9 +300,10 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @ID oauth2-token-exchange
 // @Produce json
 // @Tags Enterprise
-// @Param client_id formData string true "Client ID"
-// @Param client_secret formData string true "Client secret"
-// @Param code formData string true "Authorization code"
+// @Param client_id formData string false "Client ID, required if grant_type=authorization_code"
+// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code"
+// @Param code formData string false "Authorization code, required if grant_type=authorization_code"
+// @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
 // @Router /login/oauth2/tokens [post]

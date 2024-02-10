@@ -184,12 +184,12 @@ type OAuth2ProviderGrantType string
 
 const (
 	OAuth2ProviderGrantTypeAuthorizationCode OAuth2ProviderGrantType = "authorization_code"
+	OAuth2ProviderGrantTypeRefreshToken      OAuth2ProviderGrantType = "refresh_token"
 )
 
 func (e OAuth2ProviderGrantType) Valid() bool {
-	//nolint:gocritic,revive // More cases will be added later.
 	switch e {
-	case OAuth2ProviderGrantTypeAuthorizationCode:
+	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
 		return true
 	}
 	return false

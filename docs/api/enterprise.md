@@ -588,24 +588,27 @@ curl -X POST http://coder-server:8080/api/v2/login/oauth2/tokens \
 client_id: string
 client_secret: string
 code: string
+refresh_token: string
 grant_type: authorization_code
 ```
 
 ### Parameters
 
-| Name              | In   | Type   | Required | Description        |
-| ----------------- | ---- | ------ | -------- | ------------------ |
-| `body`            | body | object | true     |                    |
-| `» client_id`     | body | string | true     | Client ID          |
-| `» client_secret` | body | string | true     | Client secret      |
-| `» code`          | body | string | true     | Authorization code |
-| `» grant_type`    | body | string | true     | Grant type         |
+| Name              | In   | Type   | Required | Description                                                   |
+| ----------------- | ---- | ------ | -------- | ------------------------------------------------------------- |
+| `body`            | body | object | false    |                                                               |
+| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code          |
+| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code      |
+| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code |
+| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token           |
+| `» grant_type`    | body | string | true     | Grant type                                                    |
 
 #### Enumerated Values
 
 | Parameter      | Value                |
 | -------------- | -------------------- |
 | `» grant_type` | `authorization_code` |
+| `» grant_type` | `refresh_token`      |
 
 ### Example responses
 

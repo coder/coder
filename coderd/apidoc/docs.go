@@ -1501,28 +1501,32 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Client ID",
+                        "description": "Client ID, required if grant_type=authorization_code",
                         "name": "client_id",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "string",
-                        "description": "Client secret",
+                        "description": "Client secret, required if grant_type=authorization_code",
                         "name": "client_secret",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
                     },
                     {
                         "type": "string",
-                        "description": "Authorization code",
+                        "description": "Authorization code, required if grant_type=authorization_code",
                         "name": "code",
-                        "in": "formData",
-                        "required": true
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Refresh token, required if grant_type=refresh_token",
+                        "name": "refresh_token",
+                        "in": "formData"
                     },
                     {
                         "enum": [
-                            "authorization_code"
+                            "authorization_code",
+                            "refresh_token"
                         ],
                         "type": "string",
                         "description": "Grant type",

@@ -30,12 +30,16 @@ var errBadSecret = xerrors.New("Invalid client secret")
 // errBadCode means the user provided a bad code.
 var errBadCode = xerrors.New("Invalid code")
 
+// errBadToken means the user provided a bad token.
+var errBadToken = xerrors.New("Invalid token")
+
 type tokenParams struct {
 	clientID     string
 	clientSecret string
 	code         string
 	grantType    codersdk.OAuth2ProviderGrantType
 	redirectURL  *url.URL
+	refreshToken string
 }
 
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
@@ -44,15 +48,24 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 	if err != nil {
 		return tokenParams{}, nil, xerrors.Errorf("parse form: %w", err)
 	}
-	p.RequiredNotEmpty("grant_type", "client_secret", "client_id", "code")
 
 	vals := r.Form
+	p.RequiredNotEmpty("grant_type")
+	grantType := httpapi.ParseCustom(p, vals, "", "grant_type", httpapi.ParseEnum[codersdk.OAuth2ProviderGrantType])
+	switch grantType {
+	case codersdk.OAuth2ProviderGrantTypeRefreshToken:
+		p.RequiredNotEmpty("refresh_token")
+	case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
+		p.RequiredNotEmpty("client_secret", "client_id", "code")
+	}
+
 	params := tokenParams{
 		clientID:     p.String(vals, "", "client_id"),
 		clientSecret: p.String(vals, "", "client_secret"),
 		code:         p.String(vals, "", "code"),
+		grantType:    grantType,
 		redirectURL:  p.RedirectURL(vals, callbackURL, "redirect_uri"),
-		grantType:    httpapi.ParseCustom(p, vals, "", "grant_type", httpapi.ParseEnum[codersdk.OAuth2ProviderGrantType]),
+		refreshToken: p.String(vals, "", "refresh_token"),
 	}
 
 	p.ErrorExcessParams(vals)
@@ -89,7 +102,9 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 		var token oauth2.Token
 		//nolint:gocritic,revive // More cases will be added later.
 		switch params.grantType {
-		// TODO: Client creds, device code, refresh.
+		// TODO: Client creds, device code.
+		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
+			token, err = refreshTokenGrant(ctx, db, app, defaultLifetime, params)
 		default:
 			token, err = authorizationCodeGrant(ctx, db, app, defaultLifetime, params)
 		}
@@ -163,9 +178,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Generate a refresh token.
-	// The refresh token is not currently used or exposed though as API keys can
-	// already be refreshed by just using them.
-	// TODO: However, should we implement the refresh grant anyway?
 	refreshToken, err := GenerateSecret()
 	if err != nil {
 		return oauth2.Token{}, err
@@ -244,10 +256,115 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	return oauth2.Token{
-		AccessToken: sessionToken,
-		TokenType:   "Bearer",
-		// TODO: Exclude until refresh grant is implemented.
-		// RefreshToken: refreshToken.formatted,
-		// Expiry:       key.ExpiresAt,
+		AccessToken:  sessionToken,
+		TokenType:    "Bearer",
+		RefreshToken: refreshToken.Formatted,
+		Expiry:       key.ExpiresAt,
+	}, nil
+}
+
+func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, defaultLifetime time.Duration, params tokenParams) (oauth2.Token, error) {
+	// Validate the token.
+	token, err := parseSecret(params.refreshToken)
+	if err != nil {
+		return oauth2.Token{}, errBadToken
+	}
+	//nolint:gocritic // There is no user yet so we must use the system.
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.prefix))
+	if errors.Is(err, sql.ErrNoRows) {
+		return oauth2.Token{}, errBadToken
+	}
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
+	}
+	if !equal {
+		return oauth2.Token{}, errBadToken
+	}
+
+	// Ensure the token has not expired.
+	if dbToken.ExpiresAt.Before(dbtime.Now()) {
+		return oauth2.Token{}, errBadToken
+	}
+
+	// Grab the user roles so we can perform the refresh as the user.
+	//nolint:gocritic // There is no user yet so we must use the system.
+	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+	//nolint:gocritic // There is no user yet so we must use the system.
+	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), prevKey.UserID)
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+	userSubj := rbac.Subject{
+		ID:     prevKey.UserID.String(),
+		Roles:  rbac.RoleNames(roles.Roles),
+		Groups: roles.Groups,
+		Scope:  rbac.ScopeAll,
+	}
+
+	// Generate a new refresh token.
+	refreshToken, err := GenerateSecret()
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Generate the new API key.
+	// TODO: We are ignoring scopes for now.
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
+	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:    prevKey.UserID,
+		LoginType: database.LoginTypeOAuth2ProviderApp,
+		// TODO: This is just the lifetime for api keys, maybe have its own config
+		//       settings. #11693
+		DefaultLifetime: defaultLifetime,
+		// For now, we allow only one token per app and user at a time.
+		TokenName: tokenName,
+	})
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	// Replace the token.
+	err = db.InTx(func(tx database.Store) error {
+		ctx := dbauthz.As(ctx, userSubj)
+		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
+		if err != nil {
+			return xerrors.Errorf("delete oauth2 app token: %w", err)
+		}
+
+		newKey, err := tx.InsertAPIKey(ctx, key)
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 access token: %w", err)
+		}
+
+		_, err = tx.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			ExpiresAt:   key.ExpiresAt,
+			HashPrefix:  []byte(refreshToken.Prefix),
+			RefreshHash: []byte(refreshToken.Hashed),
+			AppSecretID: dbToken.AppSecretID,
+			APIKeyID:    newKey.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return oauth2.Token{}, err
+	}
+
+	return oauth2.Token{
+		AccessToken:  sessionToken,
+		TokenType:    "Bearer",
+		RefreshToken: refreshToken.Formatted,
+		Expiry:       key.ExpiresAt,
 	}, nil
 }

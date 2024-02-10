@@ -1960,9 +1960,10 @@ export const LoginTypes: LoginType[] = [
 ];
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderGrantType = "authorization_code";
+export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
   "authorization_code",
+  "refresh_token",
 ];
 
 // From codersdk/oauth2.go

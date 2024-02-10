@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -742,6 +744,181 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, token.AccessToken)
+				require.True(t, time.Now().After(token.Expiry))
+
+				// Check that the token works.
+				newClient := codersdk.New(userClient.URL)
+				newClient.SetSessionToken(token.AccessToken)
+
+				gotUser, err := newClient.User(ctx, codersdk.Me)
+				require.NoError(t, err)
+				require.Equal(t, user.ID, gotUser.ID)
+			}
+		})
+	}
+}
+
+func TestOAuth2ProviderTokenRefresh(t *testing.T) {
+	t.Parallel()
+	topCtx := testutil.Context(t, testutil.WaitLong)
+
+	db, pubsub := dbtestutil.NewDB(t)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureOAuth2Provider: 1,
+			},
+		},
+	})
+	apps := generateApps(topCtx, t, ownerClient, "token-refresh")
+
+	//nolint:gocritic // OAauth2 app management requires owner permission.
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(topCtx, apps.Default.ID)
+	require.NoError(t, err)
+
+	// One path not tested here is when the token is empty, because Go's OAuth2
+	// client library will not even try to make the request.
+	tests := []struct {
+		name string
+		app  codersdk.OAuth2ProviderApp
+		// If null, assume the token should be valid.
+		defaultToken *string
+		error        string
+		expires      time.Time
+	}{
+		{
+			name:         "NoTokenScheme",
+			app:          apps.Default,
+			defaultToken: ptr.Ref("1234_4321"),
+			error:        "Invalid token",
+		},
+		{
+			name:         "InvalidTokenScheme",
+			app:          apps.Default,
+			defaultToken: ptr.Ref("notcoder_1234_4321"),
+			error:        "Invalid token",
+		},
+		{
+			name:         "MissingTokenSecret",
+			app:          apps.Default,
+			defaultToken: ptr.Ref("coder_1234"),
+			error:        "Invalid token",
+		},
+		{
+			name:         "MissingTokenPrefix",
+			app:          apps.Default,
+			defaultToken: ptr.Ref("coder__1234"),
+			error:        "Invalid token",
+		},
+		{
+			name:         "InvalidTokenPrefix",
+			app:          apps.Default,
+			defaultToken: ptr.Ref("coder_1234_4321"),
+			error:        "Invalid token",
+		},
+		{
+			name:    "Expired",
+			app:     apps.Default,
+			expires: time.Now().Add(time.Minute * -1),
+			error:   "Invalid token",
+		},
+		{
+			name: "OK",
+			app:  apps.Default,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+			// Insert the token and its key.
+			key, sessionToken, err := apikey.Generate(apikey.CreateParams{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOAuth2ProviderApp,
+				ExpiresAt: time.Now().Add(time.Hour * 10),
+			})
+			require.NoError(t, err)
+
+			newKey, err := db.InsertAPIKey(ctx, key)
+			require.NoError(t, err)
+
+			token, err := identityprovider.GenerateSecret()
+			require.NoError(t, err)
+
+			expires := test.expires
+			if expires.IsZero() {
+				expires = time.Now().Add(time.Hour * 10)
+			}
+
+			_, err = db.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+				ID:          uuid.New(),
+				CreatedAt:   dbtime.Now(),
+				ExpiresAt:   expires,
+				HashPrefix:  []byte(token.Prefix),
+				RefreshHash: []byte(token.Hashed),
+				AppSecretID: secret.ID,
+				APIKeyID:    newKey.ID,
+			})
+			require.NoError(t, err)
+
+			// Check that the key works.
+			newClient := codersdk.New(userClient.URL)
+			newClient.SetSessionToken(sessionToken)
+			gotUser, err := newClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, user.ID, gotUser.ID)
+
+			cfg := &oauth2.Config{
+				ClientID:     test.app.ID.String(),
+				ClientSecret: secret.ClientSecretFull,
+				Endpoint: oauth2.Endpoint{
+					AuthURL:       test.app.Endpoints.Authorization,
+					DeviceAuthURL: test.app.Endpoints.DeviceAuth,
+					TokenURL:      test.app.Endpoints.Token,
+					AuthStyle:     oauth2.AuthStyleInParams,
+				},
+				RedirectURL: test.app.CallbackURL,
+				Scopes:      []string{},
+			}
+
+			// Test whether it can be refreshed.
+			refreshToken := token.Formatted
+			if test.defaultToken != nil {
+				refreshToken = *test.defaultToken
+			}
+			refreshed, err := cfg.TokenSource(ctx, &oauth2.Token{
+				AccessToken:  sessionToken,
+				RefreshToken: refreshToken,
+				Expiry:       time.Now().Add(time.Minute * -1),
+			}).Token()
+
+			if test.error != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.error)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, refreshed.AccessToken)
+
+				// Old token is now invalid.
+				_, err = newClient.User(ctx, codersdk.Me)
+				require.Error(t, err)
+				require.ErrorContains(t, err, "401")
+
+				// Refresh token is valid.
+				newClient := codersdk.New(userClient.URL)
+				newClient.SetSessionToken(refreshed.AccessToken)
+
+				gotUser, err := newClient.User(ctx, codersdk.Me)
+				require.NoError(t, err)
+				require.Equal(t, user.ID, gotUser.ID)
 			}
 		})
 	}
