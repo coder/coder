@@ -157,7 +157,7 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating OAuth2 application.",
+			Message: "Internal error updating OAuth2 application.",
 			Detail:  err.Error(),
 		})
 		return
