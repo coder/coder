@@ -1608,10 +1608,12 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		//nolint:gosimple // casting is not a simplification
 		check.Args(database.UpsertWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
+			ShareLevel:  ps.ShareLevel,
 		}).Asserts(ws, rbac.ActionUpdate).Returns(ps)
 	}))
 	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {

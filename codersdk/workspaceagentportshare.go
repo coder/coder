@@ -26,7 +26,7 @@ type (
 		Shares []WorkspaceAgentPortShare `json:"shares"`
 	}
 	WorkspaceAgentPortShare struct {
-		WorkspaceID uuid.UUID                    `json:"workspace_id"`
+		WorkspaceID uuid.UUID                    `json:"workspace_id" format:"uuid"`
 		AgentName   string                       `json:"agent_name"`
 		Port        int32                        `json:"port"`
 		ShareLevel  WorkspaceAgentPortShareLevel `json:"share_level"`
