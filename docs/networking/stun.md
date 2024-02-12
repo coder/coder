@@ -6,8 +6,8 @@
 >
 > [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
 > is commonly used in private networks to allow multiple devices to share a
-> single public IP address. The vast majority of home and corporate internet connections use at least one
-> level of NAT.
+> single public IP address. The vast majority of home and corporate internet
+> connections use at least one level of NAT.
 
 ## Overview
 
