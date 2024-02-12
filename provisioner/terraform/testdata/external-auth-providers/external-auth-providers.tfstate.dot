@@ -6,18 +6,18 @@ digraph {
 		"[root] data.coder_external_auth.github (expand)" [label = "data.coder_external_auth.github", shape = "box"]
 		"[root] data.coder_external_auth.gitlab (expand)" [label = "data.coder_external_auth.gitlab", shape = "box"]
 		"[root] null_resource.dev (expand)" [label = "null_resource.dev", shape = "box"]
-		"[root] provider[\"mckayla.dev/coder/coder\"]" [label = "provider[\"mckayla.dev/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
-		"[root] coder_agent.main (expand)" -> "[root] provider[\"mckayla.dev/coder/coder\"]"
-		"[root] data.coder_external_auth.github (expand)" -> "[root] provider[\"mckayla.dev/coder/coder\"]"
-		"[root] data.coder_external_auth.gitlab (expand)" -> "[root] provider[\"mckayla.dev/coder/coder\"]"
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_external_auth.github (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_external_auth.gitlab (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
 		"[root] null_resource.dev (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] null_resource.dev (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
-		"[root] provider[\"mckayla.dev/coder/coder\"] (close)" -> "[root] coder_agent.main (expand)"
-		"[root] provider[\"mckayla.dev/coder/coder\"] (close)" -> "[root] data.coder_external_auth.github (expand)"
-		"[root] provider[\"mckayla.dev/coder/coder\"] (close)" -> "[root] data.coder_external_auth.gitlab (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.main (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_external_auth.github (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_external_auth.gitlab (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.dev (expand)"
-		"[root] root" -> "[root] provider[\"mckayla.dev/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
 		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
 	}
 }

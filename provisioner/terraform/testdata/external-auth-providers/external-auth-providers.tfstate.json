@@ -9,7 +9,7 @@
           "mode": "data",
           "type": "coder_external_auth",
           "name": "github",
-          "provider_name": "coder/coder",
+          "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
             "access_token": "",
@@ -23,7 +23,7 @@
           "mode": "data",
           "type": "coder_external_auth",
           "name": "gitlab",
-          "provider_name": "coder/coder",
+          "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
             "access_token": "",
@@ -37,7 +37,7 @@
           "mode": "managed",
           "type": "coder_agent",
           "name": "main",
-          "provider_name": "coder/coder",
+          "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
             "arch": "amd64",
@@ -54,7 +54,7 @@
               }
             ],
             "env": null,
-            "id": "0828db62-9f9d-4c46-b38c-c33dada8acfb",
+            "id": "d1f23602-ef8e-4ecf-aa5a-df8aa476344e",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [],
@@ -65,7 +65,7 @@
             "startup_script": null,
             "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "bdbedf59-0c71-4f2e-97c2-8b70b5bfb7c8",
+            "token": "90440015-11c8-442b-adba-9f2bd279b5c7",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -84,7 +84,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3979535131521307934",
+            "id": "8183284779544326910",
             "triggers": null
           },
           "sensitive_values": {},

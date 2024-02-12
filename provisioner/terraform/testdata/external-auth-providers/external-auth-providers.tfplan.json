@@ -9,7 +9,7 @@
           "mode": "managed",
           "type": "coder_agent",
           "name": "main",
-          "provider_name": "mckayla.dev/coder/coder",
+          "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
             "arch": "amd64",
@@ -54,7 +54,7 @@
       "mode": "managed",
       "type": "coder_agent",
       "name": "main",
-      "provider_name": "mckayla.dev/coder/coder",
+      "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
           "create"
@@ -125,7 +125,7 @@
             "mode": "data",
             "type": "coder_external_auth",
             "name": "github",
-            "provider_name": "mckayla.dev/coder/coder",
+            "provider_name": "registry.terraform.io/coder/coder",
             "schema_version": 0,
             "values": {
               "access_token": "",
@@ -139,7 +139,7 @@
             "mode": "data",
             "type": "coder_external_auth",
             "name": "gitlab",
-            "provider_name": "mckayla.dev/coder/coder",
+            "provider_name": "registry.terraform.io/coder/coder",
             "schema_version": 0,
             "values": {
               "access_token": "",
@@ -156,8 +156,8 @@
     "provider_config": {
       "coder": {
         "name": "coder",
-        "full_name": "mckayla.dev/coder/coder",
-        "version_constraint": "1.0.0"
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.16.0"
       },
       "null": {
         "name": "null",
@@ -225,6 +225,6 @@
       ]
     }
   },
-  "timestamp": "2024-02-12T22:31:31Z",
+  "timestamp": "2024-02-12T23:11:52Z",
   "errored": false
 }

@@ -1,10 +1,8 @@
 terraform {
   required_providers {
     coder = {
-      source  = "mckayla.dev/coder/coder"
-      version = "1.0.0"
-      # source  = "coder/coder"
-      # version = "0.6.13"
+      source  = "coder/coder"
+      version = "0.16.0"
     }
   }
 }
