@@ -66,7 +66,7 @@ In this example, both the client and agent are located on the network
 direction, both client and agent are able to communicate directly with each
 other's locally assigned IP address.
 
-![Diagram of a workspace agent and client in the same network](../images/networking/stun1.svg)
+![Diagram of a workspace agent and client in the same network](../images/networking/stun1.png)
 
 ### 2. Direct connections with one layer of NAT
 
@@ -75,12 +75,12 @@ to each other over the public Internet. Both client and agent connect to a
 configured STUN server located on the public Internet to determine the public IP
 address and port on which they can be reached.
 
-![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.1.svg)
+![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.1.png)
 
 They then exchange this information through Coder server, and can then
 communicate directly with each other through their respective NATs.
 
-![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.2.svg)
+![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.2.png)
 
 ### 3. Direct connections with VPN and NAT hairpinning
 
@@ -121,4 +121,4 @@ addresses on the corporate network from which their traffic appears to
 originate. Using these internal addresses is much more likely to result in a
 successful direct connection.
 
-![Diagram of a workspace agent and client over VPN](../images/networking/stun3.svg)
+![Diagram of a workspace agent and client over VPN](../images/networking/stun3.png)
