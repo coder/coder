@@ -172,11 +172,14 @@ func TestAcquireJob(t *testing.T) {
 			// create an API key with an expiration within the bounds of the
 			// deployment config.
 			dv := &codersdk.DeploymentValues{MaxTokenLifetime: clibase.Duration(time.Hour)}
-			gitAuthProvider := "github"
+			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
+				Id: "github",
+			}
+
 			srv, db, ps, _ := setup(t, false, &overrides{
 				deploymentValues: dv,
 				externalAuthConfigs: []*externalauth.Config{{
-					ID:                       gitAuthProvider,
+					ID:                       gitAuthProvider.Id,
 					InstrumentedOAuth2Config: &testutil.OAuth2Config{},
 				}},
 			})
@@ -191,7 +194,7 @@ func TestAcquireJob(t *testing.T) {
 				OAuthAccessToken: "access-token",
 			})
 			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
-				ProviderID: gitAuthProvider,
+				ProviderID: gitAuthProvider.Id,
 				UserID:     user.ID,
 			})
 			template := dbgen.Template(t, db, database.Template{
@@ -207,9 +210,11 @@ func TestAcquireJob(t *testing.T) {
 				},
 				JobID: uuid.New(),
 			})
-			err := db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			externalAuthProviders, err := json.Marshal([]*sdkproto.ExternalAuthProviderResource{gitAuthProvider})
+			require.NoError(t, err)
+			err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 				JobID:                 version.JobID,
-				ExternalAuthProviders: []string{gitAuthProvider},
+				ExternalAuthProviders: json.RawMessage(externalAuthProviders),
 				UpdatedAt:             dbtime.Now(),
 			})
 			require.NoError(t, err)
@@ -321,7 +326,7 @@ func TestAcquireJob(t *testing.T) {
 						},
 					},
 					ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
-						Id:          gitAuthProvider,
+						Id:          gitAuthProvider.Id,
 						AccessToken: "access_token",
 					}},
 					Metadata: &sdkproto.Metadata{
@@ -949,8 +954,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "hello",
 							Type: "aws_instance",
 						}},
-						StopResources:         []*sdkproto.Resource{},
-						ExternalAuthProviders: []string{"github"},
+						StopResources: []*sdkproto.Resource{},
+						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{
+							Id: "github",
+						}},
 					},
 				},
 			})
@@ -1002,7 +1009,7 @@ func TestCompleteJob(t *testing.T) {
 							Type: "aws_instance",
 						}},
 						StopResources:         []*sdkproto.Resource{},
-						ExternalAuthProviders: []string{"github"},
+						ExternalAuthProviders: []*sdkproto.ExternalAuthProviderResource{{Id: "github"}},
 					},
 				},
 			})

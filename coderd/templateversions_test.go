@@ -347,7 +347,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						ExternalAuthProviders: []string{"github"},
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
 					},
 				},
 			}},

@@ -718,8 +718,8 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 		}
 	}
 	externalAuthProviders := make([]*proto.ExternalAuthProviderResource, 0, len(externalAuthProvidersMap))
-	for _, provider := range externalAuthProvidersMap {
-		externalAuthProviders = append(externalAuthProviders, provider)
+	for _, it := range externalAuthProvidersMap {
+		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
 	return &State{

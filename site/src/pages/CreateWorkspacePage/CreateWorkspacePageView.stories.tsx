@@ -141,7 +141,6 @@ export const OptionalExternalAuth: Story = {
         authenticate_url: "",
         display_icon: "/icon/github.svg",
         display_name: "GitHub",
-        // @ts-expect-error
         optional: true,
       },
       {
@@ -151,7 +150,6 @@ export const OptionalExternalAuth: Story = {
         authenticate_url: "",
         display_icon: "/icon/gitlab.svg",
         display_name: "GitLab",
-        // @ts-expect-error
         optional: true,
       },
     ],

@@ -37,7 +37,7 @@ export const ExternalAuthItem: FC<ExternalAuthItemProps> = ({
       <span css={styles.providerHeader}>
         <ExternalImage src={provider.display_icon} css={styles.providerIcon} />
         <strong css={styles.providerName}>{provider.display_name}</strong>
-        {!provider.authenticated && (provider as any).optional && (
+        {!provider.authenticated && provider.optional && (
           <Pill type="notice">Optional</Pill>
         )}
       </span>
