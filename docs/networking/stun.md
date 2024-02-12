@@ -119,9 +119,9 @@ flowchart LR
   subgraph internet["Public Internet"]
   end
 
-  client -- "[12.34.56.7:41563]" --- homenat
+  client -- "[12.34.56.7:41563]" --> homenat
   agent -- "[10.21.43.241:56812]" --- corpnat
-  corpnat -- "[65.4.3.21:29187]" --> internet
+  corpnat -- "[12.34.56.7:41563]" --- internet
   homenat -- "[12.34.56.7:41563]" --> internet
 
 ```
