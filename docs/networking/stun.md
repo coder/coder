@@ -107,24 +107,23 @@ communicate directly with each other through their respective NATs.
 
 ```mermaid
 flowchart LR
-  subgraph homenet["Home Network"]
-    direction LR
+  subgraph homenet["Network A"]
     client["Client workstation\n192.168.1.101:38297"]
-    homenat["Home Router/NAT\n65.4.3.21:29187"]
+    homenat["NAT\n65.4.3.21:29187"]
   end
-  subgraph corpnet["Corp Network"]
-    direction LR
+  subgraph corpnet["Network B"]
     agent["Workspace agent\n10.21.43.241:56812"]
-    corpnat["Corp Router/NAT\n12.34.56.7:41563"]
+    corpnat["NAT\n12.34.56.7:41563"]
   end
 
   subgraph internet["Public Internet"]
   end
 
   client -- "[12.34.56.7:41563]" --- homenat
-  homenat -- "[12.34.56.7:41563]" --- internet
-  internet -- "[12.34.56.7:41563]" --- corpnat
-  corpnat -- "[10.21.43.241:56812]" --> agent
+  agent -- "[10.21.43.241:56812]" --- corpnat
+  corpnat -- "[65.4.3.21:29187]" --> internet
+  homenat -- "[12.34.56.7:41563]" --> internet
+
 ```
 
 ### 3. Direct connections with VPN and NAT hairpinning
