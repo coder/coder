@@ -1146,7 +1146,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 			if !contains {
 				completedError = sql.NullString{
-					String: fmt.Sprintf("external auth provider %q is not configured", externalAuthProvider),
+					String: fmt.Sprintf("external auth provider %q is not configured", externalAuthProvider.Id),
 					Valid:  true,
 				}
 				break
