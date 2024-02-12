@@ -12688,7 +12688,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "workspace_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

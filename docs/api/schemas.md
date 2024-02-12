@@ -6575,7 +6575,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_name": "string",
   "port": 0,
   "share_level": "owner",
-  "workspace_id": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -6613,7 +6613,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "agent_name": "string",
       "port": 0,
       "share_level": "owner",
-      "workspace_id": "string"
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }
   ]
 }
