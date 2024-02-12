@@ -215,9 +215,9 @@ func TestBatchCreateLogs(t *testing.T) {
 			LogSourceId: logSource.ID[:],
 			Logs:        []*agentproto.Log{},
 		})
-		require.Error(t, err)
-		require.ErrorContains(t, err, "workspace agent logs overflowed")
-		require.Nil(t, resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.True(t, resp.LogLimitExceeded)
 		require.False(t, publishWorkspaceUpdateCalled)
 		require.False(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
@@ -419,8 +419,9 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 			},
 		})
-		require.Error(t, err)
-		require.Nil(t, resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.True(t, resp.LogLimitExceeded)
 		require.True(t, publishWorkspaceUpdateCalled)
 		require.False(t, publishWorkspaceAgentLogsUpdateCalled)
 	})

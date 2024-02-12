@@ -1991,6 +1991,13 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
 		}
 
+		// Exception: /healthz
+		// Kubernetes doesn't like it if you redirect your healthcheck or liveness check endpoint.
+		if r.URL.Path == "/healthz" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		// Exception: DERP
 		// We use this endpoint when creating a DERP-mesh in the enterprise version to directly
 		// dial other Coderd derpers.  Redirecting to the access URL breaks direct dial since the

@@ -286,8 +286,13 @@ func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAp
 		if !ok {
 			return nil, xerrors.Errorf("unknown app health: %s", h)
 		}
+
+		// Copy the ID, otherwise all updates will have the same ID (the last
+		// one in the list).
+		var idCopy uuid.UUID
+		copy(idCopy[:], id[:])
 		pReq.Updates = append(pReq.Updates, &proto.BatchUpdateAppHealthRequest_HealthUpdate{
-			Id:     id[:],
+			Id:     idCopy[:],
 			Health: proto.AppHealth(hp),
 		})
 	}

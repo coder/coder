@@ -226,7 +226,12 @@ type PostAppHealthsRequest struct {
 	Healths map[uuid.UUID]codersdk.WorkspaceAppHealth
 }
 
-func AppHealthPoster(aAPI proto.DRPCAgentClient) func(ctx context.Context, req PostAppHealthsRequest) error {
+// BatchUpdateAppHealthsClient is a partial interface of proto.DRPCAgentClient.
+type BatchUpdateAppHealthsClient interface {
+	BatchUpdateAppHealths(ctx context.Context, req *proto.BatchUpdateAppHealthRequest) (*proto.BatchUpdateAppHealthResponse, error)
+}
+
+func AppHealthPoster(aAPI BatchUpdateAppHealthsClient) func(ctx context.Context, req PostAppHealthsRequest) error {
 	return func(ctx context.Context, req PostAppHealthsRequest) error {
 		pReq, err := ProtoFromAppHealthsRequest(req)
 		if err != nil {

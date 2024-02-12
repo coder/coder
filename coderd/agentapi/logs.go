@@ -37,7 +37,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 		return nil, err
 	}
 	if workspaceAgent.LogsOverflowed {
-		return nil, xerrors.New("workspace agent logs overflowed")
+		return &agentproto.BatchCreateLogsResponse{LogLimitExceeded: true}, nil
 	}
 
 	if len(req.Logs) == 0 {
@@ -128,7 +128,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 				return nil, xerrors.Errorf("publish workspace update: %w", err)
 			}
 		}
-		return nil, xerrors.New("workspace agent log limit exceeded")
+		return &agentproto.BatchCreateLogsResponse{LogLimitExceeded: true}, nil
 	}
 
 	// Publish by the lowest log ID inserted so the log stream will fetch
