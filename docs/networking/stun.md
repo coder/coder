@@ -6,7 +6,7 @@
 >
 > [Network Address Translation (NAT)](https://en.wikipedia.org/wiki/Network_address_translation)
 > is commonly used in private networks to allow multiple devices to share a
-> single public IP address. The vast majority of ISPs today use at least one
+> single public IP address. The vast majority of home and corporate internet connections use at least one
 > level of NAT.
 
 ## Overview
@@ -43,7 +43,7 @@ At a high level, STUN works like this:
   configured STUN servers. These STUN servers are generally located on the
   public internet, and respond with the public IP address and port from which
   the request came.
-- **Port Mapping:** The client and agent then exchange this information through
+- **Coordination:** The client and agent then exchange this information through
   the Coder server. They will then construct packets that should be able to
   successfully traverse their counterpart's NATs successfully.
 - **NAT Traversal:** The client and agent then send these crafted packets to
