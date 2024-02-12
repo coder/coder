@@ -197,9 +197,10 @@ type FakeAgentAPI struct {
 	t      testing.TB
 	logger slog.Logger
 
-	manifest  *agentproto.Manifest
-	startupCh chan *agentproto.Startup
-	statsCh   chan *agentproto.Stats
+	manifest    *agentproto.Manifest
+	startupCh   chan *agentproto.Startup
+	statsCh     chan *agentproto.Stats
+	appHealthCh chan *agentproto.BatchUpdateAppHealthRequest
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -244,7 +245,12 @@ func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycl
 
 func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	f.logger.Debug(ctx, "batch update app health", slog.F("req", req))
+	f.appHealthCh <- req
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
+}
+
+func (f *FakeAgentAPI) AppHealthCh() <-chan *agentproto.BatchUpdateAppHealthRequest {
+	return f.appHealthCh
 }
 
 func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
@@ -264,10 +270,11 @@ func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLog
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
-		t:         t,
-		logger:    logger.Named("FakeAgentAPI"),
-		manifest:  manifest,
-		statsCh:   statsCh,
-		startupCh: make(chan *agentproto.Startup, 100),
+		t:           t,
+		logger:      logger.Named("FakeAgentAPI"),
+		manifest:    manifest,
+		statsCh:     statsCh,
+		startupCh:   make(chan *agentproto.Startup, 100),
+		appHealthCh: make(chan *agentproto.BatchUpdateAppHealthRequest, 100),
 	}
 }
