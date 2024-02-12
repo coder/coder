@@ -605,9 +605,6 @@ func TestUserOAuth2Github(t *testing.T) {
 	})
 
 	// The bug only is exercised when a deleted user with the same linked_id exists.
-	// Still related open issues:
-	// - https://github.com/coder/coder/issues/12116
-	// - https://github.com/coder/coder/issues/12115
 	t.Run("ChangedEmail", func(t *testing.T) {
 		t.Parallel()
 
