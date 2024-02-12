@@ -686,7 +686,7 @@ export const App = {
       writer.uint32(72).bool(message.external);
     }
     if (message.order !== 0) {
-      writer.uint32(80).int32(message.order);
+      writer.uint32(80).int64(message.order);
     }
     return writer;
   },

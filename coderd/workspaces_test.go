@@ -2478,6 +2478,7 @@ func TestWorkspaceResource(t *testing.T) {
 				Command:     "some-command",
 				Url:         "http://localhost:3000",
 				Icon:        "/code.svg",
+				Order:       3,
 			},
 			{
 				Slug:        "code-server-2",
@@ -2490,6 +2491,7 @@ func TestWorkspaceResource(t *testing.T) {
 					Interval:  5,
 					Threshold: 6,
 				},
+				Order: 2,
 			},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -2541,6 +2543,57 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Healthcheck.Url, got.Healthcheck.URL)
 		require.EqualValues(t, app.Healthcheck.Interval, got.Healthcheck.Interval)
 		require.EqualValues(t, app.Healthcheck.Threshold, got.Healthcheck.Threshold)
+	})
+
+	t.Run("Apps_DisplayOrder", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		apps := []*proto.App{
+			{
+				Slug:  "aaa-code-server",
+				Order: 4,
+			},
+			{
+				Slug:  "bbb-code-server",
+				Order: 3,
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:   "something",
+								Auth: &proto.Agent_Token{},
+								Apps: apps,
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+		agent := workspace.LatestBuild.Resources[0].Agents[0]
+		require.Len(t, agent.Apps, 2)
+		require.Equal(t, apps[1].Slug, agent.Apps[0].Slug)
+		require.Equal(t, apps[0].Slug, agent.Apps[1].Slug)
 	})
 
 	t.Run("Metadata", func(t *testing.T) {
