@@ -23,7 +23,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	portSharer := *api.PortSharer.Load()
-	var req codersdk.UpdateWorkspaceAgentPortShareRequest
+	var req codersdk.UpsertWorkspaceAgentPortShareRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}

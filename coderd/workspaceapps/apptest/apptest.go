@@ -937,7 +937,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
 			require.NoError(t, err)
 			// set the port we have to be shared with authenticated users
-			err = appDetails.SDKClient.CreateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 				AgentName:  proxyTestAgentName,
 				Port:       int32(port),
 				ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
@@ -966,7 +966,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
 			require.NoError(t, err)
 			// set the port we have to be shared with public
-			err = appDetails.SDKClient.CreateWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 				AgentName:  proxyTestAgentName,
 				Port:       int32(port),
 				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,

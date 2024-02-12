@@ -39,7 +39,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	require.NoError(t, err)
 
 	// owner level should fail
-	err = client.CreateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevel("owner"),
@@ -47,7 +47,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	require.Error(t, err)
 
 	// invalid level should fail
-	err = client.CreateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevel("invalid"),
@@ -55,20 +55,22 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	require.Error(t, err)
 
 	// OK, ignoring template max port share level because we are AGPL
-	err = client.CreateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	ps, err := client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
 
-	ps, err := db.GetWorkspaceAgentPortShare(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), database.GetWorkspaceAgentPortShareParams{
-		WorkspaceID: r.Workspace.ID,
-		AgentName:   agents[0].Name,
-		Port:        8080,
+	// update share level
+	ps, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  agents[0].Name,
+		Port:       8080,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelAuthenticated, ps.ShareLevel)
 }
 
 func TestGetWorkspaceAgentPortShares(t *testing.T) {
@@ -95,7 +97,7 @@ func TestGetWorkspaceAgentPortShares(t *testing.T) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), r.Workspace.ID)
 	require.NoError(t, err)
 
-	err = client.CreateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
@@ -134,18 +136,28 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), r.Workspace.ID)
 	require.NoError(t, err)
 
-	err = client.CreateWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	// create
+	ps, err := client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
 
+	// delete
 	err = client.DeleteWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.DeleteWorkspaceAgentPortShareRequest{
 		AgentName: agents[0].Name,
 		Port:      8080,
 	})
 	require.NoError(t, err)
+
+	// delete missing
+	err = client.DeleteWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.DeleteWorkspaceAgentPortShareRequest{
+		AgentName: agents[0].Name,
+		Port:      8080,
+	})
+	require.Error(t, err)
 
 	_, err = db.GetWorkspaceAgentPortShare(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), database.GetWorkspaceAgentPortShareParams{
 		WorkspaceID: r.Workspace.ID,

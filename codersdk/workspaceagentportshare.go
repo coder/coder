@@ -17,7 +17,7 @@ const (
 
 type (
 	WorkspaceAgentPortShareLevel         string
-	UpdateWorkspaceAgentPortShareRequest struct {
+	UpsertWorkspaceAgentPortShareRequest struct {
 		AgentName  string                       `json:"agent_name"`
 		Port       int32                        `json:"port"`
 		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
@@ -59,20 +59,21 @@ func (c *Client) GetWorkspaceAgentPortShares(ctx context.Context, workspaceID uu
 		return shares, ReadBodyAsError(res)
 	}
 
-	var resp WorkspaceAgentPortShares
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return shares, json.NewDecoder(res.Body).Decode(&shares)
 }
 
-func (c *Client) CreateWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpdateWorkspaceAgentPortShareRequest) error {
+func (c *Client) UpsertWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req UpsertWorkspaceAgentPortShareRequest) (WorkspaceAgentPortShare, error) {
+	var share WorkspaceAgentPortShare
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/port-share", workspaceID), req)
 	if err != nil {
-		return err
+		return share, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ReadBodyAsError(res)
+		return share, ReadBodyAsError(res)
 	}
-	return nil
+
+	return share, json.NewDecoder(res.Body).Decode(&share)
 }
 
 func (c *Client) DeleteWorkspaceAgentPortShare(ctx context.Context, workspaceID uuid.UUID, req DeleteWorkspaceAgentPortShareRequest) error {

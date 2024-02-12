@@ -39,7 +39,7 @@ func TestWorkspacePortShare(t *testing.T) {
 	defer cancel()
 
 	// try to update port share with template max port share level owner
-	err := client.CreateWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	_, err := client.UpsertWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
@@ -53,10 +53,11 @@ func TestWorkspacePortShare(t *testing.T) {
 	})
 
 	// OK
-	err = client.CreateWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpdateWorkspaceAgentPortShareRequest{
+	ps, err := client.UpsertWorkspaceAgentPortShare(ctx, workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)
 }

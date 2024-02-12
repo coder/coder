@@ -7572,8 +7572,8 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	defer q.mutex.Unlock()
 
 	for i, share := range q.workspaceAgentPortShares {
-		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && arg.AgentName == share.AgentName {
-			share.Port = arg.Port
+		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && share.AgentName == arg.AgentName {
+			share.ShareLevel = arg.ShareLevel
 			q.workspaceAgentPortShares[i] = share
 			return share, nil
 		}

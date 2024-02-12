@@ -324,7 +324,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		id, err := uuid.Parse(agentNameOrID)
 		for _, a := range agents {
 			// if err is nil then it's an UUID
-			if err != nil && a.ID == id {
+			if err == nil && a.ID == id {
 				agentName = a.Name
 				break
 			}
