@@ -2478,7 +2478,6 @@ func TestWorkspaceResource(t *testing.T) {
 				Command:     "some-command",
 				Url:         "http://localhost:3000",
 				Icon:        "/code.svg",
-				Order:       3,
 			},
 			{
 				Slug:        "code-server-2",
@@ -2491,7 +2490,6 @@ func TestWorkspaceResource(t *testing.T) {
 					Interval:  5,
 					Threshold: 6,
 				},
-				Order: 2,
 			},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
