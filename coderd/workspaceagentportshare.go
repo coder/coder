@@ -9,14 +9,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Create workspace agent port share
-// @ID create-workspace-agent-port-share
+// @Summary Upsert workspace agent port share
+// @ID upsert-workspace-agent-port-share
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags PortSharing
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceAgentPortShareRequest true "Create port sharing level request"
+// @Param request body codersdk.UpsertWorkspaceAgentPortShareRequest true "Upsert port sharing level request"
 // @Success 200 {object} codersdk.WorkspaceAgentPortShare
 // @Router /workspaces/{workspace}/port-share [post]
 func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Request) {

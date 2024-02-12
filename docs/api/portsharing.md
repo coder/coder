@@ -37,7 +37,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Create workspace agent port share
+## Upsert workspace agent port share
 
 ### Code samples
 
@@ -66,7 +66,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 | Name        | In   | Type                                                                                                     | Required | Description                       |
 | ----------- | ---- | -------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
 | `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
-| `body`      | body | [codersdk.UpdateWorkspaceAgentPortShareRequest](schemas.md#codersdkupdateworkspaceagentportsharerequest) | true     | Create port sharing level request |
+| `body`      | body | [codersdk.UpsertWorkspaceAgentPortShareRequest](schemas.md#codersdkupsertworkspaceagentportsharerequest) | true     | Upsert port sharing level request |
 
 ### Example responses
 

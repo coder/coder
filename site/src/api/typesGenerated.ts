@@ -1331,13 +1331,6 @@ export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
 }
 
-// From codersdk/workspaceagentportshare.go
-export interface UpdateWorkspaceAgentPortShareRequest {
-  readonly agent_name: string;
-  readonly port: number;
-  readonly share_level: WorkspaceAgentPortShareLevel;
-}
-
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutomaticUpdatesRequest {
   readonly automatic_updates: AutomaticUpdates;
@@ -1372,6 +1365,13 @@ export interface UpdateWorkspaceTTLRequest {
 // From codersdk/files.go
 export interface UploadResponse {
   readonly hash: string;
+}
+
+// From codersdk/workspaceagentportshare.go
+export interface UpsertWorkspaceAgentPortShareRequest {
+  readonly agent_name: string;
+  readonly port: number;
+  readonly share_level: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/users.go

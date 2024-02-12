@@ -5552,24 +5552,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
 
-## codersdk.UpdateWorkspaceAgentPortShareRequest
-
-```json
-{
-  "agent_name": "string",
-  "port": 0,
-  "share_level": "owner"
-}
-```
-
-### Properties
-
-| Name          | Type                                                                           | Required | Restrictions | Description |
-| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `agent_name`  | string                                                                         | false    |              |             |
-| `port`        | integer                                                                        | false    |              |             |
-| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
-
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
 ```json
@@ -5653,6 +5635,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 | ------ | ------ | -------- | ------------ | ----------- |
 | `hash` | string | false    |              |             |
+
+## codersdk.UpsertWorkspaceAgentPortShareRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": "owner"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`  | string                                                                         | false    |              |             |
+| `port`        | integer                                                                        | false    |              |             |
+| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
 
 ## codersdk.User
 

@@ -7237,8 +7237,8 @@ const docTemplate = `{
                 "tags": [
                     "PortSharing"
                 ],
-                "summary": "Create workspace agent port share",
-                "operationId": "create-workspace-agent-port-share",
+                "summary": "Upsert workspace agent port share",
+                "operationId": "upsert-workspace-agent-port-share",
                 "parameters": [
                     {
                         "type": "string",
@@ -7249,12 +7249,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Create port sharing level request",
+                        "description": "Upsert port sharing level request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAgentPortShareRequest"
+                            "$ref": "#/definitions/codersdk.UpsertWorkspaceAgentPortShareRequest"
                         }
                     }
                 ],
@@ -11918,20 +11918,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateWorkspaceAgentPortShareRequest": {
-            "type": "object",
-            "properties": {
-                "agent_name": {
-                    "type": "string"
-                },
-                "port": {
-                    "type": "integer"
-                },
-                "share_level": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
-                }
-            }
-        },
         "codersdk.UpdateWorkspaceAutomaticUpdatesRequest": {
             "type": "object",
             "properties": {
@@ -11978,6 +11964,20 @@ const docTemplate = `{
                 "hash": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpsertWorkspaceAgentPortShareRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 }
             }
         },
