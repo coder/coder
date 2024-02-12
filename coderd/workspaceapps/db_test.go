@@ -37,9 +37,11 @@ func Test_ResolveRequest(t *testing.T) {
 		appNameAuthed     = "app-authed"
 		appNamePublic     = "app-public"
 		appNameInvalidURL = "app-invalid-url"
-		appNameUnhealthy  = "app-unhealthy"
+		// Users can access unhealthy apps (as of 2024-02).
+		appNameUnhealthy = "app-unhealthy"
 
 		// This agent will never connect, so it will never become "connected".
+		// Users cannot access unhealthy agents.
 		agentNameUnhealthy    = "agent-unhealthy"
 		appNameAgentUnhealthy = "app-agent-unhealthy"
 
@@ -805,7 +807,8 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Contains(t, bodyStr, `Agent state is "`)
 	})
 
-	t.Run("UnhealthyApp", func(t *testing.T) {
+	// Unhealthy apps are now permitted to connect anyways.
+	t.Run("UnhealthyAppPermitted", func(t *testing.T) {
 		t.Parallel()
 
 		require.Eventually(t, func() bool {
@@ -850,17 +853,7 @@ func Test_ResolveRequest(t *testing.T) {
 			AppHostname:         api.AppHostname,
 			AppRequest:          req,
 		})
-		require.False(t, ok, "request succeeded even though app is unhealthy")
-		require.Nil(t, token)
-
-		w := rw.Result()
-		defer w.Body.Close()
-		require.Equal(t, http.StatusBadGateway, w.StatusCode)
-
-		body, err := io.ReadAll(w.Body)
-		require.NoError(t, err)
-		bodyStr := string(body)
-		bodyStr = strings.ReplaceAll(bodyStr, "&#34;", `"`)
-		require.Contains(t, bodyStr, `App health is "unhealthy"`)
+		require.True(t, ok, "ResolveRequest failed, should pass even though app is unhealthy")
+		require.NotNil(t, token)
 	})
 }
