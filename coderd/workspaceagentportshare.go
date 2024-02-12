@@ -1,6 +1,8 @@
 package coderd
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -123,7 +125,24 @@ func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err := api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{
+	_, err := api.Database.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+		WorkspaceID: workspace.ID,
+		AgentName:   req.AgentName,
+		Port:        req.Port,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Port share not found.",
+			})
+			return
+		}
+
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	err = api.Database.DeleteWorkspaceAgentPortShare(ctx, database.DeleteWorkspaceAgentPortShareParams{
 		WorkspaceID: workspace.ID,
 		AgentName:   req.AgentName,
 		Port:        req.Port,

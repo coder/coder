@@ -1334,7 +1334,7 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg datab
 		}
 	}
 
-	return sql.ErrNoRows
+	return nil
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
