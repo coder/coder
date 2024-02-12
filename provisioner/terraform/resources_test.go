@@ -489,6 +489,21 @@ func TestConvertResources(t *testing.T) {
 			}},
 			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab"}},
 		},
+		"external-auth-providers": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "main",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab", Optional: true}},
+		},
 		"display-apps": {
 			resources: []*proto.Resource{{
 				Name: "dev",

@@ -704,17 +704,21 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
 				continue
 			}
+
 			id, ok := resource.AttributeValues["id"].(string)
 			if !ok {
 				return nil, xerrors.Errorf("external auth id is not a string")
 			}
-
 			optional := false
 			optionalAttribute, ok := resource.AttributeValues["optional"].(bool)
 			if ok {
 				optional = optionalAttribute
 			}
-			externalAuthProvidersMap[id] = &proto.ExternalAuthProviderResource{Optional: optional}
+
+			externalAuthProvidersMap[id] = &proto.ExternalAuthProviderResource{
+				Id:       id,
+				Optional: optional,
+			}
 		}
 	}
 	externalAuthProviders := make([]*proto.ExternalAuthProviderResource, 0, len(externalAuthProvidersMap))
