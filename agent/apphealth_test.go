@@ -4,16 +4,21 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -40,9 +45,20 @@ func TestAppHealth_Healthy(t *testing.T) {
 			},
 			Health: codersdk.WorkspaceAppHealthInitializing,
 		},
+		{
+			Slug: "app3",
+			Healthcheck: codersdk.Healthcheck{
+				Interval:  2,
+				Threshold: 1,
+			},
+			Health: codersdk.WorkspaceAppHealthInitializing,
+		},
 	}
 	handlers := []http.Handler{
 		nil,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusOK, nil)
+		}),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusOK, nil)
 		}),
@@ -58,7 +74,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 			return false
 		}
 
-		return apps[1].Health == codersdk.WorkspaceAppHealthHealthy
+		return apps[1].Health == codersdk.WorkspaceAppHealthHealthy && apps[2].Health == codersdk.WorkspaceAppHealthHealthy
 	}, testutil.WaitLong, testutil.IntervalSlow)
 }
 
@@ -163,6 +179,12 @@ func TestAppHealth_NotSpamming(t *testing.T) {
 
 func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.WorkspaceApp, handlers []http.Handler) (agent.WorkspaceAgentApps, func()) {
 	closers := []func(){}
+	for i, app := range apps {
+		if app.ID == uuid.Nil {
+			app.ID = uuid.New()
+			apps[i] = app
+		}
+	}
 	for i, handler := range handlers {
 		if handler == nil {
 			continue
@@ -181,23 +203,43 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 		var newApps []codersdk.WorkspaceApp
 		return append(newApps, apps...), nil
 	}
-	postWorkspaceAgentAppHealth := func(_ context.Context, req agentsdk.PostAppHealthsRequest) error {
-		mu.Lock()
-		for id, health := range req.Healths {
-			for i, app := range apps {
-				if app.ID != id {
-					continue
+
+	// We don't care about manifest or stats in this test since it's not using
+	// a full agent and these RPCs won't get called.
+	//
+	// We use a proper fake agent API so we can test the conversion code and the
+	// request code as well. Before we were bypassing these by using a custom
+	// post function.
+	fakeAAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+
+	// Process events from the channel and update the health of the apps.
+	go func() {
+		appHealthCh := fakeAAPI.AppHealthCh()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req := <-appHealthCh:
+				mu.Lock()
+				for _, update := range req.Updates {
+					updateID, err := uuid.FromBytes(update.Id)
+					assert.NoError(t, err)
+					updateHealth := codersdk.WorkspaceAppHealth(strings.ToLower(proto.AppHealth_name[int32(update.Health)]))
+
+					for i, app := range apps {
+						if app.ID != updateID {
+							continue
+						}
+						app.Health = updateHealth
+						apps[i] = app
+					}
 				}
-				app.Health = health
-				apps[i] = app
+				mu.Unlock()
 			}
 		}
-		mu.Unlock()
+	}()
 
-		return nil
-	}
-
-	go agent.NewWorkspaceAppHealthReporter(slogtest.Make(t, nil).Leveled(slog.LevelDebug), apps, postWorkspaceAgentAppHealth)(ctx)
+	go agent.NewWorkspaceAppHealthReporter(slogtest.Make(t, nil).Leveled(slog.LevelDebug), apps, agentsdk.AppHealthPoster(fakeAAPI))(ctx)
 
 	return workspaceAgentApps, func() {
 		for _, closeFn := range closers {
