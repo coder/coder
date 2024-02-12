@@ -11,5 +11,6 @@ provisionersdk/proto/*.go linguist-generated=true
 *.tfstate.json linguist-generated=true
 *.tfstate.dot linguist-generated=true
 *.tfplan.dot linguist-generated=true
+site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
 site/src/pages/SetupPage/countries.tsx linguist-generated=true
