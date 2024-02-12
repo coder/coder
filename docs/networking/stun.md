@@ -59,21 +59,14 @@ to each other.
 
 ## Examples
 
+### 1. Direct connections without NAT or STUN
+
 In this example, both the client and agent are located on the network
 `192.168.21.0/24`. Assuming no firewalls are blocking packets in either
 direction, both client and agent are able to communicate directly with each
 other's locally assigned IP address.
 
-### 1. Direct connections without NAT or STUN
-
-```mermaid
-flowchart LR
-    subgraph corpnet["Private Network\ne.g. Corp. LAN"]
-    A[Client Workstation\n192.168.21.47:38297]
-    C[Workspace Agent\n192.168.21.147:41563]
-    A <--> C
-    end
-```
+![Diagram of a workspace agent and client in the same network](../images/networking/stun1.svg)
 
 ### 2. Direct connections with one layer of NAT
 
@@ -82,49 +75,12 @@ to each other over the public Internet. Both client and agent connect to a
 configured STUN server located on the public Internet to determine the public IP
 address and port on which they can be reached.
 
-```mermaid
-flowchart LR
-  subgraph homenet["Network A"]
-    client["Client workstation\n192.168.1.101:38297"]
-    homenat["NAT\n??.??.??.??:?????"]
-  end
-  subgraph internet["Public Internet"]
-    stun1["STUN server"]
-  end
-  subgraph corpnet["Network B"]
-    agent["Workspace agent\n10.21.43.241:56812"]
-    corpnat["NAT\n??.??.??.??:?????"]
-  end
-
-  client --- homenat
-  agent --- corpnat
-  corpnat -- "[I see 12.34.56.7:41563]" --> stun1
-  homenat -- "[I see 65.4.3.21:29187]" --> stun1
-```
+![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.1.svg)
 
 They then exchange this information through Coder server, and can then
 communicate directly with each other through their respective NATs.
 
-```mermaid
-flowchart LR
-  subgraph homenet["Network A"]
-    client["Client workstation\n192.168.1.101:38297"]
-    homenat["NAT\n65.4.3.21:29187"]
-  end
-  subgraph corpnet["Network B"]
-    agent["Workspace agent\n10.21.43.241:56812"]
-    corpnat["NAT\n12.34.56.7:41563"]
-  end
-
-  subgraph internet["Public Internet"]
-  end
-
-  client -- "[12.34.56.7:41563]" --> homenat
-  agent -- "[10.21.43.241:56812]" --- corpnat
-  corpnat -- "[12.34.56.7:41563]" --- internet
-  homenat -- "[12.34.56.7:41563]" --> internet
-
-```
+![Diagram of a workspace agent and client in separate networks](../images/networking/stun2.2.svg)
 
 ### 3. Direct connections with VPN and NAT hairpinning
 
@@ -165,36 +121,4 @@ addresses on the corporate network from which their traffic appears to
 originate. Using these internal addresses is much more likely to result in a
 successful direct connection.
 
-```mermaid
-flowchart TD
-  subgraph homenet["Home Network"]
-    client["Client workstation\n192.168.1.101"]
-    homenat["Home Router/NAT\n65.4.3.21"]
-  end
-
-  subgraph internet["Public Internet"]
-    stun1["Public STUN"]
-    vpn1["VPN entry node"]
-  end
-
-  subgraph corpnet["Corp Network 172.16.1.0/24"]
-    corpnat["Corp Router/NAT\n172.16.1.1\n12.34.56.7"]
-    vpn2["VPN exit node\n172.16.1.2"]
-    stun2["Private STUN"]
-
-    subgraph cluster["Cluster Network 10.11.12.0/16"]
-      clusternat["Cluster Router/NAT\n10.11.12.1\n172.16.1.254"]
-      agent["Workspace agent\n10.11.12.34"]
-    end
-  end
-
-  vpn1 === vpn2
-  vpn2 --> stun2
-  client === homenat
-  homenat === vpn1
-  homenat x-.-x stun1
-  agent --- clusternat
-  clusternat --- corpnat
-  corpnat --> stun1
-  corpnat --> stun2
-```
+![Diagram of a workspace agent and client over VPN](../images/networking/stun3.svg)
