@@ -28,9 +28,9 @@ ALTER TABLE template_versions
 
 -- Make the column non-nullable to make the types nicer on the Go side
 ALTER TABLE template_versions
-  ALTER COLUMN external_auth_providers SET NOT NULL;
-ALTER TABLE template_versions
   ALTER COLUMN external_auth_providers SET DEFAULT '[]'::jsonb;
+ALTER TABLE template_versions
+  ALTER COLUMN external_auth_providers SET NOT NULL;
 
 
 -- Recreate `template_version_with_user` as described in dump.sql

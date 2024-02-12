@@ -23,9 +23,9 @@ $$;
 
 -- Remove the non-null constraint and default
 ALTER TABLE template_versions
-  ALTER COLUMN external_auth_providers DROP NOT NULL;
-ALTER TABLE template_versions
   ALTER COLUMN external_auth_providers DROP DEFAULT;
+ALTER TABLE template_versions
+  ALTER COLUMN external_auth_providers DROP NOT NULL;
 
 
 -- Update the column type and migrate the values
