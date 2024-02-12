@@ -259,8 +259,7 @@ resource "coder_agent" "dev" {
     timeout      = 5
   }
 
-  startup_script_timeout = 60
-  startup_script         = <<-EOT
+  startup_script = <<-EOT
     set -eux -o pipefail
 
     # Allow synchronization between scripts.

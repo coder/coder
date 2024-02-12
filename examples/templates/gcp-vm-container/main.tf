@@ -63,12 +63,10 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "linux"
-
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  auth           = "google-instance-identity"
+  arch           = "amd64"
+  os             = "linux"
+  startup_script = <<-EOT
     set -e
 
     # install and start code-server
