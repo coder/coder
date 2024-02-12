@@ -661,6 +661,8 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		deleted, err := client.User(ctx, "me")
+		require.NoError(t, err)
+
 		err = owner.DeleteUser(ctx, deleted.ID)
 		require.NoError(t, err)
 
