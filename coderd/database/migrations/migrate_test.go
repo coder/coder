@@ -352,7 +352,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 
 			for _, table := range tables {
 				var count int
-				err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count)
+				err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM"+table).Scan(&count)
 				require.NoError(t, err)
 
 				if tt.useStats {
