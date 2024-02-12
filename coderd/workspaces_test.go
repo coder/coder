@@ -2553,12 +2553,19 @@ func TestWorkspaceResource(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		apps := []*proto.App{
 			{
+				Slug:        "aaa",
+				DisplayName: "aaa",
+			},
+			{
 				Slug:  "aaa-code-server",
 				Order: 4,
 			},
 			{
 				Slug:  "bbb-code-server",
 				Order: 3,
+			},
+			{
+				Slug: "bbb",
 			},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -2591,9 +2598,11 @@ func TestWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
 		agent := workspace.LatestBuild.Resources[0].Agents[0]
-		require.Len(t, agent.Apps, 2)
-		require.Equal(t, apps[1].Slug, agent.Apps[0].Slug)
-		require.Equal(t, apps[0].Slug, agent.Apps[1].Slug)
+		require.Len(t, agent.Apps, 4)
+		require.Equal(t, "bbb", agent.Apps[0].Slug)             // empty-display-name < "aaa"
+		require.Equal(t, "aaa", agent.Apps[1].Slug)             // no order < any order
+		require.Equal(t, "bbb-code-server", agent.Apps[2].Slug) // order = 3 < order = 4
+		require.Equal(t, "aaa-code-server", agent.Apps[3].Slug)
 	})
 
 	t.Run("Metadata", func(t *testing.T) {
