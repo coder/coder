@@ -2320,6 +2320,8 @@ type WorkspaceApp struct {
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
 	External             bool               `db:"external" json:"external"`
+	// Specifies the order in which to display agent app in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 // A record of workspace app usage statistics

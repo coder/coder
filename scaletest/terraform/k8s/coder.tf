@@ -304,8 +304,6 @@ resource "local_file" "kubernetes_template" {
     resource "coder_agent" "main" {
       os                     = "linux"
       arch                   = "amd64"
-      startup_script_timeout = 180
-      startup_script         = ""
     }
 
     resource "kubernetes_pod" "main" {

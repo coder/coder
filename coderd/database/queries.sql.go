@@ -9618,7 +9618,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external FROM workspace_apps WHERE agent_id = $1 AND slug = $2
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
 
 type GetWorkspaceAppByAgentIDAndSlugParams struct {
@@ -9645,12 +9645,13 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg Ge
 		&i.SharingLevel,
 		&i.Slug,
 		&i.External,
+		&i.DisplayOrder,
 	)
 	return i, err
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -9678,6 +9679,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.SharingLevel,
 			&i.Slug,
 			&i.External,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -9693,7 +9695,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -9721,6 +9723,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.SharingLevel,
 			&i.Slug,
 			&i.External,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -9736,7 +9739,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -9764,6 +9767,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.SharingLevel,
 			&i.Slug,
 			&i.External,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -9795,10 +9799,11 @@ INSERT INTO
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,
-        health
+        health,
+        display_order
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order
 `
 
 type InsertWorkspaceAppParams struct {
@@ -9817,6 +9822,7 @@ type InsertWorkspaceAppParams struct {
 	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	DisplayOrder         int32              `db:"display_order" json:"display_order"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -9836,6 +9842,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.HealthcheckInterval,
 		arg.HealthcheckThreshold,
 		arg.Health,
+		arg.DisplayOrder,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -9854,6 +9861,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.SharingLevel,
 		&i.Slug,
 		&i.External,
+		&i.DisplayOrder,
 	)
 	return i, err
 }

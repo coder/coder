@@ -76,6 +76,7 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order       int64                      `mapstructure:"order"`
 }
 
 type agentEnvAttributes struct {
@@ -437,6 +438,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
+						Order:        attrs.Order,
 					})
 				}
 			}

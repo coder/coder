@@ -465,6 +465,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		HealthcheckInterval:  takeFirst(orig.HealthcheckInterval, 60),
 		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
 		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
+		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
 	})
 	require.NoError(t, err, "insert app")
 	return resource
