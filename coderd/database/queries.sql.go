@@ -6532,7 +6532,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6563,7 +6563,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6594,7 +6594,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6631,7 +6631,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6668,7 +6668,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -6762,7 +6762,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -6804,7 +6804,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -6954,13 +6954,13 @@ WHERE
 `
 
 type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
-	JobID                 uuid.UUID `db:"job_id" json:"job_id"`
-	ExternalAuthProviders []string  `db:"external_auth_providers" json:"external_auth_providers"`
-	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, pq.Array(arg.ExternalAuthProviders), arg.UpdatedAt)
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
 	return err
 }
 

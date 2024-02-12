@@ -215,6 +215,20 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION migrate_external_auth_providers_to_jsonb(text[]) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+  result jsonb;
+BEGIN
+  SELECT
+    jsonb_agg(jsonb_build_object('id', value::text)) INTO result
+  FROM
+    unnest($1) AS value;
+  RETURN result;
+END;
+$_$;
+
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -760,7 +774,7 @@ CREATE TABLE template_versions (
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
-    external_auth_providers text[],
+    external_auth_providers jsonb DEFAULT '[]'::jsonb NOT NULL,
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL
 );
@@ -818,8 +832,6 @@ CREATE VIEW template_version_with_user AS
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
-
-COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
 
 CREATE TABLE templates (
     id uuid NOT NULL,

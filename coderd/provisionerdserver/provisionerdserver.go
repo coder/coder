@@ -501,10 +501,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		externalAuthProviderResources := []*sdkproto.ExternalAuthProviderResource{}
+		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &externalAuthProviderResources)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to deserialize external_auth_providers value: %w", err)
+		}
+
 		externalAuthProviders := []*sdkproto.ExternalAuthProvider{}
-		for _, p := range templateVersion.ExternalAuthProviders {
+		for _, p := range externalAuthProviderResources {
 			link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: p,
+				ProviderID: p.Id,
 				UserID:     owner.ID,
 			})
 			if errors.Is(err, sql.ErrNoRows) {
@@ -515,7 +521,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 			var config *externalauth.Config
 			for _, c := range s.ExternalAuthConfigs {
-				if c.ID != p {
+				if c.ID != p.Id {
 					continue
 				}
 				config = c
@@ -524,7 +530,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			// We weren't able to find a matching config for the ID!
 			if config == nil {
 				s.Logger.Warn(ctx, "workspace build job is missing external auth provider",
-					slog.F("provider_id", p),
+					slog.F("provider_id", p.Id),
 					slog.F("template_version_id", templateVersion.ID),
 					slog.F("workspace_id", workspaceBuild.WorkspaceID))
 				continue
@@ -532,13 +538,13 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 			link, valid, err := config.RefreshToken(ctx, s.Database, link)
 			if err != nil {
-				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p, err))
+				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.Id, err))
 			}
 			if !valid {
 				continue
 			}
 			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
-				Id:          p,
+				Id:          p.Id,
 				AccessToken: link.OAuthAccessToken,
 			})
 		}
@@ -1147,17 +1153,28 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
-		externalAuthProviderIds := jobType.TemplateImport.ExternalAuthProvidersNames
-		if providersLen := len(jobType.TemplateImport.ExternalAuthProviders); providersLen > 0 {
-			externalAuthProviderIds = make([]string, 0, providersLen)
-			for _, provider := range jobType.TemplateImport.ExternalAuthProviders {
-				externalAuthProviderIds = append(externalAuthProviderIds, provider.Id)
+		externalAuthProviders := jobType.TemplateImport.ExternalAuthProviders
+		// Fallback to `ExternalAuthProvidersNames` if it was specified and `ExternalAuthProviders`
+		// was not. Gives us backwards compatibility with custom provisioners that haven't been
+		// updated to use the new field yet.
+		namesLen := len(jobType.TemplateImport.ExternalAuthProvidersNames)
+		if len(externalAuthProviders) == 0 && namesLen > 0 {
+			externalAuthProviders = make([]*sdkproto.ExternalAuthProviderResource, 0, namesLen)
+			for _, providerID := range jobType.TemplateImport.ExternalAuthProvidersNames {
+				externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProviderResource{
+					Id: providerID,
+				})
 			}
+		}
+
+		externalAuthProvidersMessage, err := json.Marshal(externalAuthProviders)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to serialize external_auth_providers value: %w", err)
 		}
 
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
-			ExternalAuthProviders: externalAuthProviderIds,
+			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
 			UpdatedAt:             dbtime.Now(),
 		})
 		if err != nil {

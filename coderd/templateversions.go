@@ -289,12 +289,21 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	rawProviders := templateVersion.ExternalAuthProviders
+	var rawProviders []*sdkproto.ExternalAuthProviderResource
+	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &rawProviders)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading auth config from database",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *externalauth.Config
 		for _, provider := range api.ExternalAuthConfigs {
-			if provider.ID == rawProvider {
+			if provider.ID == rawProvider.Id {
 				config = provider
 				break
 			}
@@ -323,6 +332,7 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			AuthenticateURL: redirectURL.String(),
 			DisplayName:     config.DisplayName,
 			DisplayIcon:     config.DisplayIcon,
+			Optional:        rawProvider.Optional,
 		}
 
 		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
