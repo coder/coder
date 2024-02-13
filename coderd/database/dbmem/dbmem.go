@@ -6138,7 +6138,7 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) SoftDeleteUserByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
