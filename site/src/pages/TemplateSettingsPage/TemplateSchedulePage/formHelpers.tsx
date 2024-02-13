@@ -25,6 +25,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     default_ttl_ms: Yup.number()
       .integer()
+      .required()
       .min(0, "Default time until autostop must not be less than 0.")
       .max(
         24 * MAX_TTL_DAYS /* 30 days in hours */,
@@ -32,6 +33,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
       ),
     activity_bump_ms: Yup.number()
       .integer()
+      .required()
       .min(0, "Activity bump must not be less than 0.")
       .max(
         24 * MAX_TTL_DAYS /* 30 days in hours */,
@@ -39,12 +41,15 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
       ),
     max_ttl_ms: Yup.number()
       .integer()
+      .required()
       .min(0, "Maximum time until autostop must not be less than 0.")
       .max(
         24 * MAX_TTL_DAYS /* 30 days in hours */,
         "Please enter a limit that is less than or equal to 720 hours (30 days).",
       ),
     failure_ttl_ms: Yup.number()
+      .integer()
+      .required()
       .min(0, "Failure cleanup days must not be less than 0.")
       .test(
         "positive-if-enabled",
@@ -59,6 +64,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         },
       ),
     time_til_dormant_ms: Yup.number()
+      .integer()
+      .required()
       .min(0, "Dormancy threshold days must not be less than 0.")
       .test(
         "positive-if-enabled",
@@ -73,6 +80,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         },
       ),
     time_til_dormant_autodelete_ms: Yup.number()
+      .integer()
+      .required()
       .min(0, "Dormancy auto-deletion days must not be less than 0.")
       .test(
         "positive-if-enabled",
