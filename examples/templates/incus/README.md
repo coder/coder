@@ -13,17 +13,18 @@ Develop in an Incus System Container and run nested Docker containers using Incu
 
 1. Install [Incus](https://linuxcontainers.org/incus/) on the same machine as Coder.
 2. Allow Coder to access the Incus socket.
-    - If you're running Coder as system service, run `sudo usermod -aG incus coder` and restart the Coder service.
-    - If you're running Coder as a Docker Compose service, get the group ID of the `incus` group by running `getent group incus` and add the following to your `compose.yaml` file:
 
-        ```yaml
-        services:
-          coder:
-            volumes:
-              - /var/lib/incus/unix.socket:/var/lib/incus/unix.socket
-            group_add:
-              - 997 # Replace with the group ID of the `incus` group
-        ```
+   - If you're running Coder as system service, run `sudo usermod -aG incus coder` and restart the Coder service.
+   - If you're running Coder as a Docker Compose service, get the group ID of the `incus` group by running `getent group incus` and add the following to your `compose.yaml` file:
+
+     ```yaml
+     services:
+       coder:
+         volumes:
+           - /var/lib/incus/unix.socket:/var/lib/incus/unix.socket
+         group_add:
+           - 997 # Replace with the group ID of the `incus` group
+     ```
 
 3. Create a storage pool named `coder` and `btrfs` as the driver by running `incus storage create coder btrfs`.
 
