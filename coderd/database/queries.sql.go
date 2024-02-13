@@ -7779,6 +7779,20 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const softDeleteUserByID = `-- name: SoftDeleteUserByID :exec
+UPDATE
+	users
+SET
+	deleted = true
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, softDeleteUserByID, id)
+	return err
+}
+
 const updateInactiveUsersToDormant = `-- name: UpdateInactiveUsersToDormant :many
 UPDATE
     users
@@ -7863,25 +7877,6 @@ func (q *sqlQuerier) UpdateUserAppearanceSettings(ctx context.Context, arg Updat
 		&i.Name,
 	)
 	return i, err
-}
-
-const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
-UPDATE
-	users
-SET
-	deleted = $2
-WHERE
-	id = $1
-`
-
-type UpdateUserDeletedByIDParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, arg.ID, arg.Deleted)
-	return err
 }
 
 const updateUserHashedPassword = `-- name: UpdateUserHashedPassword :exec

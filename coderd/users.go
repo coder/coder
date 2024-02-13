@@ -521,10 +521,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
-		ID:      user.ID,
-		Deleted: true,
-	})
+	err = api.Database.SoftDeleteUserByID(ctx, user.ID)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return

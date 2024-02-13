@@ -5573,18 +5573,6 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	return nil
 }
 
-// Took the error from the real database.
-var deletedUserLinkError = &pq.Error{
-	Severity: "ERROR",
-	// "raise_exception" error
-	Code:    "P0001",
-	Message: "Cannot create user_link for deleted user",
-	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
-	File:    "pl_exec.c",
-	Line:    "3864",
-	Routine: "exec_stmt_raise",
-}
-
 func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -6135,6 +6123,40 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 		return nil
 	}
 
+	return sql.ErrNoRows
+}
+
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
+func (q *FakeQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == id {
+			u.Deleted = true
+			q.users[i] = u
+			// NOTE: In the real world, this is done by a trigger.
+			q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
+				return id == u.UserID
+			})
+
+			q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
+				return id == u.UserID
+			})
+			return nil
+		}
+	}
 	return sql.ErrNoRows
 }
 
@@ -6738,34 +6760,6 @@ func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg databa
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
-	if err := validateDatabaseType(params); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, u := range q.users {
-		if u.ID == params.ID {
-			u.Deleted = params.Deleted
-			q.users[i] = u
-			if params.Deleted {
-				// NOTE: In the real world, this is done by a trigger.
-				q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
-					return params.ID == u.UserID
-				})
-
-				q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
-					return params.ID == u.UserID
-				})
-			}
-			return nil
-		}
-	}
-	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {

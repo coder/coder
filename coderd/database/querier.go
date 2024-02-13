@@ -322,6 +322,7 @@ type sqlcQuerier interface {
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -354,7 +355,6 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (User, error)
-	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
