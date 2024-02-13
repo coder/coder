@@ -37,9 +37,12 @@ func Test_ResolveRequest(t *testing.T) {
 		appNameAuthed     = "app-authed"
 		appNamePublic     = "app-public"
 		appNameInvalidURL = "app-invalid-url"
-		appNameUnhealthy  = "app-unhealthy"
+		// Users can access unhealthy and initializing apps (as of 2024-02).
+		appNameUnhealthy    = "app-unhealthy"
+		appNameInitializing = "app-initializing"
 
 		// This agent will never connect, so it will never become "connected".
+		// Users cannot access unhealthy agents.
 		agentNameUnhealthy    = "agent-unhealthy"
 		appNameAgentUnhealthy = "app-agent-unhealthy"
 
@@ -55,6 +58,15 @@ func Test_ResolveRequest(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("unhealthy"))
 	}))
+	t.Cleanup(unhealthySrv.Close)
+
+	// Start a listener for a server that never responds.
+	initializingServer, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = initializingServer.Close()
+	})
+	initializingURL := fmt.Sprintf("http://%s", initializingServer.Addr().String())
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.DisablePathApps = false
@@ -82,7 +94,7 @@ func Test_ResolveRequest(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(ctx, codersdk.Me)
@@ -141,6 +153,17 @@ func Test_ResolveRequest(t *testing.T) {
 											Url:       unhealthySrv.URL,
 											Interval:  1,
 											Threshold: 1,
+										},
+									},
+									{
+										Slug:         appNameInitializing,
+										DisplayName:  appNameInitializing,
+										SharingLevel: proto.AppSharingLevel_PUBLIC,
+										Url:          appURL,
+										Healthcheck: &proto.Healthcheck{
+											Url:       initializingURL,
+											Interval:  30,
+											Threshold: 1000,
 										},
 									},
 								},
@@ -805,7 +828,55 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Contains(t, bodyStr, `Agent state is "`)
 	})
 
-	t.Run("UnhealthyApp", func(t *testing.T) {
+	// Initializing apps are now permitted to connect anyways. This wasn't
+	// always the case, but we're testing the behavior to ensure it doesn't
+	// change back accidentally.
+	t.Run("InitializingAppPermitted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		agent, err := client.WorkspaceAgent(ctx, agentID)
+		require.NoError(t, err)
+
+		for _, app := range agent.Apps {
+			if app.Slug == appNameInitializing {
+				t.Log("app is", app.Health)
+				require.Equal(t, codersdk.WorkspaceAppHealthInitializing, app.Health)
+				break
+			}
+		}
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNameInitializing,
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.True(t, ok, "ResolveRequest failed, should pass even though app is initializing")
+		require.NotNil(t, token)
+	})
+
+	// Unhealthy apps are now permitted to connect anyways. This wasn't always
+	// the case, but we're testing the behavior to ensure it doesn't change back
+	// accidentally.
+	t.Run("UnhealthyAppPermitted", func(t *testing.T) {
 		t.Parallel()
 
 		require.Eventually(t, func() bool {
@@ -850,17 +921,7 @@ func Test_ResolveRequest(t *testing.T) {
 			AppHostname:         api.AppHostname,
 			AppRequest:          req,
 		})
-		require.False(t, ok, "request succeeded even though app is unhealthy")
-		require.Nil(t, token)
-
-		w := rw.Result()
-		defer w.Body.Close()
-		require.Equal(t, http.StatusBadGateway, w.StatusCode)
-
-		body, err := io.ReadAll(w.Body)
-		require.NoError(t, err)
-		bodyStr := string(body)
-		bodyStr = strings.ReplaceAll(bodyStr, "&#34;", `"`)
-		require.Contains(t, bodyStr, `App health is "unhealthy"`)
+		require.True(t, ok, "ResolveRequest failed, should pass even though app is unhealthy")
+		require.NotNil(t, token)
 	})
 }

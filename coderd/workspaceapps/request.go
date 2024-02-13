@@ -198,9 +198,6 @@ type databaseRequest struct {
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
 	AppURL *url.URL
-	// AppHealth is the health of the app. For terminal requests, this is always
-	// database.WorkspaceAppHealthHealthy.
-	AppHealth database.WorkspaceAppHealth
 	// AppSharingLevel is the sharing level of the app. This is forced to be set
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
@@ -292,7 +289,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		agentNameOrID         = r.AgentNameOrID
 		appURL                string
 		appSharingLevel       database.AppSharingLevel
-		appHealth             = database.WorkspaceAppHealthDisabled
 		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
 	)
 	if portUintErr == nil {
@@ -331,7 +327,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 					appSharingLevel = database.AppSharingLevelOwner
 				}
 				appURL = app.Url.String
-				appHealth = app.Health
 				break
 			}
 		}
@@ -377,7 +372,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		Workspace:       workspace,
 		Agent:           agent,
 		AppURL:          appURLParsed,
-		AppHealth:       appHealth,
 		AppSharingLevel: appSharingLevel,
 	}, nil
 }
@@ -430,7 +424,6 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		Workspace:       workspace,
 		Agent:           agent,
 		AppURL:          nil,
-		AppHealth:       database.WorkspaceAppHealthHealthy,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
 }
