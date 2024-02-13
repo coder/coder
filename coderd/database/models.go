@@ -2003,8 +2003,8 @@ type Template struct {
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
-	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2047,8 +2047,8 @@ type TemplateTable struct {
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
-	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 // Joins in the username + avatar url of the created by user.
