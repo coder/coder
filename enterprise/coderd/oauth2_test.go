@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -1131,13 +1130,10 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 				return http.ErrUseLastResponse
 			}
 			return client.Request(ctx, req.Method, req.URL.String(), nil, func(req *http.Request) {
-				// Set some headers so the request bypasses the HTML page (normally you
+				// Set the referer so the request bypasses the HTML page (normally you
 				// have to click "allow" first, and the way we detect that is using the
-				// origin and referer headers).
-				// Normally origin does not include the path, but it is not relevant to
-				// the check we make.
-				req.Header.Set(httpmw.OriginHeader, client.URL.String())
-				req.Header.Set("Referer", client.URL.String())
+				// referer header).
+				req.Header.Set("Referer", req.URL.String())
 			})
 		},
 	)
