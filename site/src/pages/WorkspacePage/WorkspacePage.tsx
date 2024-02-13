@@ -1,6 +1,7 @@
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import merge from "lodash/merge";
 import { watchWorkspace } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
@@ -76,6 +77,15 @@ export const WorkspacePage: FC = () => {
       }
     },
   );
+  const getWorkspaceData = useEffectEvent(() => {
+    if (!workspace) {
+      throw new Error("Applying an update for a workspace that is undefined.");
+    }
+
+    return queryClient.getQueryData(
+      workspaceQueryOptions.queryKey,
+    ) as Workspace;
+  });
   const workspaceId = workspace?.id;
   useEffect(() => {
     if (!workspaceId) {
@@ -89,6 +99,15 @@ export const WorkspacePage: FC = () => {
       await updateWorkspaceData(newWorkspaceData);
     });
 
+    eventSource.addEventListener("partial", async (event) => {
+      const newWorkspaceData = JSON.parse(event.data) as Partial<Workspace>;
+      // Merge with a fresh object `{}` as the base, because `merge` uses an in-place algorithm,
+      // and would otherwise mutate the `queryClient`'s internal state.
+      await updateWorkspaceData(
+        merge({}, getWorkspaceData(), newWorkspaceData),
+      );
+    });
+
     eventSource.addEventListener("error", (event) => {
       console.error("Error on getting workspace changes.", event);
     });
@@ -96,7 +115,7 @@ export const WorkspacePage: FC = () => {
     return () => {
       eventSource.close();
     };
-  }, [updateWorkspaceData, workspaceId]);
+  }, [updateWorkspaceData, getWorkspaceData, workspaceId]);
 
   // Page statuses
   const pageError =
