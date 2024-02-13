@@ -1,6 +1,7 @@
 package agentapi_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"sync"
@@ -22,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type statsBatcher struct {
@@ -168,6 +171,15 @@ func TestUpdateStates(t *testing.T) {
 		// User gets fetched to hit the UpdateAgentMetricsFn.
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
+		// Ensure that pubsub notifications are sent.
+		publishAgentStats := make(chan bool)
+		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
+			go func() {
+				publishAgentStats <- bytes.Equal(description, codersdk.WorkspaceNotifyDescriptionAgentStatsOnly)
+				close(publishAgentStats)
+			}()
+		})
+
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.UpdateStatsResponse{
@@ -183,7 +195,13 @@ func TestUpdateStates(t *testing.T) {
 		require.Equal(t, user.ID, batcher.lastUserID)
 		require.Equal(t, workspace.ID, batcher.lastWorkspaceID)
 		require.Equal(t, req.Stats, batcher.lastStats)
-
+		ctx := testutil.Context(t, testutil.WaitShort)
+		select {
+		case <-ctx.Done():
+			t.Error("timed out while waiting for pubsub notification")
+		case wasAgentStatsOnly := <-publishAgentStats:
+			require.Equal(t, wasAgentStatsOnly, true)
+		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
 
