@@ -104,7 +104,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    }
    ```
 
-> Do not forget to replace example.jgrog.io with uour Artifactory URL
+> Do not forget to replace example.jfrog.io with your Artifactory URL
 
 Based on the instructions
 [here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
