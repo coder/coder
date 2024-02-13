@@ -225,6 +225,7 @@ export interface CreateTemplateRequest {
   readonly icon?: string;
   readonly template_version_id: string;
   readonly default_ttl_ms?: number;
+  readonly activity_bump_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;
@@ -1028,6 +1029,7 @@ export interface Template {
   readonly deprecation_message: string;
   readonly icon: string;
   readonly default_ttl_ms: number;
+  readonly activity_bump_ms: number;
   readonly use_max_ttl: boolean;
   readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
@@ -1285,6 +1287,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string;
   readonly icon?: string;
   readonly default_ttl_ms?: number;
+  readonly activity_bump_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;

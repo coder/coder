@@ -1,8 +1,9 @@
--- Bumps the workspace deadline by 1 hour. If the workspace bump will
--- cross an autostart threshold, then the bump is autostart + TTL. This
--- is the deadline behavior if the workspace was to autostart from a stopped
--- state.
--- Max deadline is respected, and will never be bumped.
+-- Bumps the workspace deadline by the template's configured "activity_bump"
+-- duration (default 1h). If the workspace bump will cross an autostart
+-- threshold, then the bump is autostart + TTL. This is the deadline behavior if
+-- the workspace was to autostart from a stopped state.
+--
+-- Max deadline is respected, and the deadline will never be bumped past it.
 -- The deadline will never decrease.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
@@ -12,14 +13,19 @@ WITH latest AS (
 		workspace_builds.max_deadline::timestamp with time zone AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
+		templates.activity_bump AS activity_bump,
 		(
 			CASE
 				-- If the extension would push us over the next_autostart
-				-- interval, then extend the deadline by the full ttl from
-				-- the autostart time. This will essentially be as if the
-				-- workspace auto started at the given time and the original
-				-- TTL was applied.
-				WHEN NOW() + ('60 minutes')::interval > @next_autostart :: timestamptz
+				-- interval, then extend the deadline by the full TTL (NOT
+				-- activity bump) from the autostart time. This will essentially
+				-- be as if the workspace auto started at the given time and the
+				-- original TTL was applied.
+				--
+				-- Sadly we can't define `activity_bump_interval` above since
+				-- it won't be available for this CASE statement, so we have to
+				-- copy the cast twice.
+				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > @next_autostart :: timestamptz
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
@@ -27,16 +33,16 @@ WITH latest AS (
 					-- that is a mistake by the caller.
 					AND @next_autostart > NOW()
 					THEN
-					-- Extend to the autostart, then add the TTL
+					-- Extend to the autostart, then add the activity bump
 					((@next_autostart :: timestamptz) - NOW()) + CASE
 						WHEN templates.allow_user_autostop
 					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 					END
 
-				-- Default to 60 minutes.
+				-- Default to the activity bump duration.
 				ELSE
-					('60 minutes')::interval
+					(templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval
 			END
 		) AS ttl_interval
 	FROM workspace_builds
@@ -63,6 +69,8 @@ SET
 FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
+-- We only bump if the template has an activity bump duration set.
+AND l.activity_bump > 0
 AND l.build_transition = 'start'
 -- We only bump if the raw interval is positive and non-zero.
 AND l.ttl_interval > '0 seconds'::interval

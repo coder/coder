@@ -28,6 +28,7 @@ import {
 } from "./useWorkspacesToBeDeleted";
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
 import {
+  ActivityBumpHelperText,
   DefaultTTLHelperText,
   DormancyAutoDeletionTTLHelperText,
   DormancyTTLHelperText,
@@ -72,6 +73,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     initialValues: {
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
+      activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
       // the API ignores these values, but to avoid tripping up validation set
       // it to zero if the user can't set the field.
       use_max_ttl:
@@ -205,6 +207,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     onSubmit({
       default_ttl_ms: form.values.default_ttl_ms
         ? form.values.default_ttl_ms * MS_HOUR_CONVERSION
+        : undefined,
+      activity_bump_ms: form.values.activity_bump_ms
+        ? form.values.activity_bump_ms * MS_HOUR_CONVERSION
         : undefined,
       max_ttl_ms:
         form.values.max_ttl_ms && form.values.use_max_ttl
@@ -363,6 +368,19 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 0, step: 1 }}
             label="Default autostop (hours)"
+            type="number"
+          />
+
+          <TextField
+            {...getFieldHelpers("activity_bump_ms", {
+              helperText: (
+                <ActivityBumpHelperText bump={form.values.activity_bump_ms} />
+              ),
+            })}
+            disabled={isSubmitting}
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
+            label="Activity bump (hours)"
             type="number"
           />
         </Stack>

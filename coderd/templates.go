@@ -224,6 +224,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var (
 		defaultTTL                     time.Duration
+		activityBump                   = time.Hour // default
 		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostartRequirementDaysOfWeek []string
@@ -234,6 +235,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
+	}
+	if createTemplate.ActivityBumpMillis != nil {
+		activityBump = time.Duration(*createTemplate.ActivityBumpMillis) * time.Millisecond
 	}
 	if createTemplate.AutostopRequirement != nil {
 		autostopRequirementDaysOfWeek = createTemplate.AutostopRequirement.DaysOfWeek
@@ -262,6 +266,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	)
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if activityBump < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
 	if maxTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
@@ -313,7 +320,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var (
 		dbTemplate database.Template
-		template   codersdk.Template
 
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
 		allowUserAutostart           = ptr.NilToDefault(createTemplate.AllowUserAutostart, true)
@@ -368,6 +374,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UserAutostopEnabled:  allowUserAutostop,
 			UseMaxTTL:            maxTTL > 0,
 			DefaultTTL:           defaultTTL,
+			ActivityBump:         activityBump,
 			MaxTTL:               maxTTL,
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
@@ -409,7 +416,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 		templateVersionAudit.New = newTemplateVersion
 
-		template = api.convertTemplate(dbTemplate)
 		return nil
 	}, nil)
 	if err != nil {
@@ -425,7 +431,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		TemplateVersions: []telemetry.TemplateVersion{telemetry.ConvertTemplateVersion(templateVersion)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, template)
+	httpapi.Write(ctx, rw, http.StatusCreated, api.convertTemplate(dbTemplate))
 }
 
 // @Summary Get templates by organization
@@ -565,6 +571,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
+	if req.ActivityBumpMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
+	}
 	if req.MaxTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
 	}
@@ -648,6 +657,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			req.ActivityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
 			useMaxTTL == scheduleOpts.UseMaxTTL &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
@@ -703,12 +713,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		activityBump := time.Duration(req.ActivityBumpMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			activityBump != time.Duration(template.ActivityBump) ||
 			useMaxTTL != scheduleOpts.UseMaxTTL ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
@@ -726,6 +738,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostartEnabled: req.AllowUserAutostart,
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
+				ActivityBump:         activityBump,
 				UseMaxTTL:            useMaxTTL,
 				MaxTTL:               maxTTL,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
@@ -875,6 +888,7 @@ func (api *API) convertTemplate(
 		Description:                    template.Description,
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		ActivityBumpMillis:             time.Duration(template.ActivityBump).Milliseconds(),
 		UseMaxTTL:                      template.UseMaxTtl,
 		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
