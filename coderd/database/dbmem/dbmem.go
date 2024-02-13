@@ -5573,9 +5573,25 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	return nil
 }
 
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
 func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	if u, err := q.getUserByIDNoLock(args.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
 
 	//nolint:gosimple
 	link := database.UserLink{
@@ -6736,20 +6752,15 @@ func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 		if u.ID == params.ID {
 			u.Deleted = params.Deleted
 			q.users[i] = u
-			// NOTE: In the real world, this is done by a trigger.
-			i := 0
-			for {
-				if i >= len(q.apiKeys) {
-					break
-				}
-				k := q.apiKeys[i]
-				if k.UserID == u.ID {
-					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
-					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
-					// We removed an element, so decrement
-					i--
-				}
-				i++
+			if params.Deleted {
+				// NOTE: In the real world, this is done by a trigger.
+				q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
+					return params.ID == u.UserID
+				})
+
+				q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
+					return params.ID == u.UserID
+				})
 			}
 			return nil
 		}
@@ -6803,6 +6814,10 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	if u, err := q.getUserByIDNoLock(params.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
 
 	for i, link := range q.userLinks {
 		if link.UserID == params.UserID && link.LoginType == params.LoginType {
