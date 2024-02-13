@@ -15,8 +15,33 @@ export const DefaultTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)}. This will be
-      extended by 1 hour after last activity in the workspace was detected.
+      Workspaces will default to stopping after {ttl} {hours(ttl)} after being
+      started.
+    </span>
+  );
+};
+
+export const ActivityBumpHelperText = (props: { bump?: number }) => {
+  const { bump = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (bump < 0) {
+    return null;
+  }
+
+  if (bump === 0) {
+    return (
+      <span>
+        Workspaces will not have their stop time automatically extended based on
+        user activity. Users can still manually delay the stop time.
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      Workspaces will be automatically bumped by {bump} {hours(bump)} when user
+      activity is detected.
     </span>
   );
 };

@@ -75,6 +75,7 @@ func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Sto
 		UserAutostartEnabled: tpl.AllowUserAutostart,
 		UserAutostopEnabled:  tpl.AllowUserAutostop,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		ActivityBump:         time.Duration(tpl.ActivityBump),
 		MaxTTL:               time.Duration(tpl.MaxTTL),
 		UseMaxTTL:            tpl.UseMaxTtl,
 		AutostopRequirement: agpl.TemplateAutostopRequirement{
@@ -103,6 +104,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		int64(opts.ActivityBump) == tpl.ActivityBump &&
 		opts.UseMaxTTL != tpl.UseMaxTtl &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
@@ -138,6 +140,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			AllowUserAutostart:            opts.UserAutostartEnabled,
 			AllowUserAutostop:             opts.UserAutostopEnabled,
 			DefaultTTL:                    int64(opts.DefaultTTL),
+			ActivityBump:                  int64(opts.ActivityBump),
 			UseMaxTtl:                     opts.UseMaxTTL,
 			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),

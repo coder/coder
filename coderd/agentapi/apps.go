@@ -24,6 +24,11 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return nil, err
 	}
 
+	a.Log.Debug(ctx, "got batch app health update",
+		slog.F("agent_id", workspaceAgent.ID.String()),
+		slog.F("updates", req.Updates),
+	)
+
 	if len(req.Updates) == 0 {
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}

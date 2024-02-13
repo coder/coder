@@ -57,7 +57,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, nc := websocketNetConn(ctx, conn, msgType)
+	ctx, nc := codersdk.WebsocketNetConn(ctx, conn, msgType)
 	defer nc.Close()
 
 	id := uuid.New()

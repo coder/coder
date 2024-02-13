@@ -156,5 +156,14 @@
       "container"
     ],
     "markdown": "\n# Remote Development on Nomad\n\nProvision Nomad Jobs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template. This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.\n\n\u003c!-- TODO: Add screenshot --\u003e\n\n\u003e **Note**\n\u003e This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.\n\n## Prerequisites\n\n- [Nomad](https://www.nomadproject.io/downloads)\n- [Docker](https://docs.docker.com/get-docker/)\n\n## Setup\n\n### 1. Start the CSI Host Volume Plugin\n\nThe CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This is useful for development environments where you want to mount persistent volumes into your container workspace.\n\n1. Login to the Nomad server using SSH.\n\n2. Append the following stanza to your Nomad server configuration file and restart the nomad service.\n\n   ```hcl\n   plugin \"docker\" {\n     config {\n       allow_privileged = true\n     }\n   }\n   ```\n\n   ```shell\n   sudo systemctl restart nomad\n   ```\n\n3. Create a file `hostpath.nomad` with following content:\n\n   ```hcl\n   job \"hostpath-csi-plugin\" {\n     datacenters = [\"dc1\"]\n     type = \"system\"\n\n     group \"csi\" {\n       task \"plugin\" {\n         driver = \"docker\"\n\n         config {\n           image = \"registry.k8s.io/sig-storage/hostpathplugin:v1.10.0\"\n\n           args = [\n             \"--drivername=csi-hostpath\",\n             \"--v=5\",\n             \"--endpoint=${CSI_ENDPOINT}\",\n             \"--nodeid=node-${NOMAD_ALLOC_INDEX}\",\n           ]\n\n           privileged = true\n         }\n\n         csi_plugin {\n           id   = \"hostpath\"\n           type = \"monolith\"\n           mount_dir = \"/csi\"\n         }\n\n         resources {\n           cpu    = 256\n           memory = 128\n         }\n       }\n     }\n   }\n   ```\n\n4. Run the job:\n\n   ```shell\n   nomad job run hostpath.nomad\n   ```\n\n### 2. Setup the Nomad Template\n\n1. Create the template by running the following command:\n\n   ```shell\n   coder template init nomad-docker\n   cd nomad-docker\n   coder template push\n   ```\n\n2. Set up Nomad server address and optional authentication:\n\n3. Create a new workspace and start developing.\n"
+  },
+  {
+    "id": "scratch",
+    "url": "",
+    "name": "Scratch",
+    "description": "A minimal starter template for Coder",
+    "icon": "/emojis/1f4e6.png",
+    "tags": [],
+    "markdown": "\n# A minimal Scaffolding for a Coder Template\n\nUse this starter template as a basis to create your own unique template from scratch.\n"
   }
 ]

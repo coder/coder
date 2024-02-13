@@ -13,6 +13,49 @@ user <-> workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our networking logic.
 
+## Requirements
+
+In order for clients and workspaces to be able to connect:
+
+- All clients and agents must be able to establish a connection to the Coder
+  server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
+- Any reverse proxy or ingress between the Coder control plane and
+  clients/agents must support WebSockets.
+
+In order for clients to be able to establish direct connections:
+
+> **Note:** Direct connections via the web browser are not supported. To improve
+> latency for browser-based applications running inside Coder workspaces in
+> regions far from the Coder control plane, consider deploying one or more
+> [workspace proxies](../admin/workspace-proxies.md).
+
+- The client is connecting using the CLI (e.g. `coder ssh` or
+  `coder port-forward`). Note that the
+  [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
+  and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
+  [`ssh coder.<workspace>`](../cli/config-ssh.md) all utilize the CLI to
+  establish a workspace connection.
+- Either the client or workspace agent are able to discover a reachable
+  `ip:port` of their counterpart. If the agent and client are able to
+  communicate with each other using their locally assigned IP addresses, then a
+  direct connection can be established immediately. Otherwise, the client and
+  agent will contact
+  [the configured STUN servers](../cli/server.md#derp-server-stun-addresses) to
+  try and determine which `ip:port` can be used to communicate with their
+  counterpart. See [STUN and NAT](./stun.md) for more details on how this
+  process works.
+- All outbound UDP traffic must be allowed for both the client and the agent on
+  **all ports** to each others' respective networks.
+  - To establish a direct connection, both agent and client use STUN. This
+    involves sending UDP packets outbound on `udp/3478` to the configured
+    [STUN server](../cli/server.md#--derp-server-stun-addresses). If either the
+    agent or the client are unable to send and receive UDP packets to a STUN
+    server, then direct connections will not be possible.
+  - Both agents and clients will then establish a
+    [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on
+    ephemeral (high) ports. If a firewall between the client and the agent
+    blocks this UDP traffic, direct connections will not be possible.
+
 ## coder server
 
 Workspaces connect to the coder server via the server's external address, set
@@ -51,6 +94,12 @@ dashboard-accessed web apps.
 Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
+
+Establishing a direct connection can be an involved process because both the
+client and workspace agent will likely be behind at least one level of NAT,
+meaning that we need to use STUN to learn the IP address and port under which
+the client and agent can both contact each other. See [STUN and NAT](./stun.md)
+for more information on how this process works.
 
 If a direct connection is not available (e.g. client or server is behind NAT),
 Coder will use a relayed connection. By default,

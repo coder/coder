@@ -41,6 +41,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 		maxDeadlineOffset             *time.Duration
 		workspaceTTL                  time.Duration
 		templateTTL                   time.Duration
+		templateActivityBump          time.Duration
 		templateDisallowsUserAutostop bool
 		expectedBump                  time.Duration
 		// If the tests get queued, we need to be able to set the next autostart
@@ -137,6 +138,26 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			expectedBump:                  10*time.Hour + (time.Minute * 30),
 			nextAutostart:                 func(now time.Time) time.Time { return now.Add(time.Minute * 30) },
 		},
+		{
+			// Custom activity bump duration specified on the template.
+			name:                 "TemplateCustomActivityBump",
+			transition:           database.WorkspaceTransitionStart,
+			jobCompletedAt:       sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset:  ptr.Ref(-30 * time.Minute),
+			workspaceTTL:         8 * time.Hour,
+			templateActivityBump: 5 * time.Hour, // instead of default 1h
+			expectedBump:         5 * time.Hour,
+		},
+		{
+			// Activity bump duration is 0.
+			name:                 "TemplateCustomActivityBumpZero",
+			transition:           database.WorkspaceTransitionStart,
+			jobCompletedAt:       sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+			buildDeadlineOffset:  ptr.Ref(-30 * time.Minute),
+			workspaceTTL:         8 * time.Hour,
+			templateActivityBump: -1, // negative values get changed to 0 in the test
+			expectedBump:         0,
+		},
 	} {
 		tt := tt
 		for _, tz := range timezones {
@@ -186,11 +207,19 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					buildID = uuid.New()
 				)
 
+				activityBump := 1 * time.Hour
+				if tt.templateActivityBump < 0 {
+					// less than 0 => 0
+					activityBump = 0
+				} else if tt.templateActivityBump != 0 {
+					activityBump = tt.templateActivityBump
+				}
 				require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                template.ID,
 					UpdatedAt:         dbtime.Now(),
 					AllowUserAutostop: !tt.templateDisallowsUserAutostop,
 					DefaultTTL:        int64(tt.templateTTL),
+					ActivityBump:      int64(activityBump),
 				}), "unexpected error updating template schedule")
 
 				var buildNumber int32 = 1

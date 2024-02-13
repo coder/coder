@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -414,6 +415,16 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+	sort.Slice(dbApps, func(i, j int) bool {
+		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
+			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
+		}
+		if dbApps[i].DisplayName != dbApps[j].DisplayName {
+			return dbApps[i].DisplayName < dbApps[j].DisplayName
+		}
+		return dbApps[i].Slug < dbApps[j].Slug
+	})
+
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{

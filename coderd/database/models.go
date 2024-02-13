@@ -2004,6 +2004,7 @@ type Template struct {
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2047,6 +2048,7 @@ type TemplateTable struct {
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -2330,6 +2332,8 @@ type WorkspaceApp struct {
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
 	External             bool               `db:"external" json:"external"`
+	// Specifies the order in which to display agent app in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 // A record of workspace app usage statistics

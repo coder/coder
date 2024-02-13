@@ -842,10 +842,14 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 		if err != nil {
 			return err
 		}
+		if template.ActivityBump == 0 {
+			return nil
+		}
+		activityBump := time.Duration(template.ActivityBump)
 
 		var ttlDur time.Duration
-		if now.Add(time.Hour).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
-			// Extend to TTL
+		if now.Add(activityBump).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
+			// Extend to TTL (NOT activity bump)
 			add := arg.NextAutostart.Sub(now)
 			if workspace.Ttl.Valid && template.AllowUserAutostop {
 				add += time.Duration(workspace.Ttl.Int64)
@@ -854,7 +858,8 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 			}
 			ttlDur = add
 		} else {
-			ttlDur = time.Hour
+			// Otherwise, default to regular activity bump duration.
+			ttlDur = activityBump
 		}
 
 		// Only bump if 5% of the deadline has passed.
@@ -5865,6 +5870,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
+		DisplayOrder:         arg.DisplayOrder,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
@@ -6596,6 +6602,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.ActivityBump = arg.ActivityBump
 		tpl.UseMaxTtl = arg.UseMaxTtl
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek

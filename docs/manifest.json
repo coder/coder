@@ -292,6 +292,11 @@
           "title": "Port Forwarding",
           "description": "Learn how to forward ports in Coder",
           "path": "./networking/port-forwarding.md"
+        },
+        {
+          "title": "STUN and NAT",
+          "description": "Learn how Coder establishes direct connections",
+          "path": "./networking/stun.md"
         }
       ]
     },

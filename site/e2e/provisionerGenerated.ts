@@ -180,6 +180,7 @@ export interface App {
   healthcheck: Healthcheck | undefined;
   sharingLevel: AppSharingLevel;
   external: boolean;
+  order: number;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -683,6 +684,9 @@ export const App = {
     }
     if (message.external === true) {
       writer.uint32(72).bool(message.external);
+    }
+    if (message.order !== 0) {
+      writer.uint32(80).int64(message.order);
     }
     return writer;
   },
