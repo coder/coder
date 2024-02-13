@@ -38,7 +38,7 @@ Develop in an Incus System Container and run nested Docker containers using Incu
 
 ## Extending this template
 
-See the [lxd/incus](https://registry.terraform.io/providers/lxc/incus/latest/docs) Terraform provider documentation to
+See the [lxc/incus](https://registry.terraform.io/providers/lxc/incus/latest/docs) Terraform provider documentation to
 add the following features to your Coder template:
 
 - HTTPS incus host
