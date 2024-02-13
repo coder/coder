@@ -209,7 +209,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	provisioners := make([]database.ProvisionerType, 0)
+	provisioners := make([]database.ProvisionerType, 0, len(provisionersMap))
 	for p := range provisionersMap {
 		switch p {
 		case codersdk.ProvisionerTypeTerraform:

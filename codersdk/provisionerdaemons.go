@@ -199,6 +199,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
+	query.Add("version", proto.CurrentVersion.String())
 	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
 	for _, provisioner := range req.Provisioners {
