@@ -3787,6 +3787,10 @@ func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (datab
 	defer q.mutex.RUnlock()
 
 	for _, link := range q.userLinks {
+		user, err := q.getUserByIDNoLock(link.UserID)
+		if err == nil && user.Deleted {
+			continue
+		}
 		if link.LinkedID == id {
 			return link, nil
 		}
