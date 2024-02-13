@@ -5573,6 +5573,18 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	return nil
 }
 
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
 func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -6124,18 +6136,6 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	}
 
 	return sql.ErrNoRows
-}
-
-// Took the error from the real database.
-var deletedUserLinkError = &pq.Error{
-	Severity: "ERROR",
-	// "raise_exception" error
-	Code:    "P0001",
-	Message: "Cannot create user_link for deleted user",
-	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
-	File:    "pl_exec.c",
-	Line:    "3864",
-	Routine: "exec_stmt_raise",
 }
 
 func (q *FakeQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
