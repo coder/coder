@@ -733,6 +733,18 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -5571,18 +5583,6 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	}
 
 	return nil
-}
-
-// Took the error from the real database.
-var deletedUserLinkError = &pq.Error{
-	Severity: "ERROR",
-	// "raise_exception" error
-	Code:    "P0001",
-	Message: "Cannot create user_link for deleted user",
-	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
-	File:    "pl_exec.c",
-	Line:    "3864",
-	Routine: "exec_stmt_raise",
 }
 
 func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
