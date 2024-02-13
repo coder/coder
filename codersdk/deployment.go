@@ -52,6 +52,7 @@ const (
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureOAuth2Provider             FeatureName = "oauth2_provider"
+	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -72,6 +73,7 @@ var FeatureNames = []FeatureName{
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
 	FeatureOAuth2Provider,
+	FeatureControlSharedPorts,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -2115,14 +2117,17 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample Experiment = "example" // This isn't used for anything.
+	ExperimentExample     Experiment = "example" // This isn't used for anything.
+	ExperimentSharedPorts Experiment = "shared-ports"
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentSharedPorts,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

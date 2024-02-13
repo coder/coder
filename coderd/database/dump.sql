@@ -850,7 +850,8 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     use_max_ttl boolean DEFAULT false NOT NULL,
-    activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL
+    activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -901,6 +902,7 @@ CREATE VIEW template_with_users AS
     templates.deprecated,
     templates.use_max_ttl,
     templates.activity_bump,
+    templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -957,6 +959,13 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
 );
 
 COMMENT ON COLUMN workspace_agent_metadata.display_order IS 'Specifies the order in which to display agent metadata in user interfaces.';
+
+CREATE TABLE workspace_agent_port_share (
+    workspace_id uuid NOT NULL,
+    agent_name text NOT NULL,
+    port integer NOT NULL,
+    share_level app_sharing_level NOT NULL
+);
 
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
@@ -1405,6 +1414,9 @@ ALTER TABLE ONLY workspace_agent_log_sources
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
 
+ALTER TABLE ONLY workspace_agent_port_share
+    ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
+
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
@@ -1630,6 +1642,9 @@ ALTER TABLE ONLY workspace_agent_log_sources
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_port_share
+    ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

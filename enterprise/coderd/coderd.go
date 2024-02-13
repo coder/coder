@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -533,6 +535,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureWorkspaceProxy:             true,
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
+			codersdk.FeatureControlSharedPorts:         true,
 		})
 	if err != nil {
 		return err
@@ -688,6 +691,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		} else {
 			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 		}
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
+		var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
+		if enabled {
+			ps = portsharing.NewEnterprisePortSharer()
+		}
+		api.AGPL.PortSharer.Store(&ps)
 	}
 
 	// External token encryption is soft-enforced

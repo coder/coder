@@ -2095,6 +2095,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DeleteWorkspaceAgentPortShareRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `agent_name` | string  | false    |              |             |
+| `port`       | integer | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json
@@ -2901,9 +2917,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value     |
-| --------- |
-| `example` |
+| Value          |
+| -------------- |
+| `example`      |
+| `shared-ports` |
 
 ## codersdk.ExternalAuth
 
@@ -4677,6 +4694,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4713,6 +4731,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `id`                               | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
 | `max_ttl_ms`                       | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                  |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -5620,6 +5639,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 | ------ | ------ | -------- | ------------ | ----------- |
 | `hash` | string | false    |              |             |
+
+## codersdk.UpsertWorkspaceAgentPortShareRequest
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": "owner"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`  | string                                                                         | false    |              |             |
+| `port`        | integer                                                                        | false    |              |             |
+| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
 
 ## codersdk.User
 
@@ -6534,6 +6571,63 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `key`          | string  | false    |              |             |
 | `script`       | string  | false    |              |             |
 | `timeout`      | integer | false    |              |             |
+
+## codersdk.WorkspaceAgentPortShare
+
+```json
+{
+  "agent_name": "string",
+  "port": 0,
+  "share_level": "owner",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                           | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`   | string                                                                         | false    |              |             |
+| `port`         | integer                                                                        | false    |              |             |
+| `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
+| `workspace_id` | string                                                                         | false    |              |             |
+
+## codersdk.WorkspaceAgentPortShareLevel
+
+```json
+"owner"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `owner`         |
+| `authenticated` |
+| `public`        |
+
+## codersdk.WorkspaceAgentPortShares
+
+```json
+{
+  "shares": [
+    {
+      "agent_name": "string",
+      "port": 0,
+      "share_level": "owner",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                          | Required | Restrictions | Description |
+| -------- | ----------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `shares` | array of [codersdk.WorkspaceAgentPortShare](#codersdkworkspaceagentportshare) | false    |              |             |
 
 ## codersdk.WorkspaceAgentScript
 

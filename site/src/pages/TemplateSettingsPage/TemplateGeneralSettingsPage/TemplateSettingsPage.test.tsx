@@ -48,6 +48,7 @@ const validFormValues: FormValues = {
   update_workspace_dormant_at: false,
   require_active_version: false,
   disable_everyone_group_access: false,
+  max_port_share_level: "owner",
 };
 
 const renderTemplateSettingsPage = async () => {

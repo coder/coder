@@ -60,6 +60,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -113,6 +114,7 @@ Status Code **200**
 | `» failure_ttl_ms`                                                                    | integer                                                                                  | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
 | `» icon`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» id`                                                                                | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_ttl_ms`                                                                        | integer                                                                                  | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                 |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -125,9 +127,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `provisioner` | `terraform` |
+| Property               | Value           |
+| ---------------------- | --------------- |
+| `max_port_share_level` | `owner`         |
+| `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `public`        |
+| `provisioner`          | `terraform`     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -222,6 +227,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -362,6 +368,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -678,6 +685,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -801,6 +809,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",

@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -313,6 +314,36 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// This is only supported for subdomain-based applications.
 		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
 		appSharingLevel = database.AppSharingLevelOwner
+
+		// Port sharing authorization
+		agentName := agentNameOrID
+		id, err := uuid.Parse(agentNameOrID)
+		for _, a := range agents {
+			// if err is nil then it's an UUID
+			if err == nil && a.ID == id {
+				agentName = a.Name
+				break
+			}
+			// otherwise it's a name
+			if a.Name == agentNameOrID {
+				break
+			}
+		}
+
+		// First check if there is a port share for the port
+		ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   agentName,
+			Port:        int32(portUint),
+		})
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get workspace agent port share: %w", err)
+			}
+			// No port share found, so we keep default to owner.
+		} else {
+			appSharingLevel = ps.ShareLevel
+		}
 	} else {
 		for _, app := range apps {
 			if app.Slug == r.AppSlugOrPort {
