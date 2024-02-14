@@ -35,7 +35,87 @@ and
 [module sources](https://developer.hashicorp.com/terraform/language/modules/sources)
 in the Terraform documentation.
 
-## Git authentication
+## Coder modules
+
+Coder publishes plenty of modules that can be used to simplify some common tasks
+across templates. Some of the modules we publish are,
+
+1. [`code-server`](https://registry.coder.com/modules/code-server) and
+   [`vscode-web`](https://registry.coder.com/modules/vscode-web)
+2. [`git-clone`](https://registry.coder.com/modules/git-clone)
+3. [`dotfiles`](https://registry.coder.com/modules/dotfiles)
+4. [`jetbrains-gateway`](https://registry.coder.com/modules/jetbrains-gateway)
+5. [`jfrog-oauth`](https://registry.coder.com/modules/jfrog-oauth) and
+   [`jfrog-token`](https://registry.coder.com/modules/jfrog-token)
+6. [`vault-github`](https://registry.coder.com/modules/vault-github)
+
+For a full list of available modules please check
+[Coder module registry](https://registry.coder.com/modules).
+
+## Offline installations
+
+In offline and restricted deploymnets, there are 2 ways to fetch modules.
+
+1. Artifactory
+2. Private git repository
+
+### Artifactory
+
+Air gapped users can clone the [coder/modules](htpps://github.com/coder/modules)
+repo and publish a
+[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
+to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
+
+1. Create a local-terraform-repository with name `coder-modules-local`
+2. Create a virtual repository with name `tf`
+3. Follow the below instructions to publish coder modules to Artifactory
+
+   ```shell
+   git clone https://github.com/coder/modules
+   cd modules
+   jf tfc
+   jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
+   ```
+
+4. Generate a token with access to the `tf` repo and set an `ENV` variable
+   `TF_TOKEN_example.jfrog.io="XXXXXXXXXXXXXXX"` on the Coder provisioner.
+5. Create a file `.terraformrc` with following content and mount at
+   `/home/coder/.terraformrc` within the Coder provisioner.
+
+   ```hcl
+   provider_installation {
+     direct {
+         exclude = ["registry.terraform.io/*/*"]
+     }
+     network_mirror {
+         url = "https://example.jfrog.io/artifactory/api/terraform/tf/providers/"
+     }
+   }
+   ```
+
+6. Update module source as,
+
+   ```hcl
+   module "module-name" {
+     source = "https://example.jfrog.io/tf__coder/module-name/coder"
+     version = "1.0.0"
+     agent_id = coder_agent.example.id
+     ...
+   }
+   ```
+
+> Do not forget to replace example.jfrog.io with your Artifactory URL
+
+Based on the instructions
+[here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
+
+#### Example template
+
+We have an example template [here](../../examples/jfrog/remote/main.tf) that
+uses our [JFrog Docker](../../examples/jfrog/docker/main.tf) template as the
+underlying module.
+
+### Private git repository
 
 If you are importing a module from a private git repository, the Coder server or
 [provisioner](../admin/provisioners.md) needs git credentials. Since this token
@@ -65,7 +145,7 @@ If you are running Coder on Docker or Kubernetes, `git` is pre-installed in the
 Coder image. However, you still need to mount credentials. This can be done via
 a Docker volume mount or Kubernetes secrets.
 
-### Passing git credentials in Kubernetes
+#### Passing git credentials in Kubernetes
 
 First, create a `.gitconfig` and `.git-credentials` file on your local machine.
 You might want to do this in a temporary directory to avoid conflicting with
@@ -108,47 +188,6 @@ coder:
       readOnly: true
 ```
 
-## Artifactory
-
-JFrog Artifactory can serve as a Terraform module registry, allowing you to
-simplify a Coder-stored template to a `module` block and input variables.
-
-With this approach, you can:
-
-- Easily share templates across multiple Coder instances
-- Store templates far larger than the 1MB limit of Coder's template storage
-- Apply JFrog platform security policies to your templates
-
-### Basic Scaffolding
-
-For example, a template with:
-
-```hcl
-module "frontend" {
-  source = "cdr.jfrog.io/tf__main/frontend/docker"
-}
-```
-
-References the `frontend` module in the `main` namespace of the `tf` repository.
-Remember to replace `cdr.jfrog.io` with your Artifactory instance URL.
-
-You can upload the underlying module to Artifactory with:
-
-```shell
-# one-time setup commands
-# run this on the coder server (or external provisioners, if you have them)
-terraform login cdr.jfrog.io; jf tfc --global
-
-# jf tf p assumes the module name is the same as the current directory name.
-jf tf p --namespace=main --provider=docker --tag=v0.0.1
-```
-
-### Example template
-
-We have an example template
-[here](https://github.com/coder/coder/tree/main/examples/jfrog/remote) that uses
-our [JFrog Docker](../platforms/jfrog.md) template as the underlying module.
-
 ### Next up
 
 Learn more about
@@ -156,5 +195,5 @@ Learn more about
 - JFrog's Terraform Registry support
   [here](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry).
 - Configuring the JFrog toolchain inside a workspace
-  [here](../platforms/jfrog.md).
+  [here](../guides/artifactory-integration.md).
 - Coder Module Registry [here](https://registry.coder.com/modules)

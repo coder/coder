@@ -891,6 +891,20 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
+func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	// deleting a workspace port share is more akin to just updating the workspace.
+	if err = q.authorizeContext(ctx, rbac.ActionUpdate, w.RBACObject()); err != nil {
+		return xerrors.Errorf("authorize context: %w", err)
+	}
+
+	return q.db.DeleteWorkspaceAgentPortShare(ctx, arg)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
@@ -1868,6 +1882,20 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.Ge
 	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	// reading a workspace port share is more akin to just reading the workspace.
+	if err = q.authorizeContext(ctx, rbac.ActionRead, w.RBACObject()); err != nil {
+		return database.WorkspaceAgentPortShare{}, xerrors.Errorf("authorize context: %w", err)
+	}
+
+	return q.db.GetWorkspaceAgentPortShare(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2498,6 +2526,20 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// listing port shares is more akin to reading the workspace.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -3271,6 +3313,20 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

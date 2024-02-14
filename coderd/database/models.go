@@ -2003,6 +2003,8 @@ type Template struct {
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
+	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2043,8 +2045,10 @@ type TemplateTable struct {
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
-	Deprecated string `db:"deprecated" json:"deprecated"`
-	UseMaxTtl  bool   `db:"use_max_ttl" json:"use_max_ttl"`
+	Deprecated          string          `db:"deprecated" json:"deprecated"`
+	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
+	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 type TemplateVersion struct {
@@ -2269,6 +2273,13 @@ type WorkspaceAgentMetadatum struct {
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
 	// Specifies the order in which to display agent metadata in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+}
+
+type WorkspaceAgentPortShare struct {
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentName   string          `db:"agent_name" json:"agent_name"`
+	Port        int32           `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
 }
 
 type WorkspaceAgentScript struct {

@@ -551,6 +551,10 @@
           "path": "./api/organizations.md"
         },
         {
+          "title": "PortSharing",
+          "path": "./api/portsharing.md"
+        },
+        {
           "title": "Schemas",
           "path": "./api/schemas.md"
         },

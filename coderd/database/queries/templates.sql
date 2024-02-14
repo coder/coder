@@ -83,10 +83,11 @@ INSERT INTO
 		user_acl,
 		group_acl,
 		display_name,
-		allow_user_cancel_workspace_jobs
+		allow_user_cancel_workspace_jobs,
+		max_port_sharing_level
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -116,7 +117,8 @@ SET
 	icon = $5,
 	display_name = $6,
 	allow_user_cancel_workspace_jobs = $7,
-	group_acl = $8
+	group_acl = $8,
+	max_port_sharing_level = $9
 WHERE
 	id = $1
 ;
@@ -129,14 +131,15 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	use_max_ttl = $6,
-	max_ttl = $7,
-	autostop_requirement_days_of_week = $8,
-	autostop_requirement_weeks = $9,
-	autostart_block_days_of_week = $10,
-	failure_ttl = $11,
-	time_til_dormant = $12,
-	time_til_dormant_autodelete = $13
+	activity_bump = $6,
+	use_max_ttl = $7,
+	max_ttl = $8,
+	autostop_requirement_days_of_week = $9,
+	autostop_requirement_weeks = $10,
+	autostart_block_days_of_week = $11,
+	failure_ttl = $12,
+	time_til_dormant = $13,
+	time_til_dormant_autodelete = $14
 WHERE
 	id = $1
 ;

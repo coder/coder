@@ -257,6 +257,7 @@ func TestWorkspaceApps(t *testing.T) {
 		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.Experiments = append(deploymentValues.Experiments, string(codersdk.ExperimentSharedPorts))
 
 		if opts.DisableSubdomainApps {
 			opts.AppHost = ""

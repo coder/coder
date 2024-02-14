@@ -603,6 +603,11 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+
+	// The bug only is exercised when a deleted user with the same linked_id exists.
+	// Still related open issues:
+	// - https://github.com/coder/coder/issues/12116
+	// - https://github.com/coder/coder/issues/12115
 	t.Run("ChangedEmail", func(t *testing.T) {
 		t.Parallel()
 
@@ -627,7 +632,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			coderEmail,
 		}
 
-		client := coderdtest.New(t, &coderdtest.Options{
+		owner := coderdtest.New(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				AllowSignups:  true,
@@ -650,9 +655,21 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
+		coderdtest.CreateFirstUser(t, owner)
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		// This should register the user
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Create the user, then delete the user, then create again.
+		// This causes the email change to fail.
+		client := codersdk.New(owner.URL)
+
+		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		deleted, err := client.User(ctx, "me")
+		require.NoError(t, err)
+
+		err = owner.DeleteUser(ctx, deleted.ID)
+		require.NoError(t, err)
+
+		// Create the user again.
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
@@ -666,7 +683,8 @@ func TestUserOAuth2Github(t *testing.T) {
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-		require.Equal(t, user.ID, userID)
+
+		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, *gmailEmail.Email)
 
 		// Entirely change emails.
@@ -681,7 +699,8 @@ func TestUserOAuth2Github(t *testing.T) {
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-		require.Equal(t, user.ID, userID)
+
+		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, newEmail)
 	})
 }
