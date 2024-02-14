@@ -42,7 +42,7 @@ import {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { ExternalAuthWall } from "./ExternalAuthWall/ExternalAuthWall";
+import { ExternalAuthBanner } from "./ExternalAuthBanner/ExternalAuthBanner";
 import { CreateWSPermissions } from "./permissions";
 
 export const Language = {
@@ -172,7 +172,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       </PageHeader>
 
       {requiresExternalAuth ? (
-        <ExternalAuthWall
+        <ExternalAuthBanner
           providers={externalAuth}
           pollingState={externalAuthPollingState}
           onStartPolling={startPollingExternalAuth}

@@ -130,28 +130,3 @@ export const RequiresExternalAuth: Story = {
     ],
   },
 };
-
-export const OptionalExternalAuth: Story = {
-  args: {
-    externalAuth: [
-      {
-        id: "github",
-        type: "github",
-        authenticated: false,
-        authenticate_url: "",
-        display_icon: "/icon/github.svg",
-        display_name: "GitHub",
-        optional: true,
-      },
-      {
-        id: "gitlab",
-        type: "gitlab",
-        authenticated: true,
-        authenticate_url: "",
-        display_icon: "/icon/gitlab.svg",
-        display_name: "GitLab",
-        optional: true,
-      },
-    ],
-  },
-};

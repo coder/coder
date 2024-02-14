@@ -1,16 +1,16 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
-import { type TemplateVersionExternalAuth } from "api/typesGenerated";
-import { type ExternalAuthPollingState } from "../CreateWorkspacePage";
+import { Interpolation, Theme } from "@emotion/react";
+import { TemplateVersionExternalAuth } from "api/typesGenerated";
+import { ExternalAuthPollingState } from "../CreateWorkspacePage";
 import { ExternalAuthItem } from "./ExternalAuthItem";
+import { FC } from "react";
 
-type ExternalAuthWallProps = {
+type ExternalAuthBannerProps = {
   providers: TemplateVersionExternalAuth[];
   pollingState: ExternalAuthPollingState;
   onStartPolling: () => void;
 };
 
-export const ExternalAuthWall: FC<ExternalAuthWallProps> = ({
+export const ExternalAuthBanner: FC<ExternalAuthBannerProps> = ({
   providers,
   pollingState,
   onStartPolling,

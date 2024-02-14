@@ -1,5 +1,5 @@
 import { TemplateVersionExternalAuth } from "api/typesGenerated";
-import { ExternalAuthWall } from "./ExternalAuthWall";
+import { ExternalAuthBanner } from "./ExternalAuthBanner";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const MockExternalAuth: TemplateVersionExternalAuth = {
@@ -11,13 +11,13 @@ const MockExternalAuth: TemplateVersionExternalAuth = {
   authenticated: false,
 };
 
-const meta: Meta<typeof ExternalAuthWall> = {
-  title: "pages/CreateWorkspacePage/ExternalAuthWall",
-  component: ExternalAuthWall,
+const meta: Meta<typeof ExternalAuthBanner> = {
+  title: "pages/CreateWorkspacePage/ExternalAuthBanner",
+  component: ExternalAuthBanner,
 };
 
 export default meta;
-type Story = StoryObj<typeof ExternalAuthWall>;
+type Story = StoryObj<typeof ExternalAuthBanner>;
 
 export const Default: Story = {
   args: {
