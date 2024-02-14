@@ -24,6 +24,7 @@ test("web terminal", async ({ context, page }) => {
                   displayApps: {
                     webTerminal: true,
                   },
+                  order: 0,
                 },
               ],
             },
