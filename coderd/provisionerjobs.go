@@ -106,6 +106,15 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+
+	// Sort all resource agents once, resources might be shuffled now.
+	sort.Slice(resourceAgents, func(i, j int) bool {
+		if resourceAgents[i].DisplayOrder != resourceAgents[j].DisplayOrder {
+			return resourceAgents[i].DisplayOrder < resourceAgents[j].DisplayOrder
+		}
+		return resourceAgents[i].Name < resourceAgents[j].Name
+	})
+
 	resourceAgentIDs := make([]uuid.UUID, 0)
 	for _, agent := range resourceAgents {
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
@@ -161,12 +170,19 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
+	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
 		agents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range resourceAgents {
 			if agent.ResourceID != resource.ID {
 				continue
 			}
+
+			if _, ok := resourceAgentsMinOrder[resource.ID]; !ok {
+				resourceAgentsMinOrder[resource.ID] = 0
+			}
+			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
+
 			dbApps := make([]database.WorkspaceApp, 0)
 			for _, app := range apps {
 				if app.AgentID == agent.ID {
@@ -197,6 +213,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				})
 				return
 			}
+
 			agents = append(agents, apiAgent)
 		}
 		metadata := make([]database.WorkspaceResourceMetadatum, 0)
@@ -207,7 +224,21 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
+
 	sort.Slice(apiResources, func(i, j int) bool {
+		var orderI, orderJ int32
+
+		if _, ok := resourceAgentsMinOrder[apiResources[i].ID]; ok {
+			orderI = resourceAgentsMinOrder[apiResources[i].ID]
+		}
+
+		if _, ok := resourceAgentsMinOrder[apiResources[j].ID]; ok {
+			orderJ = resourceAgentsMinOrder[apiResources[j].ID]
+		}
+
+		if orderI != orderJ {
+			return orderI < orderJ
+		}
 		return apiResources[i].Name < apiResources[j].Name
 	})
 
