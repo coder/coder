@@ -625,6 +625,36 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Empty(t, updated.DeprecationMessage)
 	})
 
+	t.Run("AGPL_MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelOwner, template.MaxPortShareLevel)
+
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		req := codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		// AGPL cannot change max port sharing level
+		require.ErrorContains(t, err, "port sharing level is an enterprise feature")
+
+		// Ensure the same value port share level is a no-op
+		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:              template.Name + "2",
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 

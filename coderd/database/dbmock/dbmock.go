@@ -500,6 +500,20 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), arg0, arg1)
 }
 
+// DeleteWorkspaceAgentPortShare mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentPortShare(arg0 context.Context, arg1 database.DeleteWorkspaceAgentPortShareParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentPortShare", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceAgentPortShare indicates an expected call of DeleteWorkspaceAgentPortShare.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortShare), arg0, arg1)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2254,6 +2268,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentMetadata(arg0, arg1 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentMetadata), arg0, arg1)
 }
 
+// GetWorkspaceAgentPortShare mocks base method.
+func (m *MockStore) GetWorkspaceAgentPortShare(arg0 context.Context, arg1 database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentPortShare", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceAgentPortShare)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentPortShare indicates an expected call of GetWorkspaceAgentPortShare.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), arg0, arg1)
+}
+
 // GetWorkspaceAgentScriptsByAgentIDs mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()
@@ -3381,6 +3410,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), arg0, arg1)
 }
 
+// ListWorkspaceAgentPortShares mocks base method.
+func (m *MockStore) ListWorkspaceAgentPortShares(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWorkspaceAgentPortShares", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentPortShare)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWorkspaceAgentPortShares indicates an expected call of ListWorkspaceAgentPortShares.
+func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), arg0, arg1)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(arg0 context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()
@@ -4458,6 +4502,21 @@ func (m *MockStore) UpsertTailnetTunnel(arg0 context.Context, arg1 database.Upse
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), arg0, arg1)
+}
+
+// UpsertWorkspaceAgentPortShare mocks base method.
+func (m *MockStore) UpsertWorkspaceAgentPortShare(arg0 context.Context, arg1 database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertWorkspaceAgentPortShare", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceAgentPortShare)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertWorkspaceAgentPortShare indicates an expected call of UpsertWorkspaceAgentPortShare.
+func (mr *MockStoreMockRecorder) UpsertWorkspaceAgentPortShare(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).UpsertWorkspaceAgentPortShare), arg0, arg1)
 }
 
 // Wrappers mocks base method.

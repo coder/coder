@@ -398,6 +398,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/derp/traffic": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug DERP traffic",
+                "operationId": "debug-derp-traffic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/derp.BytesSentRecv"
+                            }
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/expvar": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug expvar",
+                "operationId": "debug-expvar",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/debug/health": {
             "get": {
                 "security": [
@@ -7188,6 +7248,125 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/port-share": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Get workspace agent port shares",
+                "operationId": "get-workspace-agent-port-shares",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShares"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Upsert workspace agent port share",
+                "operationId": "upsert-workspace-agent-port-share",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert port sharing level request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertWorkspaceAgentPortShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PortSharing"
+                ],
+                "summary": "Get workspace agent port shares",
+                "operationId": "get-workspace-agent-port-shares",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Delete port sharing level request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeleteWorkspaceAgentPortShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/resolve-autostart": {
             "get": {
                 "security": [
@@ -9028,6 +9207,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeleteWorkspaceAgentPortShareRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
@@ -9337,13 +9527,15 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "example"
+                "example",
+                "shared-ports"
             ],
             "x-enum-comments": {
                 "ExperimentExample": "This isn't used for anything."
             },
             "x-enum-varnames": [
-                "ExperimentExample"
+                "ExperimentExample",
+                "ExperimentSharedPorts"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -11022,6 +11214,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "max_port_share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"
@@ -11839,6 +12034,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpsertWorkspaceAgentPortShareRequest": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                }
+            }
+        },
         "codersdk.User": {
             "type": "object",
             "required": [
@@ -12533,6 +12742,48 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentPortShare": {
+            "type": "object",
+            "properties": {
+                "agent_name": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "share_level": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentPortShareLevel": {
+            "type": "string",
+            "enum": [
+                "owner",
+                "authenticated",
+                "public"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentPortShareLevelOwner",
+                "WorkspaceAgentPortShareLevelAuthenticated",
+                "WorkspaceAgentPortShareLevelPublic"
+            ]
+        },
+        "codersdk.WorkspaceAgentPortShares": {
+            "type": "object",
+            "properties": {
+                "shares": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentPortShare"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceAgentScript": {
             "type": "object",
             "properties": {
@@ -13075,6 +13326,25 @@ const docTemplate = `{
                 }
             }
         },
+        "derp.BytesSentRecv": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "description": "Key is the public key of the client which sent/received these bytes.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/key.NodePublic"
+                        }
+                    ]
+                },
+                "recv": {
+                    "type": "integer"
+                },
+                "sent": {
+                    "type": "integer"
+                }
+            }
+        },
         "derp.ServerInfoMessage": {
             "type": "object",
             "properties": {
@@ -13579,6 +13849,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                 }
             }
+        },
+        "key.NodePublic": {
+            "type": "object"
         },
         "netcheck.Report": {
             "type": "object",

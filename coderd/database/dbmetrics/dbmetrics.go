@@ -300,6 +300,13 @@ func (m metricsStore) DeleteTailnetTunnel(ctx context.Context, arg database.Dele
 	return r0, r1
 }
 
+func (m metricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
@@ -1082,6 +1089,13 @@ func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAg
 	return metadata, err
 }
 
+func (m metricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
@@ -1607,6 +1621,13 @@ func (m metricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg d
 	return metadata, err
 }
 
+func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("ListWorkspaceAgentPortShares").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)
@@ -2119,6 +2140,13 @@ func (m metricsStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upse
 	start := time.Now()
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAgentPortShare(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentPortShare").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
