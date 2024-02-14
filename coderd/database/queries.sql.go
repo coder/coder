@@ -1288,24 +1288,6 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 	return err
 }
 
-const deleteGroupMembersByOrgAndUser = `-- name: DeleteGroupMembersByOrgAndUser :exec
-DELETE FROM
-	group_members
-WHERE
-	group_members.user_id = $1
-	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = $2)
-`
-
-type DeleteGroupMembersByOrgAndUserParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error {
-	_, err := q.db.ExecContext(ctx, deleteGroupMembersByOrgAndUser, arg.UserID, arg.OrganizationID)
-	return err
-}
-
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name
@@ -1416,6 +1398,18 @@ type InsertUserGroupsByNameParams struct {
 // InsertUserGroupsByName adds a user to all provided groups, if they exist.
 func (q *sqlQuerier) InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error {
 	_, err := q.db.ExecContext(ctx, insertUserGroupsByName, arg.UserID, arg.OrganizationID, pq.Array(arg.GroupNames))
+	return err
+}
+
+const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
+DELETE FROM
+	group_members
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
 	return err
 }
 
