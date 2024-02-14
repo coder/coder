@@ -3142,6 +3142,31 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
+const getDefaultOrganization = `-- name: GetDefaultOrganization :one
+SELECT
+	id, name, description, created_at, updated_at, is_default
+FROM
+	organizations
+WHERE
+	is_default = true
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultOrganization)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
 	id, name, description, created_at, updated_at, is_default
