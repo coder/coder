@@ -398,6 +398,66 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/derp/traffic": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug DERP traffic",
+                "operationId": "debug-derp-traffic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/derp.BytesSentRecv"
+                            }
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/expvar": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug expvar",
+                "operationId": "debug-expvar",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/debug/health": {
             "get": {
                 "security": [
@@ -13266,6 +13326,25 @@ const docTemplate = `{
                 }
             }
         },
+        "derp.BytesSentRecv": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "description": "Key is the public key of the client which sent/received these bytes.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/key.NodePublic"
+                        }
+                    ]
+                },
+                "recv": {
+                    "type": "integer"
+                },
+                "sent": {
+                    "type": "integer"
+                }
+            }
+        },
         "derp.ServerInfoMessage": {
             "type": "object",
             "properties": {
@@ -13770,6 +13849,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                 }
             }
+        },
+        "key.NodePublic": {
+            "type": "object"
         },
         "netcheck.Report": {
             "type": "object",

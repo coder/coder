@@ -7517,6 +7517,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `count`      | integer                                           | false    |              |             |
 | `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
 
+## derp.BytesSentRecv
+
+```json
+{
+  "key": {},
+  "recv": 0,
+  "sent": 0
+}
+```
+
+### Properties
+
+| Name   | Type                             | Required | Restrictions | Description                                                          |
+| ------ | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------- |
+| `key`  | [key.NodePublic](#keynodepublic) | false    |              | Key is the public key of the client which sent/received these bytes. |
+| `recv` | integer                          | false    |              |                                                                      |
+| `sent` | integer                          | false    |              |                                                                      |
+
 ## derp.ServerInfoMessage
 
 ```json
@@ -8629,6 +8647,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
 | `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
+
+## key.NodePublic
+
+```json
+{}
+```
+
+### Properties
+
+_None_
 
 ## netcheck.Report
 
