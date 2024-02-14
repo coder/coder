@@ -10342,6 +10342,7 @@ const docTemplate = `{
             "required": [
                 "created_at",
                 "id",
+                "is_default",
                 "name",
                 "updated_at"
             ],
@@ -10353,6 +10354,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "is_default": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
