@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -412,9 +413,78 @@ parentLoop:
 	require.True(t, client2.AwaitReachable(awaitReachableCtx4, ip))
 }
 
+func TestConn_BlockEndpoints(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	// Setup conn 1.
+	ip1 := tailnet.IP()
+	conn1, err := tailnet.NewConn(&tailnet.Options{
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip1, 128)},
+		Logger:         logger.Named("w1"),
+		DERPMap:        derpMap,
+		BlockEndpoints: true,
+	})
+	require.NoError(t, err)
+	defer func() {
+		err := conn1.Close()
+		assert.NoError(t, err)
+	}()
+
+	// Setup conn 2.
+	ip2 := tailnet.IP()
+	conn2, err := tailnet.NewConn(&tailnet.Options{
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip2, 128)},
+		Logger:         logger.Named("w2"),
+		DERPMap:        derpMap,
+		BlockEndpoints: true,
+	})
+	require.NoError(t, err)
+	defer func() {
+		err := conn2.Close()
+		assert.NoError(t, err)
+	}()
+
+	// Connect them together and wait for them to be reachable.
+	nodes1 := stitch(t, conn2, conn1)
+	nodes2 := stitch(t, conn1, conn2)
+	awaitReachableCtx, awaitReachableCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer awaitReachableCancel()
+	require.True(t, conn1.AwaitReachable(awaitReachableCtx, ip2))
+
+	// Watch for 10 seconds to ensure that neither peer has any endpoints.
+	// There's no good way to force endpoint updates, so we just wait.
+parentLoop:
+	for {
+		select {
+		case node := <-nodes1:
+			require.Empty(t, node.Endpoints, "conn1 got endpoints")
+		case node := <-nodes2:
+			require.Empty(t, node.Endpoints, "conn2 got endpoints")
+		case <-time.After(testutil.WaitShort):
+			break parentLoop
+		}
+	}
+
+	// Double check that both peers don't have endpoints for the other peer
+	// according to magicsock.
+	conn1Status, ok := conn1.Status().Peer[conn2.Node().Key]
+	require.True(t, ok)
+	require.Empty(t, conn1Status.Addrs)
+	require.Empty(t, conn1Status.CurAddr)
+	conn2Status, ok := conn2.Status().Peer[conn1.Node().Key]
+	require.True(t, ok)
+	require.Empty(t, conn2Status.Addrs)
+	require.Empty(t, conn2Status.CurAddr)
+}
+
 // stitch sends node updates from src Conn as peer updates to dst Conn.  Sort of
 // like the Coordinator would, but without actually needing a Coordinator.
-func stitch(t *testing.T, dst, src *tailnet.Conn) {
+func stitch(t *testing.T, dst, src *tailnet.Conn) <-chan *tailnet.Node {
+	// Buffered to avoid blocking the callback.
+	out := make(chan *tailnet.Node, 50)
 	srcID := uuid.New()
 	src.SetNodeCallback(func(node *tailnet.Node) {
 		pn, err := tailnet.NodeToProto(node)
@@ -427,5 +497,11 @@ func stitch(t *testing.T, dst, src *tailnet.Conn) {
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}})
 		assert.NoError(t, err)
+
+		select {
+		case out <- node:
+		default:
+		}
 	})
+	return out
 }
