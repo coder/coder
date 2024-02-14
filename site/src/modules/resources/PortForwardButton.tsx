@@ -3,17 +3,16 @@ import Link from "@mui/material/Link";
 import CircularProgress from "@mui/material/CircularProgress";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import { docs } from "utils/docs";
-import { deleteWorkspaceAgentSharedPort, getAgentListeningPorts, getWorkspaceAgentSharedPorts, postWorkspaceAgentSharedPort } from "api/api";
+import { deleteWorkspaceAgentSharedPort, getAgentListeningPorts, getWorkspaceAgentSharedPorts, upsertWorkspaceAgentSharedPort } from "api/api";
 import type {
   DeleteWorkspaceAgentPortShareRequest,
-  UpdateWorkspaceAgentPortShareRequest,
+  UpsertWorkspaceAgentPortShareRequest,
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
   WorkspaceAgentListeningPortsResponse,
-  WorkspaceAgentPortShare,
   WorkspaceAgentPortShareLevel,
   WorkspaceAgentPortShares,
 } from "api/typesGenerated";
@@ -58,7 +57,7 @@ export interface PortForwardButtonProps {
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent, workspaceID, storybook } = props;
+  const { agent, storybook } = props;
 
   const paper = useClassName(classNames.paper, []);
 
@@ -69,18 +68,9 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
     refetchInterval: 5_000,
   });
 
-  const sharedPortsQuery = useQuery({
-    queryKey: ["sharedPorts", workspaceID],
-    queryFn: () => getWorkspaceAgentSharedPorts(workspaceID),
-    enabled: !storybook && agent.status === "connected",
-  });
-
   const listeningPorts = storybook
     ? storybook.listeningPortsQueryData
     : portsQuery.data;
-  const sharedPorts = storybook
-    ? storybook.sharedPortsQueryData
-    : sharedPortsQuery.data;
 
   return (
     <Popover>
@@ -110,7 +100,6 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
         <PortForwardPopoverView
           {...props}
           listeningPorts={listeningPorts?.ports}
-          sharedPorts={sharedPorts?.shares}
         />
       </PopoverContent>
     </Popover>
@@ -119,7 +108,6 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 
 interface PortForwardPopoverViewProps extends PortForwardButtonProps {
   listeningPorts?: WorkspaceAgentListeningPort[];
-  sharedPorts?: WorkspaceAgentPortShare[];
 }
 
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
@@ -129,14 +117,24 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   agent,
   username,
   listeningPorts,
-  sharedPorts,
+  storybook,
 }) => {
   const theme = useTheme();
+  const [selectedShareLevel, setSelectedShareLevel] = useState<WorkspaceAgentPortShareLevel>("authenticated");
+  const [selectedPort, setSelectedPort] = useState<string>("");
 
+  const sharedPortsQuery = useQuery({
+    queryKey: ["sharedPorts", workspaceID],
+    queryFn: () => getWorkspaceAgentSharedPorts(workspaceID),
+    enabled: !storybook && agent.status === "connected",
+  });
+  const sharedPorts = storybook
+  ? storybook.sharedPortsQueryData?.shares || []
+  : sharedPortsQuery.data?.shares || [];
 
   const createSharedPortMutation = useMutation({
-    mutationFn: async (options: UpdateWorkspaceAgentPortShareRequest) => {
-      await postWorkspaceAgentSharedPort(workspaceID, options);
+    mutationFn: async (options: UpsertWorkspaceAgentPortShareRequest) => {
+      await upsertWorkspaceAgentSharedPort(workspaceID, options);
     },
   });
 
@@ -149,10 +147,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   // we don't want to show listening ports if it's already a shared port
   const filteredListeningPorts = listeningPorts?.filter(
     (port) => {
-      if (sharedPorts === undefined) {
-        return true;
-      }
-
       for (let i = 0; i < sharedPorts.length; i++) {
         if (sharedPorts[i].port === port.port && sharedPorts[i].agent_name === agent.name) {
           return false;
@@ -352,11 +346,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     <MenuItem value="public">Public</MenuItem>
                   </Select>
                 </FormControl>
-                <IconButton onClick={() => {
-                  deleteSharedPortMutation.mutate({
+                <IconButton onClick={async () => {
+                  await deleteSharedPortMutation.mutateAsync({
                     agent_name: agent.name,
                     port: share.port,
                   });
+                  await sharedPortsQuery.refetch();
                 }}>
                   <CloseIcon
                     css={{
@@ -379,15 +374,37 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             marginTop: 2,
           }}
         >
-          <TextField label="Port" variant="outlined" size="small" />
+          <TextField
+            label="Port"
+            variant="outlined"
+            size="small"
+            onChange={(event) => {
+              setSelectedPort(event.target.value);
+            }}
+          />
           <FormControl size="small">
-            <Select value="authenticated">
+            <Select
+              value={selectedShareLevel}
+              onChange={(event) => {
+                setSelectedShareLevel(event.target.value as WorkspaceAgentPortShareLevel);
+            }}>
               <MenuItem value="authenticated">Authenticated</MenuItem>
               <MenuItem value="public">Public</MenuItem>
             </Select>
           </FormControl>
-          {/* How do I use the value from the select in the mutation? */}
-          <Button variant="contained">Share Port</Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              await createSharedPortMutation.mutateAsync({
+                agent_name: agent.name,
+                port: Number(selectedPort),
+                share_level: selectedShareLevel,
+              });
+              await sharedPortsQuery.refetch();
+            }}
+          >
+            Share Port
+          </Button>
         </Stack>
       </div>
     </>

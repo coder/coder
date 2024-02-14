@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { WorkspaceAppSharingLevels, type Template, type UpdateTemplateMeta } from "api/typesGenerated";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
 import { type FC } from "react";
 import {
@@ -43,6 +43,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
     require_active_version: Yup.boolean(),
+    deprecation_message: Yup.string(),
+    max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
   });
 
 export interface TemplateSettingsForm {
@@ -54,6 +56,8 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
+  portSharingExperimentEnabled: boolean;
+  portSharingControlsEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -64,6 +68,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
+  portSharingExperimentEnabled,
+  portSharingControlsEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -256,6 +262,46 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           )}
         </FormFields>
       </FormSection>
+
+      {portSharingExperimentEnabled && (
+        <FormSection
+          title="Port Sharing"
+          description="Shared ports with the Public sharing level can be accessed by anyone,
+          while ports with the Authenticated sharing level can only be accessed
+          by authenticated Coder users. Ports with the Owner sharing level can
+          only be accessed by the workspace owner."
+        >
+          <FormFields>
+            <Stack direction="column" spacing={0.5}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.5}
+                css={styles.optionText}
+              >
+                Maximum Port Sharing Level
+              </Stack>
+              <span css={styles.optionHelperText}>
+                The maximum level of port sharing allowed for workspaces.
+              </span>
+            </Stack>
+            <TextField
+              {...getFieldHelpers("max_port_share_level")}
+              disabled={isSubmitting || !portSharingControlsEnabled}
+              fullWidth
+              label="Maximum Port Sharing Level"
+            />
+            {!portSharingControlsEnabled && (
+              <Stack direction="row">
+                <EnterpriseBadge />
+                <span css={styles.optionHelperText}>
+                  Enterprise license required to control max port sharing level.
+                </span>
+              </Stack>
+            )}
+          </FormFields>
+        </FormSection>
+      )}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>

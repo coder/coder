@@ -34,13 +34,15 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 export const WithPorts: Story = {
   args: {
     listeningPorts: MockListeningPortsResponse.ports,
-    sharedPorts: MockSharedPortsResponse.shares,
+    storybook: {
+      sharedPortsQueryData: MockSharedPortsResponse
+    },
   },
 };
 
 export const Empty: Story = {
   args: {
     listeningPorts: [],
-    sharedPorts: [],
+
   },
 };

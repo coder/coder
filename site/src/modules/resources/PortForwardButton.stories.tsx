@@ -2,6 +2,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
+  MockSharedPortsResponse,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 
@@ -20,6 +21,7 @@ export const Example: Story = {
   args: {
     storybook: {
       listeningPortsQueryData: MockListeningPortsResponse,
+      sharedPortsQueryData: MockSharedPortsResponse,
     },
   },
 };

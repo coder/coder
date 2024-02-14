@@ -38,6 +38,8 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
         onCancel={onCancel}
         error={submitError}
         accessControlEnabled={accessControlEnabled}
+        portSharingExperimentEnabled
+        portSharingControlsEnabled
       />
     </>
   );

@@ -3247,16 +3247,18 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
 export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
   shares: [
     {
+      workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
       port: 4000,
       share_level: "authenticated",
     },
     {
+      workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
       port: 8080,
       share_level: "authenticated",
     },
-    { agent_name: "a-workspace-agent", port: 8081, share_level: "public" },
+    { workspace_id: MockWorkspace.id, agent_name: "a-workspace-agent", port: 8081, share_level: "public" },
   ],
 };
 

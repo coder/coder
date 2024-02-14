@@ -1167,17 +1167,17 @@ export const getWorkspaceAgentSharedPorts = async (
   workspaceID: string,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
   const response = await axios.get(
-    `/api/v2/workspaces/${workspaceID}/shared-ports`,
+    `/api/v2/workspaces/${workspaceID}/port-share`,
   );
   return response.data;
 };
 
-export const postWorkspaceAgentSharedPort = async (
+export const upsertWorkspaceAgentSharedPort = async (
   workspaceID: string,
-  req: TypesGen.UpdateWorkspaceAgentPortShareRequest,
+  req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
   const response = await axios.post(
-    `/api/v2/workspaces/${workspaceID}/shared-port`,
+    `/api/v2/workspaces/${workspaceID}/port-share`,
     req
   );
   return response.data;
@@ -1188,7 +1188,7 @@ export const deleteWorkspaceAgentSharedPort = async (
   req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
   const response = await axios.delete(
-    `/api/v2/workspaces/${workspaceID}/shared-port`,
+    `/api/v2/workspaces/${workspaceID}/port-share`,
     {
       data: req,
     }
