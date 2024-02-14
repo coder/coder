@@ -9296,7 +9296,7 @@
     },
     "codersdk.Organization": {
       "type": "object",
-      "required": ["created_at", "id", "name", "updated_at"],
+      "required": ["created_at", "id", "is_default", "name", "updated_at"],
       "properties": {
         "created_at": {
           "type": "string",
@@ -9305,6 +9305,9 @@
         "id": {
           "type": "string",
           "format": "uuid"
+        },
+        "is_default": {
+          "type": "boolean"
         },
         "name": {
           "type": "string"

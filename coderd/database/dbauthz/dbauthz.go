@@ -1016,6 +1016,12 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return q.db.GetDERPMeshKey(ctx)
 }
 
+func (q *querier) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
+	return fetch(q.log, q.auth, func(ctx context.Context, _ any) (database.Organization, error) {
+		return q.db.GetDefaultOrganization(ctx)
+	})(ctx, nil)
+}
+
 func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
 	// No authz checks
 	return q.db.GetDefaultProxyConfig(ctx)

@@ -570,6 +570,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(o, rbac.ActionRead).Returns(o)
 	}))
+	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		check.Args().Asserts(o, rbac.ActionRead).Returns(o)
+	}))
 	s.Run("GetOrganizationByName", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.Name).Asserts(o, rbac.ActionRead).Returns(o)
