@@ -1,18 +1,9 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link, { type LinkProps } from "@mui/material/Link";
-import IconButton from "@mui/material/IconButton";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
-import Tooltip from "@mui/material/Tooltip";
-import { visuallyHidden } from "@mui/utils";
-import { type Dayjs } from "dayjs";
+import Link, { LinkProps } from "@mui/material/Link";
 import { forwardRef, type FC, useRef } from "react";
-import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { useTime } from "hooks/useTime";
 import { isWorkspaceOn } from "utils/workspace";
-import type { Template, Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import {
   autostartDisplay,
   autostopDisplay,
@@ -21,60 +12,28 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
+import IconButton from "@mui/material/IconButton";
+import RemoveIcon from "@mui/icons-material/RemoveOutlined";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import _ from "lodash";
 import { getErrorMessage } from "api/errors";
 import {
   updateDeadline,
   workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
-import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import type { WorkspaceActivityStatus } from "modules/workspaces/activity";
-
-export interface WorkspaceScheduleProps {
-  status: WorkspaceActivityStatus;
-  workspace: Workspace;
-  template: Template;
-  canUpdateWorkspace: boolean;
-}
-
-export const WorkspaceSchedule: FC<WorkspaceScheduleProps> = ({
-  status,
-  workspace,
-  template,
-  canUpdateWorkspace,
-}) => {
-  if (!shouldDisplayScheduleControls(workspace, status)) {
-    return null;
-  }
-
-  return (
-    <TopbarData>
-      <TopbarIcon>
-        <Tooltip title="Schedule">
-          <ScheduleOutlined aria-label="Schedule" />
-        </Tooltip>
-      </TopbarIcon>
-      <WorkspaceScheduleControls
-        workspace={workspace}
-        status={status}
-        template={template}
-        canUpdateSchedule={canUpdateWorkspace}
-      />
-    </TopbarData>
-  );
-};
+import { useMutation, useQueryClient } from "react-query";
+import { Dayjs } from "dayjs";
+import { visuallyHidden } from "@mui/utils";
 
 export interface WorkspaceScheduleControlsProps {
   workspace: Workspace;
-  status: WorkspaceActivityStatus;
-  template: Template;
   canUpdateSchedule: boolean;
 }
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   workspace,
-  status,
-  template,
   canUpdateSchedule,
 }) => {
   const queryClient = useQueryClient();
@@ -131,11 +90,7 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   return (
     <div css={styles.scheduleValue} data-testid="schedule-controls">
       {isWorkspaceOn(workspace) ? (
-        <AutoStopDisplay
-          workspace={workspace}
-          status={status}
-          template={template}
-        />
+        <AutoStopDisplay workspace={workspace} />
       ) : (
         <ScheduleSettingsLink>
           Starts at {autostartDisplay(workspace.autostart_schedule)}
@@ -178,41 +133,28 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 
 interface AutoStopDisplayProps {
   workspace: Workspace;
-  status: WorkspaceActivityStatus;
-  template: Template;
 }
 
-const AutoStopDisplay: FC<AutoStopDisplayProps> = ({
-  workspace,
-  status,
-  template,
-}) => {
-  useTime();
-  const { message, tooltip, danger } = autostopDisplay(
-    workspace,
-    status,
-    template,
-  );
+const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
+  const display = autostopDisplay(workspace);
 
-  const display = (
-    <ScheduleSettingsLink
-      data-testid="schedule-controls-autostop"
-      css={
-        danger &&
-        ((theme) => ({
-          color: `${theme.roles.danger.fill.outline} !important`,
-        }))
-      }
-    >
-      {message}
-    </ScheduleSettingsLink>
-  );
-
-  if (tooltip) {
-    return <Tooltip title={tooltip}>{display}</Tooltip>;
+  if (display.tooltip) {
+    return (
+      <Tooltip title={display.tooltip}>
+        <ScheduleSettingsLink
+          css={(theme) => ({
+            color: isShutdownSoon(workspace)
+              ? `${theme.palette.warning.light} !important`
+              : undefined,
+          })}
+        >
+          Stop {display.message}
+        </ScheduleSettingsLink>
+      </Tooltip>
+    );
   }
 
-  return display;
+  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
 };
 
 const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
@@ -248,13 +190,22 @@ export const canEditDeadline = (workspace: Workspace): boolean => {
 
 export const shouldDisplayScheduleControls = (
   workspace: Workspace,
-  status: WorkspaceActivityStatus,
 ): boolean => {
   const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
   const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
-  const hasActivity =
-    status === "connected" && !workspace.latest_build.max_deadline;
-  return (willAutoStop || willAutoStart) && !hasActivity;
+  return willAutoStop || willAutoStart;
+};
+
+const isShutdownSoon = (workspace: Workspace): boolean => {
+  const deadline = workspace.latest_build.deadline;
+  if (!deadline) {
+    return false;
+  }
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diff = deadlineDate.getTime() - now.getTime();
+  const oneHour = 1000 * 60 * 60;
+  return diff < oneHour;
 };
 
 const styles = {

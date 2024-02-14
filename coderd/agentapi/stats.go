@@ -16,10 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type StatsBatcher interface {
@@ -29,7 +27,6 @@ type StatsBatcher interface {
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
 	Database                  database.Store
-	Pubsub                    pubsub.Pubsub
 	Log                       slog.Logger
 	StatsBatcher              StatsBatcher
 	TemplateScheduleStore     *atomic.Pointer[schedule.TemplateScheduleStore]
@@ -133,16 +130,5 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return nil, xerrors.Errorf("update stats in database: %w", err)
 	}
 
-	// Tell the frontend about the new agent report, now that everything is updated
-	a.publishWorkspaceAgentStats(ctx, workspace.ID)
-
 	return res, nil
-}
-
-func (a *StatsAPI) publishWorkspaceAgentStats(ctx context.Context, workspaceID uuid.UUID) {
-	err := a.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceID), codersdk.WorkspaceNotifyDescriptionAgentStatsOnly)
-	if err != nil {
-		a.Log.Warn(ctx, "failed to publish workspace agent stats",
-			slog.F("workspace_id", workspaceID), slog.Error(err))
-	}
 }

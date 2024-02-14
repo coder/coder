@@ -20,10 +20,9 @@ type ServerSentEvent struct {
 type ServerSentEventType string
 
 const (
-	ServerSentEventTypePing    ServerSentEventType = "ping"
-	ServerSentEventTypeData    ServerSentEventType = "data"
-	ServerSentEventTypePartial ServerSentEventType = "partial"
-	ServerSentEventTypeError   ServerSentEventType = "error"
+	ServerSentEventTypePing  ServerSentEventType = "ping"
+	ServerSentEventTypeData  ServerSentEventType = "data"
+	ServerSentEventTypeError ServerSentEventType = "error"
 )
 
 func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*ServerSentEvent, error) {
