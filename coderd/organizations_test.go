@@ -24,6 +24,14 @@ func TestOrganizationsByUser(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, orgs)
 	require.Len(t, orgs, 1)
+	require.True(t, orgs[0].IsDefault, "first org is always default")
+
+	// Make an extra org, and it should not be defaulted.
+	notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		Name: "another",
+	})
+	require.NoError(t, err)
+	require.False(t, notDefault.IsDefault, "only 1 default org allowed")
 }
 
 func TestOrganizationByUserAndName(t *testing.T) {
