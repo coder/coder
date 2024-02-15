@@ -117,7 +117,7 @@ func (api *API) workspaceAgentPostMetadataDeprecated(rw http.ResponseWriter, r *
 }
 
 // @Summary Removed: Get workspace resources for workspace build
-// @ID get-workspace-resources-for-workspace-build
+// @ID removed-get-workspace-resources-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Builds

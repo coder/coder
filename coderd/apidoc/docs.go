@@ -6369,7 +6369,7 @@ const docTemplate = `{
                     "Builds"
                 ],
                 "summary": "Removed: Get workspace resources for workspace build",
-                "operationId": "get-workspace-resources-for-workspace-build",
+                "operationId": "removed-get-workspace-resources-for-workspace-build",
                 "parameters": [
                     {
                         "type": "string",
