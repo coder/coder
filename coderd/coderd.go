@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -83,6 +84,8 @@ var globalHTTPSwaggerHandler http.HandlerFunc
 func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
 }
+
+var expDERPOnce = sync.Once{}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
@@ -559,6 +562,16 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
+	// These are the metrics the DERP server exposes.
+	// TODO: export via prometheus
+	expDERPOnce.Do(func() {
+		// We need to do this via a global Once because expvar registry is global and panics if we
+		// register multiple times.  In production there is only one Coderd and one DERP server per
+		// process, but in testing, we create multiple of both, so the Once protects us from
+		// panicking.
+		expvar.Publish("derp", api.DERPServer.ExpVar())
+	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
@@ -1028,6 +1041,10 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
+			r.Route("/derp", func(r chi.Router) {
+				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+			})
+			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 		})
 	})
 
