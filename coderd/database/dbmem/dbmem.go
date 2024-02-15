@@ -5285,6 +5285,7 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 		Name:      arg.Name,
 		CreatedAt: arg.CreatedAt,
 		UpdatedAt: arg.UpdatedAt,
+		IsDefault: len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
