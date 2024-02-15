@@ -533,7 +533,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get workspace resources for workspace build
+## Removed: Get workspace resources for workspace build
 
 ### Code samples
 
@@ -674,7 +674,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 | ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceResource](schemas.md#codersdkworkspaceresource) |
 
-<h3 id="get-workspace-resources-for-workspace-build-responseschema">Response Schema</h3>
+<h3 id="removed:-get-workspace-resources-for-workspace-build-responseschema">Response Schema</h3>
 
 Status Code **200**
 

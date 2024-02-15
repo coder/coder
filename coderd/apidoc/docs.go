@@ -6368,8 +6368,9 @@ const docTemplate = `{
                 "tags": [
                     "Builds"
                 ],
-                "summary": "Get workspace resources for workspace build",
-                "operationId": "get-workspace-resources-for-workspace-build",
+                "summary": "Removed: Get workspace resources for workspace build",
+                "operationId": "removed-get-workspace-resources-for-workspace-build",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
