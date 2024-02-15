@@ -218,6 +218,7 @@ func (s *tableStats) Empty() []string {
 	return m
 }
 
+// noop
 func TestMigrateUpWithFixtures(t *testing.T) {
 	t.Parallel()
 
