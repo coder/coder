@@ -30,8 +30,8 @@ The most straight-forward way to authenticate your template with Artifactory is
 by using our official Coder [modules](https://registry.coder.com). We publish
 two type of modules that automate the JFrog Artifactory and Coder integration.
 
-1. JFrog-OAuth
-2. JFrog-Token
+1. [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth)
+2. [JFrog-Token](https://registry.coder.com/modules/jfrog-token)
 
 ### JFrog-OAuth
 
