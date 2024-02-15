@@ -437,6 +437,7 @@ func (l *LogSender) SendLoop(ctx context.Context, dest logDest) error {
 			l.exceededLogLimit = true
 			// no point in keeping anything we have queued around, server will not accept them
 			l.queues = make(map[uuid.UUID]*logQueue)
+			l.Broadcast() // might unblock WaitUntilEmpty
 			return LogLimitExceededError
 		}
 
@@ -451,6 +452,7 @@ func (l *LogSender) SendLoop(ctx context.Context, dest logDest) error {
 		if len(q.logs) == 0 {
 			// no empty queues
 			delete(l.queues, src)
+			l.Broadcast() // might unblock WaitUntilEmpty
 			continue
 		}
 		q.lastFlush = time.Now()
@@ -485,6 +487,34 @@ func (l *LogSender) getPendingWorkLocked() (src uuid.UUID, q *logQueue) {
 
 func (l *LogSender) GetScriptLogger(logSourceID uuid.UUID) ScriptLogger {
 	return ScriptLogger{srcID: logSourceID, sender: l}
+}
+
+// WaitUntilEmpty waits until the LogSender's queues are empty or the given context expires.
+func (l *LogSender) WaitUntilEmpty(ctx context.Context) error {
+	ctxDone := false
+	nevermind := make(chan struct{})
+	defer close(nevermind)
+	go func() {
+		select {
+		case <-ctx.Done():
+			l.L.Lock()
+			defer l.L.Unlock()
+			ctxDone = true
+			l.Broadcast()
+			return
+		case <-nevermind:
+			return
+		}
+	}()
+	l.L.Lock()
+	defer l.L.Unlock()
+	for len(l.queues) != 0 && !ctxDone {
+		l.Wait()
+	}
+	if len(l.queues) == 0 {
+		return nil
+	}
+	return ctx.Err()
 }
 
 type ScriptLogger struct {
