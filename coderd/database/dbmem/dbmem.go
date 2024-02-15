@@ -5648,6 +5648,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
+		DisplayOrder:             arg.DisplayOrder,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)

@@ -42,6 +42,7 @@ test("app", async ({ context, page }) => {
                       order: 0,
                     },
                   ],
+                  order: 0,
                 },
               ],
             },

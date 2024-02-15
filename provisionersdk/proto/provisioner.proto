@@ -121,6 +121,7 @@ message Agent {
     DisplayApps display_apps = 20;
 	repeated Script scripts = 21;
 	repeated Env extra_envs = 22;
+	int64 order = 23;
 }
 
 enum AppSharingLevel {

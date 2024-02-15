@@ -27,6 +27,7 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
               agents: [
                 {
                   token,
+                  order: 0,
                 },
               ],
             },
