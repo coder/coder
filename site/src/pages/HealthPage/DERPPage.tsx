@@ -1,4 +1,16 @@
 import { Link, useOutletContext } from "react-router-dom";
+import type {
+  HealthMessage,
+  HealthSeverity,
+  HealthcheckReport,
+} from "api/typesGenerated";
+import Button from "@mui/material/Button";
+import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
+import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { useTheme } from "@emotion/react";
+import { type FC } from "react";
 import {
   Header,
   HeaderTitle,
@@ -9,19 +21,8 @@ import {
   Logs,
   HealthyDot,
 } from "./Content";
-import {
-  HealthMessage,
-  HealthSeverity,
-  HealthcheckReport,
-} from "api/typesGenerated";
-import Button from "@mui/material/Button";
-import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
-import { healthyColor } from "./healthyColor";
-import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useTheme } from "@mui/material/styles";
 import { DismissWarningButton } from "./DismissWarningButton";
+import { healthyColor } from "./healthyColor";
 
 const flags = [
   "UDP",
@@ -38,7 +39,7 @@ const flags = [
   "PCP",
 ];
 
-export const DERPPage = () => {
+export const DERPPage: FC = () => {
   const { derp } = useOutletContext<HealthcheckReport>();
   const { netcheck, regions, netcheck_logs: logs } = derp;
   const theme = useTheme();
