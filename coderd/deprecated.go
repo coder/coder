@@ -124,6 +124,7 @@ func (api *API) workspaceAgentPostMetadataDeprecated(rw http.ResponseWriter, r *
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {array} codersdk.WorkspaceResource
 // @Router /workspacebuilds/{workspacebuild}/resources [get]
+// @Deprecated this endpoint is unused and will be removed in future.
 func (api *API) workspaceBuildResourcesDeprecated(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)

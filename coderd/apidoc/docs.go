@@ -6370,6 +6370,7 @@ const docTemplate = `{
                 ],
                 "summary": "Removed: Get workspace resources for workspace build",
                 "operationId": "removed-get-workspace-resources-for-workspace-build",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
