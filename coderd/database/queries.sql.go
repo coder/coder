@@ -3142,34 +3142,9 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
-const getDefaultOrganization = `-- name: GetDefaultOrganization :one
-SELECT
-	id, name, description, created_at, updated_at, is_default
-FROM
-	organizations
-WHERE
-	is_default = true
-LIMIT
-	1
-`
-
-func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getDefaultOrganization)
-	var i Organization
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.IsDefault,
-	)
-	return i, err
-}
-
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-	id, name, description, created_at, updated_at, is_default
+	id, name, description, created_at, updated_at
 FROM
 	organizations
 WHERE
@@ -3185,14 +3160,13 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsDefault,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-	id, name, description, created_at, updated_at, is_default
+	id, name, description, created_at, updated_at
 FROM
 	organizations
 WHERE
@@ -3210,14 +3184,13 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsDefault,
 	)
 	return i, err
 }
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-	id, name, description, created_at, updated_at, is_default
+	id, name, description, created_at, updated_at
 FROM
 	organizations
 `
@@ -3237,7 +3210,6 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, erro
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.IsDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -3254,7 +3226,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, erro
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-	id, name, description, created_at, updated_at, is_default
+	id, name, description, created_at, updated_at
 FROM
 	organizations
 WHERE
@@ -3283,7 +3255,6 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.IsDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -3300,10 +3271,9 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
-	organizations (id, "name", description, created_at, updated_at, is_default)
+	organizations (id, "name", description, created_at, updated_at)
 VALUES
-	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default
+	($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at
 `
 
 type InsertOrganizationParams struct {
@@ -3329,7 +3299,6 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsDefault,
 	)
 	return i, err
 }

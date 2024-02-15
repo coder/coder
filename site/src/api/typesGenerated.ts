@@ -768,7 +768,6 @@ export interface Organization {
   readonly name: string;
   readonly created_at: string;
   readonly updated_at: string;
-  readonly is_default: boolean;
 }
 
 // From codersdk/organizations.go

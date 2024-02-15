@@ -118,6 +118,5 @@ func convertOrganization(organization database.Organization) codersdk.Organizati
 		Name:      organization.Name,
 		CreatedAt: organization.CreatedAt,
 		UpdatedAt: organization.UpdatedAt,
-		IsDefault: organization.IsDefault,
 	}
 }

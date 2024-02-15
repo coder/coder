@@ -16,7 +16,6 @@ export const MockOrganization: TypesGen.Organization = {
   name: "Test Organization",
   created_at: "",
   updated_at: "",
-  is_default: true,
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {

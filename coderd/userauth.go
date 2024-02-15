@@ -1343,12 +1343,13 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
 			//nolint:gocritic
-			organization, _ := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-
-			// Add the user to the default organization.
-			// Once multi-organization we should check some configuration to see
-			// if we should add the user to a different organization.
-			organizationID = organization.ID
+			organizations, _ := tx.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
+			if len(organizations) > 0 {
+				// Add the user to the first organization. Once multi-organization
+				// support is added, we should enable a configuration map of user
+				// email to organization.
+				organizationID = organizations[0].ID
+			}
 
 			//nolint:gocritic
 			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
@@ -1394,7 +1395,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				// All of the userauth tests depend on this being able to create
 				// the first organization. It shouldn't be possible in normal
 				// operation.
-				CreateOrganization: organizationID == uuid.Nil,
+				CreateOrganization: len(organizations) == 0,
 				LoginType:          params.LoginType,
 			})
 			if err != nil {
