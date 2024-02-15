@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -173,13 +174,11 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
 		agents := make([]codersdk.WorkspaceAgent, 0)
+		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
+
 		for _, agent := range resourceAgents {
 			if agent.ResourceID != resource.ID {
 				continue
-			}
-
-			if _, ok := resourceAgentsMinOrder[resource.ID]; !ok {
-				resourceAgentsMinOrder[resource.ID] = 0
 			}
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
@@ -226,16 +225,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 
 	sort.Slice(apiResources, func(i, j int) bool {
-		var orderI, orderJ int32
-
-		if _, ok := resourceAgentsMinOrder[apiResources[i].ID]; ok {
-			orderI = resourceAgentsMinOrder[apiResources[i].ID]
-		}
-
-		if _, ok := resourceAgentsMinOrder[apiResources[j].ID]; ok {
-			orderJ = resourceAgentsMinOrder[apiResources[j].ID]
-		}
-
+		orderI := resourceAgentsMinOrder[apiResources[i].ID]
+		orderJ := resourceAgentsMinOrder[apiResources[j].ID]
 		if orderI != orderJ {
 			return orderI < orderJ
 		}

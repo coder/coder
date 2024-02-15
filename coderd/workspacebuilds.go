@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -905,10 +907,22 @@ func (api *API) convertWorkspaceBuild(
 
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
+	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
 		agents := agentsByResourceID[resource.ID]
+		sort.Slice(agents, func(i, j int) bool {
+			if agents[i].DisplayOrder != agents[j].DisplayOrder {
+				return agents[i].DisplayOrder < agents[j].DisplayOrder
+			}
+			return agents[i].Name < agents[j].Name
+		})
+
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
+		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
+
 		for _, agent := range agents {
+			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
+
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
@@ -924,6 +938,15 @@ func (api *API) convertWorkspaceBuild(
 		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
+	sort.Slice(apiResources, func(i, j int) bool {
+		orderI := resourceAgentsMinOrder[apiResources[i].ID]
+		orderJ := resourceAgentsMinOrder[apiResources[j].ID]
+		if orderI != orderJ {
+			return orderI < orderJ
+		}
+		return apiResources[i].Name < apiResources[j].Name
+	})
+
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
 	return codersdk.WorkspaceBuild{
