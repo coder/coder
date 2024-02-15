@@ -557,29 +557,6 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
-// @Summary Get workspace resources for workspace build
-// @ID get-workspace-resources-for-workspace-build
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Builds
-// @Param workspacebuild path string true "Workspace build ID"
-// @Success 200 {array} codersdk.WorkspaceResource
-// @Router /workspacebuilds/{workspacebuild}/resources [get]
-func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceBuild := httpmw.WorkspaceBuildParam(r)
-
-	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	api.provisionerJobResources(rw, r, job)
-}
-
 // @Summary Get build parameters for workspace build
 // @ID get-build-parameters-for-workspace-build
 // @Security CoderSessionToken
