@@ -23,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionerd"
-	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/coder/v2/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -59,7 +59,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		if assert.Len(t, daemons, 1) {
 			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-			assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+			assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 		}
 	})
 
@@ -154,13 +154,13 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{{
+			ProvisionPlan: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Plan{
+					Plan: &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
-							Agents: []*proto.Agent{{
+							Agents: []*sdkproto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",
 							}},
@@ -278,10 +278,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		}()
 
 		connector := provisionerd.LocalProvisioners{
-			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(terraformClient),
+			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(terraformClient),
 		}
 		another := codersdk.New(client.URL)
-		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		pd := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 				ID:           uuid.New(),
 				Name:         testutil.MustRandString(t, 63),
@@ -310,17 +310,17 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
+			ProvisionApply: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Apply{
+					Apply: &sdkproto.ApplyComplete{
+						Resources: []*sdkproto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
 							DailyCost: 1,
-							Agents: []*proto.Agent{{
+							Agents: []*sdkproto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",
-								Auth: &proto.Agent_Token{
+								Auth: &sdkproto.Agent_Token{
 									Token: authToken,
 								},
 							}},
