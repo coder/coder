@@ -524,8 +524,8 @@ github.com/hdevalence/ed25519consensus v0.1.0/go.mod h1:w3BHWjwJbFU29IRHL1Iqkw3s
 github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec/go.mod h1:Q48J4R4DvxnHolD5P8pOtXigYlRuPLGl6moFx3ulM68=
 github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02 h1:AgcIVYPa6XJnU3phs104wLj8l5GEththEw6+F79YsIY=
 github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02/go.mod h1:Q48J4R4DvxnHolD5P8pOtXigYlRuPLGl6moFx3ulM68=
-github.com/hugelgupf/vmtest v0.0.0-20240102225328-693afabdd27f h1:ov45/OzrJG8EKbGjn7jJZQJTN7Z1t73sFYNIRd64YlI=
-github.com/hugelgupf/vmtest v0.0.0-20240102225328-693afabdd27f/go.mod h1:JoDrYMZpDPYo6uH9/f6Peqms3zNNWT2XiGgioMOIGuI=
+github.com/hugelgupf/vmtest v0.0.0-20240127073930-89f92b39a1fa h1:2q0UvEA7TSTrjU4aFrpF6u28tHat3KnCkqsy/gB86v0=
+github.com/hugelgupf/vmtest v0.0.0-20240127073930-89f92b39a1fa/go.mod h1:Z22CpRFjhoR/NoxBeEuyeGTwMC7G5s4RfKa9Bs/j74w=
 github.com/iancoleman/orderedmap v0.3.0 h1:5cbR2grmZR/DiVt+VJopEhtVs9YGInGIxAoMJn+Ichc=
 github.com/iancoleman/orderedmap v0.3.0/go.mod h1:XuLcCUkdL5owUCQeF2Ue9uuw1EptkJDkXXS7VoV7XGE=
 github.com/illarion/gonotify v1.0.1 h1:F1d+0Fgbq/sDWjj/r66ekjDG+IDeecQKUFH4wNwsoio=
@@ -831,10 +831,10 @@ github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:a1lVb/DtPvCB8fslRZhAngC2+aY1QWCk3Cedj/Gdt08=
 github.com/u-root/gobusybox/src v0.0.0-20231228173702-b69f654846aa h1:unMPGGK/CRzfg923allsikmvk2l7beBeFPUNC4RVX/8=
 github.com/u-root/gobusybox/src v0.0.0-20231228173702-b69f654846aa/go.mod h1:Zj4Tt22fJVn/nz/y6Ergm1SahR9dio1Zm/D2/S0TmXM=
-github.com/u-root/u-root v0.12.0 h1:K0AuBFriwr0w/PGS3HawiAw89e3+MU7ks80GpghAsNs=
-github.com/u-root/u-root v0.12.0/go.mod h1:FYjTOh4IkIZHhjsd17lb8nYW6udgXdJhG1c0r6u0arI=
-github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63 h1:YcojQL98T/OO+rybuzn2+5KrD5dBwXIvYBvQ2cD3Avg=
-github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63/go.mod h1:eLL9Nub3yfAho7qB0MzZizFhTU2QkLeoVsWdHtDW264=
+github.com/u-root/u-root v0.13.0 h1:/1+vJHGLKChB6pcyJsTuHTEXCL3tmWDZ2LgCvta4YnA=
+github.com/u-root/u-root v0.13.0/go.mod h1:YVsWXhneYu0CGWX7RNlpOPbrR4/qaHKaRvDC/o9IvzE=
+github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e h1:BA9O3BmlTmpjbvajAwzWx4Wo2TRVdpPXZEeemGQcajw=
+github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e/go.mod h1:eLL9Nub3yfAho7qB0MzZizFhTU2QkLeoVsWdHtDW264=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
