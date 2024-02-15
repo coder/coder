@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -163,12 +164,10 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
 		agents := make([]codersdk.WorkspaceAgent, 0)
-
 		for _, agent := range resourceAgents {
 			if agent.ResourceID != resource.ID {
 				continue
 			}
-
 			dbApps := make([]database.WorkspaceApp, 0)
 			for _, app := range apps {
 				if app.AgentID == agent.ID {
@@ -199,7 +198,6 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				})
 				return
 			}
-
 			agents = append(agents, apiAgent)
 		}
 		metadata := make([]database.WorkspaceResourceMetadatum, 0)
@@ -210,6 +208,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
+	sort.Slice(apiResources, func(i, j int) bool {
+		return apiResources[i].Name < apiResources[j].Name
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiResources)
 }
