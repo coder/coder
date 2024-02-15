@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"math"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -108,14 +106,6 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// Sort all resource agents once, resources might be shuffled now.
-	sort.Slice(resourceAgents, func(i, j int) bool {
-		if resourceAgents[i].DisplayOrder != resourceAgents[j].DisplayOrder {
-			return resourceAgents[i].DisplayOrder < resourceAgents[j].DisplayOrder
-		}
-		return resourceAgents[i].Name < resourceAgents[j].Name
-	})
-
 	resourceAgentIDs := make([]uuid.UUID, 0)
 	for _, agent := range resourceAgents {
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
@@ -171,16 +161,13 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 
 	apiResources := make([]codersdk.WorkspaceResource, 0)
-	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
 		agents := make([]codersdk.WorkspaceAgent, 0)
-		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
 
 		for _, agent := range resourceAgents {
 			if agent.ResourceID != resource.ID {
 				continue
 			}
-			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
 			dbApps := make([]database.WorkspaceApp, 0)
 			for _, app := range apps {
@@ -223,15 +210,6 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
-
-	sort.Slice(apiResources, func(i, j int) bool {
-		orderI := resourceAgentsMinOrder[apiResources[i].ID]
-		orderJ := resourceAgentsMinOrder[apiResources[j].ID]
-		if orderI != orderJ {
-			return orderI < orderJ
-		}
-		return apiResources[i].Name < apiResources[j].Name
-	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiResources)
 }
