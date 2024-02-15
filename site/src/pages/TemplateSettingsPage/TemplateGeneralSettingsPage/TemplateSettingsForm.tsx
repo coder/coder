@@ -27,6 +27,8 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
@@ -86,6 +88,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         require_active_version: template.require_active_version,
         deprecation_message: template.deprecation_message,
         disable_everyone_group_access: false,
+        max_port_share_level: template.max_port_share_level,
       },
       validationSchema,
       onSubmit,
@@ -285,12 +288,20 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 The maximum level of port sharing allowed for workspaces.
               </span>
             </Stack>
-            <TextField
-              {...getFieldHelpers("max_port_share_level")}
+            <Select
+              id="max_port_share_level"
+              name="max_port_share_level"
               disabled={isSubmitting || !portSharingControlsEnabled}
               fullWidth
+              // TODO: Fix label being black on dark mode
               label="Maximum Port Sharing Level"
-            />
+              onChange={form.handleChange}
+              value={form.values.max_port_share_level}
+            >
+              <MenuItem value="owner">Owner</MenuItem>
+              <MenuItem value="authenticated">Authenticated</MenuItem>
+              <MenuItem value="public">Public</MenuItem>
+            </Select>
             {!portSharingControlsEnabled && (
               <Stack direction="row">
                 <EnterpriseBadge />

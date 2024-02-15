@@ -43,6 +43,5 @@ export const WithPorts: Story = {
 export const Empty: Story = {
   args: {
     listeningPorts: [],
-
   },
 };

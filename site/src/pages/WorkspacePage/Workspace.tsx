@@ -245,6 +245,7 @@ export const Workspace: FC<WorkspaceProps> = ({
                   key={agent.id}
                   agent={agent}
                   workspace={workspace}
+                  template={template}
                   sshPrefix={sshPrefix}
                   showApps={permissions.updateWorkspace}
                   showBuiltinApps={permissions.updateWorkspace}
