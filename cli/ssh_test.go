@@ -162,7 +162,13 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		// Update template version
-		version = coderdtest.UpdateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses, template.ID)
+		authToken2 := uuid.NewString()
+		echoResponses2 := &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken2),
+		}
+		version = coderdtest.UpdateTemplateVersion(t, ownerClient, owner.OrganizationID, echoResponses2, template.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
 		err := ownerClient.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version.ID,
@@ -184,7 +190,7 @@ func TestSSH(t *testing.T) {
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
-		_ = agenttest.New(t, client.URL, authToken)
+		_ = agenttest.New(t, client.URL, authToken2)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.

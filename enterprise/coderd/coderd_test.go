@@ -231,13 +231,14 @@ func TestAuditLogging(t *testing.T) {
 			},
 			DontAddLicense: true,
 		})
-		workspace, agent := setupWorkspaceAgent(t, client, user, 0)
-		conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
+		r := setupWorkspaceAgent(t, client, user, 0)
+		conn, err := client.DialWorkspaceAgent(ctx, r.sdkAgent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
 		require.NoError(t, err)
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)
 		require.True(t, connected)
-		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		_ = r.agent.Close() // close first so we don't drop error logs from outdated build
+		build := coderdtest.CreateWorkspaceBuild(t, client, r.workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 	})
 }
