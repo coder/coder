@@ -311,6 +311,10 @@ type Conn struct {
 	trafficStats *connstats.Statistics
 }
 
+func (c *Conn) GetBlockEndpoints() bool {
+	return c.configMaps.getBlockEndpoints() && c.nodeUpdater.getBlockEndpoints()
+}
+
 func (c *Conn) InstallCaptureHook(f capture.Callback) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

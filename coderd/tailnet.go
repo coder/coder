@@ -49,6 +49,7 @@ func NewServerTailnet(
 	derpMapFn func() *tailcfg.DERPMap,
 	derpForceWebSockets bool,
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
+	blockEndpoints bool,
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
@@ -56,6 +57,7 @@ func NewServerTailnet(
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
+		BlockEndpoints:      blockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
@@ -164,6 +166,12 @@ func NewServerTailnet(
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()
 	return tn, nil
+}
+
+// Conn is used to access the underlying tailnet conn of the ServerTailnet. It
+// should only be used for read-only purposes.
+func (s *ServerTailnet) Conn() *tailnet.Conn {
+	return s.conn
 }
 
 func (s *ServerTailnet) nodeCallback(node *tailnet.Node) {
