@@ -52,6 +52,9 @@ fi
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
 		),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+		),
 		Options: clibase.OptionSet{{
 			Name:        "Extra",
 			Flag:        "extra",
