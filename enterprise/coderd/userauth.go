@@ -41,6 +41,7 @@ func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db databa
 			return xerrors.Errorf("delete user groups: %w", err)
 		}
 
+		// Random for extra commit
 		if createMissingGroups {
 			// This is the system creating these additional groups, so we use the system restricted context.
 			// nolint:gocritic
