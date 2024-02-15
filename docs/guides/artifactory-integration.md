@@ -162,7 +162,7 @@ concepts apply to all compute types.
 
 ## Offline Deployments
 
-See the [offline deployments](../install/offline.md#coder-modules) section for
+See the [offline deployments](../templates/modules#offline-installations) section for
 instructions on how to use coder-modules in an offline environment with
 Artifactory.
 
