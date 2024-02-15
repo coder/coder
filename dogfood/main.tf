@@ -157,13 +157,18 @@ module "coder-login" {
   agent_id = coder_agent.dev.id
 }
 
+variable "artifactory_access_token" {
+  sensitive = true
+}
+
 module "jfrog" {
-  source                = "registry.coder.com/modules/jfrog-oauth/coder"
-  version               = "1.0.2"
-  agent_id              = coder_agent.dev.id
-  jfrog_url             = var.jfrog_url
-  configure_code_server = true
-  username_field        = "username"
+  source                   = "registry.coder.com/modules/jfrog-token/coder"
+  version                  = "1.0.2"
+  agent_id                 = coder_agent.dev.id
+  jfrog_url                = var.jfrog_url
+  artifactory_access_token = var.artifactory_access_token
+  configure_code_server    = true
+  username_field           = "username"
   package_managers = {
     "npm" : "npm",
     "go" : "go",
