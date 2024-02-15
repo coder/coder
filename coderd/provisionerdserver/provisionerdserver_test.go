@@ -210,7 +210,10 @@ func TestAcquireJob(t *testing.T) {
 				},
 				JobID: uuid.New(),
 			})
-			externalAuthProviders, err := json.Marshal([]*sdkproto.ExternalAuthProviderResource{gitAuthProvider})
+			externalAuthProviders, err := json.Marshal([]database.ExternalAuthProvider{{
+				ID:       gitAuthProvider.Id,
+				Optional: gitAuthProvider.Optional,
+			}})
 			require.NoError(t, err)
 			err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 				JobID:                 version.JobID,
