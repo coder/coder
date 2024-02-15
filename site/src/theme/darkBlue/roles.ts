@@ -7,8 +7,8 @@ export default {
     outline: colors.orange[600],
     text: colors.orange[50],
     fill: {
-      solid: colors.orange[500],
-      outline: colors.orange[400],
+      solid: colors.orange[600],
+      outline: colors.orange[600],
       text: colors.white,
     },
     disabled: {

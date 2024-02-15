@@ -48,6 +48,7 @@ func TestServerTailnet_Reconnect(t *testing.T) {
 		agentConnectionTimes: make(map[uuid.UUID]time.Time),
 	}
 	// reinit the Coordinator once, to load mMultiAgent0
+	mCoord.EXPECT().SetNodeCallback(gomock.Any()).Times(1)
 	uut.reinitCoordinator()
 
 	mMultiAgent0.EXPECT().NextUpdate(gomock.Any()).
@@ -57,6 +58,7 @@ func TestServerTailnet_Reconnect(t *testing.T) {
 		Times(1).
 		Return(true) // this triggers reconnect
 	setLost := mCoord.EXPECT().SetAllPeersLost().Times(1).After(closed0)
+	mCoord.EXPECT().SetNodeCallback(gomock.Any()).Times(1).After(closed0)
 	mMultiAgent1.EXPECT().NextUpdate(gomock.Any()).
 		Times(1).
 		After(setLost).

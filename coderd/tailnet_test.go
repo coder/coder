@@ -50,6 +50,24 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
+func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// Connect through the ServerTailnet
+	agents, serverTailnet := setupServerTailnetAgent(t, 1,
+		tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded)
+	a := agents[0]
+
+	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
+	require.NoError(t, err)
+	defer release()
+
+	assert.True(t, conn.AwaitReachable(ctx))
+}
+
 func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 
@@ -311,9 +329,9 @@ type agentWithID struct {
 	agent.Agent
 }
 
-func setupServerTailnetAgent(t *testing.T, agentNum int) ([]agentWithID, *coderd.ServerTailnet) {
+func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t)
+	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, opts...)
 
 	coord := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {

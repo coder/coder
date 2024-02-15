@@ -52,19 +52,41 @@ func NewServerTailnet(
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
-	originalDerpMap := derpMapFn()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:             originalDerpMap,
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
-
 	serverCtx, cancel := context.WithCancel(ctx)
+
+	// This is set to allow local DERP traffic to be proxied through memory
+	// instead of needing to hit the external access URL. Don't use the ctx
+	// given in this callback, it's only valid while connecting.
+	if derpServer != nil {
+		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+			if !region.EmbeddedRelay {
+				return nil
+			}
+			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
+			left, right := net.Pipe()
+			go func() {
+				defer left.Close()
+				defer right.Close()
+				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+				derpServer.Accept(ctx, right, brw, "internal")
+			}()
+			return left
+		})
+	}
+
 	derpMapUpdaterClosed := make(chan struct{})
+	originalDerpMap := derpMapFn()
+	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
+	// there is an embedded relay, we use the local in-memory dialer.
+	conn.SetDERPMap(originalDerpMap)
 	go func() {
 		defer close(derpMapUpdaterClosed)
 
@@ -136,51 +158,24 @@ func NewServerTailnet(
 		return nil, xerrors.Errorf("get initial multi agent: %w", err)
 	}
 	tn.agentConn.Store(&agentConn)
-
-	pn, err := tailnet.NodeToProto(conn.Node())
-	if err != nil {
-		tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
-	} else {
-		err = tn.getAgentConn().UpdateSelf(pn)
-		if err != nil {
-			tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
-		}
-	}
-
-	conn.SetNodeCallback(func(node *tailnet.Node) {
-		pn, err := tailnet.NodeToProto(node)
-		if err != nil {
-			tn.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
-			return
-		}
-		err = tn.getAgentConn().UpdateSelf(pn)
-		if err != nil {
-			tn.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
-		}
-	})
-
-	// This is set to allow local DERP traffic to be proxied through memory
-	// instead of needing to hit the external access URL. Don't use the ctx
-	// given in this callback, it's only valid while connecting.
-	if derpServer != nil {
-		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-			if !region.EmbeddedRelay {
-				return nil
-			}
-			left, right := net.Pipe()
-			go func() {
-				defer left.Close()
-				defer right.Close()
-				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-				derpServer.Accept(ctx, right, brw, "internal")
-			}()
-			return left
-		})
-	}
+	// registering the callback also triggers send of the initial node
+	tn.coordinatee.SetNodeCallback(tn.nodeCallback)
 
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()
 	return tn, nil
+}
+
+func (s *ServerTailnet) nodeCallback(node *tailnet.Node) {
+	pn, err := tailnet.NodeToProto(node)
+	if err != nil {
+		s.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
+		return
+	}
+	err = s.getAgentConn().UpdateSelf(pn)
+	if err != nil {
+		s.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
+	}
 }
 
 func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
@@ -285,6 +280,9 @@ func (s *ServerTailnet) reinitCoordinator() {
 			continue
 		}
 		s.agentConn.Store(&agentConn)
+		// reset the Node callback, which triggers the conn to send the node immediately, and also
+		// register for updates
+		s.coordinatee.SetNodeCallback(s.nodeCallback)
 
 		// Resubscribe to all of the agents we're tracking.
 		for agentID := range s.agentConnectionTimes {

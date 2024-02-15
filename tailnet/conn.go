@@ -116,9 +116,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if len(options.Addresses) == 0 {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
-	if options.DERPMap == nil {
-		return nil, xerrors.New("DERPMap must be provided")
-	}
 
 	nodePrivateKey := key.NewNode()
 	var nodeID tailcfg.NodeID
@@ -219,7 +216,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		magicConn.DiscoPublicKey(),
 	)
 	cfgMaps.setAddresses(options.Addresses)
-	cfgMaps.setDERPMap(options.DERPMap)
+	if options.DERPMap != nil {
+		cfgMaps.setDERPMap(options.DERPMap)
+	}
 	cfgMaps.setBlockEndpoints(options.BlockEndpoints)
 
 	nodeUp := newNodeUpdater(
