@@ -75,6 +75,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+// Some comment for a diff
 // We must only ever instantiate one httpSwagger.Handler because of a data race
 // inside the handler. This issue is triggered by tests that create multiple
 // coderd instances.
