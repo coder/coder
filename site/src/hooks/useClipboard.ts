@@ -84,9 +84,6 @@ function simulateClipboardWrite(textToCopy: string): boolean {
    * that always returns false. You cannot make any assumptions about how its
    * core functionality will be removed.
    *
-   * The nullish operators should not be removed, despite what any IDEs might
-   * say.
-   *
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Clipboard}
    */
   let isCopied: boolean;
