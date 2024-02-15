@@ -106,7 +106,6 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-
 	resourceAgentIDs := make([]uuid.UUID, 0)
 	for _, agent := range resourceAgents {
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
