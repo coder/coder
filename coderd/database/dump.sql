@@ -516,7 +516,8 @@ CREATE TABLE organizations (
     name text NOT NULL,
     description text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    is_default boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -1052,6 +1053,7 @@ CREATE TABLE workspace_agents (
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
     display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     api_version text DEFAULT ''::text NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -1075,6 +1077,8 @@ COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs 
 COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in which to display agents in user interfaces.';
 
 CREATE TABLE workspace_app_stats (
     id bigint NOT NULL,
@@ -1514,6 +1518,8 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
 
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 

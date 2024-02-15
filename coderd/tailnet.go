@@ -52,19 +52,41 @@ func NewServerTailnet(
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
-	originalDerpMap := derpMapFn()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:             originalDerpMap,
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
-
 	serverCtx, cancel := context.WithCancel(ctx)
+
+	// This is set to allow local DERP traffic to be proxied through memory
+	// instead of needing to hit the external access URL. Don't use the ctx
+	// given in this callback, it's only valid while connecting.
+	if derpServer != nil {
+		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+			if !region.EmbeddedRelay {
+				return nil
+			}
+			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
+			left, right := net.Pipe()
+			go func() {
+				defer left.Close()
+				defer right.Close()
+				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+				derpServer.Accept(ctx, right, brw, "internal")
+			}()
+			return left
+		})
+	}
+
 	derpMapUpdaterClosed := make(chan struct{})
+	originalDerpMap := derpMapFn()
+	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
+	// there is an embedded relay, we use the local in-memory dialer.
+	conn.SetDERPMap(originalDerpMap)
 	go func() {
 		defer close(derpMapUpdaterClosed)
 
@@ -138,25 +160,6 @@ func NewServerTailnet(
 	tn.agentConn.Store(&agentConn)
 	// registering the callback also triggers send of the initial node
 	tn.coordinatee.SetNodeCallback(tn.nodeCallback)
-
-	// This is set to allow local DERP traffic to be proxied through memory
-	// instead of needing to hit the external access URL. Don't use the ctx
-	// given in this callback, it's only valid while connecting.
-	if derpServer != nil {
-		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-			if !region.EmbeddedRelay {
-				return nil
-			}
-			left, right := net.Pipe()
-			go func() {
-				defer left.Close()
-				defer right.Close()
-				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-				derpServer.Accept(ctx, right, brw, "internal")
-			}()
-			return left
-		})
-	}
 
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()

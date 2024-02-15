@@ -128,6 +128,7 @@ export interface Agent {
   displayApps: DisplayApps | undefined;
   scripts: Script[];
   extraEnvs: Env[];
+  order: number;
 }
 
 export interface Agent_Metadata {
@@ -554,6 +555,9 @@ export const Agent = {
     }
     for (const v of message.extraEnvs) {
       Env.encode(v!, writer.uint32(178).fork()).ldelim();
+    }
+    if (message.order !== 0) {
+      writer.uint32(184).int64(message.order);
     }
     return writer;
   },

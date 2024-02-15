@@ -30,6 +30,7 @@ type Organization struct {
 	Name      string    `json:"name" validate:"required"`
 	CreatedAt time.Time `json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault bool      `json:"is_default" validate:"required"`
 }
 
 type OrganizationMember struct {

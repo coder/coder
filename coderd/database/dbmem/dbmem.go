@@ -5285,6 +5285,7 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 		Name:      arg.Name,
 		CreatedAt: arg.CreatedAt,
 		UpdatedAt: arg.UpdatedAt,
+		IsDefault: len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -5648,6 +5649,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
+		DisplayOrder:             arg.DisplayOrder,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)

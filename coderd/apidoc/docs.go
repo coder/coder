@@ -6368,8 +6368,9 @@ const docTemplate = `{
                 "tags": [
                     "Builds"
                 ],
-                "summary": "Get workspace resources for workspace build",
-                "operationId": "get-workspace-resources-for-workspace-build",
+                "summary": "Removed: Get workspace resources for workspace build",
+                "operationId": "removed-get-workspace-resources-for-workspace-build",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -10341,6 +10342,7 @@ const docTemplate = `{
             "required": [
                 "created_at",
                 "id",
+                "is_default",
                 "name",
                 "updated_at"
             ],
@@ -10352,6 +10354,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "is_default": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

@@ -992,7 +992,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
-			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
