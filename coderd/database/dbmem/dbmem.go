@@ -1135,36 +1135,6 @@ func (q *FakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
-func (q *FakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	newMembers := q.groupMembers[:0]
-	for _, member := range q.groupMembers {
-		if member.UserID != arg.UserID {
-			// Do not delete the other members
-			newMembers = append(newMembers, member)
-		} else if member.UserID == arg.UserID {
-			// We only want to delete from groups in the organization in the args.
-			for _, group := range q.groups {
-				// Find the group that the member is apartof.
-				if group.ID == member.GroupID {
-					// Only add back the member if the organization ID does not match
-					// the arg organization ID. Since the arg is saying which
-					// org to delete.
-					if group.OrganizationID != arg.OrganizationID {
-						newMembers = append(newMembers, member)
-					}
-					break
-				}
-			}
-		}
-	}
-	q.groupMembers = newMembers
-
-	return nil
-}
-
 func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1655,6 +1625,18 @@ func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.derpMeshKey, nil
+}
+
+func (q *FakeQuerier) GetDefaultOrganization(_ context.Context) (database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, org := range q.organizations {
+		if org.IsDefault {
+			return org, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
@@ -6082,6 +6064,22 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 		}
 	}
 	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newMembers := q.groupMembers[:0]
+	for _, member := range q.groupMembers {
+		if member.UserID == userID {
+			continue
+		}
+		newMembers = append(newMembers, member)
+	}
+	q.groupMembers = newMembers
+
+	return nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {

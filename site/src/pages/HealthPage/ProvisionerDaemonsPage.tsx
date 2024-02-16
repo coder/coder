@@ -9,23 +9,22 @@ import {
 } from "./Content";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import { DismissWarningButton } from "./DismissWarningButton";
 import { Alert } from "components/Alert/Alert";
-import { HealthcheckReport } from "api/typesGenerated";
+import type { HealthcheckReport } from "api/typesGenerated";
 import { createDayString } from "utils/createDayString";
-
+import { type FC } from "react";
 import { useOutletContext } from "react-router-dom";
 import Business from "@mui/icons-material/Business";
 import Person from "@mui/icons-material/Person";
 import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import Tooltip from "@mui/material/Tooltip";
 import Sell from "@mui/icons-material/Sell";
-import { FC } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 
-export const ProvisionerDaemonsPage = () => {
+export const ProvisionerDaemonsPage: FC = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
   const { provisioner_daemons: daemons } = healthStatus;
   const theme = useTheme();

@@ -101,12 +101,8 @@ export const WorkspaceSchedulePage: FC = () => {
 
       {template && (
         <WorkspaceScheduleForm
-          allowedTemplateAutoStartDays={
-            template.autostart_requirement.days_of_week
-          }
-          allowTemplateAutoStart={template.allow_user_autostart}
-          allowTemplateAutoStop={template.allow_user_autostop}
-          submitScheduleError={submitScheduleMutation.error}
+          template={template}
+          error={submitScheduleMutation.error}
           initialValues={{
             ...getAutostart(workspace),
             ...getAutostop(workspace),
