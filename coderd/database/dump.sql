@@ -215,20 +215,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION migrate_external_auth_providers_to_jsonb(text[]) RETURNS jsonb
-    LANGUAGE plpgsql
-    AS $_$
-DECLARE
-  result jsonb;
-BEGIN
-  SELECT
-    jsonb_agg(jsonb_build_object('id', value::text)) INTO result
-  FROM
-    unnest($1) AS value;
-  RETURN result;
-END;
-$_$;
-
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
