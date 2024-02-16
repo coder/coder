@@ -84,7 +84,11 @@ export const EnterprisePortSharingControlsAuthenticated: Story = {
   args: {
     listeningPorts: MockListeningPortsResponse.ports,
     storybook: {
-      sharedPortsQueryData: MockSharedPortsResponse,
+      sharedPortsQueryData: {
+        shares: MockSharedPortsResponse.shares.filter((share) => {
+          return share.share_level === "authenticated";
+        }),
+      },
     },
     template: {
       ...MockTemplate,

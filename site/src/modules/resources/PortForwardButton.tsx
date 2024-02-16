@@ -184,12 +184,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     });
   const getFieldHelpers = getFormHelpers(form, submitError);
 
+  // filter out shared ports that are not from this agent
+  const filteredSharedPorts = sharedPorts.filter(
+    (port) => port.agent_name === agent.name,
+  );
   // we don't want to show listening ports if it's a shared port
   const filteredListeningPorts = listeningPorts?.filter((port) => {
-    for (let i = 0; i < sharedPorts.length; i++) {
+    for (let i = 0; i < filteredSharedPorts.length; i++) {
       if (
-        sharedPorts[i].port === port.port &&
-        sharedPorts[i].agent_name === agent.name
+        filteredSharedPorts[i].port === port.port
       ) {
         return false;
       }
@@ -356,7 +359,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </HelpTooltipText>
           {canSharePorts && (
             <div>
-              {sharedPorts?.map((share) => {
+              {filteredSharedPorts?.map((share) => {
                 const url = portForwardURL(
                   host,
                   share.port,
