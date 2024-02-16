@@ -661,6 +661,17 @@ func (c *core) nodeUpdateLocked(p *peer, node *proto.Node) error {
 		slog.F("peer_id", p.id),
 		slog.F("node", node.String()))
 
+	for _, addrStr := range node.Addresses {
+		pre, err := netip.ParsePrefix(addrStr)
+		if err != nil {
+			return xerrors.Errorf("parse address: %w", err)
+		}
+
+		if !p.auth.AuthorizeIP(p.id, pre) {
+			return xerrors.Errorf("unauthorized address sent %q", pre.String())
+		}
+	}
+
 	p.node = node
 	c.updateTunnelPeersLocked(p.id, node, proto.CoordinateResponse_PeerUpdate_NODE, "node update")
 	return nil

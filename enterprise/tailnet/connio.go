@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -128,6 +129,16 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
 	if req.UpdateSelf != nil {
 		c.logger.Debug(c.peerCtx, "got node update", slog.F("node", req.UpdateSelf))
+		for _, addrStr := range req.UpdateSelf.Node.Addresses {
+			pre, err := netip.ParsePrefix(addrStr)
+			if err != nil {
+				return xerrors.Errorf("parse address: %w", err)
+			}
+
+			if !c.auth.AuthorizeIP(c.id, pre) {
+				return xerrors.Errorf("unauthorized address sent %q", pre.String())
+			}
+		}
 		b := binding{
 			bKey: bKey(c.UniqueID()),
 			node: req.UpdateSelf.Node,
