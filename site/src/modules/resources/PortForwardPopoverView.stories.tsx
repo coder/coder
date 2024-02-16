@@ -48,7 +48,7 @@ export const Empty: Story = {
   args: {
     listeningPorts: [],
     storybook: {
-      sharedPortsQueryData: {shares:[]},
+      sharedPortsQueryData: { shares: [] },
     },
   },
 };
@@ -92,4 +92,3 @@ export const EnterprisePortSharingControlsAuthenticated: Story = {
     },
   },
 };
-
