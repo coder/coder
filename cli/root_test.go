@@ -51,6 +51,10 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder users list --output json",
 			Cmd:  []string{"users", "list", "--output", "json"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder users list",
+			Cmd:  []string{"users", "list"},
+		},
 	))
 }
 
