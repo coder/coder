@@ -186,13 +186,17 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 	if dblog.UserUsername.Valid {
 		user = &codersdk.User{
-			ID:        dblog.UserID,
-			Username:  dblog.UserUsername.String,
-			Email:     dblog.UserEmail.String,
-			CreatedAt: dblog.UserCreatedAt.Time,
-			Status:    codersdk.UserStatus(dblog.UserStatus.UserStatus),
-			Roles:     []codersdk.Role{},
-			AvatarURL: dblog.UserAvatarUrl.String,
+			ReducedUser: codersdk.ReducedUser{
+				MinimalUser: codersdk.MinimalUser{
+					ID:        dblog.UserID,
+					Username:  dblog.UserUsername.String,
+					AvatarURL: dblog.UserAvatarUrl.String,
+				},
+				Email:     dblog.UserEmail.String,
+				CreatedAt: dblog.UserCreatedAt.Time,
+				Status:    codersdk.UserStatus(dblog.UserStatus.UserStatus),
+			},
+			Roles: []codersdk.Role{},
 		}
 
 		for _, roleName := range dblog.UserRoles {
