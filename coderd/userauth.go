@@ -20,6 +20,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -1489,15 +1490,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				return xerrors.Errorf("get organization memberships: %w", err)
 			}
 
-			inDefault := false
-			for _, membership := range memberships {
-				if membership.OrganizationID == defaultOrganization.ID {
-					inDefault = true
-					break
-				}
-			}
-
-			if !inDefault {
+			// If the user is not in the default organization, then we can't assign groups.
+			// A user cannot be in groups to an org they are not a member of.
+			if !slices.ContainsFunc(memberships, func(member database.OrganizationMember) bool {
+				return member.OrganizationID == defaultOrganization.ID
+			}) {
 				return xerrors.Errorf("user %s is not a member of the default organization, cannot assign to groups in the org", user.ID)
 			}
 
