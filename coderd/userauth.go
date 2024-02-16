@@ -1343,6 +1343,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
+			// Ignoring this error is a product of our unit tests. In prod this should never
+			// happen. Unit tests use this as a shortcut to making a new organization. We
+			// should really fix our unit tests and remove this.
 			//nolint:gocritic
 			organization, _ := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 

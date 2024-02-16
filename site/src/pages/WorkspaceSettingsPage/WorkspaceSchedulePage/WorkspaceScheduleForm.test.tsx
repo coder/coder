@@ -4,6 +4,7 @@ import {
   validationSchema,
   WorkspaceScheduleFormValues,
   WorkspaceScheduleForm,
+  WorkspaceScheduleFormProps,
 } from "./WorkspaceScheduleForm";
 import { timeZones } from "utils/timeZones";
 import * as API from "api/api";
@@ -245,8 +246,8 @@ describe("ttlShutdownAt", () => {
 });
 
 const autoStartDayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const defaultFormProps = {
-  submitScheduleError: "",
+const defaultFormProps: WorkspaceScheduleFormProps = {
+  error: "",
   initialValues: {
     ...defaultSchedule(),
     autostartEnabled: true,
@@ -257,20 +258,28 @@ const defaultFormProps = {
   defaultTTL: 24,
   onCancel: () => null,
   onSubmit: () => null,
-  allowedTemplateAutoStartDays: autoStartDayLabels,
-  allowTemplateAutoStart: true,
-  allowTemplateAutoStop: true,
+  template: {
+    ...MockTemplate,
+    allow_user_autostart: true,
+    allow_user_autostop: true,
+    autostart_requirement: {
+      ...MockTemplate.autostart_requirement,
+      days_of_week: autoStartDayLabels,
+    },
+  },
 };
 
 describe("templateInheritance", () => {
   it("disables the entire autostart feature appropriately", async () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-    render(
-      <WorkspaceScheduleForm
-        {...defaultFormProps}
-        allowTemplateAutoStart={false}
-      />,
-    );
+    const props = {
+      ...defaultFormProps,
+      template: {
+        ...defaultFormProps.template,
+        allow_user_autostart: false,
+      },
+    };
+    render(<WorkspaceScheduleForm {...props} />);
 
     const autoStartToggle = await screen.findByLabelText("Enable Autostart");
     expect(autoStartToggle).toBeDisabled();
@@ -291,12 +300,18 @@ describe("templateInheritance", () => {
     const enabledDayLabels = ["Sat", "Sun"];
 
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-    render(
-      <WorkspaceScheduleForm
-        {...defaultFormProps}
-        allowedTemplateAutoStartDays={["saturday", "sunday"]}
-      />,
-    );
+    const props = {
+      ...defaultFormProps,
+      template: {
+        ...defaultFormProps.template,
+        autostart_requirement: {
+          ...MockTemplate.autostart_requirement,
+          days_of_week: ["saturday", "sunday"],
+        },
+      },
+    };
+
+    render(<WorkspaceScheduleForm {...props} />);
 
     const autoStartToggle = await screen.findByLabelText("Enable Autostart");
     expect(autoStartToggle).toBeEnabled();
@@ -321,13 +336,15 @@ describe("templateInheritance", () => {
     }
   });
   it("disables the entire autostop feature appropriately", async () => {
+    const props = {
+      ...defaultFormProps,
+      template: {
+        ...defaultFormProps.template,
+        allow_user_autostop: false,
+      },
+    };
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-    render(
-      <WorkspaceScheduleForm
-        {...defaultFormProps}
-        allowTemplateAutoStop={false}
-      />,
-    );
+    render(<WorkspaceScheduleForm {...props} />);
 
     const autoStopToggle = await screen.findByLabelText("Enable Autostop");
     expect(autoStopToggle).toBeDisabled();
@@ -398,17 +415,16 @@ test("form should be enabled when both auto stop and auto start features are dis
 });
 
 test("form should be disabled when both auto stop and auto start features are disabled at template level", async () => {
+  const props = {
+    ...defaultFormProps,
+    template: {
+      ...defaultFormProps.template,
+      allow_user_autostart: false,
+      allow_user_autostop: false,
+    },
+  };
   jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-  render(
-    <WorkspaceScheduleForm
-      {...defaultFormProps}
-      allowTemplateAutoStart={false}
-      allowTemplateAutoStop={false}
-      initialValues={{
-        ...defaultFormProps.initialValues,
-      }}
-    />,
-  );
+  render(<WorkspaceScheduleForm {...props} />);
 
   const submitButton = await screen.findByRole("button", { name: "Submit" });
   expect(submitButton).toBeDisabled();

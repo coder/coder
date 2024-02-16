@@ -22,7 +22,7 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
         setIsCopied(false);
       }, 1000);
     } catch (err) {
-      const isCopied = simulateClipboardWrite();
+      const isCopied = simulateClipboardWrite(textToCopy);
       if (isCopied) {
         setIsCopied(true);
         timeoutIdRef.current = window.setTimeout(() => {
@@ -44,12 +44,16 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
 };
 
 /**
+ * Provides a fallback clipboard method for when browsers do not have access
+ * to the clipboard API (the browser is older, or the deployment is only running
+ * on HTTP, when the clipboard API is only available in secure contexts).
+ *
  * It feels silly that you have to make a whole dummy input just to simulate a
  * clipboard, but that's really the recommended approach for older browsers.
  *
  * @see {@link https://web.dev/patterns/clipboard/copy-text?hl=en}
  */
-function simulateClipboardWrite(): boolean {
+function simulateClipboardWrite(textToCopy: string): boolean {
   const previousFocusTarget = document.activeElement;
   const dummyInput = document.createElement("input");
 
@@ -70,12 +74,26 @@ function simulateClipboardWrite(): boolean {
   style.border = "0";
 
   document.body.appendChild(dummyInput);
+  dummyInput.value = textToCopy;
   dummyInput.focus();
   dummyInput.select();
 
-  const isCopied = document.execCommand("copy");
-  dummyInput.remove();
+  /**
+   * The document.execCommand method is officially deprecated. Browsers are free
+   * to remove the method entirely or choose to turn it into a no-op function
+   * that always returns false. You cannot make any assumptions about how its
+   * core functionality will be removed.
+   *
+   * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Clipboard}
+   */
+  let isCopied: boolean;
+  try {
+    isCopied = document?.execCommand("copy") ?? false;
+  } catch {
+    isCopied = false;
+  }
 
+  dummyInput.remove();
   if (previousFocusTarget instanceof HTMLElement) {
     previousFocusTarget.focus();
   }

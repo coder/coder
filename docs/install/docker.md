@@ -9,7 +9,11 @@ Docker is required. See the
 > Note that the below steps are only supported on a Linux distribution. If on
 > macOS, please [run Coder via the standalone binary](./index.md#manual).
 
-## Run Coder with the built-in database (quick)
+<div class="tabs">
+
+## docker run
+
+**Built-in database (quick)**
 
 For proof-of-concept deployments, you can run a complete Coder instance with the
 following command.
@@ -25,32 +29,21 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest
 ```
 
-**<sup>Note:</sup>** <sup>Coder runs as a non-root user, we use `--group-add` to
-ensure Coder has permissions to manage Docker via `docker.sock`. If the host
-systems `/var/run/docker.sock` is not group writeable or does not belong to the
-`docker` group, the above may not work as-is.</sup>
-
-Coder configuration is defined via environment variables. Learn more about
-Coder's [configuration options](../admin/configure.md).
-
-<div class="tabs">
-
-## docker run
+**External database**
 
 For production deployments, we recommend using an external PostgreSQL database
-(version 13 or higher). Set `ACCESS_URL` to the external URL that users and
-workspaces will use to connect to Coder.
+(version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
+and workspaces will use to connect to Coder.
 
 ```shell
+export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 docker run --rm -it \
   -e CODER_ACCESS_URL="https://coder.example.com" \
   -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  --group-add $DOCKER_GROUP \
   ghcr.io/coder/coder:latest
 ```
-
-Coder configuration is defined via environment variables. Learn more about
-Coder's [configuration options](../admin/configure.md).
 
 ## docker compose
 
@@ -58,44 +51,46 @@ Coder's publishes a
 [docker-compose example](https://github.com/coder/coder/blob/main/docker-compose.yaml)
 which includes an PostgreSQL container and volume.
 
-1. Install [Docker Compose](https://docs.docker.com/compose/install/)
+1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
+   installed.
 
-2. Clone the `coder` repository:
+2. Download the
+   [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/docker-compose.yaml)
+   file.
 
-   ```shell
-   git clone https://github.com/coder/coder.git
-   ```
-
-3. Start Coder with `docker compose up`:
-
-   In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have
-   an external URL that users and workspaces will use to connect to Coder.
-
-   For proof-of-concept deployments, you can use
-   [Coder's tunnel](../admin/configure.md#tunnel):
+3. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
+   group. You can get the `docker` group `gid` by running the below command:
 
    ```shell
-   cd coder
-
-   docker compose up
+   getent group docker | cut -d: -f3
    ```
 
-   For production deployments, we recommend setting an
-   [access URL](../admin/configure.md#access-url):
+4. Start Coder with `docker compose up`
 
-   ```shell
-   cd coder
+5. Visit the web ui via the configured url.
 
-   CODER_ACCESS_URL=https://coder.example.com docker compose up
-   ```
-
-4. Visit the web ui via the configured url. You can add `/login` to the base url
-   to create the first user via the ui.
-
-5. Follow the on-screen instructions log in and create your first template and
+6. Follow the on-screen instructions log in and create your first template and
    workspace
 
 </div>
+
+Coder configuration is defined via environment variables. Learn more about
+Coder's [configuration options](../admin/configure.md).
+
+> **Note:** In order to use cloud-based templates (e.g. Kubernetes, AWS), you
+> must have an external URL that users and workspaces will use to connect to
+> Coder.
+>
+> > For proof-of-concept deployments, you can use
+> > [Coder's tunnel](../admin/configure.md#tunnel).
+> >
+> > For production deployments, we recommend setting an
+> > [access URL](../admin/configure.md#access-url)
+
+> **Note:** Coder runs as a non-root user, we use `--group-add` to ensure Coder
+> has permissions to manage Docker via `docker.sock`. If the host systems
+> `/var/run/docker.sock` is not group writeable or does not belong to the
+> `docker` group, the above may not work as-is.
 
 ## Troubleshooting
 

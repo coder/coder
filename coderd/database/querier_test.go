@@ -494,6 +494,34 @@ func TestUserChangeLoginType(t *testing.T) {
 	require.Equal(t, bobExpPass, bob.HashedPassword, "hashed password should not change")
 }
 
+func TestDefaultOrg(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	// Should start with 0 orgs
+	all, err := db.GetOrganizations(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 0)
+
+	org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+		ID:          uuid.New(),
+		Name:        "default",
+		Description: "",
+		CreatedAt:   dbtime.Now(),
+		UpdatedAt:   dbtime.Now(),
+	})
+	require.NoError(t, err)
+	require.True(t, org.IsDefault, "first org should always be default")
+}
+
 type tvArgs struct {
 	Status database.ProvisionerJobStatus
 	// CreateWorkspace is true if we should create a workspace for the template version
