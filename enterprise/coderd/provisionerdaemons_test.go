@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -61,6 +62,65 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 			assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
 		}
+	})
+
+	t.Run("NoVersion", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		}})
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		daemonName := testutil.MustRandString(t, 63)
+		srv, err := templateAdminClient.ServeProvisionerDaemon(ctx, nil, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         daemonName,
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{},
+		})
+		require.NoError(t, err)
+		srv.DRPCConn().Close()
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, daemonName, daemons[0].Name)
+			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+			assert.Equal(t, "1.0", daemons[0].APIVersion)
+		}
+	})
+
+	t.Run("OldVersion", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		}})
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		daemonName := testutil.MustRandString(t, 63)
+		_, err := templateAdminClient.ServeProvisionerDaemon(ctx, apiversion.New(provisionersdk.CurrentMajor+1, provisionersdk.CurrentMinor+1), codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         daemonName,
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{},
+		})
+		require.Error(t, err)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusBadRequest, apiError.StatusCode())
+		require.Contains(t, apiError.Error(), "server is at version 1.0, behind requested major version 2.1")
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {

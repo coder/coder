@@ -202,7 +202,9 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, v *apiversion.APIVe
 	query := serverURL.Query()
 	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
-	query.Add("version", v.String())
+	if v != nil { // This is only done in tests
+		query.Add("version", v.String())
+	}
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}
