@@ -47,11 +47,11 @@ type MinimalUser struct {
 // organizational memberships. Fetching that is more expensive, and not usually
 // required by the frontend.
 type ReducedUser struct {
-	MinimalUser
-	Name       string    `json:"name"`
-	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
-	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
-	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
+	MinimalUser `table:"m,recursive_inline"`
+	Name        string    `json:"name"`
+	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
+	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
 
 	Status          UserStatus `json:"status" table:"status" enums:"active,suspended"`
 	LoginType       LoginType  `json:"login_type"`
@@ -60,7 +60,7 @@ type ReducedUser struct {
 
 // User represents a user in Coder.
 type User struct {
-	ReducedUser
+	ReducedUser `table:"r,recursive_inline"`
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []Role      `json:"roles"`
