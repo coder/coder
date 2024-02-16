@@ -177,6 +177,11 @@
               "title": "Resource metadata",
               "description": "Show information in the workspace about template resources",
               "path": "./templates/resource-metadata.md"
+            },
+            {
+              "title": "UI Resource Ordering",
+              "description": "Learn how to manage the order of Terraform resources in UI",
+              "path": "./templates/resource-ordering.md"
             }
           ]
         },
@@ -235,11 +240,6 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
-        },
-        {
-          "title": "Workspace Scheduling",
-          "description": "Set workspace scheduling policies",
-          "path": "./templates/schedule.md"
         },
         {
           "title": "Icons",
