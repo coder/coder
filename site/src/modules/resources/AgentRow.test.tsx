@@ -1,4 +1,8 @@
-import { MockTemplate, MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import {
+  MockTemplate,
+  MockWorkspace,
+  MockWorkspaceAgent,
+} from "testHelpers/entities";
 import { AgentRow, AgentRowProps } from "./AgentRow";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { screen } from "@testing-library/react";

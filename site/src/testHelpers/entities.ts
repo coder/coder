@@ -489,7 +489,7 @@ export const MockTemplate: TypesGen.Template = {
   require_active_version: false,
   deprecated: false,
   deprecation_message: "",
-  max_port_share_level: "owner",
+  max_port_share_level: "public",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3258,7 +3258,12 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
       port: 8080,
       share_level: "authenticated",
     },
-    { workspace_id: MockWorkspace.id, agent_name: "a-workspace-agent", port: 8081, share_level: "public" },
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 8081,
+      share_level: "public",
+    },
   ],
 };
 

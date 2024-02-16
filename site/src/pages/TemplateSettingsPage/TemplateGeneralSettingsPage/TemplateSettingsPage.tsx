@@ -21,7 +21,8 @@ export const TemplateSettingsPage: FC = () => {
   const { entitlements, experiments } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
   const sharedPortsExperimentEnabled = experiments.includes("shared-ports");
-  const sharedPortControlsEnabled = entitlements.features.control_shared_ports.enabled;
+  const sharedPortControlsEnabled =
+    entitlements.features.control_shared_ports.enabled;
 
   const {
     mutate: updateTemplate,

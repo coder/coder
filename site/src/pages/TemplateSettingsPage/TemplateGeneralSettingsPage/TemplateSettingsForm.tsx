@@ -1,6 +1,10 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { WorkspaceAppSharingLevels, type Template, type UpdateTemplateMeta } from "api/typesGenerated";
+import {
+  WorkspaceAppSharingLevels,
+  type Template,
+  type UpdateTemplateMeta,
+} from "api/typesGenerated";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
 import { type FC } from "react";
 import {

@@ -1178,7 +1178,7 @@ export const upsertWorkspaceAgentSharedPort = async (
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
   const response = await axios.post(
     `/api/v2/workspaces/${workspaceID}/port-share`,
-    req
+    req,
   );
   return response.data;
 };
@@ -1191,7 +1191,7 @@ export const deleteWorkspaceAgentSharedPort = async (
     `/api/v2/workspaces/${workspaceID}/port-share`,
     {
       data: req,
-    }
+    },
   );
   return response.data;
 };
