@@ -11,9 +11,17 @@ import (
 )
 
 type OAuth2ProviderAppSecret struct {
+	// Formatted contains the secret. This value is owned by the client, not the
+	// server.  It is formatted to include the prefix.
 	Formatted string
-	Prefix    string
-	Hashed    string
+	// Prefix is the ID of this secret owned by the server. When a client uses a
+	// secret, this is the matching string to do a lookup on the hashed value.  We
+	// cannot use the hashed value directly because the server does not store the
+	// salt.
+	Prefix string
+	// Hashed is the server stored hash(secret,salt,...). Used for verifying a
+	// secret.
+	Hashed string
 }
 
 // GenerateSecret generates a secret to be used as a client secret, refresh
