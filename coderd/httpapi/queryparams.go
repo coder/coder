@@ -137,7 +137,7 @@ func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryPara
 	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q is invalid", queryParam),
+			Detail: fmt.Sprintf("Query param %q must be a subset of %s", queryParam, base),
 		})
 	}
 
