@@ -45,9 +45,6 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest
 ```
 
-Coder configuration is defined via environment variables. Learn more about
-Coder's [configuration options](../admin/configure.md).
-
 ## docker compose
 
 Coder's publishes a
@@ -75,13 +72,20 @@ which includes an PostgreSQL container and volume.
 6. Follow the on-screen instructions log in and create your first template and
    workspace
 
-   > **Note:** In order to use cloud-based templates (e.g. Kubernetes, AWS), you
-   > must have an external URL that users and workspaces will use to connect to
-   > Coder. For proof-of-concept deployments, you can use
-   > [Coder's tunnel](../admin/configure.md#tunnel): For production deployments,
-   > we recommend setting an [access URL](../admin/configure.md#access-url):
-
 </div>
+
+Coder configuration is defined via environment variables. Learn more about
+Coder's [configuration options](../admin/configure.md).
+
+> **Note:** In order to use cloud-based templates (e.g. Kubernetes, AWS), you
+> must have an external URL that users and workspaces will use to connect to
+> Coder.
+>
+> > For proof-of-concept deployments, you can use
+> > [Coder's tunnel](../admin/configure.md#tunnel).
+> >
+> > For production deployments, we recommend setting an
+> > [access URL](../admin/configure.md#access-url)
 
 > **Note:** Coder runs as a non-root user, we use `--group-add` to ensure Coder
 > has permissions to manage Docker via `docker.sock`. If the host systems
