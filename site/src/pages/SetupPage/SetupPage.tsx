@@ -1,7 +1,7 @@
 import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { createFirstUser } from "api/queries/users";
 import { useAuth } from "contexts/auth/useAuth";
@@ -18,7 +18,6 @@ export const SetupPage: FC = () => {
   } = useAuth();
   const createFirstUserMutation = useMutation(createFirstUser());
   const setupIsComplete = !isConfiguringTheFirstUser;
-  const navigate = useNavigate();
 
   if (isLoading) {
     return <FullScreenLoader />;
@@ -45,7 +44,10 @@ export const SetupPage: FC = () => {
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);
           await signIn(firstUser.email, firstUser.password);
-          navigate("/templates");
+          // The entitlements are fetched from the server and injected in the
+          // page metadata. To ensure the data is up-to-date, a full page reload
+          // is required.
+          window.location.replace("/templates");
         }}
       />
     </>
