@@ -47,7 +47,6 @@ import {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { ExternalAuthBanner } from "./ExternalAuthBanner/ExternalAuthBanner";
 import { CreateWSPermissions } from "./permissions";
 
 export const Language = {
