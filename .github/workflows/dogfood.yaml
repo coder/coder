@@ -110,6 +110,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE"
+        env:
           # Consumed by Coder CLI
           CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
