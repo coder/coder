@@ -41,7 +41,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			// url.Parse() allows empty URLs, which is fine because the origin is not
 			// always set by browsers (or other tools like cURL).  If the origin does
 			// exist, we will make sure it matches.  We require `referer` to be set at
-			// a minimum, however.
+			// a minimum in order to detect whether "allow" has been pressed, however.
 			cameFromSelf := (origin == "" || originU.Hostname() == accessURL.Hostname()) &&
 				refererU.Hostname() == accessURL.Hostname() &&
 				refererU.Path == "/login/oauth2/authorize"
@@ -60,6 +60,25 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			// in a future PR we should support a cURL-based flow where we output text
 			// instead of HTML.
 			if r.URL.Query().Get("redirected") != "" {
+				// When the user first comes into the page, referer might be blank which
+				// is OK.  But if they click "allow" and their browser has *still* not
+				// sent the referer header, we have no way of telling whether they
+				// actually clicked the button.  "Redirected" means they *might* have
+				// pressed it, but it could also mean an app added it for them as part
+				// of their redirect, so we cannot use it as a replacement for referer
+				// and the best we can do is error.
+				if referer == "" {
+					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+						Status:       http.StatusInternalServerError,
+						HideStatus:   false,
+						Title:        "Referer header missing",
+						Description:  "We cannot continue authorization because your client has not sent the referer header.",
+						RetryEnabled: false,
+						DashboardURL: accessURL.String(),
+						Warnings:     nil,
+					})
+					return
+				}
 				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 					Status:       http.StatusInternalServerError,
 					HideStatus:   false,
