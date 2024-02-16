@@ -5,14 +5,16 @@ user experience. This page outlines how resources can be aligned using the
 `order` Terraform property or inherit the natural order from the file.
 
 The resource with the lower `order` is presented before the one with greater
-value. A missing `order` property defaults to 0.
+value. A missing `order` property defaults to 0. If two resources have the same
+`order` property, the resources will be ordered by property `name` (or `key`).
 
 ## Using `order` property
 
 ### Coder parameters
 
 The `order` property of `coder_parameter` resource allows specifying the order
-of parameters in UI forms. For example:
+of parameters in UI forms. In the below example, `project_id` will appear
+_before_ `account_id`:
 
 ```hcl
 data "coder_parameter" "project_id" {
