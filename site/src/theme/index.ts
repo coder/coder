@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- we still use `Theme` as a basis for our actual theme, for now.
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { NewTheme } from "./experimental";
