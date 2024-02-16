@@ -134,7 +134,7 @@ structure. This simplifies management and ensures consistency between
 configuration files and UI presentation.
 
 ```hcl
-data "coder_parameter" "databse_region" {
+data "coder_parameter" "database_region" {
   name         = "database_region"
   display_name = "Database Region"
 
