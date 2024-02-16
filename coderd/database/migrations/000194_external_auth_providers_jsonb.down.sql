@@ -53,3 +53,7 @@ SELECT
   COALESCE(visible_users.username, ''::text) AS created_by_username
 FROM (public.template_versions
   LEFT JOIN visible_users ON (template_versions.created_by = visible_users.id));
+
+
+-- Cleanup
+DROP FUNCTION revert_migrate_external_auth_providers_to_jsonb;
