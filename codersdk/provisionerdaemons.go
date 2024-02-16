@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
-	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type LogSource string
@@ -195,7 +194,7 @@ type ServeProvisionerDaemonRequest struct {
 // ServeProvisionerDaemon returns the gRPC service for a provisioner daemon
 // implementation. The context is during dial, not during the lifetime of the
 // client. Client should be closed after use.
-func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisionerDaemonRequest) (proto.DRPCProvisionerDaemonClient, error) {
+func (c *Client) ServeProvisionerDaemon(ctx context.Context, v *apiversion.APIVersion, req ServeProvisionerDaemonRequest) (proto.DRPCProvisionerDaemonClient, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", req.Organization))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -203,7 +202,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	query := serverURL.Query()
 	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
-	query.Add("version", provisionersdk.VersionCurrent.String())
+	query.Add("version", v.String())
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}
