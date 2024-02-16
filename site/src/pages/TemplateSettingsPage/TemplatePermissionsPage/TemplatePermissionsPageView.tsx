@@ -12,6 +12,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, useState } from "react";
 import type {
   Group,
+  ReducedUser,
   TemplateACL,
   TemplateGroup,
   TemplateRole,
@@ -43,7 +44,11 @@ type AddTemplateUserOrGroupProps = {
   isLoading: boolean;
   templateACL: TemplateACL | undefined;
   onSubmit: (
-    userOrGroup: TemplateUser | TemplateGroup,
+    userOrGroup:
+      | TemplateUser
+      | TemplateGroup
+      // Reduce user is returned by the groups.
+      | ({ role: TemplateRole } & ReducedUser),
     role: TemplateRole,
     reset: () => void,
   ) => void;

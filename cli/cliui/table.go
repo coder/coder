@@ -233,6 +233,7 @@ func isStructOrStructPointer(t reflect.Type) bool {
 //
 // requireDefault is only needed for the root call. This is recursive, so nested
 // structs do not need the default sort name.
+// nolint:revive
 func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, error) {
 	if !isStructOrStructPointer(t) {
 		return nil, "", xerrors.Errorf("typeToTableHeaders called with a non-struct or a non-pointer-to-a-struct type")
