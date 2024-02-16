@@ -25,10 +25,6 @@ import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
-import {
-  ImmutableTemplateParametersSection,
-  MutableTemplateParametersSection,
-} from "components/TemplateParameters/TemplateParameters";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
