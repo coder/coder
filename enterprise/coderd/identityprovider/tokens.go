@@ -24,14 +24,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// errBadSecret means the user provided a bad secret.
-var errBadSecret = xerrors.New("Invalid client secret")
-
-// errBadCode means the user provided a bad code.
-var errBadCode = xerrors.New("Invalid code")
-
-// errBadToken means the user provided a bad token.
-var errBadToken = xerrors.New("Invalid token")
+var (
+	// errBadSecret means the user provided a bad secret.
+	errBadSecret = xerrors.New("Invalid client secret")
+	// errBadCode means the user provided a bad code.
+	errBadCode = xerrors.New("Invalid code")
+	// errBadToken means the user provided a bad token.
+	errBadToken = xerrors.New("Invalid token")
+)
 
 type tokenParams struct {
 	clientID     string
