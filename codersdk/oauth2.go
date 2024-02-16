@@ -210,7 +210,8 @@ func (e OAuth2ProviderResponseType) Valid() bool {
 	return false
 }
 
-// RevokeOAuth2ProviderApp completely revokes an app's access for the user.
+// RevokeOAuth2ProviderApp completely revokes an app's access for the
+// authenticated user.
 func (c *Client) RevokeOAuth2ProviderApp(ctx context.Context, appID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, "/login/oauth2/tokens", nil, func(r *http.Request) {
 		q := r.URL.Query()
