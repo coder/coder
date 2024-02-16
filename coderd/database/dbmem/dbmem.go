@@ -1657,6 +1657,18 @@ func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	return q.derpMeshKey, nil
 }
 
+func (q *FakeQuerier) GetDefaultOrganization(_ context.Context) (database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, org := range q.organizations {
+		if org.IsDefault {
+			return org, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
 	return database.GetDefaultProxyConfigRow{
 		DisplayName: q.defaultProxyDisplayName,

@@ -828,6 +828,21 @@ func (mr *MockStoreMockRecorder) GetDERPMeshKey(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDERPMeshKey", reflect.TypeOf((*MockStore)(nil).GetDERPMeshKey), arg0)
 }
 
+// GetDefaultOrganization mocks base method.
+func (m *MockStore) GetDefaultOrganization(arg0 context.Context) (database.Organization, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDefaultOrganization", arg0)
+	ret0, _ := ret[0].(database.Organization)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDefaultOrganization indicates an expected call of GetDefaultOrganization.
+func (mr *MockStoreMockRecorder) GetDefaultOrganization(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultOrganization", reflect.TypeOf((*MockStore)(nil).GetDefaultOrganization), arg0)
+}
+
 // GetDefaultProxyConfig mocks base method.
 func (m *MockStore) GetDefaultProxyConfig(arg0 context.Context) (database.GetDefaultProxyConfigRow, error) {
 	m.ctrl.T.Helper()

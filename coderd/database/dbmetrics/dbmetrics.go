@@ -433,6 +433,13 @@ func (m metricsStore) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return key, err
 }
 
+func (m metricsStore) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDefaultOrganization(ctx)
+	m.queryLatencies.WithLabelValues("GetDefaultOrganization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
 	start := time.Now()
 	resp, err := m.s.GetDefaultProxyConfig(ctx)
