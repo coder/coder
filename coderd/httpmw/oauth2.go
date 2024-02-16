@@ -208,12 +208,9 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 				}
 			} else {
 				// If not provided by the url, then it is provided according to the
-				// oauth 2 spec. This can occur with query params, or in the body as form
-				// parameters.
+				// oauth 2 spec. This can occur with query params, or in the body as
+				// form parameters.
 				// This also depends on if you are doing a POST (tokens) or GET (authorize).
-
-				// This can also be sent as a query param for oauth exchanging.
-				// According to the oauth2 spec.
 				paramAppID := r.URL.Query().Get("client_id")
 				if paramAppID == "" {
 					// Check the form params!
