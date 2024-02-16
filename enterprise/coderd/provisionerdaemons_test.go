@@ -122,8 +122,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 	t.Run("OldVersion", func(t *testing.T) {
 		t.Parallel()
 		// In this test, we just send a HTTP request with minimal parameters to the provisionerdaemons
-		// endpoint. We do not pass the required machinery to start a websocket connection, so we expect a
-		// WebSocket protocol violation. This just means the pre-flight checks have passed though.
+		// endpoint. We do not pass the required machinery to start a websocket connection, but we pass a
+		// version header that should cause provisionerd to refuse to serve us, so no websocket for you!
 
 		// Sending a HTTP request triggers an error log, which would otherwise fail the test.
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
