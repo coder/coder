@@ -20,6 +20,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -1217,8 +1218,10 @@ type oauthLoginParams struct {
 	// to the Groups provided.
 	UsingGroups         bool
 	CreateMissingGroups bool
-	Groups              []string
-	GroupFilter         *regexp.Regexp
+	// These are the group names from the IDP. Internally, they will map to
+	// some organization groups.
+	Groups      []string
+	GroupFilter *regexp.Regexp
 	// Is UsingRoles is true, then the user will be assigned
 	// the roles provided.
 	UsingRoles bool
@@ -1301,7 +1304,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			link database.UserLink
 			err  error
 		)
-
 		user = params.User
 		link = params.Link
 
@@ -1460,6 +1462,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		// Ensure groups are correct.
+		// This places all groups into the default organization.
+		// To go multi-org, we need to add a mapping feature here to know which
+		// groups go to which orgs.
 		if params.UsingGroups {
 			filtered := params.Groups
 			if params.GroupFilter != nil {
@@ -1471,8 +1476,32 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				}
 			}
 
+			//nolint:gocritic // No user present in the context.
+			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+			if err != nil {
+				// If there is no default org, then we can't assign groups.
+				// By default, we assume all groups belong to the default org.
+				return xerrors.Errorf("get default organization: %w", err)
+			}
+
+			//nolint:gocritic // No user present in the context.
+			memberships, err := tx.GetOrganizationMembershipsByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+			if err != nil {
+				return xerrors.Errorf("get organization memberships: %w", err)
+			}
+
+			// If the user is not in the default organization, then we can't assign groups.
+			// A user cannot be in groups to an org they are not a member of.
+			if !slices.ContainsFunc(memberships, func(member database.OrganizationMember) bool {
+				return member.OrganizationID == defaultOrganization.ID
+			}) {
+				return xerrors.Errorf("user %s is not a member of the default organization, cannot assign to groups in the org", user.ID)
+			}
+
 			//nolint:gocritic
-			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered, params.CreateMissingGroups)
+			err = api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, map[uuid.UUID][]string{
+				defaultOrganization.ID: filtered,
+			}, params.CreateMissingGroups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
