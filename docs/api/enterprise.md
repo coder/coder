@@ -189,13 +189,6 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -253,13 +246,6 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -332,13 +318,6 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -942,13 +921,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
-        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "roles": [
-          {
-            "display_name": "string",
-            "name": "string"
-          }
-        ],
         "status": "active",
         "theme_preference": "string",
         "username": "string"
@@ -986,10 +958,6 @@ Status Code **200**
 | `»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
 | `»» name`             | string                                                 | false    |              |             |
-| `»» organization_ids` | array                                                  | false    |              |             |
-| `»» roles`            | array                                                  | false    |              |             |
-| `»»» display_name`    | string                                                 | false    |              |             |
-| `»»» name`            | string                                                 | false    |              |             |
 | `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»» theme_preference` | string                                                 | false    |              |             |
 | `»» username`         | string                                                 | true     |              |             |
@@ -1065,13 +1033,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -1130,13 +1091,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -1710,13 +1664,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
             "name": "string",
-            "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-            "roles": [
-              {
-                "display_name": "string",
-                "name": "string"
-              }
-            ],
             "status": "active",
             "theme_preference": "string",
             "username": "string"
@@ -1737,13 +1684,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
-        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "roles": [
-          {
-            "display_name": "string",
-            "name": "string"
-          }
-        ],
         "status": "active",
         "theme_preference": "string",
         "username": "string"
@@ -1778,10 +1718,6 @@ Status Code **200**
 | `»»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
 | `»»» name`             | string                                                 | false    |              |             |
-| `»»» organization_ids` | array                                                  | false    |              |             |
-| `»»» roles`            | array                                                  | false    |              |             |
-| `»»»» display_name`    | string                                                 | false    |              |             |
-| `»»»» name`            | string                                                 | false    |              |             |
 | `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»»» theme_preference` | string                                                 | false    |              |             |
 | `»»» username`         | string                                                 | true     |              |             |
