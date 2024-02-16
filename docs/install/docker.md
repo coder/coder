@@ -57,7 +57,7 @@ which includes an PostgreSQL container and volume.
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
-2. Donwload the
+2. Download the
    [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/docker-compose.yaml)
    file.
 
