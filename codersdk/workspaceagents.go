@@ -541,7 +541,7 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 			!xerrors.Is(err, io.EOF) &&
 			!xerrors.Is(err, context.Canceled) &&
 			!xerrors.Is(err, context.DeadlineExceeded) {
-			tac.logger.Error(tac.ctx, "remote coordination error: %w", err)
+			tac.logger.Error(tac.ctx, "remote coordination error", slog.Error(err))
 		}
 	}
 }
