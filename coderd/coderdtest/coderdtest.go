@@ -571,7 +571,7 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	}()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, provisionersdk.VersionCurrent, codersdk.ServeProvisionerDaemonRequest{
+		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
 			Organization: org,

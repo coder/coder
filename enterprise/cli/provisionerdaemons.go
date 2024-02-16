@@ -173,7 +173,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			}
 			id := uuid.New()
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-				return client.ServeProvisionerDaemon(ctx, provisionersdk.VersionCurrent, codersdk.ServeProvisionerDaemonRequest{
+				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 					ID:   id,
 					Name: name,
 					Provisioners: []codersdk.ProvisionerType{
