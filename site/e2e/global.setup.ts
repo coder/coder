@@ -11,8 +11,10 @@ test("setup first user", async ({ page }) => {
   await page.getByLabel(Language.passwordLabel).fill(constants.password);
   await page.getByTestId("create").click();
 
-  await expect(page).toHaveURL(/\/workspaces.*/);
+  await expect(page).toHaveURL(/\/templates.*/);
   await page.context().storageState({ path: STORAGE_STATE });
 
-  await page.getByTestId("button-select-template").isVisible();
+  await page
+    .getByRole("button", { name: "Create template", exact: false })
+    .isVisible();
 });
