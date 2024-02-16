@@ -1,7 +1,7 @@
 package proto
 
 import (
-	"github.com/coder/coder/v2/coderd/util/apiversion"
+	"github.com/coder/coder/v2/apiversion"
 )
 
 const (
