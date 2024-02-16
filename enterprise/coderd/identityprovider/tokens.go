@@ -105,8 +105,16 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 		// TODO: Client creds, device code.
 		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
 			token, err = refreshTokenGrant(ctx, db, app, defaultLifetime, params)
-		default:
+		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
 			token, err = authorizationCodeGrant(ctx, db, app, defaultLifetime, params)
+		default:
+			// Grant types are validated by the parser, so getting through here means
+			// the developer added a type but forgot to add a case here.
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unhandled grant type.",
+				Detail:  fmt.Sprintf("Grant type %q is unhandled", params.grantType),
+			})
+			return
 		}
 
 		if errors.Is(err, errBadCode) || errors.Is(err, errBadSecret) {
