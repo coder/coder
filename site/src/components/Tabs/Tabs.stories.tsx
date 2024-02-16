@@ -13,9 +13,15 @@ export const Default: Story = {
   args: {
     children: (
       <>
-        <TabLink to="">Tab 1</TabLink>
-        <TabLink to="tab-3">Tab 2</TabLink>
-        <TabLink to="tab-4">Tab 3</TabLink>
+        <TabLink value="tab-1" to="">
+          Tab 1
+        </TabLink>
+        <TabLink value="tab-2" to="tab-3">
+          Tab 2
+        </TabLink>
+        <TabLink value="tab-3" to="tab-4">
+          Tab 3
+        </TabLink>
       </>
     ),
   },
