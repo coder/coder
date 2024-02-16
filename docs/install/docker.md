@@ -13,7 +13,7 @@ Docker is required. See the
 
 ## docker run
 
-### Built-in database (quick)
+**Built-in database (quick)**
 
 For proof-of-concept deployments, you can run a complete Coder instance with the
 following command.
@@ -29,7 +29,7 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest
 ```
 
-### External database
+**External database**
 
 For production deployments, we recommend using an external PostgreSQL database
 (version 13 or higher). Set `CODER_ACCESS_URL` to the external URL that users
