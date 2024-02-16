@@ -9,17 +9,6 @@ import { TemplateFileTree } from "./TemplateFileTree";
 import { Link } from "react-router-dom";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 
-const languageByExtension: Record<string, string> = {
-  tf: "hcl",
-  hcl: "hcl",
-  md: "markdown",
-  mkd: "markdown",
-  Dockerfile: "dockerfile",
-  sh: "shell",
-  tpl: "tpl",
-  protobuf: "protobuf",
-  nix: "dockerfile",
-};
 interface TemplateFilesProps {
   currentFiles: TemplateVersionFiles;
   /**
@@ -135,9 +124,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
                     </div>
                   </header>
                   <SyntaxHighlighter
-                    language={
-                      languageByExtension[filename.split(".").pop() ?? ""]
-                    }
+                    language={getLanguage(filename)}
                     value={info.value}
                     compareWith={info.previousValue}
                     editorProps={{
@@ -157,6 +144,27 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
       </div>
     </div>
   );
+};
+
+const languageByExtension: Record<string, string> = {
+  tf: "hcl",
+  hcl: "hcl",
+  md: "markdown",
+  mkd: "markdown",
+  sh: "shell",
+  tpl: "tpl",
+  protobuf: "protobuf",
+  nix: "dockerfile",
+  json: "json",
+};
+
+const getLanguage = (filename: string) => {
+  // Dockerfile can be like images/Dockerfile or Dockerfile.java
+  if (filename.includes("Dockerfile")) {
+    return "dockerfile";
+  }
+  const extension = filename.split(".").pop();
+  return languageByExtension[extension ?? ""];
 };
 
 const numberOfLines = (content: string) => {

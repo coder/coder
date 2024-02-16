@@ -1,3 +1,13 @@
+-- name: GetDefaultOrganization :one
+SELECT
+	*
+FROM
+	organizations
+WHERE
+	is_default = true
+LIMIT
+	1;
+
 -- name: GetOrganizations :many
 SELECT
 	*
