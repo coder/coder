@@ -12,8 +12,6 @@ import (
 
 // authorizeMW serves to remove some code from the primary authorize handler.
 // It decides when to show the html allow page, and when to just continue.
-// TODO: For now only browser-based auth flow is officially supported but in a
-// future PR we should support a cURL-based flow.
 func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -58,6 +56,9 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 				return
 			}
 
+			// TODO: For now only browser-based auth flow is officially supported but
+			// in a future PR we should support a cURL-based flow where we output text
+			// instead of HTML.
 			if r.URL.Query().Get("redirected") != "" {
 				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 					Status:       http.StatusInternalServerError,
