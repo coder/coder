@@ -11,18 +11,18 @@ value. A missing `order` property defaults to 0.
 
 ### Coder parameters
 
-The `coder_parameter` resource allows specifying the order of parameters in UI
-forms using the `order` property. For example:
+The `order` property of `coder_parameter` resource allows specifying the order
+of parameters in UI forms. For example:
 
 ```hcl
-resource "coder_parameter" "project_id" {
+data "coder_parameter" "project_id" {
   name         = "project_id"
   display_name = "Project ID"
   description  = "Specify cloud provider project ID."
   order = 2
 }
 
-resource "coder_parameter" "account_id" {
+data "coder_parameter" "account_id" {
   name         = "account_id"
   display_name = "Account ID"
   description  = "Specify cloud provider account ID."
@@ -49,8 +49,7 @@ resource "coder_agent" "secondary" {
 }
 ```
 
-The agent with the lowest order is presented as the main agent in the workspace
-view.
+The agent with the lowest order is presented at the top in the workspace view.
 
 ### Agent metadata
 
@@ -99,8 +98,9 @@ resource "coder_agent" "main" {
 
 ### Applications
 
-Similarly to Cocer agents, `coder_app` resources incorporate the `order`
-property to organize button apps in the app bar within the workspace view.
+Similarly to Coder agents, `coder_app` resources incorporate the `order`
+property to organize button apps in the app bar within a `coder_agent` in the
+workspace view.
 
 Only template defined applications can be arranged. _VS Code_ or _Terminal_
 buttons are static.
@@ -158,7 +158,7 @@ data "coder_parameter" "database_region" {
 }
 ```
 
-### Agent metadata items
+### Coder metadata items
 
 In cases where multiple item properties exist, the order is inherited from the
 file, facilitating seamless integration between a Coder template and UI
