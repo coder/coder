@@ -28,7 +28,7 @@ export const useClickableTableRow = ({
   onDoubleClick,
   onMiddleClick,
 }: UseClickableTableRowConfig): UseClickableTableRowResult => {
-  const clickableProps = useClickable(onClick);
+  const clickableProps = useClickable(onClick, "button");
   const theme = useTheme();
 
   return {
