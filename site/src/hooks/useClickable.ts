@@ -14,7 +14,7 @@ export type ClickableAriaRole = "button" | "switch" | "spinbutton";
 
 export type UseClickableResult<
   TElement extends ClickableElement = ClickableElement,
-  TRole extends ClickableAriaRole = "button",
+  TRole extends ClickableAriaRole = ClickableAriaRole,
 > = Readonly<{
   ref: RefObject<TElement>;
   tabIndex: 0;
