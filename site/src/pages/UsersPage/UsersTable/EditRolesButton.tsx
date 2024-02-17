@@ -86,7 +86,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   userLoginType,
   oidcRoleSync,
 }) => {
-  const paper = useClassName(classNames.paper, []);
+  const paper = useClassName((css, theme) => classNames.paper(css, theme), []);
 
   const handleChange = (roleName: string) => {
     if (selectedRoleNames.has(roleName)) {

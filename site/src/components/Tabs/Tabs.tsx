@@ -34,8 +34,15 @@ export const TabLink: FC<TabLinkProps> = ({
   children,
   ...linkProps
 }) => {
-  const tabLink = useClassName(classNames.tabLink, []);
-  const activeTabLink = useClassName(classNames.activeTabLink, []);
+  const tabLink = useClassName(
+    (css, theme) => classNames.tabLink(css, theme),
+    [],
+  );
+
+  const activeTabLink = useClassName(
+    (css, theme) => classNames.activeTabLink(css, theme),
+    [],
+  );
 
   return (
     <NavLink

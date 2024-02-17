@@ -60,8 +60,11 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
   href,
   icon: Icon,
 }) => {
-  const link = useClassName(classNames.link, []);
-  const activeLink = useClassName(classNames.activeLink, []);
+  const link = useClassName((css, theme) => classNames.link(css, theme), []);
+  const activeLink = useClassName(
+    (css, theme) => classNames.activeLink(css, theme),
+    [],
+  );
 
   return (
     <NavLink

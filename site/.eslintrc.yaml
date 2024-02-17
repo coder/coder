@@ -151,7 +151,9 @@ rules:
           message: "Import from lodash/<name> instead."
   no-unused-vars: "off"
   "object-curly-spacing": "off"
-  react-hooks/exhaustive-deps: warn
+  react-hooks/exhaustive-deps:
+    - warn
+    - additionalHooks: "(useClassName)"
   react-hooks/rules-of-hooks: error
   react/display-name: "off"
   react/jsx-no-script-url:
