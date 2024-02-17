@@ -19,8 +19,8 @@ describe(useClassName.name, () => {
   ) {
     return renderHook<string, Props>(
       /* eslint-disable-next-line react-hooks/exhaustive-deps --
-         Disabling in text context to make setup easier; disabling the rule
-         should still be treated as a bad idea in general */
+         Disabling to make test setup easier; disabling this rule should still
+         be treated as a bad idea in general */
       ({ styles, deps }) => useClassName(styles, deps),
       { initialProps: { styles, deps }, ...options },
     );
