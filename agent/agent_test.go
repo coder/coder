@@ -349,7 +349,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
-		"PATH":                scriptBinDir + ":",
+		"PATH":                scriptBinDir + string(filepath.ListSeparator),
 	} {
 		t.Run(k, func(t *testing.T) {
 			echoEnv(t, stdin, k)
