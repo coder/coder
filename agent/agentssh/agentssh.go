@@ -452,15 +452,10 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	}
 
 	if !isQuietLogin(s.fs, session.RawCommand()) {
-		motdFile := s.config.MOTDFile()
-		if motdFile != "" {
-			err := showMOTD(s.fs, session, motdFile)
-			if err != nil {
-				logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
-				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
-			}
-		} else {
-			logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+		err := showMOTD(s.fs, session, s.config.MOTDFile())
+		if err != nil {
+			logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 		}
 	}
 
