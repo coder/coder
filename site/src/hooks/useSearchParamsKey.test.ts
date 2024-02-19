@@ -1,8 +1,5 @@
 import { useSearchParamKey } from "./useSearchParamsKey";
-import {
-  renderHookWithAuth,
-  renderHookWithAuth2,
-} from "testHelpers/renderHelpers";
+import { renderHookWithAuth2 } from "testHelpers/renderHelpers";
 import { act, waitFor } from "@testing-library/react";
 
 /**
@@ -10,63 +7,77 @@ import { act, waitFor } from "@testing-library/react";
  * messy. Went with straightforward approach of calling things individually
  */
 describe(useSearchParamKey.name, () => {
-  it.skip("Returns out a default value of an empty string if the key does not exist in URL", async () => {
-    const { result } = await renderHookWithAuth(
+  it("Returns out a default value of an empty string if the key does not exist in URL", async () => {
+    const { result } = await renderHookWithAuth2(
       () => useSearchParamKey("blah"),
-      { route: `/` },
+      { routingOptions: { route: `/` } },
     );
 
     expect(result.current.value).toEqual("");
   });
 
-  it.skip("Uses the 'defaultValue' config override if provided", async () => {
+  it("Uses the 'defaultValue' config override if provided", async () => {
     const defaultValue = "dogs";
-    const { result } = await renderHookWithAuth(
+    const { result } = await renderHookWithAuth2(
       () => useSearchParamKey("blah", { defaultValue }),
-      { route: `/` },
+      { routingOptions: { route: `/` } },
     );
 
     expect(result.current.value).toEqual(defaultValue);
   });
 
-  it.skip("Is able to read to read keys from the URL on mounting render", async () => {
+  it("Is able to read to read keys from the URL on mounting render", async () => {
     const key = "blah";
     const value = "cats";
 
-    const { result } = await renderHookWithAuth(() => useSearchParamKey(key), {
-      route: `/?${key}=${value}`,
+    const { result } = await renderHookWithAuth2(() => useSearchParamKey(key), {
+      routingOptions: {
+        route: `/?${key}=${value}`,
+      },
     });
 
     expect(result.current.value).toEqual(value);
   });
 
-  it.skip("Updates state and URL when the setValue callback is called with a new value", async () => {
+  it("Updates state and URL when the setValue callback is called with a new value", async () => {
     const key = "blah";
     const initialValue = "cats";
 
-    const { result, router } = await renderHookWithAuth(
+    const { result, getSearchParamsSnapshot } = await renderHookWithAuth2(
       () => useSearchParamKey(key),
-      { route: `/?${key}=${initialValue}` },
+      {
+        routingOptions: {
+          route: `/?${key}=${initialValue}`,
+        },
+      },
     );
 
     const newValue = "dogs";
     act(() => result.current.onValueChange(newValue));
     await waitFor(() => expect(result.current.value).toEqual(newValue));
-    expect(router.state.location.search).toEqual(`?${key}=${newValue}`);
+
+    const params = getSearchParamsSnapshot();
+    expect(params.get(key)).toEqual(newValue);
   });
 
-  it.skip("Clears value for the given key from the state and URL when removeValue is called", async () => {
+  it("Clears value for the given key from the state and URL when removeValue is called", async () => {
     const key = "blah";
     const initialValue = "cats";
 
-    const { result, router } = await renderHookWithAuth(
+    const { result, getSearchParamsSnapshot } = await renderHookWithAuth2(
       () => useSearchParamKey(key),
-      { route: `/?${key}=${initialValue}` },
+      {
+        routingOptions: {
+          route: `/?${key}=${initialValue}`,
+        },
+      },
     );
 
     act(() => result.current.removeValue());
     await waitFor(() => expect(result.current.value).toEqual(""));
-    expect(router.state.location.search).toEqual("");
+
+    const params = getSearchParamsSnapshot();
+    expect(params.get(key)).toEqual(null);
   });
 
   it("Does not have methods change previous values if 'key' argument changes during re-renders", async () => {
