@@ -33,7 +33,7 @@ func TestServer_X11(t *testing.T) {
 	fs := afero.NewOsFs()
 	dir := t.TempDir()
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, &agentssh.Config{
-		WorkingDirectory: func() string { return dir },
+		X11SocketDir: dir,
 	})
 	require.NoError(t, err)
 	defer s.Close()
