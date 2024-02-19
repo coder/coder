@@ -10,7 +10,7 @@ export interface GroupAvatarProps {
 }
 
 export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
-  const badge = useClassName(classNames.badge, []);
+  const badge = useClassName((css, theme) => classNames.badge(css, theme), []);
 
   return (
     <Badge

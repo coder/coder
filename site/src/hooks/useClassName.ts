@@ -1,8 +1,10 @@
-/* eslint-disable react-hooks/exhaustive-deps -- false positives */
-
-import { css } from "@emotion/css";
+/**
+ * @file This hook has had the ESLint exhaustive-deps rule added to it.
+ */
 import { type DependencyList, useMemo } from "react";
+import { useEffectEvent } from "./hookPolyfills";
 import { type Theme, useTheme } from "@emotion/react";
+import { css } from "@emotion/css";
 
 export type ClassName = (cssFn: typeof css, theme: Theme) => string;
 
@@ -13,9 +15,14 @@ export type ClassName = (cssFn: typeof css, theme: Theme) => string;
  */
 export function useClassName(styles: ClassName, deps: DependencyList): string {
   const theme = useTheme();
-  const className = useMemo(() => {
-    return styles(css, theme);
-  }, [...deps, theme]);
+  const stableStylesCallback = useEffectEvent(styles);
 
-  return className;
+  return useMemo(
+    () => stableStylesCallback(css, theme),
+    /* eslint-disable-next-line react-hooks/exhaustive-deps --
+       Hook needs to be able to handle variadic number of dependencies at the
+       API level. There should be a custom ESLint rule set to ensure that the
+       number of dependencies doesn't change across renders. */
+    [stableStylesCallback, theme, ...deps],
+  );
 }

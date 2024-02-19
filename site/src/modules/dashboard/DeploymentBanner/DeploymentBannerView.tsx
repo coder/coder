@@ -56,7 +56,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   fetchStats,
 }) => {
   const theme = useTheme();
-  const summaryTooltip = useClassName(classNames.summaryTooltip, []);
+  const summaryTooltip = useClassName(
+    (css, theme) => classNames.summaryTooltip(css, theme),
+    [],
+  );
 
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {

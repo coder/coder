@@ -44,7 +44,7 @@ export interface PortForwardButtonProps {
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   const { agent, storybook } = props;
 
-  const paper = useClassName(classNames.paper, []);
+  const paper = useClassName((css, theme) => classNames.paper(css, theme), []);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],

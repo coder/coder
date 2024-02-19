@@ -30,7 +30,7 @@ export const SSHButton: FC<SSHButtonProps> = ({
   isDefaultOpen = false,
   sshPrefix,
 }) => {
-  const paper = useClassName(classNames.paper, []);
+  const paper = useClassName((css, theme) => classNames.paper(css, theme), []);
 
   return (
     <Popover isDefaultOpen={isDefaultOpen}>
