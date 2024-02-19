@@ -1,4 +1,10 @@
-import { type FC, type MouseEventHandler } from "react";
+import {
+  type ElementType,
+  type FC,
+  type MouseEventHandler,
+  type PropsWithChildren,
+} from "react";
+
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,23 +15,44 @@ import userEvent from "@testing-library/user-event";
  * element directly.
  */
 type NonNativeButtonProps<TElement extends HTMLElement = HTMLElement> =
-  Readonly<{
-    role?: ClickableAriaRole;
-    onInteraction: MouseEventHandler<TElement>;
-  }>;
+  Readonly<
+    PropsWithChildren<{
+      as?: Exclude<ElementType, "button">;
+      role?: ClickableAriaRole;
+      onInteraction: MouseEventHandler<TElement>;
+    }>
+  >;
 
-const NonNativeButton: FC<NonNativeButtonProps<HTMLDivElement>> = ({
+const NonNativeButton: FC<NonNativeButtonProps<HTMLElement>> = ({
+  as,
   onInteraction,
+  children,
   role = "button",
 }) => {
   const clickableProps = useClickable(onInteraction, role);
-  return <div {...clickableProps} />;
+  const Component = as ?? "div";
+  return <Component {...clickableProps}>{children}</Component>;
 };
 
 describe(useClickable.name, () => {
   it("Always defaults to role 'button'", () => {
     render(<NonNativeButton onInteraction={jest.fn()} />);
     expect(() => screen.getByRole("button")).not.toThrow();
+  });
+
+  it("Overrides the native role of any element that receives the hook result (be very careful with this behavior)", () => {
+    const anchorText = "I'm a button that's secretly a link!";
+    render(
+      <NonNativeButton as="a" role="button" onInteraction={jest.fn()}>
+        {anchorText}
+      </NonNativeButton>,
+    );
+
+    const linkButton = screen.getByRole("button", {
+      name: anchorText,
+    });
+
+    expect(linkButton).toBeInstanceOf(HTMLAnchorElement);
   });
 
   it("Always returns out the same role override received via arguments", () => {
