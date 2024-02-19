@@ -969,7 +969,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	if _, ok := envs["PATH"]; !ok {
 		envs["PATH"] = os.Getenv("PATH")
 	}
-	envs["PATH"] = a.scriptRunner.ScriptBinDir() + ":" + envs["PATH"]
+	envs["PATH"] = fmt.Sprintf("%s%c%s", a.scriptRunner.ScriptBinDir(), filepath.ListSeparator, envs["PATH"])
 
 	for k, v := range envs {
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
