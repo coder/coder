@@ -88,9 +88,7 @@ describe(useClickable.name, () => {
     // Focus over to element, hold down Enter for specified keydown period
     // (count determined by browser/library), and then release the Enter key
     const keydownCount = 5;
-    await user.keyboard("[Tab]");
-    await user.keyboard(`{Enter>${keydownCount}}`);
-    await user.keyboard("{/Enter}");
+    await user.keyboard(`[Tab]{Enter>${keydownCount}}{/Enter}`);
     expect(mockCallback).toBeCalledTimes(keydownCount);
   });
 
@@ -99,11 +97,8 @@ describe(useClickable.name, () => {
     const user = userEvent.setup();
     render(<NonNativeButton role="button" onInteraction={mockCallback} />);
 
-    // Focus over to element, hold down Space for specified keydown period
-    // (count determined by browser/library)
-    const keydownCount = 5;
-    await user.keyboard("[Tab]");
-    await user.keyboard(`{ >${keydownCount}}`);
+    // Focus over to element, and then hold down Space for arbitrary length
+    await user.keyboard("[Tab]{ >}");
     expect(mockCallback).not.toBeCalled();
 
     // Then release the space bar
@@ -126,10 +121,7 @@ describe(useClickable.name, () => {
 
     // Focus over to element, hold down Space for an indefinite amount of time,
     // move focus away from element, and then release Space
-    await user.keyboard("[Tab]");
-    await user.keyboard("{ >}");
-    await user.keyboard("[Tab]");
-    await user.keyboard("{/ }");
+    await user.keyboard("[Tab]{ >}[Tab]{/ }");
     expect(mockCallback).not.toBeCalled();
   });
 });
