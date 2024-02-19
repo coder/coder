@@ -281,6 +281,68 @@ func TestAgent_SessionExec(t *testing.T) {
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
+//nolint:tparallel // Sub tests need to run sequentially.
+func TestAgent_Session_EnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		EnvironmentVariables: map[string]string{
+			"MY_MANIFEST":         "true",
+			"MY_OVERRIDE":         "false",
+			"MY_SESSION_MANIFEST": "false",
+		},
+	}
+	banner := codersdk.ServiceBannerConfig{}
+	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
+	})
+
+	err := session.Setenv("MY_SESSION_MANIFEST", "true")
+	require.NoError(t, err)
+	err = session.Setenv("MY_SESSION", "true")
+	require.NoError(t, err)
+
+	command := "sh"
+	echoEnv := func(t *testing.T, w io.Writer, r io.Reader, env string) string {
+		if runtime.GOOS == "windows" {
+			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
+			require.NoError(t, err)
+		} else {
+			_, err := fmt.Fprintf(w, "echo $%s\n", env)
+			require.NoError(t, err)
+		}
+		scanner := bufio.NewScanner(r)
+		require.True(t, scanner.Scan())
+		t.Logf("%s=%s", env, scanner.Text())
+		return scanner.Text()
+	}
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe"
+	}
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	defer stdin.Close()
+	stdout, err := session.StdoutPipe()
+	require.NoError(t, err)
+
+	err = session.Start(command)
+	require.NoError(t, err)
+
+	//nolint:paralleltest // These tests need to run sequentially.
+	for k, partialV := range map[string]string{
+		"CODER":               "true",  // From the agent.
+		"MY_MANIFEST":         "true",  // From the manifest.
+		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
+		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
+		"MY_SESSION":          "true",  // From the session.
+	} {
+		t.Run(k, func(t *testing.T) {
+			out := echoEnv(t, stdin, stdout, k)
+			require.Contains(t, strings.TrimSpace(out), partialV)
+		})
+	}
+}
+
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
 	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
@@ -1991,15 +2053,17 @@ func setupSSHSession(
 	manifest agentsdk.Manifest,
 	serviceBanner codersdk.ServiceBannerConfig,
 	prepareFS func(fs afero.Fs),
+	opts ...func(*agenttest.Client, *agent.Options),
 ) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, _ *agent.Options) {
+	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
 		c.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
 			return serviceBanner, nil
 		})
 	})
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, manifest, 0, opts...)
 	if prepareFS != nil {
 		prepareFS(fs)
 	}
@@ -2057,6 +2121,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
+		EnvironmentVariables:   map[string]string{},
 	}
 
 	for _, opt := range opts {

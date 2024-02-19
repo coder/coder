@@ -37,7 +37,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	logger := slogtest.Make(t, nil)
-	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	defer s.Close()
 
