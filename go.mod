@@ -155,7 +155,7 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/client_model v0.5.0
-	github.com/prometheus/common v0.46.0
+	github.com/prometheus/common v0.47.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
