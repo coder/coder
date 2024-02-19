@@ -119,6 +119,8 @@ func New(options Options) Agent {
 	if options.ScriptDataDir == "" {
 		if options.TempDir != os.TempDir() {
 			options.Logger.Debug(context.Background(), "script data dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		} else {
+			options.Logger.Debug(context.Background(), "using script data dir", slog.F("script_data_dir", options.ScriptDataDir))
 		}
 		options.ScriptDataDir = options.TempDir
 	}
