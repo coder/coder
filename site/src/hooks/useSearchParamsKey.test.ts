@@ -5,6 +5,10 @@ import { act, waitFor } from "@testing-library/react";
 /**
  * Tried to extract the setup logic into one place, but it got surprisingly
  * messy. Went with straightforward approach of calling things individually
+ *
+ * @todo See if there's a way to test the interaction with the history object
+ * (especially for replace behavior). It's traditionally very locked off, and
+ * React Router gives you no way of interacting with it directly.
  */
 describe(useSearchParamsKey.name, () => {
   it("Returns out a default value of an empty string if the key does not exist in URL", async () => {
@@ -110,13 +114,5 @@ describe(useSearchParamsKey.name, () => {
     const { search } = getLocationSnapshot();
     expect(search.get(readonlyKey)).toEqual(initialReadonlyValue);
     expect(search.get(mutableKey)).toEqual(swapValue);
-  });
-
-  /**
-   * @todo - Need to figure out how to interface with the History object, which
-   * by design, is very locked off and limits your ability to check it directly
-   */
-  it.skip("Does not update the history stack for any of its methods if 'replace' config option is true", () => {
-    expect.hasAssertions();
   });
 });
