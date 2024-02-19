@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { AgentRow } from "modules/resources/AgentRow";
-import { useSearchParamKey } from "hooks/useSearchParamValue";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -89,7 +89,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
-  const sidebarOption = useSearchParamKey("sidebar");
+  const sidebarOption = useSearchParamsKey("sidebar");
   const setSidebarOption = (newOption: string) => {
     const { onValueChange: set, value } = sidebarOption;
     if (value === newOption) {

@@ -1,5 +1,5 @@
 import { WorkspaceResource } from "api/typesGenerated";
-import { useSearchParamKey } from "hooks";
+import { useSearchParamsKey } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useCallback, useEffect } from "react";
 
@@ -14,7 +14,7 @@ export const resourceOptionValue = (resource: WorkspaceResource) => {
 // refactoring. Consider revisiting this solution in the future for a more
 // robust implementation.
 export const useResourcesNav = (resources: WorkspaceResource[]) => {
-  const resourcesNav = useSearchParamKey("resources");
+  const resourcesNav = useSearchParamsKey("resources");
 
   const isSelected = useCallback(
     (resource: WorkspaceResource) => {

@@ -15,10 +15,11 @@ import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import {
-  createMemoryRouter,
-  RouterProvider,
+  type Location,
   type RouteObject,
+  createMemoryRouter,
   MemoryRouter,
+  RouterProvider,
   Routes,
   Route,
   useLocation,
@@ -119,6 +120,12 @@ type RenderHookWithAuthOptions<Props> = Partial<
   >
 >;
 
+export type RouterLocationSnapshot = Readonly<{
+  search: URLSearchParams;
+  pathname: string;
+  state: Location["state"];
+}>;
+
 export type RenderHookWithAuthConfig<Props> = Readonly<{
   routingOptions?: Omit<RenderWithAuthOptions, "children">;
   renderOptions?: Omit<RenderHookOptions<Props>, "wrapper">;
@@ -130,11 +137,12 @@ export type RenderHookWithAuthResult<Result, Props> = Promise<
       queryClient: QueryClient;
 
       /**
-       * Gives you access to the URLSearchParams associated with the test's
-       * isolated router. Treat this value as a snapshot; as in, there is a
-       * chance that will stop being accurate after the next re-render
+       * Gives you access to the navigation values associated with the test's
+       * isolated router. Treat this value as a snapshot; it does not provide a
+       * live link to the various location APIs, and it can become inaccurate
+       * after a re-render.
        */
-      getSearchParamsSnapshot: () => URLSearchParams;
+      getLocationSnapshot: () => RouterLocationSnapshot;
     }
   >
 >;
@@ -172,8 +180,13 @@ export async function renderHookWithAuth2<Result, Props>(
   /**
    * Have to do some incredibly, incredibly cursed things here. Scoured the
    * tests for the React Router source code, and from their examples, there
-   * didn't appear to be any examples of they do
-   * not provide you a way to access the
+   * didn't appear to be any examples of them letting you expose the router
+   * directly. (One of the tests created a dummy paragraph, and injected the
+   * values into that...)
+   *
+   * This breaks some rules, but hopefully, it makes sure that the code is
+   * resilient to re-renders, and removes the need to make every test file that
+   * uses this function support JSX.
    */
   // Easy to miss - evil definite assignment
   let escapedLocation!: ReturnType<typeof useLocation>;
@@ -184,7 +197,7 @@ export async function renderHookWithAuth2<Result, Props>(
   };
 
   /**
-   * Can't use the fancy createMemoryRouter function, because it gives you no
+   * Can't use the fancy createMemoryRouter function because it gives you no
    * direct way to re-render with arbitrary children. That's a deal-breaker when
    * trying to test custom hooks - it removes your ability to unit-test them
    */
@@ -241,7 +254,13 @@ export async function renderHookWithAuth2<Result, Props>(
     rerender,
     unmount,
     queryClient,
-    getSearchParamsSnapshot: () => new URLSearchParams(escapedLocation.search),
+    getLocationSnapshot: () => {
+      return {
+        pathname: escapedLocation.pathname,
+        search: new URLSearchParams(escapedLocation.search),
+        state: escapedLocation.state,
+      };
+    },
   } as const;
 }
 

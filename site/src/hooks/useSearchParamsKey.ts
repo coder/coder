@@ -13,7 +13,7 @@ export type UseSearchParamKeyResult = Readonly<{
   removeValue: () => void;
 }>;
 
-export const useSearchParamKey = (
+export const useSearchParamsKey = (
   key: string,
   config: UseSearchParamKeyConfig = {},
 ): UseSearchParamKeyResult => {
