@@ -3,6 +3,7 @@ package agentscripts_test
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -48,7 +50,7 @@ func TestExecuteBasic(t *testing.T) {
 
 func TestEnv(t *testing.T) {
 	t.Parallel()
-	logs := make(chan agentsdk.PatchLogs, 1)
+	logs := make(chan agentsdk.PatchLogs, 2)
 	runner := setup(t, func(ctx context.Context, req agentsdk.PatchLogs) error {
 		select {
 		case <-ctx.Done():
@@ -58,17 +60,41 @@ func TestEnv(t *testing.T) {
 	})
 	defer runner.Close()
 	id := uuid.New()
+	script := "echo $CODER_SCRIPT_DATA_DIR\necho $CODER_SCRIPT_BIN_DIR\n"
+	if runtime.GOOS == "windows" {
+		script = `
+			cmd.exe /c echo %CODER_SCRIPT_DATA_DIR%
+			cmd.exe /c echo %CODER_SCRIPT_BIN_DIR%
+		`
+	}
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: id,
-		Script:      "echo $CODER_SCRIPT_DATA_DIR\necho $CODER_SCRIPT_BIN_DIR\n",
+		Script:      script,
 	}})
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	require.NoError(t, runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 		return true
 	}))
-	log := <-logs
-	require.Contains(t, log.Logs[0].Output, filepath.Join(runner.DataDir(), id.String()))
-	require.Contains(t, log.Logs[1].Output, runner.ScriptBinDir())
+	var log []agentsdk.Log
+	for {
+		select {
+		case <-ctx.Done():
+			require.Fail(t, "timed out waiting for logs")
+		case l := <-logs:
+			for _, l := range l.Logs {
+				t.Logf("log: %s", l.Output)
+			}
+			log = append(log, l.Logs...)
+		}
+		if len(log) >= 2 {
+			break
+		}
+	}
+	require.Contains(t, log[0].Output, filepath.Join(runner.DataDir(), id.String()))
+	require.Contains(t, log[1].Output, runner.ScriptBinDir())
 }
 
 func TestTimeout(t *testing.T) {
