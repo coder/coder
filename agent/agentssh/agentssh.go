@@ -56,7 +56,7 @@ const (
 
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
-	// MaxTimout sets the absolute connection timeout, none if empty. If set to
+	// MaxTimeout sets the absolute connection timeout, none if empty. If set to
 	// 3 seconds or more, keep alive will be used instead.
 	MaxTimeout time.Duration
 	// MOTDFile returns the path to the message of the day file. If set, the
