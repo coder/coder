@@ -66,6 +66,7 @@ type Options struct {
 	Filesystem                   afero.Fs
 	LogDir                       string
 	TempDir                      string
+	ScriptDataDir                string
 	ExchangeToken                func(ctx context.Context) (string, error)
 	Client                       Client
 	ReconnectingPTYTimeout       time.Duration
@@ -115,6 +116,12 @@ func New(options Options) Agent {
 		}
 		options.LogDir = options.TempDir
 	}
+	if options.ScriptDataDir == "" {
+		if options.TempDir != os.TempDir() {
+			options.Logger.Debug(context.Background(), "script data dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		}
+		options.ScriptDataDir = options.TempDir
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -152,6 +159,7 @@ func New(options Options) Agent {
 		filesystem:                   options.Filesystem,
 		logDir:                       options.LogDir,
 		tempDir:                      options.TempDir,
+		scriptDataDir:                options.ScriptDataDir,
 		lifecycleUpdate:              make(chan struct{}, 1),
 		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
@@ -183,6 +191,7 @@ type agent struct {
 	filesystem        afero.Fs
 	logDir            string
 	tempDir           string
+	scriptDataDir     string
 	// ignorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
@@ -250,6 +259,7 @@ func (a *agent) init(ctx context.Context) {
 	a.sshServer = sshSrv
 	a.scriptRunner = agentscripts.New(agentscripts.Options{
 		LogDir:     a.logDir,
+		DataDir:    a.scriptDataDir,
 		Logger:     a.logger,
 		SSHServer:  sshSrv,
 		Filesystem: a.filesystem,
@@ -953,6 +963,13 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	for k, v := range a.environmentVariables {
 		envs[k] = v
 	}
+
+	// Prepend the agent script bin directory to the PATH
+	// (this is where Coder modules place their binaries).
+	if _, ok := envs["PATH"]; !ok {
+		envs["PATH"] = os.Getenv("PATH")
+	}
+	envs["PATH"] = a.scriptRunner.ScriptBinDir() + ":" + envs["PATH"]
 
 	for k, v := range envs {
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))

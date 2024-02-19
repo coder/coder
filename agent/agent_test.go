@@ -286,6 +286,11 @@ func TestAgent_SessionExec(t *testing.T) {
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
+	tmpdir := t.TempDir()
+
+	// Defined by the coder script runner.
+	scriptBinDir := filepath.Join(tmpdir, "coder-script-data", "bin")
+
 	manifest := agentsdk.Manifest{
 		EnvironmentVariables: map[string]string{
 			"MY_MANIFEST":         "true",
@@ -294,7 +299,10 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		},
 	}
 	banner := codersdk.ServiceBannerConfig{}
+	fs := afero.NewMemMapFs()
 	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = fs
+		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
 
@@ -341,6 +349,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
+		"PATH":                scriptBinDir + ":",
 	} {
 		t.Run(k, func(t *testing.T) {
 			echoEnv(t, stdin, k)
