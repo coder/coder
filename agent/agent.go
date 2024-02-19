@@ -113,6 +113,8 @@ func New(options Options) Agent {
 	if options.LogDir == "" {
 		if options.TempDir != os.TempDir() {
 			options.Logger.Debug(context.Background(), "log dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		} else {
+			options.Logger.Debug(context.Background(), "using log dir", slog.F("log_dir", options.LogDir))
 		}
 		options.LogDir = options.TempDir
 	}
