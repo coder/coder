@@ -278,8 +278,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				subsystems = append(subsystems, subsystem)
 			}
 
-			procTicker := time.NewTicker(time.Second)
-			defer procTicker.Stop()
+			environmentVariables := map[string]string{
+				"GIT_ASKPASS": executablePath,
+			}
+			if v, ok := os.LookupEnv(agent.EnvProcPrioMgmt); ok {
+				environmentVariables[agent.EnvProcPrioMgmt] = v
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -296,13 +301,10 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					client.SetSessionToken(resp.SessionToken)
 					return resp.SessionToken, nil
 				},
-				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS":         executablePath,
-					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
-				},
-				IgnorePorts:   ignorePorts,
-				SSHMaxTimeout: sshMaxTimeout,
-				Subsystems:    subsystems,
+				EnvironmentVariables: environmentVariables,
+				IgnorePorts:          ignorePorts,
+				SSHMaxTimeout:        sshMaxTimeout,
+				Subsystems:           subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
 				Syscaller:          agentproc.NewSyscaller(),
