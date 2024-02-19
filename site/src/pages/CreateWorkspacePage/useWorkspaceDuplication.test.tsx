@@ -4,10 +4,10 @@ import { type Workspace } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { MockWorkspace } from "testHelpers/entities";
 import CreateWorkspacePage from "./CreateWorkspacePage";
-import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import { deprecated_renderHookWithAuth } from "testHelpers/renderHelpers";
 
 function render(workspace?: Workspace) {
-  return renderHookWithAuth(
+  return deprecated_renderHookWithAuth(
     ({ workspace }) => {
       return useWorkspaceDuplication(workspace);
     },

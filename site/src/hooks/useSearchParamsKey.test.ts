@@ -1,5 +1,5 @@
 import { useSearchParamsKey } from "./useSearchParamsKey";
-import { renderHookWithAuth2 } from "testHelpers/renderHelpers";
+import { renderHookWithAuth } from "testHelpers/renderHelpers";
 import { act, waitFor } from "@testing-library/react";
 
 /**
@@ -7,12 +7,12 @@ import { act, waitFor } from "@testing-library/react";
  * messy. Went with straightforward approach of calling things individually
  *
  * @todo See if there's a way to test the interaction with the history object
- * (especially for replace behavior). It's traditionally very locked off, and
+ * (particularly, for replace behavior). It's traditionally very locked off, and
  * React Router gives you no way of interacting with it directly.
  */
 describe(useSearchParamsKey.name, () => {
   it("Returns out a default value of an empty string if the key does not exist in URL", async () => {
-    const { result } = await renderHookWithAuth2(
+    const { result } = await renderHookWithAuth(
       () => useSearchParamsKey("blah"),
       { routingOptions: { route: `/` } },
     );
@@ -22,7 +22,7 @@ describe(useSearchParamsKey.name, () => {
 
   it("Uses the 'defaultValue' config override if provided", async () => {
     const defaultValue = "dogs";
-    const { result } = await renderHookWithAuth2(
+    const { result } = await renderHookWithAuth(
       () => useSearchParamsKey("blah", { defaultValue }),
       { routingOptions: { route: `/` } },
     );
@@ -34,14 +34,11 @@ describe(useSearchParamsKey.name, () => {
     const key = "blah";
     const value = "cats";
 
-    const { result } = await renderHookWithAuth2(
-      () => useSearchParamsKey(key),
-      {
-        routingOptions: {
-          route: `/?${key}=${value}`,
-        },
+    const { result } = await renderHookWithAuth(() => useSearchParamsKey(key), {
+      routingOptions: {
+        route: `/?${key}=${value}`,
       },
-    );
+    });
 
     expect(result.current.value).toEqual(value);
   });
@@ -50,7 +47,7 @@ describe(useSearchParamsKey.name, () => {
     const key = "blah";
     const initialValue = "cats";
 
-    const { result, getLocationSnapshot } = await renderHookWithAuth2(
+    const { result, getLocationSnapshot } = await renderHookWithAuth(
       () => useSearchParamsKey(key),
       {
         routingOptions: {
@@ -71,7 +68,7 @@ describe(useSearchParamsKey.name, () => {
     const key = "blah";
     const initialValue = "cats";
 
-    const { result, getLocationSnapshot } = await renderHookWithAuth2(
+    const { result, getLocationSnapshot } = await renderHookWithAuth(
       () => useSearchParamsKey(key),
       {
         routingOptions: {
@@ -93,7 +90,7 @@ describe(useSearchParamsKey.name, () => {
     const initialReadonlyValue = "readonly";
     const initialMutableValue = "mutable";
 
-    const { result, rerender, getLocationSnapshot } = await renderHookWithAuth2(
+    const { result, rerender, getLocationSnapshot } = await renderHookWithAuth(
       ({ key }) => useSearchParamsKey(key),
       {
         routingOptions: {

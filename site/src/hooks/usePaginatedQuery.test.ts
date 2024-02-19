@@ -1,4 +1,4 @@
-import { renderHookWithAuth2 } from "testHelpers/renderHelpers";
+import { renderHookWithAuth } from "testHelpers/renderHelpers";
 import { waitFor } from "@testing-library/react";
 
 import {
@@ -23,7 +23,7 @@ function render<
   options: UsePaginatedQueryOptions<TQueryFnData, TQueryPayload>,
   route?: `/?page=${string}`,
 ) {
-  return renderHookWithAuth2(({ options }) => usePaginatedQuery(options), {
+  return renderHookWithAuth(({ options }) => usePaginatedQuery(options), {
     routingOptions: {
       route,
       path: "/",

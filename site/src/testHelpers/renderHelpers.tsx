@@ -6,7 +6,12 @@ import {
   RenderHookOptions,
   RenderHookResult,
 } from "@testing-library/react";
-import { type ReactNode, useState, FC, PropsWithChildren } from "react";
+import {
+  type ReactNode,
+  type FC,
+  type PropsWithChildren,
+  useState,
+} from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -131,20 +136,18 @@ export type RenderHookWithAuthConfig<Props> = Readonly<{
   renderOptions?: Omit<RenderHookOptions<Props>, "wrapper">;
 }>;
 
-export type RenderHookWithAuthResult<Result, Props> = Promise<
-  Readonly<
-    RenderHookResult<Result, Props> & {
-      queryClient: QueryClient;
+export type RenderHookWithAuthResult<Result, Props> = Readonly<
+  RenderHookResult<Result, Props> & {
+    queryClient: QueryClient;
 
-      /**
-       * Gives you access to the navigation values associated with the test's
-       * isolated router. Treat this value as a snapshot; it does not provide a
-       * live link to the various location APIs, and it can become inaccurate
-       * after a re-render.
-       */
-      getLocationSnapshot: () => RouterLocationSnapshot;
-    }
-  >
+    /**
+     * Gives you access to the navigation values associated with the test's
+     * isolated router. Treat this value as a snapshot; it does not provide a
+     * live link to the various location APIs, and it can become inaccurate
+     * after a re-render.
+     */
+    getLocationSnapshot: () => RouterLocationSnapshot;
+  }
 >;
 
 /**
@@ -161,10 +164,10 @@ export type RenderHookWithAuthResult<Result, Props> = Promise<
  * methods; calling renderHook's rerender method directly caused the router to
  * get lost/disconnected.
  */
-export async function renderHookWithAuth2<Result, Props>(
+export async function renderHookWithAuth<Result, Props>(
   render: (initialProps: Props) => Result,
   config: RenderHookWithAuthConfig<Props>,
-): RenderHookWithAuthResult<Result, Props> {
+): Promise<RenderHookWithAuthResult<Result, Props>> {
   const { routingOptions = {}, renderOptions = {} } = config;
   const {
     path = "/",
@@ -172,10 +175,6 @@ export async function renderHookWithAuth2<Result, Props>(
     extraRoutes = [],
     nonAuthenticatedRoutes = [],
   } = routingOptions;
-
-  const ArbitraryRoute: FC<{ route: RouteObject }> = ({ route }) => (
-    <Route path={route.path} element={route.element} />
-  );
 
   /**
    * Have to do some incredibly, incredibly cursed things here. Scoured the
@@ -212,12 +211,20 @@ export async function renderHookWithAuth2<Result, Props>(
             />
 
             {extraRoutes.map((route, index) => (
-              <ArbitraryRoute key={route.path ?? index} route={route} />
+              <Route
+                key={route.path ?? index}
+                path={route.path}
+                element={route.element}
+              />
             ))}
           </Route>
 
           {nonAuthenticatedRoutes.map((route, index) => (
-            <ArbitraryRoute key={route.path ?? index} route={route} />
+            <Route
+              key={route.path ?? index}
+              path={route.path}
+              element={route.element}
+            />
           ))}
         </Routes>
       </MemoryRouter>
@@ -225,7 +232,6 @@ export async function renderHookWithAuth2<Result, Props>(
   };
 
   const queryClient = createTestQueryClient();
-
   const { result, rerender, unmount } = renderHook(render, {
     ...renderOptions,
     wrapper: ({ children }) => (
@@ -265,14 +271,11 @@ export async function renderHookWithAuth2<Result, Props>(
 }
 
 /**
- * Custom version of renderHook that is aware of all our App providers.
- *
- * Had to do some nasty, cursed things in the implementation to make sure that
- * the tests using this function remained simple.
- *
- * @see {@link https://github.com/coder/coder/pull/10362#discussion_r1380852725}
+ * Old version of renderHookWithAuth that mostly works, but breaks when you try
+ * to perform manual, direct re-renders via renderHook's rerender method.
+ * @deprecated
  */
-export async function renderHookWithAuth<Result, Props>(
+export async function deprecated_renderHookWithAuth<Result, Props>(
   render: (initialProps: Props) => Result,
   options: RenderHookWithAuthOptions<Props> = {},
 ) {
@@ -285,12 +288,6 @@ export async function renderHookWithAuth<Result, Props>(
   const { result, rerender, unmount } = renderHook(render, {
     initialProps,
     wrapper: ({ children }) => {
-      /**
-       * Unfortunately, there isn't a way to define the router outside the
-       * wrapper while keeping it aware of children, meaning that we need to
-       * define the router as readonly state in the component instance. This
-       * ensures the value remains stable across all re-renders
-       */
       // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
       const [readonlyStatefulRouter] = useState(() => {
         return createMemoryRouter(
