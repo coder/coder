@@ -169,7 +169,8 @@ func New(options Options) Agent {
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
 	}
-	a.serviceBanner.Store(&codersdk.ServiceBannerConfig{})
+	a.serviceBanner.Store(new(codersdk.ServiceBannerConfig))
+	a.sessionToken.Store(new(string))
 	a.init(ctx)
 	return a
 }
