@@ -884,7 +884,10 @@ func (a *agent) run(ctx context.Context) error {
 
 // updateCommandEnv updates the provided command environment with the
 // following set of environment variables:
-// -
+// - Predefined workspace environment variables
+// - Environment variables currently set (overriding predefined)
+// - Environment variables passed via the agent manifest (overriding predefined and current)
+// - Agent-level environment variables (overriding all)
 func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
 	manifest := a.manifest.Load()
 	if manifest == nil {
