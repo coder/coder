@@ -183,8 +183,8 @@ export async function renderHookWithAuth<Result, Props>(
    * directly. (One of the tests created a dummy paragraph, and injected the
    * values into that...)
    *
-   * This breaks some rules, but hopefully, it makes sure that the code is
-   * resilient to re-renders, and removes the need to make every test file that
+   * This breaks some rules, but it makes sure that the code is resilient to
+   * re-renders, and hopefully removes the need to make every test file that
    * uses this function support JSX.
    */
   // Easy to miss - evil definite assignment
