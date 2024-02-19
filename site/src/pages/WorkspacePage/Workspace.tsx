@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { AgentRow } from "modules/resources/AgentRow";
-import { useTab } from "hooks";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -89,13 +89,12 @@ export const Workspace: FC<WorkspaceProps> = ({
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
-  const sidebarOption = useTab("sidebar", "");
+  const sidebarOption = useSearchParamsKey("sidebar");
   const setSidebarOption = (newOption: string) => {
-    const { set, value } = sidebarOption;
-    if (value === newOption) {
-      set("");
+    if (sidebarOption.value === newOption) {
+      sidebarOption.removeValue();
     } else {
-      set(newOption);
+      sidebarOption.onValueChange(newOption);
     }
   };
 

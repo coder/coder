@@ -24,9 +24,13 @@ function render<
   route?: `/?page=${string}`,
 ) {
   return renderHookWithAuth(({ options }) => usePaginatedQuery(options), {
-    route,
-    path: "/",
-    initialProps: { options },
+    routingOptions: {
+      route,
+      path: "/",
+    },
+    renderOptions: {
+      initialProps: { options },
+    },
   });
 }
 
