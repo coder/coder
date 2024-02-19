@@ -258,12 +258,12 @@ func (a *agent) init(ctx context.Context) {
 	}
 	a.sshServer = sshSrv
 	a.scriptRunner = agentscripts.New(agentscripts.Options{
-		LogDir:     a.logDir,
-		DataDir:    a.scriptDataDir,
-		Logger:     a.logger,
-		SSHServer:  sshSrv,
-		Filesystem: a.filesystem,
-		PatchLogs:  a.client.PatchLogs,
+		LogDir:      a.logDir,
+		DataDirBase: a.scriptDataDir,
+		Logger:      a.logger,
+		SSHServer:   sshSrv,
+		Filesystem:  a.filesystem,
+		PatchLogs:   a.client.PatchLogs,
 	})
 	// Register runner metrics. If the prom registry is nil, the metrics
 	// will not report anywhere.

@@ -27,7 +27,10 @@ func TestExecuteBasic(t *testing.T) {
 	t.Parallel()
 	logs := make(chan agentsdk.PatchLogs, 1)
 	runner := setup(t, func(ctx context.Context, req agentsdk.PatchLogs) error {
-		logs <- req
+		select {
+		case <-ctx.Done():
+		case logs <- req:
+		}
 		return nil
 	})
 	defer runner.Close()
@@ -47,7 +50,10 @@ func TestEnv(t *testing.T) {
 	t.Parallel()
 	logs := make(chan agentsdk.PatchLogs, 1)
 	runner := setup(t, func(ctx context.Context, req agentsdk.PatchLogs) error {
-		logs <- req
+		select {
+		case <-ctx.Done():
+		case logs <- req:
+		}
 		return nil
 	})
 	defer runner.Close()
@@ -61,7 +67,7 @@ func TestEnv(t *testing.T) {
 		return true
 	}))
 	log := <-logs
-	require.Contains(t, log.Logs[0].Output, filepath.Join(runner.DataDir, "coder-script-data", id.String()))
+	require.Contains(t, log.Logs[0].Output, filepath.Join(runner.DataDir(), id.String()))
 	require.Contains(t, log.Logs[1].Output, runner.ScriptBinDir())
 }
 
@@ -103,11 +109,11 @@ func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchL
 		_ = s.Close()
 	})
 	return agentscripts.New(agentscripts.Options{
-		LogDir:     t.TempDir(),
-		DataDir:    t.TempDir(),
-		Logger:     logger,
-		SSHServer:  s,
-		Filesystem: fs,
-		PatchLogs:  patchLogs,
+		LogDir:      t.TempDir(),
+		DataDirBase: t.TempDir(),
+		Logger:      logger,
+		SSHServer:   s,
+		Filesystem:  fs,
+		PatchLogs:   patchLogs,
 	})
 }

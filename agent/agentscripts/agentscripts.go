@@ -43,12 +43,12 @@ var (
 
 // Options are a set of options for the runner.
 type Options struct {
-	DataDir    string
-	LogDir     string
-	Logger     slog.Logger
-	SSHServer  *agentssh.Server
-	Filesystem afero.Fs
-	PatchLogs  func(ctx context.Context, req agentsdk.PatchLogs) error
+	DataDirBase string
+	LogDir      string
+	Logger      slog.Logger
+	SSHServer   *agentssh.Server
+	Filesystem  afero.Fs
+	PatchLogs   func(ctx context.Context, req agentsdk.PatchLogs) error
 }
 
 // New creates a runner for the provided scripts.
@@ -60,7 +60,7 @@ func New(opts Options) *Runner {
 		cronCtxCancel: cronCtxCancel,
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
-		dataDir:       filepath.Join(opts.DataDir, "coder-script-data"),
+		dataDir:       filepath.Join(opts.DataDirBase, "coder-script-data"),
 		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "agent",
 			Subsystem: "scripts",
@@ -86,6 +86,11 @@ type Runner struct {
 	// execute startup scripts, and scripts on a cron schedule. Both will increment
 	// this counter.
 	scriptsExecuted *prometheus.CounterVec
+}
+
+// DataDir returns the directory where scripts data is stored.
+func (r *Runner) DataDir() string {
+	return r.dataDir
 }
 
 // ScriptBinDir returns the directory where scripts can store executable
@@ -223,7 +228,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		logPath = filepath.Join(r.LogDir, logPath)
 	}
 
-	scriptDataDir := filepath.Join(r.dataDir, script.LogSourceID.String())
+	scriptDataDir := filepath.Join(r.DataDir(), script.LogSourceID.String())
 	err := r.Filesystem.MkdirAll(scriptDataDir, 0o700)
 	if err != nil {
 		return xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)

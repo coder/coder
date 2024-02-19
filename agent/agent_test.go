@@ -288,7 +288,8 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 
 	tmpdir := t.TempDir()
 
-	// Defined by the coder script runner.
+	// Defined by the coder script runner, hardcoded here since we don't
+	// have a reference to it.
 	scriptBinDir := filepath.Join(tmpdir, "coder-script-data", "bin")
 
 	manifest := agentsdk.Manifest{
