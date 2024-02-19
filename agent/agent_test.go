@@ -303,7 +303,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	command := "sh"
-	echoEnv := func(t *testing.T, w io.Writer, r io.Reader, env string) string {
+	echoEnv := func(t *testing.T, w io.Writer, env string) {
 		if runtime.GOOS == "windows" {
 			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
 			require.NoError(t, err)
@@ -311,10 +311,6 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 			_, err := fmt.Fprintf(w, "echo $%s\n", env)
 			require.NoError(t, err)
 		}
-		scanner := bufio.NewScanner(r)
-		require.True(t, scanner.Scan())
-		t.Logf("%s=%s", env, scanner.Text())
-		return scanner.Text()
 	}
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
@@ -328,6 +324,22 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	err = session.Start(command)
 	require.NoError(t, err)
 
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	s := bufio.NewScanner(stdout)
+	out := make(chan string)
+	testutil.Go(t, func() {
+		for s.Scan() {
+			select {
+			case out <- s.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+	})
+
+	// Until we have gotten the first result, the shell may spit out some data.
+	first := true
 	//nolint:paralleltest // These tests need to run sequentially.
 	for k, partialV := range map[string]string{
 		"CODER":               "true",  // From the agent.
@@ -337,8 +349,22 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_SESSION":          "true",  // From the session.
 	} {
 		t.Run(k, func(t *testing.T) {
-			out := echoEnv(t, stdin, stdout, k)
-			require.Contains(t, strings.TrimSpace(out), partialV)
+			echoEnv(t, stdin, k)
+			if first {
+				for {
+					s := testutil.RequireRecvCtx(ctx, t, out)
+					t.Logf("%s=%s", k, s)
+					s = strings.TrimSpace(s)
+					if strings.Contains(s, partialV) {
+						first = false
+						return
+					}
+				}
+			}
+			s := testutil.RequireRecvCtx(ctx, t, out)
+			t.Logf("%s=%s", k, s)
+			s = strings.TrimSpace(s)
+			require.Contains(t, s, partialV)
 		})
 	}
 }
