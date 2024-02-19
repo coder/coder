@@ -97,11 +97,11 @@ describe(useClickable.name, () => {
     const user = userEvent.setup();
     render(<NonNativeButton role="button" onInteraction={mockCallback} />);
 
-    // Focus over to element, and then hold down Space for arbitrary length
-    await user.keyboard("[Tab]{ >}");
+    // Focus over to element, and then hold down Space for 100 keydown cycles
+    await user.keyboard("[Tab]{ >100}");
     expect(mockCallback).not.toBeCalled();
 
-    // Then release the space bar
+    // Then explicitly release the space bar
     await user.keyboard(`{/ }`);
     expect(mockCallback).toBeCalledTimes(1);
   });
