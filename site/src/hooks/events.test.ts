@@ -2,7 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { dispatchCustomEvent } from "utils/events";
 import { useCustomEvent } from "./events";
 
-describe("useCustomEvent", () => {
+describe(useCustomEvent.name, () => {
   it("Should receive custom events dispatched by the dispatchCustomEvent function", async () => {
     const mockCallback = jest.fn();
     const eventType = "testEvent";
