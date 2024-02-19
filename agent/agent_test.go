@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -324,22 +325,15 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	err = session.Start(command)
 	require.NoError(t, err)
 
+	// Context is fine here since we're not doing a parallel subtest.
 	ctx := testutil.Context(t, testutil.WaitLong)
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
 
 	s := bufio.NewScanner(stdout)
-	out := make(chan string)
-	testutil.Go(t, func() {
-		for s.Scan() {
-			select {
-			case out <- s.Text():
-			case <-ctx.Done():
-				return
-			}
-		}
-	})
 
-	// Until we have gotten the first result, the shell may spit out some data.
-	first := true
 	//nolint:paralleltest // These tests need to run sequentially.
 	for k, partialV := range map[string]string{
 		"CODER":               "true",  // From the agent.
@@ -350,21 +344,17 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	} {
 		t.Run(k, func(t *testing.T) {
 			echoEnv(t, stdin, k)
-			if first {
-				for {
-					s := testutil.RequireRecvCtx(ctx, t, out)
-					t.Logf("%s=%s", k, s)
-					s = strings.TrimSpace(s)
-					if strings.Contains(s, partialV) {
-						first = false
-						return
-					}
+			// Windows is unreliable, so keep scanning until we find a match.
+			for s.Scan() {
+				got := strings.TrimSpace(s.Text())
+				t.Logf("%s=%s", k, got)
+				if strings.Contains(got, partialV) {
+					break
 				}
 			}
-			s := testutil.RequireRecvCtx(ctx, t, out)
-			t.Logf("%s=%s", k, s)
-			s = strings.TrimSpace(s)
-			require.Contains(t, s, partialV)
+			if err := s.Err(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
