@@ -10,7 +10,14 @@ type ClickableElement = {
   click: () => void;
 };
 
-export type ClickableAriaRole = "button" | "switch" | "spinbutton";
+/**
+ * May be worth adding support for the 'spinbutton' role at some point, but that
+ * will change the structure of the return result in a big way. Better to wait
+ * until we actually need it.
+ *
+ * @see {@link https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/}
+ */
+export type ClickableAriaRole = "button" | "switch";
 
 export type UseClickableResult<
   TElement extends ClickableElement = ClickableElement,
