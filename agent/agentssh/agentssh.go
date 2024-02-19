@@ -126,6 +126,15 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if config.ServiceBanner == nil {
 		config.ServiceBanner = func() *codersdk.ServiceBannerConfig { return &codersdk.ServiceBannerConfig{} }
 	}
+	if config.WorkingDirectory == nil {
+		config.WorkingDirectory = func() string {
+			home, err := userHomeDir()
+			if err != nil {
+				return ""
+			}
+			return home
+		}
+	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := newForwardedUnixHandler(logger)
