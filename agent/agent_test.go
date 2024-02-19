@@ -300,9 +300,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		},
 	}
 	banner := codersdk.ServiceBannerConfig{}
-	fs := afero.NewMemMapFs()
 	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
-		opts.Filesystem = fs
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})

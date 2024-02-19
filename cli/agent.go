@@ -345,7 +345,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "script-data-dir",
 			Default:     os.TempDir(),
 			Description: "Specify the location for storing script data.",
-			Env:         "CODER_AGENT_SCRIPT_DIR",
+			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
 			Value:       clibase.StringOf(&scriptDataDir),
 		},
 		{
