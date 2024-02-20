@@ -56,6 +56,12 @@ func TestLogSender_Mainline(t *testing.T) {
 		loopErr <- err
 	}()
 
+	empty := make(chan error, 1)
+	go func() {
+		err := uut.WaitUntilEmpty(ctx)
+		empty <- err
+	}()
+
 	// since neither source has even been flushed, it should immediately Flush
 	// both, although the order is not controlled
 	var logReqs []*proto.BatchCreateLogsRequest
@@ -104,8 +110,11 @@ func TestLogSender_Mainline(t *testing.T) {
 	require.Equal(t, proto.Log_DEBUG, req.Logs[0].GetLevel())
 	require.Equal(t, t1, req.Logs[0].GetCreatedAt().AsTime())
 
+	err := testutil.RequireRecvCtx(ctx, t, empty)
+	require.NoError(t, err)
+
 	cancel()
-	err := testutil.RequireRecvCtx(testCtx, t, loopErr)
+	err = testutil.RequireRecvCtx(testCtx, t, loopErr)
 	require.ErrorIs(t, err, context.Canceled)
 
 	// we can still enqueue more logs after SendLoop returns
@@ -132,6 +141,12 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 		Level:     codersdk.LogLevelInfo,
 	})
 
+	empty := make(chan error, 1)
+	go func() {
+		err := uut.WaitUntilEmpty(ctx)
+		empty <- err
+	}()
+
 	loopErr := make(chan error, 1)
 	go func() {
 		err := uut.SendLoop(ctx, fDest)
@@ -145,6 +160,10 @@ func TestLogSender_LogLimitExceeded(t *testing.T) {
 
 	err := testutil.RequireRecvCtx(ctx, t, loopErr)
 	require.ErrorIs(t, err, LogLimitExceededError)
+
+	// Should also unblock WaitUntilEmpty
+	err = testutil.RequireRecvCtx(ctx, t, empty)
+	require.NoError(t, err)
 
 	// we can still enqueue more logs after SendLoop returns, but they don't
 	// actually get enqueued
@@ -361,6 +380,33 @@ func TestLogSender_SendError(t *testing.T) {
 	uut.L.Lock()
 	require.Len(t, uut.queues, 1)
 	uut.L.Unlock()
+}
+
+func TestLogSender_WaitUntilEmpty_ContextExpired(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := NewLogSender(logger)
+
+	t0 := dbtime.Now()
+
+	ls1 := uuid.UUID{0x11}
+	uut.Enqueue(ls1, Log{
+		CreatedAt: t0,
+		Output:    "test log 0, src 1",
+		Level:     codersdk.LogLevelInfo,
+	})
+
+	empty := make(chan error, 1)
+	go func() {
+		err := uut.WaitUntilEmpty(ctx)
+		empty <- err
+	}()
+
+	cancel()
+	err := testutil.RequireRecvCtx(testCtx, t, empty)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 type fakeLogDest struct {
