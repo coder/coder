@@ -1168,48 +1168,43 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUI
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, app := range q.oauth2ProviderApps {
-		if app.ID == id {
-			q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
-			q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+	index := slices.IndexFunc(q.oauth2ProviderApps, func(app database.OAuth2ProviderApp) bool {
+		return app.ID == id
+	})
 
-			// Cascade delete into secrets.
-			var deletedSecretIDs []uuid.UUID
-			var secrets []database.OAuth2ProviderAppSecret
-			for _, secret := range q.oauth2ProviderAppSecrets {
-				if secret.AppID == id {
-					deletedSecretIDs = append(deletedSecretIDs, secret.ID)
-				} else {
-					secrets = append(secrets, secret)
-				}
-			}
-			q.oauth2ProviderAppSecrets = secrets
-
-			// Cascade delete into tokens.
-			var keyIDsToDelete []string
-			var tokens []database.OAuth2ProviderAppToken
-			for _, token := range q.oauth2ProviderAppTokens {
-				if slice.Contains(deletedSecretIDs, token.AppSecretID) {
-					keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
-				} else {
-					tokens = append(tokens, token)
-				}
-			}
-			q.oauth2ProviderAppTokens = tokens
-
-			// Delete from API keys.
-			var keys []database.APIKey
-			for _, key := range q.apiKeys {
-				if !slices.Contains(keyIDsToDelete, key.ID) {
-					keys = append(keys, key)
-				}
-			}
-			q.apiKeys = keys
-
-			return nil
-		}
+	if index < 0 {
+		return sql.ErrNoRows
 	}
-	return sql.ErrNoRows
+
+	q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
+	q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+
+	// Cascade delete secrets associated with the deleted app.
+	var deletedSecretIDs []uuid.UUID
+	q.oauth2ProviderAppSecrets = slices.DeleteFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
+		matches := secret.AppID == id
+		if matches {
+			deletedSecretIDs = append(deletedSecretIDs, secret.ID)
+		}
+		return matches
+	})
+
+	// Cascade delete tokens through the deleted secrets.
+	var keyIDsToDelete []string
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
+		matches := slice.Contains(deletedSecretIDs, token.AppSecretID)
+		if matches {
+			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
+		}
+		return matches
+	})
+
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) DeleteOAuth2ProviderAppCodeByID(_ context.Context, id uuid.UUID) error {
@@ -1249,36 +1244,33 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppSecretByID(_ context.Context, id uu
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, secret := range q.oauth2ProviderAppSecrets {
-		if secret.ID == id {
-			q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
-			q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
+	index := slices.IndexFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
+		return secret.ID == id
+	})
 
-			// Cascade delete into tokens.
-			var keyIDsToDelete []string
-			var tokens []database.OAuth2ProviderAppToken
-			for _, token := range q.oauth2ProviderAppTokens {
-				if token.AppSecretID == id {
-					keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
-				} else {
-					tokens = append(tokens, token)
-				}
-			}
-			q.oauth2ProviderAppTokens = tokens
-
-			// Delete from API keys.
-			var keys []database.APIKey
-			for _, key := range q.apiKeys {
-				if !slices.Contains(keyIDsToDelete, key.ID) {
-					keys = append(keys, key)
-				}
-			}
-			q.apiKeys = keys
-
-			return nil
-		}
+	if index < 0 {
+		return sql.ErrNoRows
 	}
-	return sql.ErrNoRows
+
+	q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
+	q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
+
+	// Cascade delete tokens created through the deleted secret.
+	var keyIDsToDelete []string
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
+		matches := token.AppSecretID == id
+		if matches {
+			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
+		}
+		return matches
+	})
+
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Context, arg database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
@@ -1291,8 +1283,7 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	defer q.mutex.Unlock()
 
 	var keyIDsToDelete []string
-	var tokens []database.OAuth2ProviderAppToken
-	for _, token := range q.oauth2ProviderAppTokens {
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
 		// Join secrets and keys to see if the token matches.
 		secretIdx := slices.IndexFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
 			return secret.ID == token.AppSecretID
@@ -1300,23 +1291,19 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 		keyIdx := slices.IndexFunc(q.apiKeys, func(key database.APIKey) bool {
 			return key.ID == token.APIKeyID
 		})
-		if secretIdx != -1 && q.oauth2ProviderAppSecrets[secretIdx].AppID == arg.AppID &&
-			keyIdx != -1 && q.apiKeys[keyIdx].UserID == arg.UserID {
+		matches := secretIdx != -1 &&
+			q.oauth2ProviderAppSecrets[secretIdx].AppID == arg.AppID &&
+			keyIdx != -1 && q.apiKeys[keyIdx].UserID == arg.UserID
+		if matches {
 			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
-		} else {
-			tokens = append(tokens, token)
 		}
-	}
-	q.oauth2ProviderAppTokens = tokens
+		return matches
+	})
 
-	// Cascade delete into API keys.
-	var keys []database.APIKey
-	for _, key := range q.apiKeys {
-		if !slices.Contains(keyIDsToDelete, key.ID) {
-			keys = append(keys, key)
-		}
-	}
-	q.apiKeys = keys
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
 
 	return nil
 }
