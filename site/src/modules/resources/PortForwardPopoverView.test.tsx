@@ -1,5 +1,10 @@
 import { screen } from "@testing-library/react";
-import { MockListeningPortsResponse, MockTemplate, MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import {
+  MockListeningPortsResponse,
+  MockTemplate,
+  MockWorkspace,
+  MockWorkspaceAgent,
+} from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { PortForwardPopoverView } from "./PortForwardButton";
 import { QueryClientProvider, QueryClient } from "react-query";
@@ -19,7 +24,7 @@ describe("Port Forward Popover View", () => {
           username="username"
           workspaceName="workspaceName"
         />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     expect(
