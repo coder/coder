@@ -662,6 +662,8 @@ func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 }
 
 func TestJustFilesSystem(t *testing.T) {
+	t.Parallel()
+
 	tfs := fstest.MapFS{
 		"dir/foo.txt": &fstest.MapFile{
 			Data: []byte("hello world"),
