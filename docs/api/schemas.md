@@ -3811,6 +3811,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -3818,12 +3819,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `created_at` | string | true     |              |             |
-| `id`         | string | true     |              |             |
-| `name`       | string | true     |              |             |
-| `updated_at` | string | true     |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | true     |              |             |
+| `id`         | string  | true     |              |             |
+| `is_default` | boolean | true     |              |             |
+| `name`       | string  | true     |              |             |
+| `updated_at` | string  | true     |              |             |
 
 ## codersdk.OrganizationMember
 
@@ -7517,6 +7519,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `count`      | integer                                           | false    |              |             |
 | `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
 
+## derp.BytesSentRecv
+
+```json
+{
+  "key": {},
+  "recv": 0,
+  "sent": 0
+}
+```
+
+### Properties
+
+| Name   | Type                             | Required | Restrictions | Description                                                          |
+| ------ | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------- |
+| `key`  | [key.NodePublic](#keynodepublic) | false    |              | Key is the public key of the client which sent/received these bytes. |
+| `recv` | integer                          | false    |              |                                                                      |
+| `sent` | integer                          | false    |              |                                                                      |
+
 ## derp.ServerInfoMessage
 
 ```json
@@ -8629,6 +8649,16 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
 | `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
 | `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
+
+## key.NodePublic
+
+```json
+{}
+```
+
+### Properties
+
+_None_
 
 ## netcheck.Report
 

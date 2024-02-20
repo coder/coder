@@ -10,16 +10,6 @@ terraform {
   }
 }
 
-variable "jfrog_url" {
-  type        = string
-  description = "Artifactory URL. e.g. https://myartifactory.example.com"
-  # ensue the URL is HTTPS or HTTP
-  validation {
-    condition     = can(regex("^(https|http)://", var.jfrog_url))
-    error_message = "jfrog_url must be a valid URL starting with either 'https://' or 'http://'"
-  }
-}
-
 locals {
   // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
   // Kyle for help.
@@ -34,7 +24,6 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  jfrog_host     = replace(var.jfrog_url, "https://", "")
 }
 
 data "coder_parameter" "repo_base_dir" {
@@ -155,21 +144,6 @@ module "coder-login" {
   source   = "registry.coder.com/modules/coder-login/coder"
   version  = "1.0.2"
   agent_id = coder_agent.dev.id
-}
-
-module "jfrog" {
-  source                = "registry.coder.com/modules/jfrog-oauth/coder"
-  version               = "1.0.2"
-  agent_id              = coder_agent.dev.id
-  jfrog_url             = var.jfrog_url
-  configure_code_server = true
-  username_field        = "username"
-  package_managers = {
-    "npm" : "npm",
-    "go" : "go",
-    "pypi" : "pypi",
-    "docker" : "docker"
-  }
 }
 
 resource "coder_agent" "dev" {

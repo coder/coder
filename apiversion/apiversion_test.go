@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/apiversion"
+	"github.com/coder/coder/v2/apiversion"
 )
 
 func TestAPIVersionValidate(t *testing.T) {

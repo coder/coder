@@ -114,7 +114,6 @@ func New(opts Options) *API {
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
 		Database:                  opts.Database,
-		Pubsub:                    opts.Pubsub,
 		Log:                       opts.Log,
 		StatsBatcher:              opts.StatsBatcher,
 		TemplateScheduleStore:     opts.TemplateScheduleStore,

@@ -1823,6 +1823,7 @@ type Organization struct {
 	Description string    `db:"description" json:"description"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault   bool      `db:"is_default" json:"is_default"`
 }
 
 type OrganizationMember struct {
@@ -2243,6 +2244,8 @@ type WorkspaceAgent struct {
 	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
+	// Specifies the order in which to display agents in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type WorkspaceAgentLog struct {

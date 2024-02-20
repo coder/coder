@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
 
 	gomock "go.uber.org/mock/gomock"
 )
@@ -46,7 +46,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "no daemons",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
 			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
@@ -54,7 +54,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "error fetching daemons",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			provisionerDaemonsErr:  assert.AnError,
 			expectedSeverity:       health.SeverityError,
 			expectedError:          assert.AnError.Error(),
@@ -63,7 +63,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one daemon up to date",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now)},
 			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
@@ -85,7 +85,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one daemon out of date",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
@@ -113,7 +113,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "invalid daemon version",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-version", "invalid", "1.0", now)},
@@ -141,7 +141,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "invalid daemon api version",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-api", "v1.2.3", "invalid", now)},
@@ -197,7 +197,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one up to date, one out of date",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
@@ -238,7 +238,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one up to date, one newer",
 			currentVersion:         "v1.2.3",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0", now)},
@@ -279,7 +279,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one up to date, one stale older",
 			currentVersion:         "v2.3.4",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-stale", "v1.2.3", "0.9", now.Add(-5*time.Minute), now), fakeProvisionerDaemon(t, "pd-ok", "v2.3.4", "1.0", now)},
 			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
@@ -301,7 +301,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		{
 			name:                   "one stale",
 			currentVersion:         "v2.3.4",
-			currentAPIMajorVersion: provisionersdk.CurrentMajor,
+			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", now.Add(-5*time.Minute), now)},
@@ -317,7 +317,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			deps.CurrentVersion = tt.currentVersion
 			deps.CurrentAPIMajorVersion = tt.currentAPIMajorVersion
 			if tt.currentAPIMajorVersion == 0 {
-				deps.CurrentAPIMajorVersion = provisionersdk.CurrentMajor
+				deps.CurrentAPIMajorVersion = proto.CurrentMajor
 			}
 			deps.TimeNow = func() time.Time {
 				return now

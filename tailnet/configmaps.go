@@ -204,7 +204,8 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 	nm.Addresses = make([]netip.Prefix, len(c.addresses))
 	copy(nm.Addresses, c.addresses)
 
-	nm.DERPMap = c.derpMap.Clone()
+	// we don't need to set the DERPMap in the network map because we separately
+	// send the DERPMap directly via SetDERPMap
 	nm.Peers = c.peerConfigLocked()
 	nm.SelfNode.Addresses = nm.Addresses
 	nm.SelfNode.AllowedIPs = nm.Addresses

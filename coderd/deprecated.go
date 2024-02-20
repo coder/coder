@@ -8,6 +8,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
@@ -113,4 +114,28 @@ func (api *API) workspaceAgentPostMetadataDeprecated(rw http.ResponseWriter, r *
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Removed: Get workspace resources for workspace build
+// @ID removed-get-workspace-resources-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {array} codersdk.WorkspaceResource
+// @Router /workspacebuilds/{workspacebuild}/resources [get]
+// @Deprecated this endpoint is unused and will be removed in future.
+func (api *API) workspaceBuildResourcesDeprecated(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	api.provisionerJobResources(rw, r, job)
 }

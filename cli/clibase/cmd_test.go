@@ -79,6 +79,10 @@ func TestCommand(t *testing.T) {
 							Required: true,
 						},
 					},
+					HelpHandler: func(i *clibase.Invocation) error {
+						_, _ = i.Stdout.Write([]byte("help text.png"))
+						return nil
+					},
 					Handler: func(i *clibase.Invocation) error {
 						_, _ = i.Stdout.Write([]byte(fmt.Sprintf("%s-%t", reqStr, reqBool)))
 						return nil
@@ -253,6 +257,18 @@ func TestCommand(t *testing.T) {
 		err := i.Run()
 		require.Error(t, err, fio.Stdout.String())
 		require.ErrorContains(t, err, "Missing values")
+	})
+
+	t.Run("RequiredFlagsMissingWithHelp", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag",
+			"--help",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.NoError(t, err)
+		require.Contains(t, fio.Stdout.String(), "help text.png")
 	})
 
 	t.Run("RequiredFlagsMissingBool", func(t *testing.T) {

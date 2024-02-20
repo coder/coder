@@ -338,6 +338,58 @@
         }
       }
     },
+    "/debug/derp/traffic": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Debug"],
+        "summary": "Debug DERP traffic",
+        "operationId": "debug-derp-traffic",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/derp.BytesSentRecv"
+              }
+            }
+          }
+        },
+        "x-apidocgen": {
+          "skip": true
+        }
+      }
+    },
+    "/debug/expvar": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Debug"],
+        "summary": "Debug expvar",
+        "operationId": "debug-expvar",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "x-apidocgen": {
+          "skip": true
+        }
+      }
+    },
     "/debug/health": {
       "get": {
         "security": [
@@ -5566,8 +5618,9 @@
         ],
         "produces": ["application/json"],
         "tags": ["Builds"],
-        "summary": "Get workspace resources for workspace build",
-        "operationId": "get-workspace-resources-for-workspace-build",
+        "summary": "Removed: Get workspace resources for workspace build",
+        "operationId": "removed-get-workspace-resources-for-workspace-build",
+        "deprecated": true,
         "parameters": [
           {
             "type": "string",
@@ -9243,7 +9296,7 @@
     },
     "codersdk.Organization": {
       "type": "object",
-      "required": ["created_at", "id", "name", "updated_at"],
+      "required": ["created_at", "id", "is_default", "name", "updated_at"],
       "properties": {
         "created_at": {
           "type": "string",
@@ -9252,6 +9305,9 @@
         "id": {
           "type": "string",
           "format": "uuid"
+        },
+        "is_default": {
+          "type": "boolean"
         },
         "name": {
           "type": "string"
@@ -12079,6 +12135,25 @@
         }
       }
     },
+    "derp.BytesSentRecv": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "description": "Key is the public key of the client which sent/received these bytes.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/key.NodePublic"
+            }
+          ]
+        },
+        "recv": {
+          "type": "integer"
+        },
+        "sent": {
+          "type": "integer"
+        }
+      }
+    },
     "derp.ServerInfoMessage": {
       "type": "object",
       "properties": {
@@ -12547,6 +12622,9 @@
           "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
         }
       }
+    },
+    "key.NodePublic": {
+      "type": "object"
     },
     "netcheck.Report": {
       "type": "object",

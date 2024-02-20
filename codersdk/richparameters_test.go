@@ -376,3 +376,24 @@ func TestParameterResolver_ValidateResolve_Ephemeral_UseEmptyDefault(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, "", v)
 }
+
+func TestParameterResolver_ValidateResolve_Number_CustomError(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:         "n",
+		Type:         "number",
+		Mutable:      true,
+		DefaultValue: "5",
+
+		ValidationMin:   ptr.Ref(int32(4)),
+		ValidationMax:   ptr.Ref(int32(6)),
+		ValidationError: "These are values for testing purposes: {min}, {max}, and {value}.",
+	}
+	_, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "8",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "These are values for testing purposes: 4, 6, and 8.")
+}

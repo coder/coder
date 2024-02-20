@@ -401,10 +401,18 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// If no organization is provided, add the user to the first
-		// organization.
-		organizations, err := api.Database.GetOrganizations(ctx)
+		// If no organization is provided, add the user to the default
+		defaultOrg, err := api.Database.GetDefaultOrganization(ctx)
 		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusNotFound,
+					codersdk.Response{
+						Message: "Resource not found or you do not have access to this resource",
+						Detail:  "Organization not found",
+					},
+				)
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching orgs.",
 				Detail:  err.Error(),
@@ -412,12 +420,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if len(organizations) > 0 {
-			// Add the user to the first organization. Once multi-organization
-			// support is added, we should enable a configuration map of user
-			// email to organization.
-			req.OrganizationID = organizations[0].ID
-		}
+		req.OrganizationID = defaultOrg.ID
 	}
 
 	var loginType database.LoginType

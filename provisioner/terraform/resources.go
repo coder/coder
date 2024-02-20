@@ -50,6 +50,7 @@ type agentAttributes struct {
 	MOTDFile                 string                       `mapstructure:"motd_file"`
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+	Order                    int64                        `mapstructure:"order"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -241,6 +242,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				MotdFile:                 attrs.MOTDFile,
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
+				Order:                    attrs.Order,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {

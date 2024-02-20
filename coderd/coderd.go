@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -85,6 +86,8 @@ func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
 }
 
+var expDERPOnce = sync.Once{}
+
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
@@ -131,7 +134,7 @@ type Options struct {
 	BaseDERPMap                 *tailcfg.DERPMap
 	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error
+	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
 	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -298,9 +301,11 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, groups []string, createMissingGroups bool) error {
+		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error {
 			logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("user_id", userID), slog.F("groups", groups), slog.F("create_missing_groups", createMissingGroups),
+				slog.F("user_id", userID),
+				slog.F("groups", orgGroupNames),
+				slog.F("create_missing_groups", createMissingGroups),
 			)
 			return nil
 		}
@@ -452,7 +457,7 @@ func New(options *Options) *API {
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
-					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
+					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
 					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
 				},
@@ -561,6 +566,16 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
+	// These are the metrics the DERP server exposes.
+	// TODO: export via prometheus
+	expDERPOnce.Do(func() {
+		// We need to do this via a global Once because expvar registry is global and panics if we
+		// register multiple times.  In production there is only one Coderd and one DERP server per
+		// process, but in testing, we create multiple of both, so the Once protects us from
+		// panicking.
+		expvar.Publish("derp", api.DERPServer.ExpVar())
+	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
@@ -979,7 +994,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
-			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
@@ -1038,6 +1053,10 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
+			r.Route("/derp", func(r chi.Router) {
+				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+			})
+			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 		})
 	})
 
@@ -1220,7 +1239,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: provisionersdk.VersionCurrent.String(),
+		APIVersion: proto.VersionCurrent.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

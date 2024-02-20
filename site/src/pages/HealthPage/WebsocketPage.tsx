@@ -10,7 +10,7 @@ import {
 import { HealthcheckReport } from "api/typesGenerated";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import Tooltip from "@mui/material/Tooltip";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Alert } from "components/Alert/Alert";
 import { pageTitle } from "utils/page";

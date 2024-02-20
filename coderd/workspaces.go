@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1344,48 +1343,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	sendUpdate := func(_ context.Context, description []byte) {
-		// The agent stats get updated frequently, so we treat these as a special case and only
-		// send a partial update. We primarily care about updating the `last_used_at` and
-		// `latest_build.deadline` properties.
-		if bytes.Equal(description, codersdk.WorkspaceNotifyDescriptionAgentStatsOnly) {
-			workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
-			if err != nil {
-				_ = sendEvent(ctx, codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeError,
-					Data: codersdk.Response{
-						Message: "Internal error fetching workspace.",
-						Detail:  err.Error(),
-					},
-				})
-				return
-			}
-
-			workspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-			if err != nil {
-				_ = sendEvent(ctx, codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeError,
-					Data: codersdk.Response{
-						Message: "Internal error fetching workspace build.",
-						Detail:  err.Error(),
-					},
-				})
-				return
-			}
-
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypePartial,
-				Data: struct {
-					database.Workspace
-					LatestBuild database.WorkspaceBuild `json:"latest_build"`
-				}{
-					Workspace:   workspace,
-					LatestBuild: workspaceBuild,
-				},
-			})
-			return
-		}
-
+	sendUpdate := func(_ context.Context, _ []byte) {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{

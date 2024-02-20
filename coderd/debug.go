@@ -276,7 +276,7 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 }
 
 // For some reason the swagger docs need to be attached to a function.
-//
+
 // @Summary Debug Info Websocket Test
 // @ID debug-info-websocket-test
 // @Security CoderSessionToken
@@ -286,6 +286,26 @@ func validateHealthSettings(settings codersdk.HealthSettings) error {
 // @Router /debug/ws [get]
 // @x-apidocgen {"skip": true}
 func _debugws(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug DERP traffic
+// @ID debug-derp-traffic
+// @Security CoderSessionToken
+// @Produce json
+// @Success 200 {array} derp.BytesSentRecv
+// @Tags Debug
+// @Router /debug/derp/traffic [get]
+// @x-apidocgen {"skip": true}
+func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug expvar
+// @ID debug-expvar
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Debug
+// @Success 200 {object} map[string]any
+// @Router /debug/expvar [get]
+// @x-apidocgen {"skip": true}
+func _debugExpVar(http.ResponseWriter, *http.Request) {} //nolint:unused
 
 func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []codersdk.HealthSection {
 	dismissedHealthchecks := []codersdk.HealthSection{}

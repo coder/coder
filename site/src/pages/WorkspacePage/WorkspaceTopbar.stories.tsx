@@ -1,5 +1,4 @@
 import { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within, screen } from "@storybook/test";
 import {
   MockTemplate,
   MockTemplateVersion,
@@ -8,7 +7,7 @@ import {
 } from "testHelpers/entities";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { addDays, addHours, addMinutes } from "date-fns";
+import { addDays } from "date-fns";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 
 // We want a workspace without a deadline to not pollute the screenshot
@@ -43,90 +42,8 @@ export const Example: Story = {};
 export const Outdated: Story = {
   args: {
     workspace: {
-      ...baseWorkspace,
+      ...MockWorkspace,
       outdated: true,
-    },
-  },
-};
-
-export const Ready: Story = {
-  args: {
-    workspace: {
-      ...baseWorkspace,
-      get last_used_at() {
-        return new Date().toISOString();
-      },
-      latest_build: {
-        ...baseWorkspace.latest_build,
-        get created_at() {
-          return new Date().toISOString();
-        },
-      },
-    },
-  },
-};
-export const ReadyWithDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      get last_used_at() {
-        return new Date().toISOString();
-      },
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get created_at() {
-          return new Date().toISOString();
-        },
-        get deadline() {
-          return addHours(new Date(), 8).toISOString();
-        },
-      },
-    },
-  },
-};
-
-export const Connected: Story = {
-  args: {
-    workspace: {
-      ...baseWorkspace,
-      get last_used_at() {
-        return new Date().toISOString();
-      },
-    },
-  },
-};
-export const ConnectedWithDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      get last_used_at() {
-        return new Date().toISOString();
-      },
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get deadline() {
-          return addHours(new Date(), 8).toISOString();
-        },
-      },
-    },
-  },
-};
-export const ConnectedWithMaxDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      get last_used_at() {
-        return new Date().toISOString();
-      },
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get deadline() {
-          return addHours(new Date(), 1).toISOString();
-        },
-        get max_deadline() {
-          return addHours(new Date(), 1).toISOString();
-        },
-      },
     },
   },
 };
@@ -144,7 +61,7 @@ export const Dormant: Story = {
   },
 };
 
-export const WithExceededDeadline: Story = {
+export const WithDeadline: Story = {
   args: {
     workspace: {
       ...MockWorkspace,
@@ -153,88 +70,6 @@ export const WithExceededDeadline: Story = {
         deadline: MockWorkspace.latest_build.deadline,
       },
     },
-  },
-};
-
-export const WithApproachingDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get deadline() {
-          return addMinutes(new Date(), 30).toISOString();
-        },
-      },
-    },
-  },
-  play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-
-    await step("activate hover trigger", async () => {
-      await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
-      await waitFor(() =>
-        expect(screen.getByRole("tooltip")).toHaveTextContent(
-          /this workspace has enabled autostop/,
-        ),
-      );
-    });
-  },
-};
-
-export const WithFarAwayDeadline: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get deadline() {
-          return addHours(new Date(), 8).toISOString();
-        },
-      },
-    },
-  },
-  play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-
-    await step("activate hover trigger", async () => {
-      await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
-      await waitFor(() =>
-        expect(screen.getByRole("tooltip")).toHaveTextContent(
-          /this workspace has enabled autostop/,
-        ),
-      );
-    });
-  },
-};
-
-export const WithFarAwayDeadlineRequiredByTemplate: Story = {
-  args: {
-    workspace: {
-      ...MockWorkspace,
-      latest_build: {
-        ...MockWorkspace.latest_build,
-        get deadline() {
-          return addHours(new Date(), 8).toISOString();
-        },
-      },
-    },
-    template: {
-      ...MockTemplate,
-      allow_user_autostop: false,
-    },
-  },
-  play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-
-    await step("activate hover trigger", async () => {
-      await userEvent.hover(canvas.getByTestId("schedule-controls-autostop"));
-      await waitFor(() =>
-        expect(screen.getByRole("tooltip")).toHaveTextContent(
-          /template has an autostop requirement/,
-        ),
-      );
-    });
   },
 };
 

@@ -1,4 +1,4 @@
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import { Workspace } from "api/typesGenerated";
 import { SidebarLink, SidebarCaption } from "components/FullPageLayout/Sidebar";
 
