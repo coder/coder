@@ -79,7 +79,10 @@ export const useValidationSchemaForRichParameters = (
                   if (Number(val) < templateParameter.validation_min) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: takeFirstError(errorRendered(templateParameter, val), `Value must be greater than ${templateParameter.validation_min}.`),
+                      message: takeFirstError(
+                        errorRendered(templateParameter, val),
+                        `Value must be greater than ${templateParameter.validation_min}.`,
+                      ),
                     });
                   }
                 } else if (
@@ -89,7 +92,10 @@ export const useValidationSchemaForRichParameters = (
                   if (templateParameter.validation_max < Number(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: takeFirstError(errorRendered(templateParameter, val), `Value must be less than ${templateParameter.validation_max}.`),
+                      message: takeFirstError(
+                        errorRendered(templateParameter, val),
+                        `Value must be less than ${templateParameter.validation_max}.`,
+                      ),
                     });
                   }
                 } else if (
@@ -102,7 +108,10 @@ export const useValidationSchemaForRichParameters = (
                   ) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: takeFirstError(errorRendered(templateParameter, val), `Value must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.`),
+                      message: takeFirstError(
+                        errorRendered(templateParameter, val),
+                        `Value must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.`,
+                      ),
                     });
                   }
                 }
@@ -165,22 +174,38 @@ export const useValidationSchemaForRichParameters = (
 
 const takeFirstError = (...errorMessages: string[]): string => {
   for (const errorMessage of errorMessages) {
-      if (errorMessage) {
-          return errorMessage;
-      }
+    if (errorMessage) {
+      return errorMessage;
+    }
   }
   return "developer error: error message is not provided";
 };
 
-const errorRendered = (parameter: TemplateVersionParameter, value?: string): string => {
-    if (!parameter.validation_error || !value) {
-        return "";
-    }
+const errorRendered = (
+  parameter: TemplateVersionParameter,
+  value?: string,
+): string => {
+  if (!parameter.validation_error || !value) {
+    return "";
+  }
 
-    const r = new Map<string, string>([
-        ["{min}", parameter.validation_min !== undefined ? parameter.validation_min.toString() : ""],
-        ["{max}", parameter.validation_max !== undefined ? parameter.validation_max.toString() : ""],
-        ["{value}", value]
-    ]);
-    return parameter.validation_error.replace(/{min}|{max}|{value}/g, match => r.get(match) || "");
-}
+  const r = new Map<string, string>([
+    [
+      "{min}",
+      parameter.validation_min !== undefined
+        ? parameter.validation_min.toString()
+        : "",
+    ],
+    [
+      "{max}",
+      parameter.validation_max !== undefined
+        ? parameter.validation_max.toString()
+        : "",
+    ],
+    ["{value}", value],
+  ]);
+  return parameter.validation_error.replace(
+    /{min}|{max}|{value}/g,
+    (match) => r.get(match) || "",
+  );
+};
