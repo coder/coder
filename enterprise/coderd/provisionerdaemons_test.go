@@ -165,7 +165,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		b, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		// The below means that provisionerd tried to serve us, checked our api version, and said nope.
-		require.Contains(t, string(b), "server is at version 1.0, behind requested major version 2.1")
+		require.Contains(t, string(b), fmt.Sprintf("server is at version %s, behind requested major version %s", proto.CurrentVersion.String(), v.String()))
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
