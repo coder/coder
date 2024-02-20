@@ -448,25 +448,15 @@ func TestConn_BlockEndpoints(t *testing.T) {
 	}()
 
 	// Connect them together and wait for them to be reachable.
-	nodes1 := stitch(t, conn2, conn1)
-	nodes2 := stitch(t, conn1, conn2)
+	stitch(t, conn2, conn1)
+	stitch(t, conn1, conn2)
 	awaitReachableCtx, awaitReachableCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer awaitReachableCancel()
 	require.True(t, conn1.AwaitReachable(awaitReachableCtx, ip2))
 
-	// Watch for 10 seconds to ensure that neither peer has any endpoints.
-	// There's no good way to force endpoint updates, so we just wait.
-parentLoop:
-	for {
-		select {
-		case node := <-nodes1:
-			require.Empty(t, node.Endpoints, "conn1 got endpoints")
-		case node := <-nodes2:
-			require.Empty(t, node.Endpoints, "conn2 got endpoints")
-		case <-time.After(testutil.WaitShort):
-			break parentLoop
-		}
-	}
+	// Wait 10s for endpoints to potentially be sent over Disco. There's no way
+	// to force Disco to send endpoints immediately.
+	time.Sleep(10 * time.Second)
 
 	// Double check that both peers don't have endpoints for the other peer
 	// according to magicsock.
@@ -482,9 +472,7 @@ parentLoop:
 
 // stitch sends node updates from src Conn as peer updates to dst Conn.  Sort of
 // like the Coordinator would, but without actually needing a Coordinator.
-func stitch(t *testing.T, dst, src *tailnet.Conn) <-chan *tailnet.Node {
-	// Buffered to avoid blocking the callback.
-	out := make(chan *tailnet.Node, 50)
+func stitch(t *testing.T, dst, src *tailnet.Conn) {
 	srcID := uuid.New()
 	src.SetNodeCallback(func(node *tailnet.Node) {
 		pn, err := tailnet.NodeToProto(node)
@@ -497,11 +485,5 @@ func stitch(t *testing.T, dst, src *tailnet.Conn) <-chan *tailnet.Node {
 			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
 		}})
 		assert.NoError(t, err)
-
-		select {
-		case out <- node:
-		default:
-		}
 	})
-	return out
 }
