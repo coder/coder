@@ -129,7 +129,7 @@ const styles = {
     height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
-    padding: `0 ${DEFAULT_LOG_LINE_SIDE_PADDING}px`,
+    padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
 
     "&.error": {
       backgroundColor: theme.roles.error.background,

@@ -99,12 +99,13 @@ const styles = {
   header: (theme) => ({
     fontSize: 13,
     fontWeight: 600,
-    padding: `4px ${DEFAULT_LOG_LINE_SIDE_PADDING}px`,
+    padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
     display: "flex",
     alignItems: "center",
     fontFamily: BODY_FONT_FAMILY,
     borderBottom: `1px solid ${theme.palette.divider}`,
     background: theme.palette.background.default,
+    lineHeight: "1",
 
     "&:last-child": {
       borderBottom: 0,

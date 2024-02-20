@@ -205,7 +205,18 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
   }
 
   return (
-    <WorkspaceBuildLogs css={{ border: 0 }} logs={sortLogsByCreatedAt(logs)} />
+    <WorkspaceBuildLogs
+      css={{
+        border: 0,
+        "--log-line-side-padding": "16px",
+        // Add extra spacing to the first log header to prevent it from being
+        // too close to the tabs
+        "& .logs-header:first-of-type": {
+          paddingTop: 16,
+        },
+      }}
+      logs={sortLogsByCreatedAt(logs)}
+    />
   );
 };
 
