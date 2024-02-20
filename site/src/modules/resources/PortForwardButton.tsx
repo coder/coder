@@ -46,6 +46,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import * as Yup from "yup";
 import { FormikContextType, useFormik } from "formik";
 import { getFormHelpers } from "utils/formUtils";
+import { LoadingButton } from "@mui/lab";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -109,7 +110,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     port: Yup.number().required().min(0).max(65535),
-    sharing_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
+    share_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
   });
 
 interface PortForwardPopoverViewProps extends PortForwardButtonProps {
@@ -117,6 +118,8 @@ interface PortForwardPopoverViewProps extends PortForwardButtonProps {
   portSharingExperimentEnabled: boolean;
   portSharingControlsEnabled: boolean;
 }
+
+type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   host,
@@ -153,16 +156,25 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   } = useMutation(upsertWorkspacePortShare(workspaceID));
   const validationSchema = getValidationSchema();
   // TODO: do partial here
-  const form: FormikContextType<UpsertWorkspaceAgentPortShareRequest> =
-    useFormik<UpsertWorkspaceAgentPortShareRequest>({
+  const form: FormikContextType<Optional<UpsertWorkspaceAgentPortShareRequest, 'port'>> =
+    useFormik<Optional<UpsertWorkspaceAgentPortShareRequest, 'port'>>({
       initialValues: {
         agent_name: agent.name,
-        port: 0,
+        port: undefined,
         share_level: "authenticated",
       },
       validationSchema,
       onSubmit: async (values) => {
-        await upsertWorkspacePortShareForm(values);
+        // we need port to be optional in the initialValues so it appears empty instead of 0.
+        // because of this we need to reset the form to clear the port field manually.
+        form.resetForm();
+        await form.setFieldValue("port", "");
+
+        const port = Number(values.port);
+        await upsertWorkspacePortShareForm({
+          ...values,
+          port,
+        });
         await sharedPortsQuery.refetch();
       },
     });
@@ -437,6 +449,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     size="small"
                     variant="outlined"
                     type="number"
+                    value={form.values.port}
                   />
                   <TextField
                     {...getFieldHelpers("share_level")}
@@ -451,13 +464,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                       Public
                     </MenuItem>
                   </TextField>
-                  <Button
+                  <LoadingButton
                     variant="contained"
                     type="submit"
-                    disabled={isSubmitting}
+                    loading={isSubmitting}
+                    disabled={!form.isValid}
                   >
                     Share Port
-                  </Button>
+                  </LoadingButton>
                 </Stack>
               </form>
             </div>
