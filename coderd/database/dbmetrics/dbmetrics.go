@@ -211,13 +211,6 @@ func (m metricsStore) DeleteGroupMemberFromGroup(ctx context.Context, arg databa
 	return err
 }
 
-func (m metricsStore) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
-	start := time.Now()
-	err := m.s.DeleteGroupMembersByOrgAndUser(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteGroupMembersByOrgAndUser").Observe(time.Since(start).Seconds())
-	return err
-}
-
 func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	start := time.Now()
 	licenseID, err := m.s.DeleteLicense(ctx, id)
@@ -1640,6 +1633,13 @@ func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.R
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("RegisterWorkspaceProxy").Observe(time.Since(start).Seconds())
 	return proxy, err
+}
+
+func (m metricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
+	m.queryLatencies.WithLabelValues("RemoveUserFromAllGroups").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

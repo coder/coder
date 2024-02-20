@@ -81,6 +81,13 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 	rpty.id = hex.EncodeToString(buf)
 
 	settings := []string{
+		// Disable the startup message that appears for five seconds.
+		"startup_message off",
+		// Some message are hard-coded, the best we can do is set msgwait to 0
+		// which seems to hide them. This can happen for example if screen shows
+		// the version message when starting up.
+		"msgminwait 0",
+		"msgwait 0",
 		// Tell screen not to handle motion for xterm* terminals which allows
 		// scrolling the terminal via the mouse wheel or scroll bar (by default
 		// screen uses it to cycle through the command history).  There does not

@@ -1,9 +1,9 @@
-import { Interpolation, Theme, useTheme } from "@mui/material/styles";
-import { ComponentProps, HTMLAttributes } from "react";
-import { Link, LinkProps } from "react-router-dom";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type ComponentProps, type FC, type HTMLAttributes } from "react";
+import { Link, type LinkProps } from "react-router-dom";
 import { TopbarIconButton } from "./Topbar";
 
-export const Sidebar = (props: HTMLAttributes<HTMLDivElement>) => {
+export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   const theme = useTheme();
   return (
     <div
@@ -23,14 +23,18 @@ export const Sidebar = (props: HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
-export const SidebarLink = (props: LinkProps) => {
+export const SidebarLink: FC<LinkProps> = (props) => {
   return <Link css={styles.sidebarItem} {...props} />;
 };
 
-export const SidebarItem = (
-  props: HTMLAttributes<HTMLButtonElement> & { isActive?: boolean },
-) => {
-  const { isActive, ...buttonProps } = props;
+interface SidebarItemProps extends HTMLAttributes<HTMLButtonElement> {
+  isActive?: boolean;
+}
+
+export const SidebarItem: FC<SidebarItemProps> = ({
+  isActive,
+  ...buttonProps
+}) => {
   const theme = useTheme();
 
   return (
@@ -49,7 +53,7 @@ export const SidebarItem = (
   );
 };
 
-export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
+export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
   return (
     <span
       css={{
@@ -66,29 +70,16 @@ export const SidebarCaption = (props: HTMLAttributes<HTMLSpanElement>) => {
   );
 };
 
-export const SidebarIconButton = (
-  props: { isActive: boolean } & ComponentProps<typeof TopbarIconButton>,
-) => {
-  const theme = useTheme();
+interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
+  isActive: boolean;
+}
 
+export const SidebarIconButton: FC<SidebarIconButton> = (props) => {
   return (
     <TopbarIconButton
       css={[
         { opacity: 0.75, "&:hover": { opacity: 1 } },
-        props.isActive && {
-          opacity: 1,
-          position: "relative",
-          "&::before": {
-            content: '""',
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 2,
-            backgroundColor: theme.palette.primary.main,
-            height: "100%",
-          },
-        },
+        props.isActive && styles.activeSidebarIconButton,
       ]}
       {...props}
     />
@@ -110,6 +101,21 @@ const styles = {
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,
+    },
+  }),
+
+  activeSidebarIconButton: (theme) => ({
+    opacity: 1,
+    position: "relative",
+    "&::before": {
+      content: '""',
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 2,
+      backgroundColor: theme.palette.primary.main,
+      height: "100%",
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -313,20 +313,6 @@ func (mr *MockStoreMockRecorder) DeleteGroupMemberFromGroup(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteGroupMemberFromGroup", reflect.TypeOf((*MockStore)(nil).DeleteGroupMemberFromGroup), arg0, arg1)
 }
 
-// DeleteGroupMembersByOrgAndUser mocks base method.
-func (m *MockStore) DeleteGroupMembersByOrgAndUser(arg0 context.Context, arg1 database.DeleteGroupMembersByOrgAndUserParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteGroupMembersByOrgAndUser", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteGroupMembersByOrgAndUser indicates an expected call of DeleteGroupMembersByOrgAndUser.
-func (mr *MockStoreMockRecorder) DeleteGroupMembersByOrgAndUser(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteGroupMembersByOrgAndUser", reflect.TypeOf((*MockStore)(nil).DeleteGroupMembersByOrgAndUser), arg0, arg1)
-}
-
 // DeleteLicense mocks base method.
 func (m *MockStore) DeleteLicense(arg0 context.Context, arg1 int32) (int32, error) {
 	m.ctrl.T.Helper()
@@ -3468,6 +3454,20 @@ func (m *MockStore) RegisterWorkspaceProxy(arg0 context.Context, arg1 database.R
 func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), arg0, arg1)
+}
+
+// RemoveUserFromAllGroups mocks base method.
+func (m *MockStore) RemoveUserFromAllGroups(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUserFromAllGroups", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUserFromAllGroups indicates an expected call of RemoveUserFromAllGroups.
+func (mr *MockStoreMockRecorder) RemoveUserFromAllGroups(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserFromAllGroups", reflect.TypeOf((*MockStore)(nil).RemoveUserFromAllGroups), arg0, arg1)
 }
 
 // RevokeDBCryptKey mocks base method.

@@ -93,14 +93,6 @@ spec:
       
       nodePort: 
       
-    
-    - name: "prometheus-http"
-      port: 2112
-      targetPort: "prometheus-http"
-      protocol: TCP
-      
-      nodePort: 31112
-      
   selector:
     app.kubernetes.io/name: coder
     app.kubernetes.io/instance: release-name

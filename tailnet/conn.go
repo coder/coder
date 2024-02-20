@@ -168,6 +168,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	magicConn := sys.MagicSock.Get()
 	magicConn.SetDERPForceWebsockets(options.DERPForceWebSockets)
+	magicConn.SetBlockEndpoints(options.BlockEndpoints)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
@@ -345,6 +346,7 @@ func (c *Conn) SetDERPForceWebSockets(v bool) {
 func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
 	c.configMaps.setBlockEndpoints(blockEndpoints)
 	c.nodeUpdater.setBlockEndpoints(blockEndpoints)
+	c.magicConn.SetBlockEndpoints(blockEndpoints)
 }
 
 // SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
