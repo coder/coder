@@ -236,8 +236,8 @@ func TestPatchGroup(t *testing.T) {
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
-		require.Contains(t, group.Members, user2)
-		require.Contains(t, group.Members, user3)
+		require.Contains(t, group.Members, user2.ReducedUser)
+		require.Contains(t, group.Members, user3.ReducedUser)
 	})
 
 	t.Run("RemoveUsers", func(t *testing.T) {
@@ -263,16 +263,16 @@ func TestPatchGroup(t *testing.T) {
 			AddUsers: []string{user2.ID.String(), user3.ID.String(), user4.ID.String()},
 		})
 		require.NoError(t, err)
-		require.Contains(t, group.Members, user2)
-		require.Contains(t, group.Members, user3)
+		require.Contains(t, group.Members, user2.ReducedUser)
+		require.Contains(t, group.Members, user3.ReducedUser)
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			RemoveUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
-		require.NotContains(t, group.Members, user2)
-		require.NotContains(t, group.Members, user3)
-		require.Contains(t, group.Members, user4)
+		require.NotContains(t, group.Members, user2.ReducedUser)
+		require.NotContains(t, group.Members, user3.ReducedUser)
+		require.Contains(t, group.Members, user4.ReducedUser)
 	})
 
 	t.Run("Audit", func(t *testing.T) {
