@@ -156,6 +156,35 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
+  it("rich parameter: number validation fails with custom error", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        {
+          ...MockTemplateVersionParameter2,
+          validation_error: "These are values: {min}, {max}, and {value}.",
+          validation_monotonic: undefined // only needs min-max rules
+        },
+      ]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+      { exact: false },
+    );
+    expect(secondParameterField).toBeDefined();
+    fireEvent.change(secondParameterField, {
+      target: { value: "4" },
+    });
+    fireEvent.submit(secondParameterField);
+
+    const validationError = await screen.findByText("These are values: 1, 3, and 4.");
+    expect(validationError).toBeInTheDocument();
+  });
+
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
