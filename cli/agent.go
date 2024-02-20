@@ -40,6 +40,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
 		auth                string
 		logDir              string
+		scriptDataDir       string
 		pprofAddress        string
 		noReap              bool
 		sshMaxTimeout       time.Duration
@@ -278,12 +279,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				subsystems = append(subsystems, subsystem)
 			}
 
-			procTicker := time.NewTicker(time.Second)
-			defer procTicker.Stop()
+			environmentVariables := map[string]string{
+				"GIT_ASKPASS": executablePath,
+			}
+			if v, ok := os.LookupEnv(agent.EnvProcPrioMgmt); ok {
+				environmentVariables[agent.EnvProcPrioMgmt] = v
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
 				LogDir:            logDir,
+				ScriptDataDir:     scriptDataDir,
 				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
@@ -296,13 +303,10 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					client.SetSessionToken(resp.SessionToken)
 					return resp.SessionToken, nil
 				},
-				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS":         executablePath,
-					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
-				},
-				IgnorePorts:   ignorePorts,
-				SSHMaxTimeout: sshMaxTimeout,
-				Subsystems:    subsystems,
+				EnvironmentVariables: environmentVariables,
+				IgnorePorts:          ignorePorts,
+				SSHMaxTimeout:        sshMaxTimeout,
+				Subsystems:           subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
 				Syscaller:          agentproc.NewSyscaller(),
@@ -336,6 +340,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Description: "Specify the location for the agent log files.",
 			Env:         "CODER_AGENT_LOG_DIR",
 			Value:       clibase.StringOf(&logDir),
+		},
+		{
+			Flag:        "script-data-dir",
+			Default:     os.TempDir(),
+			Description: "Specify the location for storing script data.",
+			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
+			Value:       clibase.StringOf(&scriptDataDir),
 		},
 		{
 			Flag:        "pprof-address",

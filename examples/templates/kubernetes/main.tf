@@ -242,7 +242,6 @@ resource "kubernetes_deployment" "main" {
   }
 
   spec {
-    # replicas = data.coder_workspace.me.start_count
     replicas = 1
     selector {
       match_labels = {

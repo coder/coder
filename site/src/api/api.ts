@@ -1163,6 +1163,39 @@ export const getAgentListeningPorts = async (
   return response.data;
 };
 
+export const getWorkspaceAgentSharedPorts = async (
+  workspaceID: string,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.get(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+  );
+  return response.data;
+};
+
+export const upsertWorkspaceAgentSharedPort = async (
+  workspaceID: string,
+  req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+    req,
+  );
+  return response.data;
+};
+
+export const deleteWorkspaceAgentSharedPort = async (
+  workspaceID: string,
+  req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.delete(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+    {
+      data: req,
+    },
+  );
+  return response.data;
+};
+
 // getDeploymentSSHConfig is used by the VSCode-Extension.
 export const getDeploymentSSHConfig =
   async (): Promise<TypesGen.SSHConfigResponse> => {

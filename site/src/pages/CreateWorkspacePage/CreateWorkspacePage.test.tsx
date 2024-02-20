@@ -25,7 +25,6 @@ import { rest } from "msw";
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
 const validationNumberNotInRangeText = "Value must be between 1 and 3.";
-const validationPatternNotMatched = `${MockTemplateVersionParameter3.validation_error} (value does not match the pattern ^[a-z]{3}$)`;
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -152,7 +151,36 @@ describe("CreateWorkspacePage", () => {
     fireEvent.submit(thirdParameterField);
 
     const validationError = await screen.findByText(
-      validationPatternNotMatched,
+      MockTemplateVersionParameter3.validation_error as string,
+    );
+    expect(validationError).toBeInTheDocument();
+  });
+
+  it("rich parameter: number validation fails with custom error", async () => {
+    jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+      {
+        ...MockTemplateVersionParameter2,
+        validation_error: "These are values: {min}, {max}, and {value}.",
+        validation_monotonic: undefined, // only needs min-max rules
+      },
+    ]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+      { exact: false },
+    );
+    expect(secondParameterField).toBeDefined();
+    fireEvent.change(secondParameterField, {
+      target: { value: "4" },
+    });
+    fireEvent.submit(secondParameterField);
+
+    const validationError = await screen.findByText(
+      "These are values: 1, 3, and 4.",
     );
     expect(validationError).toBeInTheDocument();
   });

@@ -282,11 +282,6 @@ coder:
     # NodePort. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpsNodePort: ""
-    # coder.service.prometheusNodePort -- Enabled if coder.service.type is set
-    # to NodePort. If not set, Kubernetes will allocate a port from the default
-    # range, 30000-32767. The "prometheus-http" port on the coder service is
-    # only exposed if CODER_PROMETHEUS_ENABLE is set to true.
-    prometheusNodePort: ""
 
   # coder.ingress -- The Ingress object to expose for Coder.
   ingress:

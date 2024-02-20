@@ -15,6 +15,7 @@ import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import * as API from "api/api";
 import type {
+  Template,
   Workspace,
   WorkspaceAgent,
   WorkspaceAgentLogSource,
@@ -59,6 +60,7 @@ export interface AgentRowProps {
   serverVersion: string;
   serverAPIVersion: string;
   onUpdateAgent: () => void;
+  template: Template;
   storybookLogs?: LineWithID[];
   storybookAgentMetadata?: WorkspaceAgentMetadata[];
 }
@@ -66,6 +68,7 @@ export interface AgentRowProps {
 export const AgentRow: FC<AgentRowProps> = ({
   agent,
   workspace,
+  template,
   showApps,
   showBuiltinApps = true,
   hideSSHButton,
@@ -220,6 +223,8 @@ export const AgentRow: FC<AgentRowProps> = ({
                   workspaceName={workspace.name}
                   agent={agent}
                   username={workspace.owner_name}
+                  workspaceID={workspace.id}
+                  template={template}
                 />
               )}
           </div>

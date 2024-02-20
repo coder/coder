@@ -556,6 +556,14 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
 	}
 
+	numberCustomErrorRichParameters := []*proto.RichParameter{
+		{
+			Name: numberParameterName, Type: "number", Mutable: true,
+			ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)),
+			ValidationError: "These are values: {min}, {max}, and {value}.",
+		},
+	}
+
 	stringRichParameters := []*proto.RichParameter{
 		{Name: stringParameterName, Type: "string", Mutable: true, ValidationRegex: "^[a-z]+$", ValidationError: "this is error"},
 	}
@@ -630,6 +638,44 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		matches := []string{
 			numberParameterName, "12",
 			"is more than the maximum", "",
+			"Enter a value", "8",
+			"Confirm create?", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+	})
+
+	t.Run("ValidateNumber_CustomError", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(numberCustomErrorRichParameters))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			numberParameterName, "12",
+			"These are values: 3, 10, and 12.", "",
 			"Enter a value", "8",
 			"Confirm create?", "yes",
 		}

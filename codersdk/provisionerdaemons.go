@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
-	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type LogSource string
@@ -203,7 +202,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	query.Add("version", proto.CurrentVersion.String())
 	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
-	query.Add("version", provisionersdk.VersionCurrent.String())
+	query.Add("version", proto.CurrentVersion.String())
 
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))

@@ -1,6 +1,10 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import {
+  WorkspaceAppSharingLevels,
+  type Template,
+  type UpdateTemplateMeta,
+} from "api/typesGenerated";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
 import { type FC } from "react";
 import {
@@ -27,6 +31,7 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
+import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
@@ -43,6 +48,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
     require_active_version: Yup.boolean(),
+    deprecation_message: Yup.string(),
+    max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
   });
 
 export interface TemplateSettingsForm {
@@ -54,6 +61,8 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
+  portSharingExperimentEnabled: boolean;
+  portSharingControlsEnabled: boolean;
 }
 
 export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
@@ -64,6 +73,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
+  portSharingExperimentEnabled,
+  portSharingControlsEnabled,
 }) => {
   const validationSchema = getValidationSchema();
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -80,6 +91,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         require_active_version: template.require_active_version,
         deprecation_message: template.deprecation_message,
         disable_everyone_group_access: false,
+        max_port_share_level: template.max_port_share_level,
       },
       validationSchema,
       onSubmit,
@@ -256,6 +268,46 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           )}
         </FormFields>
       </FormSection>
+
+      {portSharingExperimentEnabled && (
+        <FormSection
+          title="Port Sharing"
+          description="Shared ports with the Public sharing level can be accessed by anyone,
+          while ports with the Authenticated sharing level can only be accessed
+          by authenticated Coder users. Ports with the Owner sharing level can
+          only be accessed by the workspace owner."
+        >
+          <FormFields>
+            <TextField
+              {...getFieldHelpers("max_port_share_level", {
+                helperText:
+                  "The maximum level of port sharing allowed for workspaces.",
+              })}
+              disabled={isSubmitting || !portSharingControlsEnabled}
+              fullWidth
+              select
+              value={
+                portSharingControlsEnabled
+                  ? form.values.max_port_share_level
+                  : "public"
+              }
+              label="Maximum Port Sharing Level"
+            >
+              <MenuItem value="owner">Owner</MenuItem>
+              <MenuItem value="authenticated">Authenticated</MenuItem>
+              <MenuItem value="public">Public</MenuItem>
+            </TextField>
+            {!portSharingControlsEnabled && (
+              <Stack direction="row">
+                <EnterpriseBadge />
+                <span css={styles.optionHelperText}>
+                  Enterprise license required to control max port sharing level.
+                </span>
+              </Stack>
+            )}
+          </FormFields>
+        </FormSection>
+      )}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
