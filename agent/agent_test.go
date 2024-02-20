@@ -286,6 +286,12 @@ func TestAgent_SessionExec(t *testing.T) {
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
+	tmpdir := t.TempDir()
+
+	// Defined by the coder script runner, hardcoded here since we don't
+	// have a reference to it.
+	scriptBinDir := filepath.Join(tmpdir, "coder-script-data", "bin")
+
 	manifest := agentsdk.Manifest{
 		EnvironmentVariables: map[string]string{
 			"MY_MANIFEST":         "true",
@@ -295,6 +301,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	}
 	banner := codersdk.ServiceBannerConfig{}
 	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
 
@@ -341,6 +348,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
+		"PATH":                scriptBinDir + string(filepath.ListSeparator),
 	} {
 		t.Run(k, func(t *testing.T) {
 			echoEnv(t, stdin, k)
