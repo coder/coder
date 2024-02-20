@@ -244,7 +244,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 				closers.Add(closeFunc)
 			}
 
-			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
+			options := &wsproxy.Options{
 				Logger:                 logger,
 				Experiments:            coderd.ReadExperiments(logger, cfg.Experiments.Value()),
 				HTTPClient:             httpClient,
@@ -263,7 +263,12 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
 				DERPOnly:               derpOnly.Value(),
 				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
-			})
+			}
+			if httpServers.TLSConfig != nil {
+				options.TLSCertificates = httpServers.TLSConfig.Certificates
+			}
+
+			proxy, err := wsproxy.New(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}

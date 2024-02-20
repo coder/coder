@@ -3,6 +3,7 @@ package replicasync
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -272,30 +273,40 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		wg.Add(1)
 		go func(peer database.Replica) {
 			defer wg.Done()
+
+			fail := func(err error) {
+				mu.Lock()
+				failed = append(failed, fmt.Sprintf("relay %s (%s): %s", peer.Hostname, peer.RelayAddress, err))
+				mu.Unlock()
+				m.logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
+					slog.F("replica_hostname", peer.Hostname),
+					slog.F("replica_relay_address", peer.RelayAddress),
+					slog.Error(err),
+				)
+			}
+
 			ra, err := url.Parse(peer.RelayAddress)
 			if err != nil {
-				m.logger.Warn(ctx, "could not parse relay address",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				fail(xerrors.Errorf("parse relay address %q: %w", peer.RelayAddress, err))
 				return
 			}
 			target, err := ra.Parse("/derp/latency-check")
 			if err != nil {
-				m.logger.Warn(ctx, "could not resolve /derp/latency-check endpoint",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				fail(xerrors.Errorf("parse latency-check URL: %w", err))
 				return
 			}
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
 			if err != nil {
-				m.logger.Warn(ctx, "create http request for relay probe",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				fail(xerrors.Errorf("create request: %w", err))
 				return
 			}
 			res, err := client.Do(req)
 			if err != nil {
-				mu.Lock()
-				failed = append(failed, fmt.Sprintf("relay %s (%s): %s", peer.Hostname, peer.RelayAddress, err))
-				mu.Unlock()
+				fail(xerrors.Errorf("do probe: %w", err))
 				return
+			}
+			if res.StatusCode != http.StatusOK {
+				fail(xerrors.Errorf("unexpected status code: %d", res.StatusCode))
 			}
 			_ = res.Body.Close()
 		}(peer)
@@ -465,4 +476,29 @@ func (m *Manager) Close() error {
 		return xerrors.Errorf("publish replica update: %w", err)
 	}
 	return nil
+}
+
+func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate) (*tls.Config, error) {
+	meshRootCA := x509.NewCertPool()
+	for _, certificate := range tlsCertificates {
+		for _, certificatePart := range certificate.Certificate {
+			certificate, err := x509.ParseCertificate(certificatePart)
+			if err != nil {
+				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
+			}
+			meshRootCA.AddCert(certificate)
+		}
+	}
+	// This TLS configuration spoofs access from the access URL hostname
+	// assuming that the certificates provided will cover that hostname.
+	//
+	// Replica sync and DERP meshing require accessing replicas via their
+	// internal IP addresses, and if TLS is configured we use the same
+	// certificates.
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: tlsCertificates,
+		RootCAs:      meshRootCA,
+		ServerName:   hostname,
+	}, nil
 }
