@@ -434,7 +434,7 @@ resourceLoop:
 	require.False(t, p2p)
 }
 
-// TestDERPMesh spawns 10 workspace proxy replicas and tries to connect to a
+// TestDERPMesh spawns 6 workspace proxy replicas and tries to connect to a
 // single DERP peer via every single one.
 func TestDERPMesh(t *testing.T) {
 	t.Parallel()
@@ -472,8 +472,8 @@ func TestDERPMesh(t *testing.T) {
 	proxyURL, err := url.Parse("https://proxy.test.coder.com")
 	require.NoError(t, err)
 
-	// Create 10 proxy replicas.
-	const count = 10
+	// Create 6 proxy replicas.
+	const count = 6
 	var (
 		sessionToken = ""
 		proxies      = [count]coderdenttest.WorkspaceProxy{}
@@ -509,6 +509,9 @@ func TestDERPMesh(t *testing.T) {
 			t.Logf(name+": "+format, args...)
 		})
 		require.NoError(t, err, "create client")
+		t.Cleanup(func() {
+			_ = client.Close()
+		})
 		err = client.Connect(testutil.Context(t, testutil.WaitLong))
 		require.NoError(t, err, "connect to DERP server")
 
@@ -568,23 +571,26 @@ func TestDERPMesh(t *testing.T) {
 		}
 	}
 
+	// Generate cases. We have a case for:
+	// - Each proxy to itself.
+	// - Each proxy to each other proxy (one way, no duplicates).
+	cases := [][2]string{}
 	for i, derpURL := range derpURLs {
-		i, derpURL := i, derpURL
+		cases = append(cases, [2]string{derpURL, derpURL})
+		for j := i + 1; j < len(derpURLs); j++ {
+			cases = append(cases, [2]string{derpURL, derpURLs[j]})
+		}
+	}
+	require.Len(t, cases, (count*(count+1))/2) // triangle number
+
+	for i, c := range cases {
+		i, c := i, c
 		t.Run(fmt.Sprintf("Proxy%d", i), func(t *testing.T) {
 			t.Parallel()
-			t.Logf("derp1=%s, derp2=%s", derpURLs[0], derpURL)
 
-			// Client 1 is always on the first proxy as a "control".
-			client1, client1Recv := createClient(t, "client1", derpURLs[0])
-			t.Cleanup(func() {
-				_ = client1.Close()
-			})
-
-			// Client 2 is on the current proxy.
-			client2, client2Recv := createClient(t, "client2", derpURL)
-			t.Cleanup(func() {
-				_ = client2.Close()
-			})
+			t.Logf("derp1=%s, derp2=%s", c[0], c[1])
+			client1, client1Recv := createClient(t, "client1", c[0])
+			client2, client2Recv := createClient(t, "client2", c[1])
 
 			// Send a packet from client 1 to client 2.
 			sendTest(t, client2.SelfPublicKey(), client2Recv, client1)
