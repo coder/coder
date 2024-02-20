@@ -3,12 +3,15 @@ package wsproxy_test
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
@@ -22,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -428,6 +432,167 @@ resourceLoop:
 	_, p2p, _, err := conn.Ping(ctx)
 	require.NoError(t, err)
 	require.False(t, p2p)
+}
+
+// TestDERPMesh spawns 10 workspace proxy replicas and tries to connect to a
+// single DERP peer via every single one.
+func TestDERPMesh(t *testing.T) {
+	t.Parallel()
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{
+		"*",
+	}
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         deploymentValues,
+			AppHostname:              "*.primary.test.coder.com",
+			IncludeProvisionerDaemon: true,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	proxyURL, err := url.Parse("https://proxy.test.coder.com")
+	require.NoError(t, err)
+
+	// Create 10 proxy replicas.
+	const count = 10
+	var (
+		sessionToken = ""
+		proxies      = [count]coderdenttest.WorkspaceProxy{}
+		derpURLs     = [count]string{}
+	)
+	for i := range proxies {
+		proxies[i] = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+			Name:     "best-proxy",
+			Token:    sessionToken,
+			ProxyURL: proxyURL,
+		})
+		if i == 0 {
+			sessionToken = proxies[i].Options.ProxySessionToken
+		}
+
+		derpURL := *proxies[i].ServerURL
+		derpURL.Path = "/derp"
+		derpURLs[i] = derpURL.String()
+	}
+
+	// Force all proxies to re-register immediately. This ensures the DERP mesh
+	// is up-to-date. In production this will happen automatically after about
+	// 15 seconds.
+	for i, proxy := range proxies {
+		err := proxy.RegisterNow(testutil.Context(t, testutil.WaitLong))
+		require.NoErrorf(t, err, "failed to force proxy %d to re-register", i)
+	}
+
+	createClient := func(t *testing.T, name string, derpURL string) (*derphttp.Client, <-chan derp.ReceivedPacket) {
+		t.Helper()
+
+		client, err := derphttp.NewClient(key.NewNode(), derpURLs[0], func(format string, args ...any) {
+			t.Logf(name+": "+format, args...)
+		})
+		require.NoError(t, err, "create client")
+		err = client.Connect(testutil.Context(t, testutil.WaitLong))
+		require.NoError(t, err, "connect to DERP server")
+
+		ch := make(chan derp.ReceivedPacket, 64)
+		go func() {
+			defer close(ch)
+			for {
+				msg, err := client.Recv()
+				if err != nil {
+					t.Logf("Recv error: %v", err)
+					return
+				}
+				switch msg := msg.(type) {
+				case derp.ReceivedPacket:
+					ch <- msg
+					return
+				default:
+					// We don't care about other messages.
+				}
+			}
+		}()
+
+		return client, ch
+	}
+
+	sendTest := func(t *testing.T, dstKey key.NodePublic, dstCh <-chan derp.ReceivedPacket, src *derphttp.Client) {
+		t.Helper()
+
+		const msgStrPrefix = "test_packet_"
+		msgStr, err := cryptorand.String(64 - len(msgStrPrefix))
+		require.NoError(t, err, "generate random msg string")
+		msg := []byte(msgStrPrefix + msgStr)
+
+		err = src.Send(dstKey, msg)
+		require.NoError(t, err, "send message via DERP")
+
+		waitCtx := testutil.Context(t, testutil.WaitLong)
+		ticker := time.NewTicker(time.Millisecond * 500)
+		defer ticker.Stop()
+		for {
+			select {
+			case pkt := <-dstCh:
+				assert.Equal(t, src.SelfPublicKey(), pkt.Source, "packet came from wrong source")
+				assert.Equal(t, msg, pkt.Data, "packet data is wrong")
+				return
+			case <-waitCtx.Done():
+				t.Fatal("timed out waiting for packet")
+				return
+			case <-ticker.C:
+			}
+
+			// Send another packet. Since we're sending packets immediately
+			// after opening the clients, they might not be meshed together
+			// properly yet.
+			err = src.Send(dstKey, msg)
+			require.NoError(t, err, "send message via DERP")
+		}
+	}
+
+	for i, derpURL := range derpURLs {
+		i, derpURL := i, derpURL
+		t.Run(fmt.Sprintf("Proxy%d", i), func(t *testing.T) {
+			t.Parallel()
+			t.Logf("derp1=%s, derp2=%s", derpURLs[0], derpURL)
+
+			// Client 1 is always on the first proxy as a "control".
+			client1, client1Recv := createClient(t, "client1", derpURLs[0])
+			t.Cleanup(func() {
+				_ = client1.Close()
+			})
+
+			// Client 2 is on the current proxy.
+			client2, client2Recv := createClient(t, "client2", derpURL)
+			t.Cleanup(func() {
+				_ = client2.Close()
+			})
+
+			// Send a packet from client 1 to client 2.
+			sendTest(t, client2.SelfPublicKey(), client2Recv, client1)
+
+			// Send a packet from client 2 to client 1.
+			sendTest(t, client1.SelfPublicKey(), client1Recv, client2)
+		})
+	}
 }
 
 func TestWorkspaceProxyWorkspaceApps(t *testing.T) {

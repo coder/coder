@@ -38,15 +38,24 @@ type ProxyOptions struct {
 	// ProxyURL is optional
 	ProxyURL *url.URL
 
+	// Token is optional. If specified, a new proxy won't be created.
+	Token string
+
 	// FlushStats is optional
 	FlushStats chan chan<- struct{}
+}
+
+type WorkspaceProxy struct {
+	*wsproxy.Server
+
+	ServerURL *url.URL
 }
 
 // NewWorkspaceProxy will configure a wsproxy.Server with the given options.
 // The new wsproxy will register itself with the given coderd.API instance.
 // The first user owner client is required to create the wsproxy on the coderd
 // api server.
-func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) *wsproxy.Server {
+func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) WorkspaceProxy {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
@@ -107,11 +116,15 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		options.Name = namesgenerator.GetRandomName(1)
 	}
 
-	proxyRes, err := owner.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-		Name: options.Name,
-		Icon: "/emojis/flag.png",
-	})
-	require.NoError(t, err, "failed to create workspace proxy")
+	token := options.Token
+	if token == "" {
+		proxyRes, err := owner.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: options.Name,
+			Icon: "/emojis/flag.png",
+		})
+		require.NoError(t, err, "failed to create workspace proxy")
+		token = proxyRes.ProxyToken
+	}
 
 	// Inherit collector options from coderd, but keep the wsproxy reporter.
 	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
@@ -131,14 +144,14 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		Tracing:           coderdAPI.TracerProvider,
 		APIRateLimit:      coderdAPI.APIRateLimit,
 		SecureAuthCookie:  coderdAPI.SecureAuthCookie,
-		ProxySessionToken: proxyRes.ProxyToken,
+		ProxySessionToken: token,
 		DisablePathApps:   options.DisablePathApps,
 		// We need a new registry to not conflict with the coderd internal
 		// proxy metrics.
 		PrometheusRegistry:     prometheus.NewRegistry(),
 		DERPEnabled:            !options.DerpDisabled,
 		DERPOnly:               options.DerpOnly,
-		DERPServerRelayAddress: accessURL.String(),
+		DERPServerRelayAddress: serverURL.String(),
 		StatsCollectorOptions:  statsCollectorOptions,
 	})
 	require.NoError(t, err)
@@ -151,5 +164,8 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	handler = wssrv.Handler
 	mutex.Unlock()
 
-	return wssrv
+	return WorkspaceProxy{
+		Server:    wssrv,
+		ServerURL: serverURL,
+	}
 }
