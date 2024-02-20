@@ -106,7 +106,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   );
 };
 
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
+const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     port: Yup.number().required().min(0).max(65535),
     sharing_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
