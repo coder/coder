@@ -51,11 +51,21 @@ var (
 	errorHTML string
 
 	errorTemplate *htmltemplate.Template
+
+	//go:embed static/oauth2allow.html
+	oauthHTML string
+
+	oauthTemplate *htmltemplate.Template
 )
 
 func init() {
 	var err error
 	errorTemplate, err = htmltemplate.New("error").Parse(errorHTML)
+	if err != nil {
+		panic(err)
+	}
+
+	oauthTemplate, err = htmltemplate.New("error").Parse(oauthHTML)
 	if err != nil {
 		panic(err)
 	}
@@ -913,4 +923,32 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 	}
 
 	return f, nil
+}
+
+// RenderOAuthAllowData contains the variables that are found in
+// site/static/oauth2allow.html.
+type RenderOAuthAllowData struct {
+	AppIcon     string
+	AppName     string
+	CancelURI   string
+	RedirectURI string
+	Username    string
+}
+
+// RenderOAuthAllowPage renders the static page for a user to "Allow" an create
+// a new oauth2 link with an external site. This is when Coder is acting as the
+// identity provider.
+//
+// This has to be done statically because Golang has to handle the full request.
+// It cannot defer to the FE typescript easily.
+func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	err := oauthTemplate.Execute(rw, data)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+			Message: "Failed to render oauth page: " + err.Error(),
+		})
+		return
+	}
 }

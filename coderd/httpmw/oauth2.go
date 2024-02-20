@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -194,9 +196,44 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			appID, ok := ParseUUIDParam(rw, r, "app")
-			if !ok {
-				return
+
+			// App can come from a URL param, query param, or form value.
+			paramID := "app"
+			var appID uuid.UUID
+			if chi.URLParam(r, paramID) != "" {
+				var ok bool
+				appID, ok = ParseUUIDParam(rw, r, "app")
+				if !ok {
+					return
+				}
+			} else {
+				// If not provided by the url, then it is provided according to the
+				// oauth 2 spec. This can occur with query params, or in the body as
+				// form parameters.
+				// This also depends on if you are doing a POST (tokens) or GET (authorize).
+				paramAppID := r.URL.Query().Get("client_id")
+				if paramAppID == "" {
+					// Check the form params!
+					if r.ParseForm() == nil {
+						paramAppID = r.Form.Get("client_id")
+					}
+				}
+				if paramAppID == "" {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Missing OAuth2 client ID.",
+					})
+					return
+				}
+
+				var err error
+				appID, err = uuid.Parse(paramAppID)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Invalid OAuth2 client ID.",
+						Detail:  err.Error(),
+					})
+					return
+				}
 			}
 
 			app, err := db.GetOAuth2ProviderAppByID(ctx, appID)

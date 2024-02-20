@@ -23,16 +23,16 @@ type QueryParamParser struct {
 	// Parsed is a map of all query params that were parsed. This is useful
 	// for checking if extra query params were passed in.
 	Parsed map[string]bool
-	// RequiredParams is a map of all query params that are required. This is useful
+	// RequiredNotEmptyParams is a map of all query params that are required. This is useful
 	// for forcing a value to be provided.
-	RequiredParams map[string]bool
+	RequiredNotEmptyParams map[string]bool
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
-		Errors:         []codersdk.ValidationError{},
-		Parsed:         map[string]bool{},
-		RequiredParams: map[string]bool{},
+		Errors:                 []codersdk.ValidationError{},
+		Parsed:                 map[string]bool{},
+		RequiredNotEmptyParams: map[string]bool{},
 	}
 }
 
@@ -90,8 +90,10 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 	return v
 }
 
-func (p *QueryParamParser) Required(queryParam string) *QueryParamParser {
-	p.RequiredParams[queryParam] = true
+func (p *QueryParamParser) RequiredNotEmpty(queryParam ...string) *QueryParamParser {
+	for _, q := range queryParam {
+		p.RequiredNotEmptyParams[q] = true
+	}
 	return p
 }
 
@@ -119,6 +121,27 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 	return ParseCustomList(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
 		return uuid.Parse(strings.TrimSpace(v))
 	})
+}
+
+func (p *QueryParamParser) RedirectURL(vals url.Values, base *url.URL, queryParam string) *url.URL {
+	v, err := parseQueryParam(p, vals, url.Parse, base, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid url: %s", queryParam, err.Error()),
+		})
+	}
+
+	// It can be a sub-directory but not a sub-domain, as we have apps on
+	// sub-domains and that seems too dangerous.
+	if v.Host != base.Host || !strings.HasPrefix(v.Path, base.Path) {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a subset of %s", queryParam, base),
+		})
+	}
+
+	return v
 }
 
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam, layout string) time.Time {
@@ -233,10 +256,10 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
-	if parser.RequiredParams[queryParam] && (!vals.Has(queryParam)) {
+	if parser.RequiredNotEmptyParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q is required", queryParam),
+			Detail: fmt.Sprintf("Query param %q is required and cannot be empty", queryParam),
 		})
 		return def, nil
 	}
