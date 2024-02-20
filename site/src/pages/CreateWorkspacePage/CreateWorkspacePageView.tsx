@@ -214,7 +214,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 disabled={creatingWorkspace}
                 // resetMutation facilitates the clearing of validation errors
                 onChange={onChangeTrimmed(form, resetMutation)}
-                autoFocus
                 fullWidth
                 label="Workspace Name"
               />
