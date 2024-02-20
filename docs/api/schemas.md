@@ -8722,6 +8722,27 @@ _None_
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
 
+## oauth2.Token
+
+```json
+{
+  "access_token": "string",
+  "expiry": "string",
+  "refresh_token": "string",
+  "token_type": "string"
+}
+```
+
+### Properties
+
+| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
+| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
+| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
+| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+
 ## tailcfg.DERPHomeParams
 
 ```json

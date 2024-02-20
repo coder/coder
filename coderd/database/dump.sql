@@ -67,7 +67,8 @@ CREATE TYPE login_type AS ENUM (
     'github',
     'oidc',
     'token',
-    'none'
+    'none',
+    'oauth2_provider_app'
 );
 
 COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is a special case in which no authentication method is allowed.';
@@ -186,6 +187,17 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+    DELETE FROM api_keys
+    WHERE id = OLD.api_key_id;
+    RETURN OLD;
+END;
+$$;
 
 CREATE FUNCTION delete_deleted_user_resources() RETURNS trigger
     LANGUAGE plpgsql
@@ -490,16 +502,41 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
+CREATE TABLE oauth2_provider_app_codes (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    secret_prefix bytea NOT NULL,
+    hashed_secret bytea NOT NULL,
+    user_id uuid NOT NULL,
+    app_id uuid NOT NULL
+);
+
+COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
+
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     last_used_at timestamp with time zone,
     hashed_secret bytea NOT NULL,
     display_secret text NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    secret_prefix bytea NOT NULL
 );
 
 COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
+
+CREATE TABLE oauth2_provider_app_tokens (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    hash_prefix bytea NOT NULL,
+    refresh_hash bytea NOT NULL,
+    app_secret_id uuid NOT NULL,
+    api_key_id text NOT NULL
+);
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -1354,11 +1391,23 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY oauth2_provider_app_secrets
-    ADD CONSTRAINT oauth2_provider_app_secrets_app_id_hashed_secret_key UNIQUE (app_id, hashed_secret);
+ALTER TABLE ONLY oauth2_provider_app_codes
+    ADD CONSTRAINT oauth2_provider_app_codes_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_app_codes
+    ADD CONSTRAINT oauth2_provider_app_codes_secret_prefix_key UNIQUE (secret_prefix);
 
 ALTER TABLE ONLY oauth2_provider_app_secrets
     ADD CONSTRAINT oauth2_provider_app_secrets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY oauth2_provider_app_secrets
+    ADD CONSTRAINT oauth2_provider_app_secrets_secret_prefix_key UNIQUE (secret_prefix);
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_hash_prefix_key UNIQUE (hash_prefix);
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_name_key UNIQUE (name);
@@ -1572,6 +1621,8 @@ CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON ta
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
+CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
+
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
@@ -1605,8 +1656,20 @@ ALTER TABLE ONLY jfrog_xray_scans
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY oauth2_provider_app_codes
+    ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_codes
+    ADD CONSTRAINT oauth2_provider_app_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY oauth2_provider_app_secrets
     ADD CONSTRAINT oauth2_provider_app_secrets_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY oauth2_provider_app_tokens
+    ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
