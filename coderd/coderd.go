@@ -1067,6 +1067,9 @@ func New(options *Options) *API {
 		// See globalHTTPSwaggerHandler comment as to why we use a package
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
+	} else {
+		r.Get("/swagger", http.NotFound)
+		r.Get("/swagger/*", http.NotFound)
 	}
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect

@@ -312,12 +312,9 @@ func TestSwagger(t *testing.T) {
 
 		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint, nil)
 		require.NoError(t, err)
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Slim build of Coder")
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 	t.Run("doc.json disabled by default", func(t *testing.T) {
 		t.Parallel()
@@ -329,12 +326,9 @@ func TestSwagger(t *testing.T) {
 
 		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint+"/doc.json", nil)
 		require.NoError(t, err)
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Slim build of Coder")
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }
 
