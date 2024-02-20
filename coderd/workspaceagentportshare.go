@@ -156,7 +156,7 @@ func (api *API) deleteWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Re
 }
 
 func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.WorkspaceAgentPortShare {
-	var converted []codersdk.WorkspaceAgentPortShare
+	converted := []codersdk.WorkspaceAgentPortShare{}
 	for _, share := range shares {
 		converted = append(converted, convertPortShare(share))
 	}
