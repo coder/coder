@@ -317,7 +317,7 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Equal(t, "<pre>\n</pre>\n", string(body))
+		require.Contains(t, string(body), "Slim build of Coder")
 	})
 	t.Run("doc.json disabled by default", func(t *testing.T) {
 		t.Parallel()
@@ -334,7 +334,7 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Equal(t, "<pre>\n</pre>\n", string(body))
+		require.Contains(t, string(body), "Slim build of Coder")
 	})
 }
 
