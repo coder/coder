@@ -3873,7 +3873,7 @@ func (mr *MockStoreMockRecorder) UpdateUserAppearanceSettings(arg0, arg1 any) *g
 }
 
 // UpdateUserDeletedByID mocks base method.
-func (m *MockStore) UpdateUserDeletedByID(arg0 context.Context, arg1 database.UpdateUserDeletedByIDParams) error {
+func (m *MockStore) UpdateUserDeletedByID(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserDeletedByID", arg0, arg1)
 	ret0, _ := ret[0].(error)

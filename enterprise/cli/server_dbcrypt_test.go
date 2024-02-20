@@ -236,15 +236,18 @@ func genData(t *testing.T, db database.Store) []database.User {
 					OAuthAccessToken:  "access-" + usr.ID.String(),
 					OAuthRefreshToken: "refresh-" + usr.ID.String(),
 				})
-				// Fun fact: our schema allows _all_ login types to have
-				// a user_link. Even though I'm not sure how it could occur
-				// in practice, making sure to test all combinations here.
-				_ = dbgen.UserLink(t, db, database.UserLink{
-					UserID:            usr.ID,
-					LoginType:         usr.LoginType,
-					OAuthAccessToken:  "access-" + usr.ID.String(),
-					OAuthRefreshToken: "refresh-" + usr.ID.String(),
-				})
+				// Deleted users cannot have user_links
+				if !deleted {
+					// Fun fact: our schema allows _all_ login types to have
+					// a user_link. Even though I'm not sure how it could occur
+					// in practice, making sure to test all combinations here.
+					_ = dbgen.UserLink(t, db, database.UserLink{
+						UserID:            usr.ID,
+						LoginType:         usr.LoginType,
+						OAuthAccessToken:  "access-" + usr.ID.String(),
+						OAuthRefreshToken: "refresh-" + usr.ID.String(),
+					})
+				}
 				users = append(users, usr)
 			}
 		}

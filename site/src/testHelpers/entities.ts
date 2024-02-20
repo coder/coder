@@ -490,7 +490,7 @@ export const MockTemplate: TypesGen.Template = {
   require_active_version: false,
   deprecated: false,
   deprecation_message: "",
-  max_port_share_level: "owner",
+  max_port_share_level: "public",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3239,11 +3239,34 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
   {
     ports: [
-      { process_name: "web", network: "", port: 3000 },
-      { process_name: "go", network: "", port: 8080 },
+      { process_name: "webb", network: "", port: 3000 },
+      { process_name: "gogo", network: "", port: 8080 },
       { process_name: "", network: "", port: 8081 },
     ],
   };
+
+export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
+  shares: [
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 4000,
+      share_level: "authenticated",
+    },
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 8080,
+      share_level: "authenticated",
+    },
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 8081,
+      share_level: "public",
+    },
+  ],
+};
 
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,

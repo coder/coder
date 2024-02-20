@@ -292,11 +292,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             title="Parameters"
             description="These are the settings used by your template. Please note that immutable parameters cannot be modified once the workspace is created."
           >
-            {/*
-                Opted not to use FormFields in order to increase spacing.
-                This decision was made because rich parameter inputs are more visually dense than standard text fields.
-              */}
-            <div css={{ display: "flex", flexDirection: "column", gap: 36 }}>
+            {/* The parameter fields are densely packed and carry significant information,
+                hence they require additional vertical spacing for better readability and
+                user experience. */}
+            <FormFields css={{ gap: 36 }}>
               {parameters.map((parameter, index) => {
                 const parameterField = `rich_parameter_values.${index}`;
                 const parameterInputName = `${parameterField}.value`;
@@ -321,7 +320,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   />
                 );
               })}
-            </div>
+            </FormFields>
           </FormSection>
         )}
 

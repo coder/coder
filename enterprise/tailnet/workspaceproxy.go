@@ -14,7 +14,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/util/apiversion"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	agpl "github.com/coder/coder/v2/tailnet"
 )

@@ -2,6 +2,9 @@ import { PortForwardPopoverView } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
+  MockSharedPortsResponse,
+  MockTemplate,
+  MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 
@@ -24,6 +27,10 @@ const meta: Meta<typeof PortForwardPopoverView> = {
   ],
   args: {
     agent: MockWorkspaceAgent,
+    template: MockTemplate,
+    workspaceID: MockWorkspace.id,
+    portSharingExperimentEnabled: true,
+    portSharingControlsEnabled: true,
   },
 };
 
@@ -32,12 +39,82 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 
 export const WithPorts: Story = {
   args: {
-    ports: MockListeningPortsResponse.ports,
+    listeningPorts: MockListeningPortsResponse.ports,
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: MockSharedPortsResponse,
+      },
+    ],
   },
 };
 
 export const Empty: Story = {
   args: {
-    ports: [],
+    listeningPorts: [],
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: { shares: [] },
+      },
+    ],
+  },
+};
+
+export const NoPortSharingExperiment: Story = {
+  args: {
+    listeningPorts: MockListeningPortsResponse.ports,
+    portSharingExperimentEnabled: false,
+  },
+};
+
+export const AGPLPortSharing: Story = {
+  args: {
+    listeningPorts: MockListeningPortsResponse.ports,
+    portSharingControlsEnabled: false,
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: MockSharedPortsResponse,
+      },
+    ],
+  },
+};
+
+export const EnterprisePortSharingControlsOwner: Story = {
+  args: {
+    listeningPorts: MockListeningPortsResponse.ports,
+    template: {
+      ...MockTemplate,
+      max_port_share_level: "owner",
+    },
+  },
+};
+
+export const EnterprisePortSharingControlsAuthenticated: Story = {
+  args: {
+    listeningPorts: MockListeningPortsResponse.ports,
+    template: {
+      ...MockTemplate,
+      max_port_share_level: "authenticated",
+    },
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: {
+          shares: MockSharedPortsResponse.shares.filter((share) => {
+            return share.share_level === "authenticated";
+          }),
+        },
+      },
+    ],
   },
 };

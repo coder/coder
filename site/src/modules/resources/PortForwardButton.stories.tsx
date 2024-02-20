@@ -2,6 +2,8 @@ import { PortForwardButton } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
+  MockSharedPortsResponse,
+  MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 
@@ -17,15 +19,18 @@ export default meta;
 type Story = StoryObj<typeof PortForwardButton>;
 
 export const Example: Story = {
-  args: {
-    storybook: {
-      portsQueryData: MockListeningPortsResponse,
-    },
+  parameters: {
+    queries: [
+      {
+        key: ["portForward", MockWorkspaceAgent.id],
+        data: MockListeningPortsResponse,
+      },
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: MockSharedPortsResponse,
+      },
+    ],
   },
 };
 
-export const Loading: Story = {
-  args: {
-    storybook: {},
-  },
-};
+export const Loading: Story = {};

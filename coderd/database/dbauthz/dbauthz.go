@@ -607,16 +607,6 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
 }
 
-func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
-	deleteF := func(ctx context.Context, id uuid.UUID) error {
-		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
-			ID:      id,
-			Deleted: true,
-		})
-	}
-	return deleteQ(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
-}
-
 func (q *querier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
@@ -2881,16 +2871,8 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
 }
 
-// UpdateUserDeletedByID
-// Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
-// irreversible.
-func (q *querier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateUserDeletedByIDParams) (database.User, error) {
-		return q.db.GetUserByID(ctx, arg.ID)
-	}
-	// This uses the rbac.ActionDelete action always as this function should always delete.
-	// We should delete this function in favor of 'SoftDeleteUserByID'.
-	return deleteQ(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
+func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
 
 func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
