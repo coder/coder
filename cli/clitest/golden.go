@@ -167,7 +167,10 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	db, pubsub := dbtestutil.NewDB(t)
+	// This needs to be a fixed timezone because timezones increase the length
+	// of timestamp strings. The increased length can pad table formatting's
+	// and differ the table header spacings.
+	db, pubsub := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 	rootClient := coderdtest.New(t, &coderdtest.Options{
 		Database:                 db,
 		Pubsub:                   pubsub,
