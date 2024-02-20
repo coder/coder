@@ -31,7 +31,6 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EnterpriseBadge } from "components/Badges/Badges";
-import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
@@ -279,33 +278,25 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           only be accessed by the workspace owner."
         >
           <FormFields>
-            <Stack direction="column" spacing={0.5}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={0.5}
-                css={styles.optionText}
-              >
-                Maximum Port Sharing Level
-              </Stack>
-              <span css={styles.optionHelperText}>
-                The maximum level of port sharing allowed for workspaces.
-              </span>
-            </Stack>
-            <Select
-              id="max_port_share_level"
-              name="max_port_share_level"
+            <TextField
+              {...getFieldHelpers("max_port_share_level", {
+                helperText:
+                  "The maximum level of port sharing allowed for workspaces.",
+              })}
               disabled={isSubmitting || !portSharingControlsEnabled}
               fullWidth
-              // TODO: Fix label being black on dark mode
+              select
+              value={
+                portSharingControlsEnabled
+                  ? form.values.max_port_share_level
+                  : "public"
+              }
               label="Maximum Port Sharing Level"
-              onChange={form.handleChange}
-              value={form.values.max_port_share_level}
             >
               <MenuItem value="owner">Owner</MenuItem>
               <MenuItem value="authenticated">Authenticated</MenuItem>
               <MenuItem value="public">Public</MenuItem>
-            </Select>
+            </TextField>
             {!portSharingControlsEnabled && (
               <Stack direction="row">
                 <EnterpriseBadge />

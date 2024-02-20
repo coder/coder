@@ -12,9 +12,7 @@ import {
   type Template,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
-  type WorkspaceAgentListeningPortsResponse,
   type WorkspaceAgentPortShareLevel,
-  type WorkspaceAgentPortShares,
   UpsertWorkspaceAgentPortShareRequest,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
@@ -56,46 +54,34 @@ export interface PortForwardButtonProps {
   workspaceID: string;
   agent: WorkspaceAgent;
   template: Template;
-
-  /**
-   * Only for use in Storybook
-   */
-  storybook?: {
-    listeningPortsQueryData?: WorkspaceAgentListeningPortsResponse;
-    sharedPortsQueryData?: WorkspaceAgentPortShares;
-  };
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent, storybook } = props;
+  const { agent } = props;
   const { entitlements, experiments } = useDashboard();
   const paper = useClassName(classNames.paper, []);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
     queryFn: () => getAgentListeningPorts(agent.id),
-    enabled: !storybook && agent.status === "connected",
+    enabled: agent.status === "connected",
     refetchInterval: 5_000,
   });
-
-  const listeningPorts = storybook
-    ? storybook.listeningPortsQueryData
-    : portsQuery.data;
 
   return (
     <Popover>
       <PopoverTrigger>
         <Button
-          disabled={!listeningPorts}
+          disabled={!portsQuery.data}
           size="small"
           variant="text"
           endIcon={<KeyboardArrowDown />}
           css={{ fontSize: 13, padding: "8px 12px" }}
           startIcon={
-            listeningPorts ? (
+            portsQuery.data ? (
               <div>
                 <span css={styles.portCount}>
-                  {listeningPorts.ports.length}
+                  {portsQuery.data.ports.length}
                 </span>
               </div>
             ) : (
@@ -109,7 +95,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
       <PopoverContent horizontal="right" classes={{ paper }}>
         <PortForwardPopoverView
           {...props}
-          listeningPorts={listeningPorts?.ports}
+          listeningPorts={portsQuery.data?.ports}
           portSharingExperimentEnabled={experiments.includes("shared-ports")}
           portSharingControlsEnabled={
             entitlements.features.control_shared_ports.enabled
@@ -142,17 +128,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   listeningPorts,
   portSharingExperimentEnabled,
   portSharingControlsEnabled,
-  storybook,
 }) => {
   const theme = useTheme();
 
   const sharedPortsQuery = useQuery({
     ...workspacePortShares(workspaceID),
-    enabled: !storybook && agent.status === "connected",
+    enabled: agent.status === "connected",
   });
-  const sharedPorts = storybook
-    ? storybook.sharedPortsQueryData?.shares || []
-    : sharedPortsQuery.data?.shares || [];
+  const sharedPorts = sharedPortsQuery.data?.shares || [];
 
   const upsertSharedPortMutation = useMutation(
     upsertWorkspacePortShare(workspaceID),
@@ -169,6 +152,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     error: submitError,
   } = useMutation(upsertWorkspacePortShare(workspaceID));
   const validationSchema = getValidationSchema();
+  // TODO: do partial here
   const form: FormikContextType<UpsertWorkspaceAgentPortShareRequest> =
     useFormik<UpsertWorkspaceAgentPortShareRequest>({
       initialValues: {
@@ -191,9 +175,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   // we don't want to show listening ports if it's a shared port
   const filteredListeningPorts = listeningPorts?.filter((port) => {
     for (let i = 0; i < filteredSharedPorts.length; i++) {
-      if (
-        filteredSharedPorts[i].port === port.port
-      ) {
+      if (filteredSharedPorts[i].port === port.port) {
         return false;
       }
     }
@@ -439,10 +421,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                   </Stack>
                 );
               })}
-              <form onSubmit={form.submitForm}>
+              <form onSubmit={form.handleSubmit}>
                 <Stack
                   direction="column"
-                  gap={1}
+                  gap={2}
                   justifyContent="flex-end"
                   sx={{
                     marginTop: 2,
@@ -456,19 +438,24 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     variant="outlined"
                     type="number"
                   />
-                  <FormControl size="small">
-                    <Select
-                      {...getFieldHelpers("share_level")}
-                      value={form.values.share_level}
-                      onChange={form.handleChange}
-                    >
-                      <MenuItem value="authenticated">Authenticated</MenuItem>
-                      <MenuItem value="public" disabled={!canSharePortsPublic}>
-                        Public
-                      </MenuItem>
-                    </Select>
-                  </FormControl>
-                  <Button variant="contained" onClick={form.submitForm}>
+                  <TextField
+                    {...getFieldHelpers("share_level")}
+                    disabled={isSubmitting}
+                    fullWidth
+                    select
+                    value={form.values.share_level}
+                    label="Sharing Level"
+                  >
+                    <MenuItem value="authenticated">Authenticated</MenuItem>
+                    <MenuItem value="public" disabled={!canSharePortsPublic}>
+                      Public
+                    </MenuItem>
+                  </TextField>
+                  <Button
+                    variant="contained"
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
                     Share Port
                   </Button>
                 </Stack>
