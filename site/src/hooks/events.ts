@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { CustomEventListener } from "utils/events";
 import { useEffectEvent } from "./hookPolyfills";
+import { type CustomEventListener } from "utils/events";
 
 /**
  * Handles a custom event with descriptive type information.
@@ -21,5 +21,5 @@ export const useCustomEvent = <T, E extends string = string>(
     return () => {
       window.removeEventListener(eventType, stableListener as EventListener);
     };
-  }, [eventType, stableListener]);
+  }, [stableListener, eventType]);
 };
