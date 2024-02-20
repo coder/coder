@@ -1068,8 +1068,13 @@ func New(options *Options) *API {
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	} else {
-		r.Get("/swagger", http.NotFound)
-		r.Get("/swagger/*", http.NotFound)
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
+				Message: "Swagger documentation is disabled.",
+			})
+		})
+		r.Get("/swagger", swaggerDisabled)
+		r.Get("/swagger/*", swaggerDisabled)
 	}
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
