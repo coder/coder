@@ -9529,14 +9529,16 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "shared-ports"
+                "shared-ports",
+                "auto-fill-parameters"
             ],
             "x-enum-comments": {
                 "ExperimentExample": "This isn't used for anything."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentSharedPorts"
+                "ExperimentSharedPorts",
+                "ExperimentAutoFillParameters"
             ]
         },
         "codersdk.ExternalAuth": {
