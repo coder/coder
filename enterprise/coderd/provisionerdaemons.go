@@ -239,7 +239,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		apiVersion = qv
 	}
 
-	if err := provisionersdk.VersionCurrent.Validate(apiVersion); err != nil {
+	if err := proto.VersionCurrent.Validate(apiVersion); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incompatible or unparsable version",
 			Validations: []codersdk.ValidationError{

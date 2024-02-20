@@ -62,7 +62,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		if assert.Len(t, daemons, 1) {
 			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-			assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+			assert.Equal(t, provisionerdproto.VersionCurrent.String(), daemons[0].APIVersion)
 		}
 	})
 
@@ -149,7 +149,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		q.Add("provisioner", "echo")
 
 		// Set a different (newer) version than the current.
-		v := apiversion.New(provisionersdk.CurrentMajor+1, provisionersdk.CurrentMinor+1)
+		v := apiversion.New(provisionerdproto.CurrentMajor+1, provisionerdproto.CurrentMinor+1)
 		q.Add("version", v.String())
 		srvURL.RawQuery = q.Encode()
 

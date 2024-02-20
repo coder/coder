@@ -457,7 +457,7 @@ func New(options *Options) *API {
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
-					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
+					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
 					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
 				},
@@ -1239,7 +1239,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: provisionersdk.VersionCurrent.String(),
+		APIVersion: proto.VersionCurrent.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

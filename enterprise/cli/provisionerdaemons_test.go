@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -51,7 +52,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	require.Equal(t, "matt-daemon", daemons[0].Name)
 	require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 	require.Equal(t, buildinfo.Version(), daemons[0].Version)
-	require.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+	require.Equal(t, proto.VersionCurrent.String(), daemons[0].APIVersion)
 }
 
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
@@ -88,7 +89,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-		assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+		assert.Equal(t, proto.VersionCurrent.String(), daemons[0].APIVersion)
 	})
 
 	t.Run("ScopeAnotherUser", func(t *testing.T) {
@@ -124,7 +125,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		// This should get clobbered to the user who started the daemon.
 		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-		assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+		assert.Equal(t, proto.VersionCurrent.String(), daemons[0].APIVersion)
 	})
 
 	t.Run("ScopeOrg", func(t *testing.T) {
@@ -158,6 +159,6 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-		assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+		assert.Equal(t, proto.VersionCurrent.String(), daemons[0].APIVersion)
 	})
 }

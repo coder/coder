@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
 )
 
 // @typescript-generate ProvisionerDaemonsReport
@@ -144,7 +144,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 				r.Severity = health.SeverityWarning
 			}
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Some provisioner daemons report deprecated major API versions. Consider upgrading!"))
-			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Deprecated major API version %d.", provisionersdk.CurrentMajor))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Deprecated major API version %d.", proto.CurrentMajor))
 		}
 
 		r.Items = append(r.Items, it)
