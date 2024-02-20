@@ -886,8 +886,8 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
 // requested, os.ErrNotExist is returned. This prevents directory listings from
 // being served.
-func OnlyFiles(fs fs.FS) fs.FS {
-	return justFilesSystem{FS: fs}
+func OnlyFiles(files fs.FS) fs.FS {
+	return justFilesSystem{FS: files}
 }
 
 type justFilesSystem struct {
