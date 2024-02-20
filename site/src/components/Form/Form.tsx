@@ -3,9 +3,9 @@ import {
   createContext,
   type FC,
   type HTMLProps,
-  type PropsWithChildren,
   useContext,
   ReactNode,
+  ComponentProps,
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
@@ -135,11 +135,14 @@ export const FormSection: FC<FormSectionProps> = ({
   );
 };
 
-export const FormFields: FC<PropsWithChildren> = ({ children }) => {
+export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
   return (
-    <Stack direction="column" spacing={3} css={styles.formSectionFields}>
-      {children}
-    </Stack>
+    <Stack
+      direction="column"
+      spacing={3}
+      {...props}
+      css={styles.formSectionFields}
+    />
   );
 };
 
