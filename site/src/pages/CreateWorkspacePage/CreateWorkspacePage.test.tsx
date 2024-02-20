@@ -25,7 +25,6 @@ import { rest } from "msw";
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
 const validationNumberNotInRangeText = "Value must be between 1 and 3.";
-const validationPatternNotMatched = `${MockTemplateVersionParameter3.validation_error} (value does not match the pattern ^[a-z]{3}$)`;
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -152,7 +151,7 @@ describe("CreateWorkspacePage", () => {
     fireEvent.submit(thirdParameterField);
 
     const validationError = await screen.findByText(
-      validationPatternNotMatched,
+      MockTemplateVersionParameter3.validation_error as string,
     );
     expect(validationError).toBeInTheDocument();
   });
