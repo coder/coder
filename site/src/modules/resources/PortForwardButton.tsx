@@ -156,28 +156,29 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   } = useMutation(upsertWorkspacePortShare(workspaceID));
   const validationSchema = getValidationSchema();
   // TODO: do partial here
-  const form: FormikContextType<Optional<UpsertWorkspaceAgentPortShareRequest, 'port'>> =
-    useFormik<Optional<UpsertWorkspaceAgentPortShareRequest, 'port'>>({
-      initialValues: {
-        agent_name: agent.name,
-        port: undefined,
-        share_level: "authenticated",
-      },
-      validationSchema,
-      onSubmit: async (values) => {
-        // we need port to be optional in the initialValues so it appears empty instead of 0.
-        // because of this we need to reset the form to clear the port field manually.
-        form.resetForm();
-        await form.setFieldValue("port", "");
+  const form: FormikContextType<
+    Optional<UpsertWorkspaceAgentPortShareRequest, "port">
+  > = useFormik<Optional<UpsertWorkspaceAgentPortShareRequest, "port">>({
+    initialValues: {
+      agent_name: agent.name,
+      port: undefined,
+      share_level: "authenticated",
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      // we need port to be optional in the initialValues so it appears empty instead of 0.
+      // because of this we need to reset the form to clear the port field manually.
+      form.resetForm();
+      await form.setFieldValue("port", "");
 
-        const port = Number(values.port);
-        await upsertWorkspacePortShareForm({
-          ...values,
-          port,
-        });
-        await sharedPortsQuery.refetch();
-      },
-    });
+      const port = Number(values.port);
+      await upsertWorkspacePortShareForm({
+        ...values,
+        port,
+      });
+      await sharedPortsQuery.refetch();
+    },
+  });
   const getFieldHelpers = getFormHelpers(form, submitError);
 
   // filter out shared ports that are not from this agent
