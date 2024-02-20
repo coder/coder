@@ -48,10 +48,10 @@ metadata:
 spec:
   clusterIP: None
   ports:
-  - name: prom-http
-    port: 2112
-    protocol: TCP
-    targetPort: 2112
+    - name: prom-http
+      port: 2112
+      protocol: TCP
+      targetPort: 2112
   selector:
     app.kubernetes.io/instance: coder
     app.kubernetes.io/name: coder
