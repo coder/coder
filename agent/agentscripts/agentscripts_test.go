@@ -8,7 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -72,10 +71,8 @@ func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchL
 	}
 	fs := afero.NewMemMapFs()
 	logger := slogtest.Make(t, nil)
-	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, 0, "")
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, nil)
 	require.NoError(t, err)
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 	t.Cleanup(func() {
 		_ = s.Close()
 	})

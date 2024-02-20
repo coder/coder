@@ -3811,6 +3811,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -3818,12 +3819,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `created_at` | string | true     |              |             |
-| `id`         | string | true     |              |             |
-| `name`       | string | true     |              |             |
-| `updated_at` | string | true     |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | true     |              |             |
+| `id`         | string  | true     |              |             |
+| `is_default` | boolean | true     |              |             |
+| `name`       | string  | true     |              |             |
+| `updated_at` | string  | true     |              |             |
 
 ## codersdk.OrganizationMember
 

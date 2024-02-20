@@ -146,7 +146,7 @@ func New(options Options) Agent {
 		logger:                       options.Logger,
 		closeCancel:                  cancelFunc,
 		closed:                       make(chan struct{}),
-		envVars:                      options.EnvironmentVariables,
+		environmentVariables:         options.EnvironmentVariables,
 		client:                       options.Client,
 		exchangeToken:                options.ExchangeToken,
 		filesystem:                   options.Filesystem,
@@ -169,6 +169,8 @@ func New(options Options) Agent {
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
 	}
+	a.serviceBanner.Store(new(codersdk.ServiceBannerConfig))
+	a.sessionToken.Store(new(string))
 	a.init(ctx)
 	return a
 }
@@ -196,7 +198,7 @@ type agent struct {
 	closeMutex    sync.Mutex
 	closed        chan struct{}
 
-	envVars map[string]string
+	environmentVariables map[string]string
 
 	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	reportMetadataInterval       time.Duration
@@ -235,14 +237,16 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 }
 
 func (a *agent) init(ctx context.Context) {
-	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.sshMaxTimeout, "")
+	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, &agentssh.Config{
+		MaxTimeout:       a.sshMaxTimeout,
+		MOTDFile:         func() string { return a.manifest.Load().MOTDFile },
+		ServiceBanner:    func() *codersdk.ServiceBannerConfig { return a.serviceBanner.Load() },
+		UpdateEnv:        a.updateCommandEnv,
+		WorkingDirectory: func() string { return a.manifest.Load().Directory },
+	})
 	if err != nil {
 		panic(err)
 	}
-	sshSrv.Env = a.envVars
-	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
-	sshSrv.Manifest = &a.manifest
-	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
 	a.scriptRunner = agentscripts.New(agentscripts.Options{
 		LogDir:     a.logDir,
@@ -879,6 +883,83 @@ func (a *agent) run(ctx context.Context) error {
 	return eg.Wait()
 }
 
+// updateCommandEnv updates the provided command environment with the
+// following set of environment variables:
+// - Predefined workspace environment variables
+// - Environment variables currently set (overriding predefined)
+// - Environment variables passed via the agent manifest (overriding predefined and current)
+// - Agent-level environment variables (overriding all)
+func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
+	manifest := a.manifest.Load()
+	if manifest == nil {
+		return nil, xerrors.Errorf("no manifest")
+	}
+
+	executablePath, err := os.Executable()
+	if err != nil {
+		return nil, xerrors.Errorf("getting os executable: %w", err)
+	}
+	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
+
+	// Define environment variables that should be set for all commands,
+	// and then merge them with the current environment.
+	envs := map[string]string{
+		// Set env vars indicating we're inside a Coder workspace.
+		"CODER":                      "true",
+		"CODER_WORKSPACE_NAME":       manifest.WorkspaceName,
+		"CODER_WORKSPACE_AGENT_NAME": manifest.AgentName,
+
+		// Specific Coder subcommands require the agent token exposed!
+		"CODER_AGENT_TOKEN": *a.sessionToken.Load(),
+
+		// Git on Windows resolves with UNIX-style paths.
+		// If using backslashes, it's unable to find the executable.
+		"GIT_SSH_COMMAND": fmt.Sprintf("%s gitssh --", unixExecutablePath),
+		// Hide Coder message on code-server's "Getting Started" page
+		"CS_DISABLE_GETTING_STARTED_OVERRIDE": "true",
+	}
+
+	// This adds the ports dialog to code-server that enables
+	// proxying a port dynamically.
+	// If this is empty string, do not set anything. Code-server auto defaults
+	// using its basepath to construct a path based port proxy.
+	if manifest.VSCodePortProxyURI != "" {
+		envs["VSCODE_PROXY_URI"] = manifest.VSCodePortProxyURI
+	}
+
+	// Allow any of the current env to override what we defined above.
+	for _, env := range current {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if _, ok := envs[parts[0]]; !ok {
+			envs[parts[0]] = parts[1]
+		}
+	}
+
+	// Load environment variables passed via the agent manifest.
+	// These override all variables we manually specify.
+	for k, v := range manifest.EnvironmentVariables {
+		// Expanding environment variables allows for customization
+		// of the $PATH, among other variables. Customers can prepend
+		// or append to the $PATH, so allowing expand is required!
+		envs[k] = os.ExpandEnv(v)
+	}
+
+	// Agent-level environment variables should take over all. This is
+	// used for setting agent-specific variables like CODER_AGENT_TOKEN
+	// and GIT_ASKPASS.
+	for k, v := range a.environmentVariables {
+		envs[k] = v
+	}
+
+	for k, v := range envs {
+		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
+	}
+	return updated, nil
+}
+
 func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 	if len(a.addresses) == 0 {
 		return []netip.Prefix{
@@ -1314,7 +1395,7 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 		}
 	}()
 
-	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
+	if val := a.environmentVariables[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
 		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
 			slog.F("env_var", EnvProcPrioMgmt),
 			slog.F("value", val),

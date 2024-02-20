@@ -768,6 +768,7 @@ export interface Organization {
   readonly name: string;
   readonly created_at: string;
   readonly updated_at: string;
+  readonly is_default: boolean;
 }
 
 // From codersdk/organizations.go
@@ -2116,11 +2117,10 @@ export const ResourceTypes: ResourceType[] = [
 ];
 
 // From codersdk/serversentevents.go
-export type ServerSentEventType = "data" | "error" | "partial" | "ping";
+export type ServerSentEventType = "data" | "error" | "ping";
 export const ServerSentEventTypes: ServerSentEventType[] = [
   "data",
   "error",
-  "partial",
   "ping",
 ];
 

@@ -17,14 +17,12 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,13 +36,9 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, nil)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	defer s.Close()
-
-	// The assumption is that these are set before serving SSH connections.
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -83,13 +77,11 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, nil)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = s.Close()
 	})
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
@@ -116,13 +108,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	defer s.Close()
-
-	// The assumption is that these are set before serving SSH connections.
-	s.AgentToken = func() string { return "" }
-	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -171,13 +159,9 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := slogtest.Make(t, nil)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 		require.NoError(t, err)
 		defer s.Close()
-
-		// The assumption is that these are set before serving SSH connections.
-		s.AgentToken = func() string { return "" }
-		s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
@@ -240,13 +224,9 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := slogtest.Make(t, nil)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 		require.NoError(t, err)
 		defer s.Close()
-
-		// The assumption is that these are set before serving SSH connections.
-		s.AgentToken = func() string { return "" }
-		s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)

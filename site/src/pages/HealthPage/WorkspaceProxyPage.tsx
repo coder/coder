@@ -8,18 +8,19 @@ import {
   Main,
   Pill,
 } from "./Content";
-import { HealthcheckReport } from "api/typesGenerated";
-import { useTheme } from "@mui/material/styles";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { useTheme } from "@emotion/react";
 import { createDayString } from "utils/createDayString";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import { Alert } from "components/Alert/Alert";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { DismissWarningButton } from "./DismissWarningButton";
 
-export const WorkspaceProxyPage = () => {
+export const WorkspaceProxyPage: FC = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();
   const { workspace_proxy } = healthStatus;
   const { regions } = workspace_proxy.workspace_proxies;

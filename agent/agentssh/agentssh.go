@@ -32,7 +32,6 @@ import (
 
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -55,6 +54,28 @@ const (
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
 )
 
+// Config sets configuration parameters for the agent SSH server.
+type Config struct {
+	// MaxTimeout sets the absolute connection timeout, none if empty. If set to
+	// 3 seconds or more, keep alive will be used instead.
+	MaxTimeout time.Duration
+	// MOTDFile returns the path to the message of the day file. If set, the
+	// file will be displayed to the user upon login.
+	MOTDFile func() string
+	// ServiceBanner returns the configuration for the Coder service banner.
+	ServiceBanner func() *codersdk.ServiceBannerConfig
+	// UpdateEnv updates the environment variables for the command to be
+	// executed. It can be used to add, modify or replace environment variables.
+	UpdateEnv func(current []string) (updated []string, err error)
+	// WorkingDirectory sets the working directory for commands and defines
+	// where users will land when they connect via SSH. Default is the home
+	// directory of the user.
+	WorkingDirectory func() string
+	// X11SocketDir is the directory where X11 sockets are created. Default is
+	// /tmp/.X11-unix.
+	X11SocketDir string
+}
+
 type Server struct {
 	mu        sync.RWMutex // Protects following.
 	fs        afero.Fs
@@ -66,14 +87,10 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
-	logger       slog.Logger
-	srv          *ssh.Server
-	x11SocketDir string
+	logger slog.Logger
+	srv    *ssh.Server
 
-	Env           map[string]string
-	AgentToken    func() string
-	Manifest      *atomic.Pointer[agentsdk.Manifest]
-	ServiceBanner *atomic.Pointer[codersdk.ServiceBannerConfig]
+	config *Config
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -82,7 +99,7 @@ type Server struct {
 	metrics *sshServerMetrics
 }
 
-func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, maxTimeout time.Duration, x11SocketDir string) (*Server, error) {
+func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, config *Config) (*Server, error) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -94,8 +111,29 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if err != nil {
 		return nil, err
 	}
-	if x11SocketDir == "" {
-		x11SocketDir = filepath.Join(os.TempDir(), ".X11-unix")
+	if config == nil {
+		config = &Config{}
+	}
+	if config.X11SocketDir == "" {
+		config.X11SocketDir = filepath.Join(os.TempDir(), ".X11-unix")
+	}
+	if config.UpdateEnv == nil {
+		config.UpdateEnv = func(current []string) ([]string, error) { return current, nil }
+	}
+	if config.MOTDFile == nil {
+		config.MOTDFile = func() string { return "" }
+	}
+	if config.ServiceBanner == nil {
+		config.ServiceBanner = func() *codersdk.ServiceBannerConfig { return &codersdk.ServiceBannerConfig{} }
+	}
+	if config.WorkingDirectory == nil {
+		config.WorkingDirectory = func() string {
+			home, err := userHomeDir()
+			if err != nil {
+				return ""
+			}
+			return home
+		}
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
@@ -103,12 +141,13 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
-		listeners:    make(map[net.Listener]struct{}),
-		fs:           fs,
-		conns:        make(map[net.Conn]struct{}),
-		sessions:     make(map[ssh.Session]struct{}),
-		logger:       logger,
-		x11SocketDir: x11SocketDir,
+		listeners: make(map[net.Listener]struct{}),
+		fs:        fs,
+		conns:     make(map[net.Conn]struct{}),
+		sessions:  make(map[ssh.Session]struct{}),
+		logger:    logger,
+
+		config: config,
 
 		metrics: metrics,
 	}
@@ -172,14 +211,16 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 	}
 
-	// The MaxTimeout functionality has been substituted with the introduction of the KeepAlive feature.
-	// In cases where very short timeouts are set, the SSH server will automatically switch to the connection timeout for both read and write operations.
-	if maxTimeout >= 3*time.Second {
+	// The MaxTimeout functionality has been substituted with the introduction
+	// of the KeepAlive feature. In cases where very short timeouts are set, the
+	// SSH server will automatically switch to the connection timeout for both
+	// read and write operations.
+	if config.MaxTimeout >= 3*time.Second {
 		srv.ClientAliveCountMax = 3
-		srv.ClientAliveInterval = maxTimeout / time.Duration(srv.ClientAliveCountMax)
+		srv.ClientAliveInterval = config.MaxTimeout / time.Duration(srv.ClientAliveCountMax)
 		srv.MaxTimeout = 0
 	} else {
-		srv.MaxTimeout = maxTimeout
+		srv.MaxTimeout = config.MaxTimeout
 	}
 
 	s.srv = srv
@@ -400,7 +441,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	session.DisablePTYEmulation()
 
 	if isLoginShell(session.RawCommand()) {
-		serviceBanner := s.ServiceBanner.Load()
+		serviceBanner := s.config.ServiceBanner()
 		if serviceBanner != nil {
 			err := showServiceBanner(session, serviceBanner)
 			if err != nil {
@@ -411,15 +452,10 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	}
 
 	if !isQuietLogin(s.fs, session.RawCommand()) {
-		manifest := s.Manifest.Load()
-		if manifest != nil {
-			err := showMOTD(s.fs, session, manifest.MOTDFile)
-			if err != nil {
-				logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
-				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
-			}
-		} else {
-			logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+		err := showMOTD(s.fs, session, s.config.MOTDFile())
+		if err != nil {
+			logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 		}
 	}
 
@@ -589,11 +625,6 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	manifest := s.Manifest.Load()
-	if manifest == nil {
-		return nil, xerrors.Errorf("no metadata was provided")
-	}
-
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
 	caller := "-c"
@@ -638,7 +669,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	}
 
 	cmd := pty.CommandContext(ctx, name, args...)
-	cmd.Dir = manifest.Directory
+	cmd.Dir = s.config.WorkingDirectory()
 
 	// If the metadata directory doesn't exist, we run the command
 	// in the users home directory.
@@ -652,23 +683,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
-	executablePath, err := os.Executable()
-	if err != nil {
-		return nil, xerrors.Errorf("getting os executable: %w", err)
-	}
-	// Set environment variables reliable detection of being inside a
-	// Coder workspace.
-	cmd.Env = append(cmd.Env, "CODER=true")
-	cmd.Env = append(cmd.Env, "CODER_WORKSPACE_NAME="+manifest.WorkspaceName)
-	cmd.Env = append(cmd.Env, "CODER_WORKSPACE_AGENT_NAME="+manifest.AgentName)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
-	// Git on Windows resolves with UNIX-style paths.
-	// If using backslashes, it's unable to find the executable.
-	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
-
-	// Specific Coder subcommands require the agent token exposed!
-	cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_TOKEN=%s", s.AgentToken()))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does
@@ -679,30 +694,9 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
 
-	// This adds the ports dialog to code-server that enables
-	// proxying a port dynamically.
-	// If this is empty string, do not set anything. Code-server auto defaults
-	// using its basepath to construct a path based port proxy.
-	if manifest.VSCodePortProxyURI != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", manifest.VSCodePortProxyURI))
-	}
-
-	// Hide Coder message on code-server's "Getting Started" page
-	cmd.Env = append(cmd.Env, "CS_DISABLE_GETTING_STARTED_OVERRIDE=true")
-
-	// Load environment variables passed via the agent.
-	// These should override all variables we manually specify.
-	for envKey, value := range manifest.EnvironmentVariables {
-		// Expanding environment variables allows for customization
-		// of the $PATH, among other variables. Customers can prepend
-		// or append to the $PATH, so allowing expand is required!
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, os.ExpandEnv(value)))
-	}
-
-	// Agent-level environment variables should take over all!
-	// This is used for setting agent-specific variables like "CODER_AGENT_TOKEN".
-	for envKey, value := range s.Env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, value))
+	cmd.Env, err = s.config.UpdateEnv(cmd.Env)
+	if err != nil {
+		return nil, xerrors.Errorf("apply env: %w", err)
 	}
 
 	return cmd, nil

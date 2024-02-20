@@ -15,7 +15,7 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { HistorySidebar } from "./HistorySidebar";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import { ResourcesSidebar } from "./ResourcesSidebar";
