@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -75,9 +76,13 @@ func TestEnv(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	require.NoError(t, runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
-		return true
-	}))
+	testutil.Go(t, func() {
+		err := runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
+			return true
+		})
+		assert.NoError(t, err)
+	})
+
 	var log []agentsdk.Log
 	for {
 		select {
