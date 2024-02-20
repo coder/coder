@@ -165,7 +165,7 @@ export interface TemplatePermissionsPageViewProps {
   canUpdatePermissions: boolean;
   // User
   onAddUser: (
-    user: TemplateUser,
+    user: TemplateUser | ({ role: TemplateRole } & ReducedUser),
     role: TemplateRole,
     reset: () => void,
   ) => void;
