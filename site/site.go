@@ -102,7 +102,8 @@ func New(opts *Options) *Handler {
 		// Set ETag header to the SHA1 hash of the file contents.
 		name := filePath(r.URL.Path)
 		if name == "" || name == "/" {
-			// Serve the directory listing.
+			// Serve the directory listing. This intentionally allows directory listings to
+			// be served. This file system should not contain anything sensitive.
 			http.FileServer(opts.BinFS).ServeHTTP(rw, r)
 			return
 		}
@@ -129,7 +130,15 @@ func New(opts *Options) *Handler {
 		// If-Match and If-None-Match headers on the request properly.
 		http.FileServer(opts.BinFS).ServeHTTP(rw, r)
 	})))
-	mux.Handle("/", http.FileServer(http.FS(opts.SiteFS)))
+	mux.Handle("/", http.FileServer(
+		http.FS(
+			// OnlyFiles is a wrapper around the file system that prevents directory
+			// listings. Directory listings are not required for the site file system, so we
+			// exclude it as a security measure. In practice, this file system comes from our
+			// open source code base, but this is considered a best practice for serving
+			// static files.
+			OnlyFiles(opts.SiteFS))),
+	)
 
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL: buildinfo.ExternalURL(),
@@ -872,4 +881,36 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 		return cfg.ApplicationName
 	}
 	return "Coder"
+}
+
+// OnlyFiles returns a new fs.FS that only contains files. If a directory is
+// requested, os.ErrNotExist is returned. This prevents directory listings from
+// being served.
+func OnlyFiles(files fs.FS) fs.FS {
+	return justFilesSystem{FS: files}
+}
+
+type justFilesSystem struct {
+	FS fs.FS
+}
+
+func (jfs justFilesSystem) Open(name string) (fs.File, error) {
+	f, err := jfs.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	// Returning a 404 here does prevent the http.FileServer from serving
+	// index.* files automatically. Coder handles this above as all index pages
+	// are considered template files. So we never relied on this behavior.
+	if stat.IsDir() {
+		return nil, os.ErrNotExist
+	}
+
+	return f, nil
 }
