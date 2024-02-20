@@ -171,7 +171,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         </Stack>
       </PageHeader>
 
-      <HorizontalForm onSubmit={form.handleSubmit} css={{ padding: "16px 0" }}>
+      <HorizontalForm
+        name="create-workspace-form"
+        onSubmit={form.handleSubmit}
+        css={{ padding: "16px 0" }}
+      >
         {Boolean(error) && <ErrorAlert error={error} />}
 
         {mode === "duplicate" && (
@@ -204,15 +208,30 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               </Stack>
             )}
 
-            <TextField
-              {...getFieldHelpers("name")}
-              disabled={creatingWorkspace}
-              // resetMutation facilitates the clearing of validation errors
-              onChange={onChangeTrimmed(form, resetMutation)}
-              autoFocus
-              fullWidth
-              label="Workspace Name"
-            />
+            <div>
+              <TextField
+                {...getFieldHelpers("name")}
+                disabled={creatingWorkspace}
+                // resetMutation facilitates the clearing of validation errors
+                onChange={onChangeTrimmed(form, resetMutation)}
+                autoFocus
+                fullWidth
+                label="Workspace Name"
+              />
+              <FormHelperText data-chromatic="ignore">
+                Need a suggestion?{" "}
+                <Button
+                  variant="text"
+                  css={styles.nameSuggestion}
+                  onClick={async () => {
+                    await form.setFieldValue("name", suggestedName);
+                    rerollSuggestedName();
+                  }}
+                >
+                  {suggestedName}
+                </Button>
+              </FormHelperText>
+            </div>
 
             {permissions.createWorkspaceForUser && (
               <UserAutocomplete
@@ -234,7 +253,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           >
             <FormFields>
               {requiresExternalAuth && (
-                <Alert severity="error">
+                // This should really be a `notice` but `severity` is a MUI prop, and we'd need
+                // to basically make our own `Alert` component.
+                <Alert severity="info">
                   To create a workspace using the selected template, please
                   ensure you are authenticated with all the external providers
                   listed below.
