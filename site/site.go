@@ -894,8 +894,8 @@ type justFilesSystem struct {
 	FS fs.FS
 }
 
-func (fs justFilesSystem) Open(name string) (fs.File, error) {
-	f, err := fs.FS.Open(name)
+func (jfs justFilesSystem) Open(name string) (fs.File, error) {
+	f, err := jfs.FS.Open(name)
 	if err != nil {
 		return nil, err
 	}
