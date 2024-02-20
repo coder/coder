@@ -733,6 +733,18 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -5560,6 +5572,10 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if u, err := q.getUserByIDNoLock(args.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
+
 	//nolint:gosimple
 	link := database.UserLink{
 		UserID:                 args.UserID,
@@ -6724,33 +6740,22 @@ func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg databa
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
-	if err := validateDatabaseType(params); err != nil {
-		return err
-	}
-
+func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, u := range q.users {
-		if u.ID == params.ID {
-			u.Deleted = params.Deleted
+		if u.ID == id {
+			u.Deleted = true
 			q.users[i] = u
 			// NOTE: In the real world, this is done by a trigger.
-			i := 0
-			for {
-				if i >= len(q.apiKeys) {
-					break
-				}
-				k := q.apiKeys[i]
-				if k.UserID == u.ID {
-					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
-					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
-					// We removed an element, so decrement
-					i--
-				}
-				i++
-			}
+			q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
+				return id == u.UserID
+			})
+
+			q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
+				return id == u.UserID
+			})
 			return nil
 		}
 	}
@@ -6803,6 +6808,10 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	if u, err := q.getUserByIDNoLock(params.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
 
 	for i, link := range q.userLinks {
 		if link.UserID == params.UserID && link.LoginType == params.LoginType {

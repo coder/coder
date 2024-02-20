@@ -7894,18 +7894,13 @@ const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
 UPDATE
 	users
 SET
-	deleted = $2
+	deleted = true
 WHERE
 	id = $1
 `
 
-type UpdateUserDeletedByIDParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, arg.ID, arg.Deleted)
+func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, id)
 	return err
 }
 

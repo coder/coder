@@ -311,10 +311,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	}
 
 	if orig.Deleted {
-		err = db.UpdateUserDeletedByID(genCtx, database.UpdateUserDeletedByIDParams{
-			ID:      user.ID,
-			Deleted: orig.Deleted,
-		})
+		err = db.UpdateUserDeletedByID(genCtx, user.ID)
 		require.NoError(t, err, "set user as deleted")
 	}
 	return user

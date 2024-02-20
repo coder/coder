@@ -187,13 +187,21 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
-CREATE FUNCTION delete_deleted_user_api_keys() RETURNS trigger
+CREATE FUNCTION delete_deleted_user_resources() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
 BEGIN
 	IF (NEW.deleted) THEN
+		-- Remove their api_keys
 		DELETE FROM api_keys
+		WHERE user_id = OLD.id;
+
+		-- Remove their user_links
+		-- Their login_type is preserved in the users table.
+		-- Matching this user back to the link can still be done by their
+		-- email if the account is undeleted. Although that is not a guarantee.
+		DELETE FROM user_links
 		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
@@ -209,6 +217,21 @@ BEGIN
 	IF (NEW.user_id IS NOT NULL) THEN
 		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
 			RAISE EXCEPTION 'Cannot create API key for deleted user';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_user_links_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+BEGIN
+	IF (NEW.user_id IS NOT NULL) THEN
+		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+			RAISE EXCEPTION 'Cannot create user_link for deleted user';
 		END IF;
 	END IF;
 	RETURN NEW;
@@ -1551,7 +1574,9 @@ CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON 
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
-CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_api_keys();
+CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
+
+CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

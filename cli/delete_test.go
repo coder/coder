@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -95,10 +94,7 @@ func TestDelete(t *testing.T) {
 		// this way.
 		ctx := testutil.Context(t, testutil.WaitShort)
 		// nolint:gocritic // Unit test
-		err := api.Database.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserDeletedByIDParams{
-			ID:      deleteMeUser.ID,
-			Deleted: true,
-		})
+		err := api.Database.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(ctx), deleteMeUser.ID)
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "delete", fmt.Sprintf("%s/%s", deleteMeUser.ID, workspace.Name), "-y", "--orphan")

@@ -116,7 +116,7 @@ WHERE
 UPDATE
 	users
 SET
-	deleted = $2
+	deleted = true
 WHERE
 	id = $1;
 

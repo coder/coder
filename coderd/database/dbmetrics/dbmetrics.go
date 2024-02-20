@@ -1838,11 +1838,11 @@ func (m metricsStore) UpdateUserAppearanceSettings(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
+func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
-	err := m.s.UpdateUserDeletedByID(ctx, arg)
+	r0 := m.s.UpdateUserDeletedByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UpdateUserDeletedByID").Observe(time.Since(start).Seconds())
-	return err
+	return r0
 }
 
 func (m metricsStore) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
