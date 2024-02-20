@@ -6138,28 +6138,6 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) SoftDeleteUserByID(_ context.Context, id uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, u := range q.users {
-		if u.ID == id {
-			u.Deleted = true
-			q.users[i] = u
-			// NOTE: In the real world, this is done by a trigger.
-			q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
-				return id == u.UserID
-			})
-
-			q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
-				return id == u.UserID
-			})
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
 	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
 }
@@ -6760,6 +6738,28 @@ func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg databa
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == id {
+			u.Deleted = true
+			q.users[i] = u
+			// NOTE: In the real world, this is done by a trigger.
+			q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
+				return id == u.UserID
+			})
+
+			q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
+				return id == u.UserID
+			})
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {

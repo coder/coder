@@ -1014,7 +1014,7 @@ func (s *MethodTestSuite) TestUser() {
 			LoginType: database.LoginTypeOIDC,
 		}).Asserts(u, rbac.ActionUpdate)
 	}))
-	s.Run("SoftDeleteUserByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateUserDeletedByID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(u, rbac.ActionDelete).Returns()
 	}))

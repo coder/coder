@@ -112,7 +112,7 @@ SET
 WHERE
 	id = $1;
 
--- name: SoftDeleteUserByID :exec
+-- name: UpdateUserDeletedByID :exec
 UPDATE
 	users
 SET

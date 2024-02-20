@@ -1642,13 +1642,6 @@ func (m metricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest stri
 	return r0
 }
 
-func (m metricsStore) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.SoftDeleteUserByID(ctx, id)
-	m.queryLatencies.WithLabelValues("SoftDeleteUserByID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	start := time.Now()
 	ok, err := m.s.TryAcquireLock(ctx, pgTryAdvisoryXactLock)
@@ -1836,6 +1829,13 @@ func (m metricsStore) UpdateUserAppearanceSettings(ctx context.Context, arg data
 	r0, r1 := m.s.UpdateUserAppearanceSettings(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserAppearanceSettings").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UpdateUserDeletedByID(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateUserDeletedByID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {

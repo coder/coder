@@ -310,7 +310,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	}
 
 	if orig.Deleted {
-		err = db.SoftDeleteUserByID(genCtx, user.ID)
+		err = db.UpdateUserDeletedByID(genCtx, user.ID)
 		require.NoError(t, err, "set user as deleted")
 	}
 	return user

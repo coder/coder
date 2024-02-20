@@ -2546,9 +2546,9 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
-func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.SoftDeleteUserByID)(ctx, id)
-}
+//func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+//	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
+//}
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
@@ -2869,6 +2869,10 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 		return database.User{}, err
 	}
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
+}
+
+func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {

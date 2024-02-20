@@ -3469,20 +3469,6 @@ func (mr *MockStoreMockRecorder) RevokeDBCryptKey(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), arg0, arg1)
 }
 
-// SoftDeleteUserByID mocks base method.
-func (m *MockStore) SoftDeleteUserByID(arg0 context.Context, arg1 uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SoftDeleteUserByID", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SoftDeleteUserByID indicates an expected call of SoftDeleteUserByID.
-func (mr *MockStoreMockRecorder) SoftDeleteUserByID(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteUserByID", reflect.TypeOf((*MockStore)(nil).SoftDeleteUserByID), arg0, arg1)
-}
-
 // TryAcquireLock mocks base method.
 func (m *MockStore) TryAcquireLock(arg0 context.Context, arg1 int64) (bool, error) {
 	m.ctrl.T.Helper()
@@ -3869,6 +3855,20 @@ func (m *MockStore) UpdateUserAppearanceSettings(arg0 context.Context, arg1 data
 func (mr *MockStoreMockRecorder) UpdateUserAppearanceSettings(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAppearanceSettings", reflect.TypeOf((*MockStore)(nil).UpdateUserAppearanceSettings), arg0, arg1)
+}
+
+// UpdateUserDeletedByID mocks base method.
+func (m *MockStore) UpdateUserDeletedByID(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserDeletedByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserDeletedByID indicates an expected call of UpdateUserDeletedByID.
+func (mr *MockStoreMockRecorder) UpdateUserDeletedByID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateUserDeletedByID), arg0, arg1)
 }
 
 // UpdateUserHashedPassword mocks base method.
