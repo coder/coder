@@ -905,6 +905,9 @@ func (fs justFilesSystem) Open(name string) (fs.File, error) {
 		return nil, err
 	}
 
+	// Returning a 404 here does prevent the http.FileServer from serving
+	// index.* files automatically. Coder handles this above as all index pages
+	// are considered template files. So we never relied on this behavior.
 	if stat.IsDir() {
 		return nil, os.ErrNotExist
 	}
