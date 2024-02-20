@@ -240,40 +240,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   listed below.
                 </Alert>
               )}
-              <div>
-                <TextField
-                  {...getFieldHelpers("name")}
-                  disabled={creatingWorkspace}
-                  // resetMutation facilitates the clearing of validation errors
-                  onChange={onChangeTrimmed(form, resetMutation)}
-                  fullWidth
-                  label="Workspace Name"
-                />
-                <FormHelperText data-chromatic="ignore">
-                  Need a suggestion?{" "}
-                  <Button
-                    variant="text"
-                    css={styles.nameSuggestion}
-                    onClick={async () => {
-                      await form.setFieldValue("name", suggestedName);
-                      rerollSuggestedName();
-                    }}
-                  >
-                    {suggestedName}
-                  </Button>
-                </FormHelperText>
-              </div>
-
-              {permissions.createWorkspaceForUser && (
-                <UserAutocomplete
-                  value={owner}
-                  onChange={(user) => {
-                    setOwner(user ?? defaultOwner);
-                  }}
-                  label="Owner"
-                  size="medium"
-                />
-              )}
               {externalAuth.map((auth) => (
                 <ExternalAuthButton
                   key={auth.id}
