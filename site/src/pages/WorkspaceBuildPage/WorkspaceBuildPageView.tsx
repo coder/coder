@@ -155,7 +155,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
                   value={a.id}
                   key={a.id}
                 >
-                  {a.name}
+                  coder_agent.{a.name}
                 </TabLink>
               ))}
             </TabsList>

@@ -70,6 +70,8 @@ const styles = {
     fontSize: 14,
     display: "block",
     padding: `${TAB_PADDING_Y}px 16px`,
+    fontWeight: 500,
+    lineHeight: "1",
 
     "&:hover": {
       color: theme.palette.text.primary,
