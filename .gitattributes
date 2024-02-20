@@ -8,7 +8,6 @@ peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
 provisionerd/proto/version.go linguist-generated=false
 provisionersdk/proto/*.go linguist-generated=true
-provisionersdk/proto/version.go linguist-generated=false
 *.tfplan.json linguist-generated=true
 *.tfstate.json linguist-generated=true
 *.tfstate.dot linguist-generated=true
