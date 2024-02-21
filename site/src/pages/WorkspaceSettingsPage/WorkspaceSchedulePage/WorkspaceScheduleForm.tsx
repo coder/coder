@@ -428,7 +428,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
               !template.allow_user_autostop ||
               !form.values.autostopEnabled
             }
-            inputProps={{ min: 0, step: "any" }}
+            inputProps={{ min: 0, step: "any", maxLength: 5 }}
             label={Language.ttlLabel}
             type="number"
             fullWidth
@@ -452,10 +452,17 @@ export const ttlShutdownAt = (formTTL: number): string => {
   if (formTTL === 0) {
     // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
     return "Your workspace will not automatically shut down.";
-  } else {
+  }
+
+  try {
     return `Your workspace will shut down ${formatDuration(
       intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
       { delimiter: " and " },
     )} after its next start. We delay shutdown by 1 hour whenever we detect activity.`;
+  } catch (e) {
+    if (e instanceof RangeError) {
+      return Language.errorTtlMax;
+    }
+    throw e;
   }
 };
