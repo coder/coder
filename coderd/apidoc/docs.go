@@ -1491,146 +1491,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/login/oauth2/authorize": {
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "OAuth2 authorization request.",
-                "operationId": "oauth2-authorization-request",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client ID",
-                        "name": "client_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "A random unguessable string",
-                        "name": "state",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "code"
-                        ],
-                        "type": "string",
-                        "description": "Response type",
-                        "name": "response_type",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Redirect here after authorization",
-                        "name": "redirect_uri",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Token scopes (currently ignored)",
-                        "name": "scope",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "302": {
-                        "description": "Found"
-                    }
-                }
-            }
-        },
-        "/login/oauth2/tokens": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "OAuth2 token exchange.",
-                "operationId": "oauth2-token-exchange",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client ID, required if grant_type=authorization_code",
-                        "name": "client_id",
-                        "in": "formData"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Client secret, required if grant_type=authorization_code",
-                        "name": "client_secret",
-                        "in": "formData"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Authorization code, required if grant_type=authorization_code",
-                        "name": "code",
-                        "in": "formData"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Refresh token, required if grant_type=refresh_token",
-                        "name": "refresh_token",
-                        "in": "formData"
-                    },
-                    {
-                        "enum": [
-                            "authorization_code",
-                            "refresh_token"
-                        ],
-                        "type": "string",
-                        "description": "Grant type",
-                        "name": "grant_type",
-                        "in": "formData",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/oauth2.Token"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Delete OAuth2 application tokens.",
-                "operationId": "delete-oauth2-application-tokens",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client ID",
-                        "name": "client_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/oauth2-provider/apps": {
             "get": {
                 "security": [
@@ -1905,6 +1765,146 @@ const docTemplate = `{
                         "description": "Secret ID",
                         "name": "secretID",
                         "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/oauth2/authorize": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization request.",
+                "operationId": "oauth2-authorization-request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "A random unguessable string",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "code"
+                        ],
+                        "type": "string",
+                        "description": "Response type",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect here after authorization",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token scopes (currently ignored)",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    }
+                }
+            }
+        },
+        "/oauth2/tokens": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 token exchange.",
+                "operationId": "oauth2-token-exchange",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID, required if grant_type=authorization_code",
+                        "name": "client_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client secret, required if grant_type=authorization_code",
+                        "name": "client_secret",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code, required if grant_type=authorization_code",
+                        "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Refresh token, required if grant_type=refresh_token",
+                        "name": "refresh_token",
+                        "in": "formData"
+                    },
+                    {
+                        "enum": [
+                            "authorization_code",
+                            "refresh_token"
+                        ],
+                        "type": "string",
+                        "description": "Grant type",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/oauth2.Token"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete OAuth2 application tokens.",
+                "operationId": "delete-oauth2-application-tokens",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
                         "required": true
                     }
                 ],
