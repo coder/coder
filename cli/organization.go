@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -25,6 +27,45 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 	}
 
 	cmd.Options = clibase.OptionSet{}
+	return cmd
+}
+
+func (r *RootCmd) switchOrganization() *clibase.Cmd {
+	var (
+		client = new(codersdk.Client)
+	)
+
+	cmd := &clibase.Cmd{
+		Use:   "switch <organization name | ID>",
+		Short: "Switch the organization used by the cli. Pass an empty string to reset to the default organization.",
+		Long: "Switch the organization used by the cli. Pass an empty string to reset to the default organization.\n" + formatExamples(
+			example{
+				Description: "Remove the current organization and defer to the default.",
+				Command:     "coder organizations switch ''",
+			},
+			example{
+				Description: "Switch to a custom organization.",
+				Command:     "coder organizations switch my-org",
+			},
+		),
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Options: clibase.OptionSet{},
+		Handler: func(inv *clibase.Invocation) error {
+			conf := r.createConfig()
+			// If the user passes an empty string, we want to remove the organization
+			if inv.Args[0] == "" {
+				err := conf.Organization().Delete()
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("failed to unset organization: %w", err)
+				}
+			}
+
+			return nil
+		},
+	}
+
 	return cmd
 }
 
