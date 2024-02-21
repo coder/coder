@@ -24,6 +24,7 @@ import {
 } from "testHelpers/entities";
 import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const defaultAgentMetadata = [
   {
@@ -113,6 +114,7 @@ const meta: Meta<typeof AgentRow> = {
       },
     ],
   },
+
   component: AgentRow,
   args: {
     storybookLogs,
@@ -147,6 +149,7 @@ const meta: Meta<typeof AgentRow> = {
         <Story />
       </ProxyContext.Provider>
     ),
+    withDashboardProvider,
   ],
 };
 
