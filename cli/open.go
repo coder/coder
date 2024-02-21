@@ -12,19 +12,19 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) open() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) open() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "open",
 		Short: "Open a workspace",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.openVSCode(),
 		},
 	}
@@ -33,22 +33,22 @@ func (r *RootCmd) open() *clibase.Cmd {
 
 const vscodeDesktopName = "VS Code Desktop"
 
-func (r *RootCmd) openVSCode() *clibase.Cmd {
+func (r *RootCmd) openVSCode() *serpent.Cmd {
 	var (
 		generateToken bool
 		testOpenError bool
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
 		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -186,7 +186,7 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag: "generate-token",
 			Env:  "CODER_OPEN_VSCODE_GENERATE_TOKEN",
@@ -195,12 +195,12 @@ func (r *RootCmd) openVSCode() *clibase.Cmd {
 					"This flag does not need to be specified when running this command on a local machine unless automatic open fails.",
 				vscodeDesktopName,
 			),
-			Value: clibase.BoolOf(&generateToken),
+			Value: serpent.BoolOf(&generateToken),
 		},
 		{
 			Flag:        "test.open-error",
 			Description: "Don't run the open command.",
-			Value:       clibase.BoolOf(&testOpenError),
+			Value:       serpent.BoolOf(&testOpenError),
 			Hidden:      true, // This is for testing!
 		},
 	}

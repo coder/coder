@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	label := templateVersionParameter.Name
 	if templateVersionParameter.DisplayName != "" {
 		label = templateVersionParameter.DisplayName

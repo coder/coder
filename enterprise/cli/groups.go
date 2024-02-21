@@ -1,20 +1,18 @@
 package cli
 
-import (
-	"github.com/coder/coder/v2/cli/clibase"
-)
+import "github.com/coder/serpent"
 
-func (r *RootCmd) groups() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) groups() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:     "groups",
-		Short:   "Manage groups",
+		Short: serpent.e groups",
 		Aliases: []string{"group"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
-		},
-		Children: []*clibase.Cmd{
+		},serpent.
+		Children: []*serpent.Cmd{
 			r.groupCreate(),
-			r.groupList(),
+			r.groupList(serpent.
 			r.groupEdit(),
 			r.groupDelete(),
 		},

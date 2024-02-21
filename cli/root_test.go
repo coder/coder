@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ import (
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	getCmds := func(t *testing.T) *clibase.Cmd {
+	getCmds := func(t *testing.T) *serpent.Cmd {
 		// Must return a fresh instance of cmds each time.
 
 		t.Helper()

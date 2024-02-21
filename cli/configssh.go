@@ -24,10 +24,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -215,7 +215,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func (r *RootCmd) configSSH() *clibase.Cmd {
+func (r *RootCmd) configSSH() *serpent.Cmd {
 	var (
 		sshConfigFile       string
 		sshConfigOpts       sshConfigOptions
@@ -226,7 +226,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		coderCliPath        string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
@@ -240,11 +240,11 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			if sshConfigOpts.waitEnum != "auto" && skipProxyCommand {
 				// The wait option is applied to the ProxyCommand. If the user
 				// specifies skip-proxy-command, then wait cannot be applied.
@@ -538,13 +538,13 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "ssh-config-file",
 			Env:         "CODER_SSH_CONFIG_FILE",
 			Default:     sshDefaultConfigFileName,
 			Description: "Specifies the path to an SSH config.",
-			Value:       clibase.StringOf(&sshConfigFile),
+			Value:       serpent.StringOf(&sshConfigFile),
 		},
 		{
 			Flag:    "coder-binary-path",
@@ -552,7 +552,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Default: "",
 			Description: "Optionally specify the absolute path to the coder binary used in ProxyCommand. " +
 				"By default, the binary invoking this command ('config ssh') is used.",
-			Value: clibase.Validate(clibase.StringOf(&coderCliPath), func(value *clibase.String) error {
+			Value: serpent.Validate(serpent.StringOf(&coderCliPath), func(value *serpent.String) error {
 				if runtime.GOOS == goosWindows {
 					// For some reason filepath.IsAbs() does not work on windows.
 					return nil
@@ -569,46 +569,46 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			FlagShorthand: "o",
 			Env:           "CODER_SSH_CONFIG_OPTS",
 			Description:   "Specifies additional SSH options to embed in each host stanza.",
-			Value:         clibase.StringArrayOf(&sshConfigOpts.sshOptions),
+			Value:         serpent.StringArrayOf(&sshConfigOpts.sshOptions),
 		},
 		{
 			Flag:          "dry-run",
 			FlagShorthand: "n",
 			Env:           "CODER_SSH_DRY_RUN",
 			Description:   "Perform a trial run with no changes made, showing a diff at the end.",
-			Value:         clibase.BoolOf(&dryRun),
+			Value:         serpent.BoolOf(&dryRun),
 		},
 		{
 			Flag:        "skip-proxy-command",
 			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
 			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
-			Value:       clibase.BoolOf(&skipProxyCommand),
+			Value:       serpent.BoolOf(&skipProxyCommand),
 			Hidden:      true,
 		},
 		{
 			Flag:        "use-previous-options",
 			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
 			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
-			Value:       clibase.BoolOf(&usePreviousOpts),
+			Value:       serpent.BoolOf(&usePreviousOpts),
 		},
 		{
 			Flag:        "ssh-host-prefix",
 			Env:         "CODER_CONFIGSSH_SSH_HOST_PREFIX",
 			Description: "Override the default host prefix.",
-			Value:       clibase.StringOf(&sshConfigOpts.userHostPrefix),
+			Value:       serpent.StringOf(&sshConfigOpts.userHostPrefix),
 		},
 		{
 			Flag:        "wait",
 			Env:         "CODER_CONFIGSSH_WAIT", // Not to be mixed with CODER_SSH_WAIT.
 			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
 			Default:     "auto",
-			Value:       clibase.EnumOf(&sshConfigOpts.waitEnum, "yes", "no", "auto"),
+			Value:       serpent.EnumOf(&sshConfigOpts.waitEnum, "yes", "no", "auto"),
 		},
 		{
 			Flag:        "disable-autostart",
 			Description: "Disable starting the workspace automatically when connecting via SSH.",
 			Env:         "CODER_CONFIGSSH_DISABLE_AUTOSTART",
-			Value:       clibase.BoolOf(&sshConfigOpts.disableAutostart),
+			Value:       serpent.BoolOf(&sshConfigOpts.disableAutostart),
 			Default:     "false",
 		},
 		{
@@ -617,7 +617,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
 				"This might be an issue in Windows machine that use a unix-like shell. " +
 				"This flag forces the use of unix file paths (the forward slash '/').",
-			Value: clibase.BoolOf(&forceUnixSeparators),
+			Value: serpent.BoolOf(&forceUnixSeparators),
 			// On non-windows showing this command is useless because it is a noop.
 			// Hide vs disable it though so if a command is copied from a Windows
 			// machine to a unix machine it will still work and not throw an

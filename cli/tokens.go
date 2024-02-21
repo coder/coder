@@ -8,13 +8,13 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) tokens() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) tokens() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "tokens",
 		Short: "Manage personal access tokens",
 		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
@@ -32,10 +32,10 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 			},
 		),
 		Aliases: []string{"token"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.createToken(),
 			r.listTokens(),
 			r.removeToken(),
@@ -44,20 +44,20 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) createToken() *clibase.Cmd {
+func (r *RootCmd) createToken() *serpent.Cmd {
 	var (
 		tokenLifetime time.Duration
 		name          string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "create",
 		Short: "Create a token",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
 				TokenName: name,
@@ -72,20 +72,20 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "lifetime",
 			Env:         "CODER_TOKEN_LIFETIME",
 			Description: "Specify a duration for the lifetime of the token.",
 			Default:     (time.Hour * 24 * 30).String(),
-			Value:       clibase.DurationOf(&tokenLifetime),
+			Value:       serpent.DurationOf(&tokenLifetime),
 		},
 		{
 			Flag:          "name",
 			FlagShorthand: "n",
 			Env:           "CODER_TOKEN_NAME",
 			Description:   "Specify a human-readable name.",
-			Value:         clibase.StringOf(&name),
+			Value:         serpent.StringOf(&name),
 		},
 	}
 
@@ -118,7 +118,7 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	}
 }
 
-func (r *RootCmd) listTokens() *clibase.Cmd {
+func (r *RootCmd) listTokens() *serpent.Cmd {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
@@ -135,15 +135,15 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
@@ -174,12 +174,12 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "all",
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
-			Value:         clibase.BoolOf(&all),
+			Value:         serpent.BoolOf(&all),
 		},
 	}
 
@@ -187,17 +187,17 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) removeToken() *clibase.Cmd {
+func (r *RootCmd) removeToken() *serpent.Cmd {
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "remove <name>",
 		Aliases: []string{"delete"},
 		Short:   "Delete a token",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch api key by name %s: %w", inv.Args[0], err)

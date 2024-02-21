@@ -3,21 +3,21 @@ package cli
 import (
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) show() *clibase.Cmd {
+func (r *RootCmd) show() *serpent.Cmd {
 	client := new(codersdk.Client)
-	return &clibase.Cmd{
+	return &serpent.Cmd{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			buildInfo, err := client.BuildInfo(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)

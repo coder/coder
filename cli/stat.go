@@ -7,14 +7,14 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clistat"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/serpent"
 )
 
-func initStatterMW(tgt **clistat.Statter, fs afero.Fs) clibase.MiddlewareFunc {
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(i *clibase.Invocation) error {
+func initStatterMW(tgt **clistat.Statter, fs afero.Fs) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(i *serpent.Invocation) error {
 			var err error
 			stat, err := clistat.New(clistat.WithFS(fs))
 			if err != nil {
@@ -26,7 +26,7 @@ func initStatterMW(tgt **clistat.Statter, fs afero.Fs) clibase.MiddlewareFunc {
 	}
 }
 
-func (r *RootCmd) stat() *clibase.Cmd {
+func (r *RootCmd) stat() *serpent.Cmd {
 	var (
 		st        *clistat.Statter
 		fs        = afero.NewReadOnlyFs(afero.NewOsFs())
@@ -41,16 +41,16 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "stat",
 		Short:      "Show resource usage for the current workspace.",
 		Middleware: initStatterMW(&st, fs),
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.statCPU(fs),
 			r.statMem(fs),
 			r.statDisk(fs),
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var sr statsRow
 
 			// Get CPU measurements first.
@@ -130,24 +130,24 @@ func (r *RootCmd) stat() *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statCPU(fs afero.Fs) *clibase.Cmd {
+func (*RootCmd) statCPU(fs afero.Fs) *serpent.Cmd {
 	var (
 		hostArg   bool
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "cpu",
 		Short:      "Show CPU usage, in cores.",
 		Middleware: initStatterMW(&st, fs),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			{
 				Flag:        "host",
-				Value:       clibase.BoolOf(&hostArg),
+				Value:       serpent.BoolOf(&hostArg),
 				Description: "Force host CPU measurement.",
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var cs *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
@@ -171,28 +171,28 @@ func (*RootCmd) statCPU(fs afero.Fs) *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statMem(fs afero.Fs) *clibase.Cmd {
+func (*RootCmd) statMem(fs afero.Fs) *serpent.Cmd {
 	var (
 		hostArg   bool
 		prefixArg string
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "mem",
 		Short:      "Show memory usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			{
 				Flag:        "host",
-				Value:       clibase.BoolOf(&hostArg),
+				Value:       serpent.BoolOf(&hostArg),
 				Description: "Force host memory measurement.",
 			},
 			{
 				Description: "SI Prefix for memory measurement.",
 				Default:     clistat.PrefixHumanGibi,
 				Flag:        "prefix",
-				Value: clibase.EnumOf(&prefixArg,
+				Value: serpent.EnumOf(&prefixArg,
 					clistat.PrefixHumanKibi,
 					clistat.PrefixHumanMebi,
 					clistat.PrefixHumanGibi,
@@ -200,7 +200,7 @@ func (*RootCmd) statMem(fs afero.Fs) *clibase.Cmd {
 				),
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			pfx := clistat.ParsePrefix(prefixArg)
 			var ms *clistat.Result
 			var err error
@@ -225,21 +225,21 @@ func (*RootCmd) statMem(fs afero.Fs) *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statDisk(fs afero.Fs) *clibase.Cmd {
+func (*RootCmd) statDisk(fs afero.Fs) *serpent.Cmd {
 	var (
 		pathArg   string
 		prefixArg string
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "disk",
 		Short:      "Show disk usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			{
 				Flag:        "path",
-				Value:       clibase.StringOf(&pathArg),
+				Value:       serpent.StringOf(&pathArg),
 				Description: "Path for which to check disk usage.",
 				Default:     "/",
 			},
@@ -247,7 +247,7 @@ func (*RootCmd) statDisk(fs afero.Fs) *clibase.Cmd {
 				Flag:        "prefix",
 				Default:     clistat.PrefixHumanGibi,
 				Description: "SI Prefix for disk measurement.",
-				Value: clibase.EnumOf(&prefixArg,
+				Value: serpent.EnumOf(&prefixArg,
 					clistat.PrefixHumanKibi,
 					clistat.PrefixHumanMebi,
 					clistat.PrefixHumanGibi,
@@ -255,7 +255,7 @@ func (*RootCmd) statDisk(fs afero.Fs) *clibase.Cmd {
 				),
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			pfx := clistat.ParsePrefix(prefixArg)
 			// Users may also call `coder stat disk <path>`.
 			if len(inv.Args) > 0 {

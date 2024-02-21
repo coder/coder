@@ -9,14 +9,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) templateCreate() *clibase.Cmd {
+func (r *RootCmd) templateCreate() *serpent.Cmd {
 	var (
 		provisioner          string
 		provisionerTags      []string
@@ -34,18 +34,18 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		uploadFlags templateUploadFlags
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "create [name]",
 		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 1),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 1),
 			cliui.DeprecationWarning(
 				"Use `coder templates push` command for creating and updating templates. \n"+
 					"Use `coder templates edit` command for editing template settings. ",
 			),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
@@ -178,74 +178,74 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag: "private",
 			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +
 				"The template permissions must be updated to allow non-admin users to use this template.",
-			Value: clibase.BoolOf(&disableEveryone),
+			Value: serpent.BoolOf(&disableEveryone),
 		},
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
-			Value:       clibase.StringOf(&variablesFile),
+			Value:       serpent.StringOf(&variablesFile),
 		},
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
+			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
+			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "provisioner-tag",
 			Description: "Specify a set of tags to target provisioner daemons.",
-			Value:       clibase.StringArrayOf(&provisionerTags),
+			Value:       serpent.StringArrayOf(&provisionerTags),
 		},
 		{
 			Flag:        "default-ttl",
 			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Default:     "24h",
-			Value:       clibase.DurationOf(&defaultTTL),
+			Value:       serpent.DurationOf(&defaultTTL),
 		},
 		{
 			Flag:        "failure-ttl",
 			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\"in the UI.",
 			Default:     "0h",
-			Value:       clibase.DurationOf(&failureTTL),
+			Value:       serpent.DurationOf(&failureTTL),
 		},
 		{
 			Flag:        "dormancy-threshold",
 			Description: "Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyThreshold),
+			Value:       serpent.DurationOf(&dormancyThreshold),
 		},
 		{
 			Flag:        "dormancy-auto-deletion",
 			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
 			Default:     "0h",
-			Value:       clibase.DurationOf(&dormancyAutoDeletion),
+			Value:       serpent.DurationOf(&dormancyAutoDeletion),
 		},
 
 		{
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
-			Value:       clibase.DurationOf(&maxTTL),
+			Value:       serpent.DurationOf(&maxTTL),
 		},
 		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
-			Value:       clibase.StringOf(&provisioner),
+			Value:       serpent.StringOf(&provisioner),
 			Hidden:      true,
 		},
 		{
 			Flag:        "require-active-version",
 			Description: "Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.",
-			Value:       clibase.BoolOf(&requireActiveVersion),
+			Value:       serpent.BoolOf(&requireActiveVersion),
 			Default:     "false",
 		},
 

@@ -13,12 +13,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // UpdateGoldenFiles indicates golden files should be updated.
@@ -48,7 +48,7 @@ func DefaultCases() []CommandHelpCase {
 
 // TestCommandHelp will test the help output of the given commands
 // using golden files.
-func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *clibase.Cmd, cases []CommandHelpCase) {
+func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *serpent.Cmd, cases []CommandHelpCase) {
 	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
@@ -148,7 +148,7 @@ func NormalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	return byt
 }
 
-func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]string {
+func extractVisibleCommandPaths(cmdPath []string, cmds []*serpent.Cmd) [][]string {
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {

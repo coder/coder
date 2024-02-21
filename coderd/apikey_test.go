@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -18,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestTokenCRUD(t *testing.T) {
@@ -125,7 +125,7 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	dc := coderdtest.DeploymentValues(t)
-	dc.MaxTokenLifetime = clibase.Duration(time.Hour * 24 * 7)
+	dc.MaxTokenLifetime = serpent.Duration(time.Hour * 24 * 7)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: dc,
 	})
@@ -165,7 +165,7 @@ func TestSessionExpiry(t *testing.T) {
 	//
 	// We don't support updating the deployment config after startup, but for
 	// this test it works because we don't copy the value (and we use pointers).
-	dc.SessionDuration = clibase.Duration(time.Second)
+	dc.SessionDuration = serpent.Duration(time.Second)
 
 	userClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 

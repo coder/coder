@@ -13,22 +13,22 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func (r *RootCmd) licenses() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) licenses() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.licenseAdd(),
 			r.licensesList(),
 			r.licenseDelete(),
@@ -37,21 +37,21 @@ func (r *RootCmd) licenses() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseAdd() *clibase.Cmd {
+func (r *RootCmd) licenseAdd() *serpent.Cmd {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var err error
 			switch {
 			case filename != "" && license != "":
@@ -107,23 +107,23 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "file",
 			FlagShorthand: "f",
 			Description:   "Load license from file.",
-			Value:         clibase.StringOf(&filename),
+			Value:         serpent.StringOf(&filename),
 		},
 		{
 			Flag:          "license",
 			FlagShorthand: "l",
 			Description:   "License string.",
-			Value:         clibase.StringOf(&license),
+			Value:         serpent.StringOf(&license),
 		},
 		{
 			Flag:        "debug",
 			Description: "Output license claims for debugging.",
-			Value:       clibase.BoolOf(&debug),
+			Value:       serpent.BoolOf(&debug),
 		},
 	}
 	return cmd
@@ -136,7 +136,7 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func (r *RootCmd) licensesList() *clibase.Cmd {
+func (r *RootCmd) licensesList() *serpent.Cmd {
 	type tableLicense struct {
 		ID         int32     `table:"id,default_sort"`
 		UUID       uuid.UUID `table:"uuid" format:"uuid"`
@@ -208,15 +208,15 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "list",
 		Short:   "List licenses (including expired)",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
@@ -239,17 +239,17 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseDelete() *clibase.Cmd {
+func (r *RootCmd) licenseDelete() *serpent.Cmd {
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
 		Aliases: []string{"del"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])

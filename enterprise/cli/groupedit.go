@@ -10,12 +10,12 @@ import (
 	"github.com/coder/pretty"
 
 	agpl "github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) groupEdit() *clibase.Cmd {
+func (r *RootCmd) groupEdit() *serpent.Cmd {
 	var (
 		avatarURL   string
 		name        string
@@ -24,14 +24,14 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 		rmUsers     []string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "edit <name>",
 		Short: "Edit a user group",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
@@ -84,36 +84,36 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "name",
 			FlagShorthand: "n",
 			Description:   "Update the group name.",
-			Value:         clibase.StringOf(&name),
+			Value:         serpent.StringOf(&name),
 		},
 		{
 			Flag:          "avatar-url",
 			FlagShorthand: "u",
 			Description:   "Update the group avatar.",
-			Value:         clibase.StringOf(&avatarURL),
+			Value:         serpent.StringOf(&avatarURL),
 		},
 		{
 			Flag:        "display-name",
 			Description: `Optional human friendly name for the group.`,
 			Env:         "CODER_DISPLAY_NAME",
-			Value:       clibase.StringOf(&displayName),
+			Value:       serpent.StringOf(&displayName),
 		},
 		{
 			Flag:          "add-users",
 			FlagShorthand: "a",
 			Description:   "Add users to the group. Accepts emails or IDs.",
-			Value:         clibase.StringArrayOf(&addUsers),
+			Value:         serpent.StringArrayOf(&addUsers),
 		},
 		{
 			Flag:          "rm-users",
 			FlagShorthand: "r",
 			Description:   "Remove users to the group. Accepts emails or IDs.",
-			Value:         clibase.StringArrayOf(&rmUsers),
+			Value:         serpent.StringArrayOf(&rmUsers),
 		},
 	}
 

@@ -22,7 +22,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd"
@@ -30,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
+	"github.com/coder/serpent"
 )
 
 type closers []func()
@@ -44,24 +44,24 @@ func (c *closers) Add(f func()) {
 	*c = append(*c, f)
 }
 
-func (r *RootCmd) proxyServer() *clibase.Cmd {
+func (r *RootCmd) proxyServer() *serpent.Cmd {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
 		opts = cfg.Options().Filter(codersdk.IsWorkspaceProxies)
 
-		externalProxyOptionGroup = clibase.Group{
+		externalProxyOptionGroup = serpent.Group{
 			Name: "External Workspace Proxy",
 			YAML: "externalWorkspaceProxy",
 		}
-		proxySessionToken clibase.String
-		primaryAccessURL  clibase.URL
-		derpOnly          clibase.Bool
+		proxySessionToken serpent.String
+		primaryAccessURL  serpent.URL
+		derpOnly          serpent.Bool
 	)
 	opts.Add(
 		// Options only for external workspace proxies
 
-		clibase.Option{
+		serpent.Option{
 			Name:        "Proxy Session Token",
 			Description: "Authentication token for the workspace proxy to communicate with coderd.",
 			Flag:        "proxy-session-token",
@@ -73,14 +73,14 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			Hidden:      false,
 		},
 
-		clibase.Option{
+		serpent.Option{
 			Name:        "Coderd (Primary) Access URL",
 			Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
 			Flag:        "primary-access-url",
 			Env:         "CODER_PRIMARY_ACCESS_URL",
 			YAML:        "primaryAccessURL",
 			Required:    true,
-			Value: clibase.Validate(&primaryAccessURL, func(value *clibase.URL) error {
+			Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
 				if !(value.Scheme == "http" || value.Scheme == "https") {
 					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 				}
@@ -89,7 +89,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			Group:  &externalProxyOptionGroup,
 			Hidden: false,
 		},
-		clibase.Option{
+		serpent.Option{
 			Name:        "DERP-only proxy",
 			Description: "Run a proxy server that only supports DERP connections and does not proxy workspace app/terminal traffic.",
 			Flag:        "derp-only",
@@ -102,16 +102,16 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		},
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
 		Options: opts,
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			cli.WriteConfigMW(cfg),
 			cli.PrintDeprecatedOptions(),
-			clibase.RequireNArgs(0),
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var closers closers
 			// Main command context for managing cancellation of running
 			// services.
@@ -169,9 +169,9 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			if cfg.AccessURL.String() == "" {
 				// Prefer TLS
 				if httpServers.TLSUrl != nil {
-					cfg.AccessURL = clibase.URL(*httpServers.TLSUrl)
+					cfg.AccessURL = serpent.URL(*httpServers.TLSUrl)
 				} else if httpServers.HTTPUrl != nil {
-					cfg.AccessURL = clibase.URL(*httpServers.HTTPUrl)
+					cfg.AccessURL = serpent.URL(*httpServers.HTTPUrl)
 				}
 			}
 

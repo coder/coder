@@ -25,7 +25,6 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -42,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func mockAuditor() *atomic.Pointer[audit.Auditor] {
@@ -171,7 +171,7 @@ func TestAcquireJob(t *testing.T) {
 			// Set the max session token lifetime so we can assert we
 			// create an API key with an expiration within the bounds of the
 			// deployment config.
-			dv := &codersdk.DeploymentValues{MaxTokenLifetime: clibase.Duration(time.Hour)}
+			dv := &codersdk.DeploymentValues{MaxTokenLifetime: serpent.Duration(time.Hour)}
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 				Id: "github",
 			}

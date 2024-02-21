@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestPrompt(t *testing.T) {
@@ -77,7 +77,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
-			}, func(inv *clibase.Invocation) {
+			}, func(inv *serpent.Invocation) {
 				inv.Command.Options = append(inv.Command.Options, cliui.SkipPromptOption())
 				inv.Args = []string{"-y"}
 			})
@@ -145,10 +145,10 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *clibase.Invocation)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
 	value := ""
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
+	cmd := &serpent.Cmd{
+		Handler: func(inv *serpent.Invocation) error {
 			var err error
 			value, err = cliui.Prompt(inv, opts)
 			return err
@@ -210,8 +210,8 @@ func TestPasswordTerminalState(t *testing.T) {
 
 // nolint:unused
 func passwordHelper() {
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
+	cmd := &serpent.Cmd{
+		Handler: func(inv *serpent.Invocation) error {
 			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,

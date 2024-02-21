@@ -15,9 +15,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 //go:embed help.tpl
@@ -26,7 +26,7 @@ var helpTemplateRaw string
 type optionGroup struct {
 	Name        string
 	Description string
-	Options     clibase.OptionSet
+	Options     serpent.OptionSet
 }
 
 func ttyWidth() int {
@@ -75,9 +75,9 @@ var usageTemplate = func() *template.Template {
 					headerFg.Format(txt)
 					return txt.String()
 				},
-				"typeHelper": func(opt *clibase.Option) string {
+				"typeHelper": func(opt *serpent.Option) string {
 					switch v := opt.Value.(type) {
-					case *clibase.Enum:
+					case *serpent.Enum:
 						return strings.Join(v.Choices, "|")
 					default:
 						return v.Type()
@@ -107,7 +107,7 @@ var usageTemplate = func() *template.Template {
 					}
 					return sb.String()
 				},
-				"formatSubcommand": func(cmd *clibase.Cmd) string {
+				"formatSubcommand": func(cmd *serpent.Cmd) string {
 					// Minimize padding by finding the longest neighboring name.
 					maxNameLength := len(cmd.Name())
 					if parent := cmd.Parent; parent != nil {
@@ -142,23 +142,23 @@ var usageTemplate = func() *template.Template {
 
 					return sb.String()
 				},
-				"envName": func(opt clibase.Option) string {
+				"envName": func(opt serpent.Option) string {
 					if opt.Env == "" {
 						return ""
 					}
 					return opt.Env
 				},
-				"flagName": func(opt clibase.Option) string {
+				"flagName": func(opt serpent.Option) string {
 					return opt.Flag
 				},
 
-				"isEnterprise": func(opt clibase.Option) bool {
+				"isEnterprise": func(opt serpent.Option) bool {
 					return opt.Annotations.IsSet("enterprise")
 				},
-				"isDeprecated": func(opt clibase.Option) bool {
+				"isDeprecated": func(opt serpent.Option) bool {
 					return len(opt.UseInstead) > 0
 				},
-				"useInstead": func(opt clibase.Option) string {
+				"useInstead": func(opt serpent.Option) string {
 					var sb strings.Builder
 					for i, s := range opt.UseInstead {
 						if i > 0 {
@@ -189,12 +189,12 @@ var usageTemplate = func() *template.Template {
 					s = wrapTTY(s)
 					return s
 				},
-				"visibleChildren": func(cmd *clibase.Cmd) []*clibase.Cmd {
-					return filterSlice(cmd.Children, func(c *clibase.Cmd) bool {
+				"visibleChildren": func(cmd *serpent.Cmd) []*serpent.Cmd {
+					return filterSlice(cmd.Children, func(c *serpent.Cmd) bool {
 						return !c.Hidden
 					})
 				},
-				"optionGroups": func(cmd *clibase.Cmd) []optionGroup {
+				"optionGroups": func(cmd *serpent.Cmd) []optionGroup {
 					groups := []optionGroup{{
 						// Default group.
 						Name:        "",
@@ -240,7 +240,7 @@ var usageTemplate = func() *template.Template {
 						groups = append(groups, optionGroup{
 							Name:        groupName,
 							Description: opt.Group.Description,
-							Options:     clibase.OptionSet{opt},
+							Options:     serpent.OptionSet{opt},
 						})
 					}
 					sort.Slice(groups, func(i, j int) bool {
@@ -318,8 +318,8 @@ var usageWantsArgRe = regexp.MustCompile(`<.*>`)
 
 // helpFn returns a function that generates usage (help)
 // output for a given command.
-func helpFn() clibase.HandlerFunc {
-	return func(inv *clibase.Invocation) error {
+func helpFn() serpent.HandlerFunc {
+	return func(inv *serpent.Invocation) error {
 		// We use stdout for help and not stderr since there's no straightforward
 		// way to distinguish between a user error and a help request.
 		//

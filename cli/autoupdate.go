@@ -6,22 +6,22 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) autoupdate() *clibase.Cmd {
+func (r *RootCmd) autoupdate() *serpent.Cmd {
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "autoupdate <workspace> <always|never>",
 		Short:       "Toggle auto-update policy for a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(2),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			policy := strings.ToLower(inv.Args[1])
 			err := validateAutoUpdatePolicy(policy)
 			if err != nil {

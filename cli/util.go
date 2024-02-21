@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -23,10 +23,10 @@ var (
 // This is helpful if the zero value of a flag is meaningful, and you need
 // to distinguish between the user setting the flag to the zero value and
 // the user not setting the flag at all.
-func userSetOption(inv *clibase.Invocation, flagName string) bool {
+func userSetOption(inv *serpent.Invocation, flagName string) bool {
 	for _, opt := range inv.Command.Options {
 		if opt.Name == flagName {
-			return !(opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault)
+			return !(opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault)
 		}
 	}
 	return false

@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestPtytest(t *testing.T) {
@@ -59,9 +59,9 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := &clibase.Cmd{
+				cmd := &serpent.Cmd{
 					Use: "test",
-					Handler: func(inv *clibase.Invocation) error {
+					Handler: func(inv *serpent.Invocation) error {
 						fmt.Fprint(inv.Stdout, tt.output)
 						return nil
 					},

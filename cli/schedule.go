@@ -8,12 +8,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -53,15 +53,15 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 `
 )
 
-func (r *RootCmd) schedules() *clibase.Cmd {
-	scheduleCmd := &clibase.Cmd{
+func (r *RootCmd) schedules() *serpent.Cmd {
+	scheduleCmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.scheduleShow(),
 			r.scheduleStart(),
 			r.scheduleStop(),
@@ -73,7 +73,7 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 }
 
 // scheduleShow() is just a wrapper for list() with some different defaults.
-func (r *RootCmd) scheduleShow() *clibase.Cmd {
+func (r *RootCmd) scheduleShow() *serpent.Cmd {
 	var (
 		filter    cliui.WorkspaceFilter
 		formatter = cliui.NewOutputFormatter(
@@ -91,15 +91,15 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 		)
 	)
 	client := new(codersdk.Client)
-	showCmd := &clibase.Cmd{
+	showCmd := &serpent.Cmd{
 		Use:   "show <workspace | --search <query> | --all>",
 		Short: "Show workspace schedules",
 		Long:  scheduleShowDescriptionLong,
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 1),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			// To preserve existing behavior, if an argument is passed we will
 			// only show the schedule for that workspace.
 			// This will clobber the search query if one is passed.
@@ -136,9 +136,9 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 	return showCmd
 }
 
-func (r *RootCmd) scheduleStart() *clibase.Cmd {
+func (r *RootCmd) scheduleStart() *serpent.Cmd {
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + formatExamples(
 			example{
@@ -147,11 +147,11 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 			},
 		),
 		Short: "Edit workspace start schedule",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(2, 4),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(2, 4),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -185,9 +185,9 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scheduleStop() *clibase.Cmd {
+func (r *RootCmd) scheduleStop() *serpent.Cmd {
 	client := new(codersdk.Client)
-	return &clibase.Cmd{
+	return &serpent.Cmd{
 		Use: "stop <workspace-name> { <duration> | manual }",
 		Long: scheduleStopDescriptionLong + "\n" + formatExamples(
 			example{
@@ -195,11 +195,11 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 			},
 		),
 		Short: "Edit workspace stop schedule",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(2),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -229,9 +229,9 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 	}
 }
 
-func (r *RootCmd) scheduleOverride() *clibase.Cmd {
+func (r *RootCmd) scheduleOverride() *serpent.Cmd {
 	client := new(codersdk.Client)
-	overrideCmd := &clibase.Cmd{
+	overrideCmd := &serpent.Cmd{
 		Use:   "override-stop <workspace-name> <duration from now>",
 		Short: "Override the stop time of a currently running workspace instance.",
 		Long: scheduleOverrideDescriptionLong + "\n" + formatExamples(
@@ -239,11 +239,11 @@ func (r *RootCmd) scheduleOverride() *clibase.Cmd {
 				Command: "coder schedule override-stop my-workspace 90m",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(2),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			overrideDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err

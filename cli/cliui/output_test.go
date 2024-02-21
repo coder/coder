@@ -8,13 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/serpent"
 )
 
 type format struct {
 	id              string
-	attachOptionsFn func(opts *clibase.OptionSet)
+	attachOptionsFn func(opts *serpent.OptionSet)
 	formatFn        func(ctx context.Context, data any) (string, error)
 }
 
@@ -24,7 +24,7 @@ func (f *format) ID() string {
 	return f.id
 }
 
-func (f *format) AttachOptions(opts *clibase.OptionSet) {
+func (f *format) AttachOptions(opts *serpent.OptionSet) {
 	if f.attachOptionsFn != nil {
 		f.attachOptionsFn(opts)
 	}
@@ -85,12 +85,12 @@ func Test_OutputFormatter(t *testing.T) {
 			cliui.JSONFormat(),
 			&format{
 				id: "foo",
-				attachOptionsFn: func(opts *clibase.OptionSet) {
-					opts.Add(clibase.Option{
+				attachOptionsFn: func(opts *serpent.OptionSet) {
+					opts.Add(serpent.Option{
 						Name:          "foo",
 						Flag:          "foo",
 						FlagShorthand: "f",
-						Value:         clibase.DiscardValue,
+						Value:         serpent.DiscardValue,
 						Description:   "foo flag 1234",
 					})
 				},
@@ -101,7 +101,7 @@ func Test_OutputFormatter(t *testing.T) {
 			},
 		)
 
-		cmd := &clibase.Cmd{}
+		cmd := &serpent.Cmd{}
 		f.AttachOptions(&cmd.Options)
 
 		fs := cmd.Options.FlagSet()

@@ -9,12 +9,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/serpent"
 )
 
 type OutputFormat interface {
 	ID() string
-	AttachOptions(opts *clibase.OptionSet)
+	AttachOptions(opts *serpent.OptionSet)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -49,7 +49,7 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 // AttachOptions attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
+func (f *OutputFormatter) AttachOptions(opts *serpent.OptionSet) {
 	for _, format := range f.formats {
 		format.AttachOptions(opts)
 	}
@@ -60,11 +60,11 @@ func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
 	}
 
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "output",
 			FlagShorthand: "o",
 			Default:       f.formats[0].ID(),
-			Value:         clibase.StringOf(&f.formatID),
+			Value:         serpent.StringOf(&f.formatID),
 			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", ") + ".",
 		},
 	)
@@ -129,13 +129,13 @@ func (*tableFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
+func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "column",
 			FlagShorthand: "c",
 			Default:       strings.Join(f.defaultColumns, ","),
-			Value:         clibase.StringArrayOf(&f.columns),
+			Value:         serpent.StringArrayOf(&f.columns),
 			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
 		},
 	)
@@ -161,7 +161,7 @@ func (jsonFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (jsonFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (jsonFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {
@@ -187,7 +187,7 @@ func (textFormat) ID() string {
 	return "text"
 }
 
-func (textFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (textFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 func (textFormat) Format(_ context.Context, data any) (string, error) {
 	return fmt.Sprintf("%s", data), nil
@@ -213,7 +213,7 @@ func (d *DataChangeFormat) ID() string {
 	return d.format.ID()
 }
 
-func (d *DataChangeFormat) AttachOptions(opts *clibase.OptionSet) {
+func (d *DataChangeFormat) AttachOptions(opts *serpent.OptionSet) {
 	d.format.AttachOptions(opts)
 }
 
