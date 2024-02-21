@@ -290,6 +290,22 @@ func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
+func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
+	return rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(c.UserID.String())
+}
+
+func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
+	return rbac.ResourceOAuth2ProviderAppSecret
+}
+
+func (OAuth2ProviderApp) RBACObject() rbac.Object {
+	return rbac.ResourceOAuth2ProviderApp
+}
+
+func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
+	return a.OAuth2ProviderApp.RBACObject()
+}
+
 type WorkspaceAgentConnectionStatus struct {
 	Status           WorkspaceAgentStatus `json:"status"`
 	FirstConnectedAt *time.Time           `json:"first_connected_at"`

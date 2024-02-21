@@ -3,20 +3,22 @@ import Link from "@mui/material/Link";
 import CircularProgress from "@mui/material/CircularProgress";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { FC } from "react";
-import { useQuery } from "react-query";
+import { type FC } from "react";
+import { useQuery, useMutation } from "react-query";
 import { docs } from "utils/docs";
 import { getAgentListeningPorts } from "api/api";
-import type {
-  WorkspaceAgent,
-  WorkspaceAgentListeningPort,
-  WorkspaceAgentListeningPortsResponse,
+import {
+  WorkspaceAppSharingLevels,
+  type Template,
+  type WorkspaceAgent,
+  type WorkspaceAgentListeningPort,
+  type WorkspaceAgentPortShareLevel,
+  UpsertWorkspaceAgentPortShareRequest,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
-  HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
@@ -26,48 +28,62 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import Stack from "@mui/material/Stack";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import TextField from "@mui/material/TextField";
+import SensorsIcon from "@mui/icons-material/Sensors";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
+import CloseIcon from "@mui/icons-material/Close";
+import {
+  deleteWorkspacePortShare,
+  upsertWorkspacePortShare,
+  workspacePortShares,
+} from "api/queries/workspaceportsharing";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import * as Yup from "yup";
+import { FormikContextType, useFormik } from "formik";
+import { getFormHelpers } from "utils/formUtils";
+import { LoadingButton } from "@mui/lab";
 
 export interface PortForwardButtonProps {
   host: string;
   username: string;
   workspaceName: string;
+  workspaceID: string;
   agent: WorkspaceAgent;
-
-  /**
-   * Only for use in Storybook
-   */
-  storybook?: {
-    portsQueryData?: WorkspaceAgentListeningPortsResponse;
-  };
+  template: Template;
 }
 
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
-  const { agent, storybook } = props;
-
+  const { agent } = props;
+  const { entitlements, experiments } = useDashboard();
   const paper = useClassName(classNames.paper, []);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
     queryFn: () => getAgentListeningPorts(agent.id),
-    enabled: !storybook && agent.status === "connected",
+    enabled: agent.status === "connected",
     refetchInterval: 5_000,
   });
-
-  const data = storybook ? storybook.portsQueryData : portsQuery.data;
 
   return (
     <Popover>
       <PopoverTrigger>
         <Button
-          disabled={!data}
+          disabled={!portsQuery.data}
           size="small"
           variant="text"
           endIcon={<KeyboardArrowDown />}
           css={{ fontSize: 13, padding: "8px 12px" }}
           startIcon={
-            data ? (
+            portsQuery.data ? (
               <div>
-                <span css={styles.portCount}>{data.ports.length}</span>
+                <span css={styles.portCount}>
+                  {portsQuery.data.ports.length}
+                </span>
               </div>
             ) : (
               <CircularProgress size={10} />
@@ -78,74 +94,136 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
         </Button>
       </PopoverTrigger>
       <PopoverContent horizontal="right" classes={{ paper }}>
-        <PortForwardPopoverView {...props} ports={data?.ports} />
+        <PortForwardPopoverView
+          {...props}
+          listeningPorts={portsQuery.data?.ports}
+          portSharingExperimentEnabled={experiments.includes("shared-ports")}
+          portSharingControlsEnabled={
+            entitlements.features.control_shared_ports.enabled
+          }
+        />
       </PopoverContent>
     </Popover>
   );
 };
 
+const getValidationSchema = (): Yup.AnyObjectSchema =>
+  Yup.object({
+    port: Yup.number().required().min(0).max(65535),
+    share_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
+  });
+
 interface PortForwardPopoverViewProps extends PortForwardButtonProps {
-  ports?: WorkspaceAgentListeningPort[];
+  listeningPorts?: WorkspaceAgentListeningPort[];
+  portSharingExperimentEnabled: boolean;
+  portSharingControlsEnabled: boolean;
 }
+
+type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   host,
   workspaceName,
+  workspaceID,
   agent,
+  template,
   username,
-  ports,
+  listeningPorts,
+  portSharingExperimentEnabled,
+  portSharingControlsEnabled,
 }) => {
   const theme = useTheme();
+
+  const sharedPortsQuery = useQuery({
+    ...workspacePortShares(workspaceID),
+    enabled: agent.status === "connected",
+  });
+  const sharedPorts = sharedPortsQuery.data?.shares || [];
+
+  const upsertSharedPortMutation = useMutation(
+    upsertWorkspacePortShare(workspaceID),
+  );
+
+  const deleteSharedPortMutation = useMutation(
+    deleteWorkspacePortShare(workspaceID),
+  );
+
+  // share port form
+  const {
+    mutateAsync: upsertWorkspacePortShareForm,
+    isLoading: isSubmitting,
+    error: submitError,
+  } = useMutation(upsertWorkspacePortShare(workspaceID));
+  const validationSchema = getValidationSchema();
+  // TODO: do partial here
+  const form: FormikContextType<
+    Optional<UpsertWorkspaceAgentPortShareRequest, "port">
+  > = useFormik<Optional<UpsertWorkspaceAgentPortShareRequest, "port">>({
+    initialValues: {
+      agent_name: agent.name,
+      port: undefined,
+      share_level: "authenticated",
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      // we need port to be optional in the initialValues so it appears empty instead of 0.
+      // because of this we need to reset the form to clear the port field manually.
+      form.resetForm();
+      await form.setFieldValue("port", "");
+
+      const port = Number(values.port);
+      await upsertWorkspacePortShareForm({
+        ...values,
+        port,
+      });
+      await sharedPortsQuery.refetch();
+    },
+  });
+  const getFieldHelpers = getFormHelpers(form, submitError);
+
+  // filter out shared ports that are not from this agent
+  const filteredSharedPorts = sharedPorts.filter(
+    (port) => port.agent_name === agent.name,
+  );
+  // we don't want to show listening ports if it's a shared port
+  const filteredListeningPorts = listeningPorts?.filter((port) => {
+    for (let i = 0; i < filteredSharedPorts.length; i++) {
+      if (filteredSharedPorts[i].port === port.port) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+  // only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
+  const canSharePorts =
+    portSharingExperimentEnabled &&
+    !(portSharingControlsEnabled && template.max_port_share_level === "owner");
+  const canSharePortsPublic =
+    canSharePorts && template.max_port_share_level === "public";
 
   return (
     <>
       <div
         css={{
           padding: 20,
-          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="start"
+        >
+          <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+          <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
+            Learn more
+          </HelpTooltipLink>
+        </Stack>
         <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          {ports?.length === 0
+          {filteredListeningPorts?.length === 0
             ? "No open ports were detected."
-            : "The forwarded ports are exclusively accessible to you."}
+            : "The listening ports are exclusively accessible to you."}
         </HelpTooltipText>
-        <div css={{ marginTop: 12 }}>
-          {ports?.map((port) => {
-            const url = portForwardURL(
-              host,
-              port.port,
-              agent.name,
-              workspaceName,
-              username,
-            );
-            const label =
-              port.process_name !== "" ? port.process_name : port.port;
-            return (
-              <Link
-                underline="none"
-                css={styles.portLink}
-                key={port.port}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <OpenInNewOutlined css={{ width: 14, height: 14 }} />
-                {label}
-                <span css={styles.portNumber}>{port.port}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      <div css={{ padding: 20 }}>
-        <HelpTooltipTitle>Forward port</HelpTooltipTitle>
-        <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          Access ports running on the agent:
-        </HelpTooltipText>
-
         <form
           css={styles.newPortForm}
           onSubmit={(e) => {
@@ -166,7 +244,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             aria-label="Port number"
             name="portNumber"
             type="number"
-            placeholder="Type a port number..."
+            placeholder="Connect to port..."
             min={0}
             max={65535}
             required
@@ -192,13 +270,215 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             />
           </Button>
         </form>
-
-        <HelpTooltipLinksGroup>
-          <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
-            Learn more
-          </HelpTooltipLink>
-        </HelpTooltipLinksGroup>
+        <div
+          css={{
+            paddingTop: 10,
+          }}
+        >
+          {filteredListeningPorts?.map((port) => {
+            const url = portForwardURL(
+              host,
+              port.port,
+              agent.name,
+              workspaceName,
+              username,
+            );
+            const label =
+              port.process_name !== "" ? port.process_name : port.port;
+            return (
+              <Stack
+                key={port.port}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Link
+                  underline="none"
+                  css={styles.portLink}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <SensorsIcon css={{ width: 14, height: 14 }} />
+                  {label}
+                </Link>
+                <Stack
+                  direction="row"
+                  gap={2}
+                  justifyContent="flex-end"
+                  alignItems="center"
+                >
+                  <Link
+                    underline="none"
+                    css={styles.portLink}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span css={styles.portNumber}>{port.port}</span>
+                  </Link>
+                  {canSharePorts && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={async () => {
+                        await upsertSharedPortMutation.mutateAsync({
+                          agent_name: agent.name,
+                          port: port.port,
+                          share_level: "authenticated",
+                        });
+                        await sharedPortsQuery.refetch();
+                      }}
+                    >
+                      Share
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
+            );
+          })}
+        </div>
       </div>
+      {portSharingExperimentEnabled && (
+        <div
+          css={{
+            padding: 20,
+            borderTop: `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
+          <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+            {canSharePorts
+              ? "Ports can be shared with other Coder users or with the public."
+              : "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
+          </HelpTooltipText>
+          {canSharePorts && (
+            <div>
+              {filteredSharedPorts?.map((share) => {
+                const url = portForwardURL(
+                  host,
+                  share.port,
+                  agent.name,
+                  workspaceName,
+                  username,
+                );
+                const label = share.port;
+                return (
+                  <Stack
+                    key={share.port}
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                  >
+                    <Link
+                      underline="none"
+                      css={styles.portLink}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {share.share_level === "public" ? (
+                        <LockOpenIcon css={{ width: 14, height: 14 }} />
+                      ) : (
+                        <LockIcon css={{ width: 14, height: 14 }} />
+                      )}
+                      {label}
+                    </Link>
+                    <Stack direction="row" justifyContent="flex-end">
+                      <FormControl size="small">
+                        <Select
+                          css={styles.shareLevelSelect}
+                          value={share.share_level}
+                          onChange={async (event) => {
+                            await upsertSharedPortMutation.mutateAsync({
+                              agent_name: agent.name,
+                              port: share.port,
+                              share_level: event.target
+                                .value as WorkspaceAgentPortShareLevel,
+                            });
+                            await sharedPortsQuery.refetch();
+                          }}
+                        >
+                          <MenuItem value="authenticated">
+                            Authenticated
+                          </MenuItem>
+                          <MenuItem
+                            value="public"
+                            disabled={!canSharePortsPublic}
+                          >
+                            Public
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Button
+                        size="small"
+                        variant="text"
+                        css={styles.deleteButton}
+                        onClick={async () => {
+                          await deleteSharedPortMutation.mutateAsync({
+                            agent_name: agent.name,
+                            port: share.port,
+                          });
+                          await sharedPortsQuery.refetch();
+                        }}
+                      >
+                        <CloseIcon
+                          css={{
+                            width: 14,
+                            height: 14,
+                            color: theme.palette.text.primary,
+                          }}
+                        />
+                      </Button>
+                    </Stack>
+                  </Stack>
+                );
+              })}
+              <form onSubmit={form.handleSubmit}>
+                <Stack
+                  direction="column"
+                  gap={2}
+                  justifyContent="flex-end"
+                  sx={{
+                    marginTop: 2,
+                  }}
+                >
+                  <TextField
+                    {...getFieldHelpers("port")}
+                    disabled={isSubmitting}
+                    label="Port"
+                    size="small"
+                    variant="outlined"
+                    type="number"
+                    value={form.values.port}
+                  />
+                  <TextField
+                    {...getFieldHelpers("share_level")}
+                    disabled={isSubmitting}
+                    fullWidth
+                    select
+                    value={form.values.share_level}
+                    label="Sharing Level"
+                  >
+                    <MenuItem value="authenticated">Authenticated</MenuItem>
+                    <MenuItem value="public" disabled={!canSharePortsPublic}>
+                      Public
+                    </MenuItem>
+                  </TextField>
+                  <LoadingButton
+                    variant="contained"
+                    type="submit"
+                    loading={isSubmitting}
+                    disabled={!form.isValid}
+                  >
+                    Share Port
+                  </LoadingButton>
+                </Stack>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 };
@@ -232,8 +512,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
     fontWeight: 500,
   }),
 
@@ -244,10 +524,26 @@ const styles = {
     fontWeight: 400,
   }),
 
+  shareLevelSelect: () => ({
+    boxShadow: "none",
+    ".MuiOutlinedInput-notchedOutline": { border: 0 },
+    "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+    "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+  }),
+
+  deleteButton: () => ({
+    minWidth: 30,
+    padding: 0,
+  }),
+
   newPortForm: (theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: "4px",
-    marginTop: 16,
+    marginTop: 8,
     display: "flex",
     alignItems: "center",
     "&:focus-within": {
