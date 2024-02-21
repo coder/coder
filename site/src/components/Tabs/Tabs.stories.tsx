@@ -1,4 +1,4 @@
-import { Tabs, TabLink } from "./Tabs";
+import { Tabs, TabLink, TabsList } from "./Tabs";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Tabs> = {
@@ -11,12 +11,19 @@ type Story = StoryObj<typeof Tabs>;
 
 export const Default: Story = {
   args: {
+    active: "tab-1",
     children: (
-      <>
-        <TabLink to="">Tab 1</TabLink>
-        <TabLink to="tab-3">Tab 2</TabLink>
-        <TabLink to="tab-4">Tab 3</TabLink>
-      </>
+      <TabsList>
+        <TabLink value="tab-1" to="">
+          Tab 1
+        </TabLink>
+        <TabLink value="tab-2" to="tab-3">
+          Tab 2
+        </TabLink>
+        <TabLink value="tab-3" to="tab-4">
+          Tab 3
+        </TabLink>
+      </TabsList>
     ),
   },
 };

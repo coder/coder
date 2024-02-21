@@ -2917,10 +2917,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value          |
-| -------------- |
-| `example`      |
-| `shared-ports` |
+| Value                  |
+| ---------------------- |
+| `example`              |
+| `shared-ports`         |
+| `auto-fill-parameters` |
 
 ## codersdk.ExternalAuth
 

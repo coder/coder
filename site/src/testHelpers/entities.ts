@@ -994,11 +994,11 @@ export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
 };
 
 export const MockBuilds = [
-  MockWorkspaceBuild,
-  MockWorkspaceBuildAutostart,
-  MockWorkspaceBuildAutostop,
-  MockWorkspaceBuildStop,
-  MockWorkspaceBuildDelete,
+  { ...MockWorkspaceBuild, id: "1" },
+  { ...MockWorkspaceBuildAutostart, id: "2" },
+  { ...MockWorkspaceBuildAutostop, id: "3" },
+  { ...MockWorkspaceBuildStop, id: "4" },
+  { ...MockWorkspaceBuildDelete, id: "5" },
 ];
 
 export const MockWorkspace: TypesGen.Workspace = {
@@ -3411,8 +3411,8 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
     endpoints: {
-      authorization: "http://localhost:3001/login/oauth2/authorize",
-      token: "http://localhost:3001/login/oauth2/token",
+      authorization: "http://localhost:3001/oauth2/authorize",
+      token: "http://localhost:3001/oauth2/token",
       device_authorization: "",
     },
   },

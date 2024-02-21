@@ -2117,8 +2117,9 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample     Experiment = "example" // This isn't used for anything.
-	ExperimentSharedPorts Experiment = "shared-ports"
+	ExperimentExample            Experiment = "example" // This isn't used for anything.
+	ExperimentSharedPorts        Experiment = "shared-ports"
+	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 )
 
 // ExperimentsAll should include all experiments that are safe for
