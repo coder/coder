@@ -241,9 +241,7 @@ describe("CreateWorkspacePage", () => {
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
 
-    await screen.findByText(
-      "To create a workspace using the selected template, please ensure you are authenticated with all the external providers listed below.",
-    );
+    await screen.findByText(/connect to all required/i);
   });
 
   it("auto create a workspace if uses mode=auto", async () => {
@@ -312,7 +310,7 @@ describe("CreateWorkspacePage", () => {
       route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
     });
 
-    const warningMessage = await screen.findByRole("alert");
+    const warningMessage = await screen.findByTestId("duplication-warning");
     const nameInput = await screen.findByRole("textbox", {
       name: "Workspace Name",
     });

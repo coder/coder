@@ -183,7 +183,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {Boolean(error) && <ErrorAlert error={error} />}
 
         {mode === "duplicate" && (
-          <Alert severity="info" dismissible>
+          <Alert severity="info" dismissible data-testid="duplication-warning">
             {Language.duplicationWarning}
           </Alert>
         )}
@@ -252,7 +252,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {externalAuth && externalAuth.length > 0 && (
           <FormSection
             title="External Authentication"
-            description="This template requires authentication to external services."
+            description="This template uses external services for authentication."
           >
             <FormFields>
               {hasAllRequiredExternalAuth ? (
@@ -261,7 +261,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   providers listed below.
                 </Alert>
               ) : (
-                <Alert severity="error">
+                <Alert severity={error ? "error" : "info"}>
                   To create a workspace using this template, please connect to
                   all required external authentication providers listed below.
                 </Alert>
@@ -269,6 +269,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               {externalAuth.map((auth) => (
                 <ExternalAuthButton
                   key={auth.id}
+                  error={error}
                   auth={auth}
                   isLoading={externalAuthPollingState === "polling"}
                   onStartPolling={startPollingExternalAuth}

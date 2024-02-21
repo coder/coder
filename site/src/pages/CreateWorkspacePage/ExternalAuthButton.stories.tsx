@@ -12,7 +12,7 @@ const MockExternalAuth: TemplateVersionExternalAuth = {
 };
 
 const meta: Meta<typeof ExternalAuthButton> = {
-  title: "pages/CreateWorkspacePage/ExternalAuth",
+  title: "pages/CreateWorkspacePage/ExternalAuthButton",
   component: ExternalAuthButton,
 };
 
@@ -22,6 +22,15 @@ type Story = StoryObj<typeof ExternalAuthButton>;
 export const Github: Story = {
   args: {
     auth: MockExternalAuth,
+  },
+};
+
+export const GithubOptional: Story = {
+  args: {
+    auth: {
+      ...MockExternalAuth,
+      optional: true,
+    },
   },
 };
 
@@ -48,6 +57,7 @@ export const Gitlab: Story = {
       display_icon: "/icon/gitlab.svg",
       display_name: "GitLab",
       authenticated: false,
+      optional: true,
     },
   },
 };
@@ -70,6 +80,7 @@ export const AzureDevOps: Story = {
       display_icon: "/icon/azure-devops.svg",
       display_name: "Azure DevOps",
       authenticated: false,
+      optional: true,
     },
   },
 };
@@ -92,6 +103,7 @@ export const Bitbucket: Story = {
       display_icon: "/icon/bitbucket.svg",
       display_name: "Bitbucket",
       authenticated: false,
+      optional: true,
     },
   },
 };

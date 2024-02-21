@@ -13,6 +13,7 @@ export interface ExternalAuthButtonProps {
   displayRetry: boolean;
   isLoading: boolean;
   onStartPolling: () => void;
+  error?: unknown;
 }
 
 export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
@@ -20,6 +21,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
   displayRetry,
   isLoading,
   onStartPolling,
+  error,
 }) => {
   return (
     <>
@@ -49,13 +51,17 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
             onStartPolling();
           }}
         >
-          {auth.authenticated
-            ? `Authenticated with ${auth.display_name}`
-            : `Login with ${auth.display_name}`}
-          {!auth.optional && !auth.authenticated && (
-            <Pill type="error" css={{ marginLeft: 8 }}>
-              Required
-            </Pill>
+          {auth.authenticated ? (
+            `Authenticated with ${auth.display_name}`
+          ) : (
+            <>
+              Login with {auth.display_name}
+              {!auth.optional && (
+                <Pill type={error ? "error" : "info"} css={{ marginLeft: 8 }}>
+                  Required
+                </Pill>
+              )}
+            </>
           )}
         </LoadingButton>
 

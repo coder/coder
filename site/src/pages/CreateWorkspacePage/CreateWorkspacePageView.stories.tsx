@@ -126,6 +126,80 @@ export const ExternalAuth: Story = {
         authenticate_url: "",
         display_icon: "/icon/gitlab.svg",
         display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthError: Story = {
+  args: {
+    error: true,
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthAllRequiredConnected: Story = {
+  args: {
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthAllConnected: Story = {
+  args: {
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
       },
     ],
   },
