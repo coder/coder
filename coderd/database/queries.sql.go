@@ -3936,9 +3936,10 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
-			-- Ensure the job matches satisfies all requested tags.
+			-- Ensure the caller satisfies all job tags if requested,
 			AND CASE
 				WHEN $4 :: boolean THEN nested.tags = $5 :: jsonb
+			-- Otherwise, ensure caller satisfies a subset of tags.
 			ELSE
 				nested.tags <@ $5 :: jsonb
 			END

@@ -748,10 +748,9 @@ var deletedUserLinkError = &pq.Error{
 	Routine: "exec_stmt_raise",
 }
 
-// m1 and m2 are equal if m1 is a subset of m2
-// and m2 is a subset of m1.
+// m1 and m2 are equal iff |m1| = |m2| ^ m1 ⊆ m2
 func tagsEqual(m1, m2 map[string]string) bool {
-	return tagsSubset(m1, m2) && tagsSubset(m2, m1)
+	return len(m1) == len(m2) && tagsSubset(m1, m2)
 }
 
 // m2 is a subset of m1 if each key in m1 exists in m2

@@ -21,9 +21,10 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			-- Ensure the job matches satisfies all requested tags.
+			-- Ensure the caller satisfies all job tags if requested,
 			AND CASE
 				WHEN @exact_tag_match :: boolean THEN nested.tags = @tags :: jsonb
+			-- Otherwise, ensure caller satisfies a subset of tags.
 			ELSE
 				nested.tags <@ @tags :: jsonb
 			END
