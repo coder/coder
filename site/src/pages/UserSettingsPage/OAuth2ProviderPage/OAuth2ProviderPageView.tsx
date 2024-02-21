@@ -14,7 +14,7 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 
 export type OAuth2ProviderPageViewProps = {
   isLoading: boolean;
-  error?: unknown;
+  error: unknown;
   apps?: TypesGen.OAuth2ProviderApp[];
   revoke: (app: TypesGen.OAuth2ProviderApp) => void;
 };

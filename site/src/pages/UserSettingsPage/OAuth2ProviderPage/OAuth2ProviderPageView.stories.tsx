@@ -13,6 +13,7 @@ type Story = StoryObj<typeof OAuth2ProviderPageView>;
 export const Loading: Story = {
   args: {
     isLoading: true,
+    error: undefined,
     revoke: () => undefined,
   },
 };
@@ -28,6 +29,7 @@ export const Error: Story = {
 export const Apps: Story = {
   args: {
     isLoading: false,
+    error: undefined,
     apps: MockOAuth2ProviderApps,
     revoke: () => undefined,
   },
