@@ -34,8 +34,12 @@ var (
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./coderd/healthcheck/health", "./coderd/healthcheck/derphealth"}
-	indent           = "  "
+	externalTypePkgs = [...]string{
+		"./coderd/healthcheck/health", "./coderd/healthcheck/derphealth",
+		// CLI option types:
+		"github.com/coder/serpent",
+	}
+	indent = "  "
 )
 
 func main() {
@@ -43,7 +47,7 @@ func main() {
 	log := slog.Make(sloghuman.Sink(os.Stderr))
 
 	external := []*Generator{}
-	for _, dir := range externalTypeDirs {
+	for _, dir := range externalTypePkgs {
 		extGen, err := ParseDirectory(ctx, log, dir)
 		if err != nil {
 			log.Fatal(ctx, fmt.Sprintf("parse external directory %s: %s", dir, err.Error()))
@@ -81,7 +85,7 @@ func main() {
 			break
 		}
 
-		dir := externalTypeDirs[i]
+		dir := externalTypePkgs[i]
 		_, _ = fmt.Printf("// The code below is generated from %s.\n\n", strings.TrimPrefix(dir, "./"))
 		_, _ = fmt.Print(ts.String(), "\n\n")
 	}

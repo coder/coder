@@ -1,6 +1,6 @@
 import { type FC } from "react";
 import type {
-  ClibaseOption,
+  SerpentOption,
   DAUsResponse,
   Entitlements,
   Experiments,
@@ -18,7 +18,7 @@ import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 
 export type GeneralSettingsPageViewProps = {
-  deploymentOptions: ClibaseOption[];
+  deploymentOptions: SerpentOption[];
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;

@@ -5,14 +5,14 @@ import "github.com/coder/serpent"
 func (r *RootCmd) groups() *serpent.Cmd {
 	cmd := &serpent.Cmd{
 		Use:     "groups",
-		Short: serpent.e groups",
+		Short:   "Manage groups",
 		Aliases: []string{"group"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
-		},serpent.
+		},
 		Children: []*serpent.Cmd{
 			r.groupCreate(),
-			r.groupList(serpent.
+			r.groupList(),
 			r.groupEdit(),
 			r.groupDelete(),
 		},

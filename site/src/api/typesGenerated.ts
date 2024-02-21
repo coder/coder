@@ -378,9 +378,7 @@ export interface DeleteWorkspaceAgentPortShareRequest {
 // From codersdk/deployment.go
 export interface DeploymentConfig {
   readonly config?: DeploymentValues;
-  // Named type "github.com/coder/serpent.Option" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly options?: any[];
+  readonly options?: SerpentOptionSet;
 }
 
 // From codersdk/deployment.go
@@ -2477,3 +2475,48 @@ export interface DerphealthStunReport {
   readonly CanSTUN: boolean;
   readonly Error?: string;
 }
+
+// The code below is generated from github.com/coder/serpent.
+
+// From serpent/serpent.go
+export type SerpentAnnotations = Record<string, string>;
+
+// From serpent/serpent.go
+export interface SerpentGroup {
+  readonly parent?: SerpentGroup;
+  readonly name?: string;
+  readonly yaml?: string;
+  readonly description?: string;
+}
+
+// From serpent/option.go
+export interface SerpentOption {
+  readonly name?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly flag?: string;
+  readonly flag_shorthand?: string;
+  readonly env?: string;
+  readonly yaml?: string;
+  readonly default?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
+  readonly value?: any;
+  readonly annotations?: SerpentAnnotations;
+  readonly group?: SerpentGroup;
+  readonly use_instead?: SerpentOption[];
+  readonly hidden?: boolean;
+  readonly value_source?: SerpentValueSource;
+}
+
+// From serpent/option.go
+export type SerpentOptionSet = SerpentOption[];
+
+// From serpent/option.go
+export type SerpentValueSource = "" | "default" | "env" | "flag" | "yaml";
+export const SerpentValueSources: SerpentValueSource[] = [
+  "",
+  "default",
+  "env",
+  "flag",
+  "yaml",
+];
