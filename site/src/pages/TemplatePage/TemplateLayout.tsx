@@ -6,7 +6,7 @@ import {
   useContext,
 } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
@@ -17,7 +17,7 @@ import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
-import { TabLink, Tabs } from "components/Tabs/Tabs";
+import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -80,6 +80,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   });
+  const location = useLocation();
+  const paths = location.pathname.split("/");
+  const activeTab = paths[3] ?? "summary";
   // Auditors should also be able to view insights, but do not automatically
   // have permission to update templates. Need both checks.
   const shouldShowInsights =
@@ -108,19 +111,42 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
         }}
       />
 
-      <Tabs>
-        <TabLink end to={`/templates/${templateName}`}>
-          Summary
-        </TabLink>
-        <TabLink to={`/templates/${templateName}/docs`}>Docs</TabLink>
-        {data.permissions.canUpdateTemplate && (
-          <TabLink to={`/templates/${templateName}/files`}>Source Code</TabLink>
-        )}
-        <TabLink to={`/templates/${templateName}/versions`}>Versions</TabLink>
-        <TabLink to={`/templates/${templateName}/embed`}>Embed</TabLink>
-        {shouldShowInsights && (
-          <TabLink to={`/templates/${templateName}/insights`}>Insights</TabLink>
-        )}
+      <Tabs
+        active={activeTab}
+        css={{ marginBottom: 40, marginTop: -TAB_PADDING_Y }}
+      >
+        <Margins>
+          <TabsList>
+            <TabLink to={`/templates/${templateName}`} value="summary">
+              Summary
+            </TabLink>
+            <TabLink to={`/templates/${templateName}/docs`} value="docs">
+              Docs
+            </TabLink>
+            {data.permissions.canUpdateTemplate && (
+              <TabLink to={`/templates/${templateName}/files`} value="files">
+                Source Code
+              </TabLink>
+            )}
+            <TabLink
+              to={`/templates/${templateName}/versions`}
+              value="versions"
+            >
+              Versions
+            </TabLink>
+            <TabLink to={`/templates/${templateName}/embed`} value="embed">
+              Embed
+            </TabLink>
+            {shouldShowInsights && (
+              <TabLink
+                to={`/templates/${templateName}/insights`}
+                value="insights"
+              >
+                Insights
+              </TabLink>
+            )}
+          </TabsList>
+        </Margins>
       </Tabs>
 
       <Margins>
