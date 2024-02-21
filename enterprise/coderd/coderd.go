@@ -179,6 +179,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				r.Get("/authorize", api.postOAuth2ProviderAppAuthorize())
+				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+				// route used to revoke permissions from an application.  It is here for
+				// parity with POST on /tokens.
 				r.Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
 			})
 			// The /tokens endpoint will be called from an unauthorized client so we
