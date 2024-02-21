@@ -748,7 +748,7 @@ var deletedUserLinkError = &pq.Error{
 	Routine: "exec_stmt_raise",
 }
 
-// m1 and m2 are equal iff |m1| = |m2| ^ m1 ⊆ m2
+// m1 and m2 are equal iff |m1| = |m2| ^ m2 ⊆ m1
 func tagsEqual(m1, m2 map[string]string) bool {
 	return len(m1) == len(m2) && tagsSubset(m1, m2)
 }
