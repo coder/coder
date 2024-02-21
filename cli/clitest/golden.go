@@ -122,7 +122,15 @@ ExtractCommandPathsLoop:
 // equality check.
 func NormalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	// Replace any timestamps with a placeholder.
-	byt = timestampRegex.ReplaceAll(byt, []byte("[timestamp]"))
+	byt = timestampRegex.ReplaceAllFunc(byt, func(source []byte) []byte {
+		// Pad the timestamps to maintain the same length. This is mainly for tabled
+		// output where the padding is important for alignment.
+		lenSrc := len(source)
+		rpl := "timestamp"
+		required := lenSrc - 2
+
+		return []byte("[" + fmt.Sprintf("%-*s", required, rpl) + "]")
+	})
 
 	homeDir, err := os.UserHomeDir()
 	require.NoError(t, err)
