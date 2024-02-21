@@ -108,7 +108,7 @@ export const Parameters: Story = {
   },
 };
 
-export const RequiresExternalAuth: Story = {
+export const ExternalAuth: Story = {
   args: {
     externalAuth: [
       {
