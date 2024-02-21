@@ -41,6 +41,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 			cliui.TableFormat([]codersdk.Organization{}, []string{"id", "name", "default"}),
 			cliui.JSONFormat(),
 		)
+		onlyID = false
 	)
 	cmd := &clibase.Cmd{
 		Use:   "current",
@@ -48,17 +49,30 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
+		Options: clibase.OptionSet{
+			{
+				Name:        "only-id",
+				Description: "Only print the organization ID.",
+				Required:    false,
+				Flag:        "only-id",
+				Value:       clibase.BoolOf(&onlyID),
+			},
+		},
 		Handler: func(inv *clibase.Invocation) error {
 			org, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}
 
-			out, err := formatter.Format(inv.Context(), []codersdk.Organization{org})
-			if err != nil {
-				return err
+			if onlyID {
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", org.ID)
+			} else {
+				out, err := formatter.Format(inv.Context(), []codersdk.Organization{org})
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(inv.Stdout, out)
 			}
-			_, err = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},
 	}
