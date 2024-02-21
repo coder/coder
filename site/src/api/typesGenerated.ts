@@ -1894,8 +1894,12 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "example" | "shared-ports";
-export const Experiments: Experiment[] = ["example", "shared-ports"];
+export type Experiment = "auto-fill-parameters" | "example" | "shared-ports";
+export const Experiments: Experiment[] = [
+  "auto-fill-parameters",
+  "example",
+  "shared-ports",
+];
 
 // From codersdk/deployment.go
 export type FeatureName =
