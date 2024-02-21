@@ -188,6 +188,8 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
+	ProvisionerStrictTagPolicy bool
 }
 
 // @title Coder API
@@ -363,6 +365,11 @@ func New(options *Options) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
+	acquirerOpts := make([]provisionerdserver.AcquirerOption, 0)
+	if options.ProvisionerStrictTagPolicy {
+		acquirerOpts = append(acquirerOpts, provisionerdserver.WithExactTagMatch())
+	}
+
 	// nolint:gocritic // Load deployment ID. This never changes
 	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
@@ -402,7 +409,9 @@ func New(options *Options) *API {
 			ctx,
 			options.Logger.Named("acquirer"),
 			options.Database,
-			options.Pubsub),
+			options.Pubsub,
+			acquirerOpts...,
+		),
 	}
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)

@@ -554,4 +554,68 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, daemons, 0)
 	})
+
+	t.Run("TagPolicyStrict", func(t *testing.T) {
+		t.Parallel()
+
+		// Start coderd with strict tag policy for provisionerd server.
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+			Options: &coderdtest.Options{
+				ProvisionerStrictTagPolicy: true,
+			},
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		another := codersdk.New(client.URL)
+
+		// Start
+		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         testutil.MustRandString(t, 63),
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+			PreSharedKey: "provisionersftw",
+		})
+		require.NoError(t, err)
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+
+		// Create a template version build job with a tag.
+		data, err := echo.Tar(&echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent("testing"),
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // Not testing file upload in this test.
+		file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
+		require.NoError(t, err)
+		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+			ProvisionerTags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, tv.ID)
+	})
 }

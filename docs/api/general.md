@@ -327,7 +327,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "daemon_psk": "string",
       "daemons": 0,
       "daemons_echo": true,
-      "force_cancel_interval": 0
+      "force_cancel_interval": 0,
+      "strict_tag_policy": true
     },
     "proxy_health_status_interval": 0,
     "proxy_trusted_headers": ["string"],

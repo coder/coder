@@ -10675,6 +10675,9 @@ const docTemplate = `{
                 },
                 "force_cancel_interval": {
                     "type": "integer"
+                },
+                "strict_tag_policy": {
+                    "type": "boolean"
                 }
             }
         },

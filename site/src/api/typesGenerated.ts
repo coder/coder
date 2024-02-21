@@ -846,6 +846,7 @@ export interface ProvisionerConfig {
   readonly daemon_poll_jitter: number;
   readonly force_cancel_interval: number;
   readonly daemon_psk: string;
+  readonly strict_tag_policy: boolean;
 }
 
 // From codersdk/provisionerdaemons.go

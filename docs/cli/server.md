@@ -794,6 +794,17 @@ Pre-shared key to authenticate external provisioner daemons to Coder server.
 
 Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
 
+### --provisioner-strict-tag-policy
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_PROVISIONER_STRICT_TAG_POLICY</code> |
+| YAML        | <code>provisioning.strictTagPolicy</code>         |
+| Default     | <code>false</code>                                |
+
+If set to true, provisioner daemons will only acquire jobs having tags equal to the daemon's tags. Otherwise, allows provisioner daemons to acquire jobs having tags a subset of the daemon's tags. This applies to all provisioner daemons connected to coderd.
+
 ### --proxy-health-interval
 
 |             |                                                  |

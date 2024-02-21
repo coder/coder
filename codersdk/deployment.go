@@ -374,6 +374,7 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
+	StrictTagPolicy     clibase.Bool     `json:"strict_tag_policy" typscript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1409,6 +1410,16 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPSK",
+		},
+		{
+			Name:        "Provisioner Strict Tag Policy",
+			Description: "If set to true, provisioner daemons will only acquire jobs having tags equal to the daemon's tags. Otherwise, allows provisioner daemons to acquire jobs having tags a subset of the daemon's tags. This applies to all provisioner daemons connected to coderd.",
+			Flag:        "provisioner-strict-tag-policy",
+			Env:         "CODER_PROVISIONER_STRICT_TAG_POLICY",
+			Value:       &c.Provisioner.StrictTagPolicy,
+			Default:     "false",
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "strictTagPolicy",
 		},
 		// RateLimit settings
 		{
