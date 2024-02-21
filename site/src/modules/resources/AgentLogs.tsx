@@ -10,7 +10,6 @@ import {
   forwardRef,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { LineWithID } from "./AgentRow";
@@ -187,21 +186,19 @@ export const useAgentLogs = (
   const initialData = options?.initialData;
   const enabled = options?.enabled === undefined ? true : options.enabled;
   const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
-  const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (!enabled) {
-      socket.current?.close();
       setLogs([]);
       return;
     }
 
-    socket.current = API.watchWorkspaceAgentLogs(agentId, {
+    const socket = API.watchWorkspaceAgentLogs(agentId, {
       // Get all logs
       after: 0,
       onMessage: (logs) => {
         // Prevent new logs getting added when a connection is not open
-        if (socket.current?.readyState !== WebSocket.OPEN) {
+        if (socket.readyState !== WebSocket.OPEN) {
           return;
         }
 
@@ -233,7 +230,7 @@ export const useAgentLogs = (
     });
 
     return () => {
-      socket.current?.close();
+      socket.close();
     };
   }, [agentId, enabled]);
 
