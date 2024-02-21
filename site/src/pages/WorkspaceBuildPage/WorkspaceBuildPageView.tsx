@@ -57,9 +57,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
     return <Loader />;
   }
 
-  const agents = build.resources
-    .filter((r) => r.agents)
-    .flatMap((r) => r.agents) as WorkspaceAgent[];
+  const agents = build.resources.flatMap((r) => r.agents ?? []);
   const selectedAgent = agents.find((a) => a.id === tab.value);
 
   return (
