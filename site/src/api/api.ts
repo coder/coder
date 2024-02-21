@@ -1034,7 +1034,7 @@ export const deleteOAuth2ProviderAppSecret = async (
 };
 
 export const revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
-  await axios.delete(`/login/oauth2/tokens?client_id=${appId}`);
+  await axios.delete(`/oauth2/tokens?client_id=${appId}`);
 };
 
 export const getAuditLogs = async (
