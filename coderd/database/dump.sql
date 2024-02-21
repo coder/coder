@@ -880,6 +880,8 @@ CREATE VIEW template_version_with_user AS
    FROM (public.template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
+COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+
 CREATE TABLE templates (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,

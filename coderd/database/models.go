@@ -2078,6 +2078,7 @@ type TemplateTable struct {
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
+// Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
 	ID                    uuid.UUID       `db:"id" json:"id"`
 	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
