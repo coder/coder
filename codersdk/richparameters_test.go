@@ -309,6 +309,26 @@ func TestRichParameterValidation(t *testing.T) {
 	})
 }
 
+func TestParameterResolver_ValidateResolve_EmptyString_Monotonic(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{
+		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: ""}},
+	}
+	p := codersdk.TemplateVersionParameter{
+		Name:                "n",
+		Type:                "number",
+		Mutable:             true,
+		DefaultValue:        "0",
+		ValidationMonotonic: codersdk.MonotonicOrderIncreasing,
+	}
+	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1", v)
+}
+
 func TestParameterResolver_ValidateResolve_Ephemeral_OverridePrevious(t *testing.T) {
 	t.Parallel()
 	uut := codersdk.ParameterResolver{

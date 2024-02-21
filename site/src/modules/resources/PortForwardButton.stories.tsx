@@ -6,10 +6,12 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const meta: Meta<typeof PortForwardButton> = {
   title: "modules/resources/PortForwardButton",
   component: PortForwardButton,
+  decorators: [withDashboardProvider],
   args: {
     agent: MockWorkspaceAgent,
   },

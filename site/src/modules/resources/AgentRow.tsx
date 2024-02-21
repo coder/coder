@@ -1,6 +1,5 @@
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import {
   type FC,
@@ -13,18 +12,15 @@ import {
 } from "react";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import * as API from "api/api";
 import type {
   Template,
   Workspace,
   WorkspaceAgent,
-  WorkspaceAgentLogSource,
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
   Line,
-  LogLine,
   logLineHeight,
 } from "modules/workspaces/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
@@ -41,6 +37,7 @@ import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { useQuery } from "react-query";
 import { xrayScan } from "api/queries/integrations";
 import { XRayScanAlert } from "./XRayScanAlert";
+import { AgentLogs, useAgentLogs } from "./AgentLogs";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -96,14 +93,6 @@ export const AgentRow: FC<AgentRowProps> = ({
     agent.display_apps.includes("vscode_insiders");
   const showVSCode = hasVSCodeApp && !hideVSCodeDesktopButton;
 
-  // Agent runtime logs
-  const logSourceByID = useMemo(() => {
-    const sources: { [id: string]: WorkspaceAgentLogSource } = {};
-    for (const source of agent.log_sources) {
-      sources[source.id] = source;
-    }
-    return sources;
-  }, [agent.log_sources]);
   const hasStartupFeatures = Boolean(agent.logs_length);
   const { proxy } = useProxy();
   const [showLogs, setShowLogs] = useState(
@@ -300,153 +289,16 @@ export const AgentRow: FC<AgentRowProps> = ({
           <Collapse in={showLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
-                <List
+                <AgentLogs
                   ref={logListRef}
                   innerRef={logListDivRef}
                   height={256}
-                  itemCount={startupLogs.length}
-                  itemSize={logLineHeight}
                   width={width}
                   css={styles.startupLogs}
                   onScroll={handleLogScroll}
-                >
-                  {({ index, style }) => {
-                    const log = startupLogs[index];
-                    // getLogSource always returns a valid log source.
-                    // This is necessary to support deployments before `coder_script`.
-                    // Existed that haven't restarted their agents.
-                    const getLogSource = (
-                      id: string,
-                    ): WorkspaceAgentLogSource => {
-                      return (
-                        logSourceByID[id] || {
-                          created_at: "",
-                          display_name: "Logs",
-                          icon: "",
-                          id: "00000000-0000-0000-0000-000000000000",
-                          workspace_agent_id: "",
-                        }
-                      );
-                    };
-                    const logSource = getLogSource(log.source_id);
-
-                    let assignedIcon = false;
-                    let icon: JSX.Element;
-                    // If no icon is specified, we show a deterministic
-                    // colored circle to identify unique scripts.
-                    if (logSource.icon) {
-                      icon = (
-                        <img
-                          src={logSource.icon}
-                          alt=""
-                          width={14}
-                          height={14}
-                          css={{
-                            marginRight: 8,
-                            flexShrink: 0,
-                          }}
-                        />
-                      );
-                    } else {
-                      icon = (
-                        <div
-                          css={{
-                            width: 14,
-                            height: 14,
-                            marginRight: 8,
-                            flexShrink: 0,
-                            background: determineScriptDisplayColor(
-                              logSource.display_name,
-                            ),
-                            borderRadius: "100%",
-                          }}
-                        />
-                      );
-                      assignedIcon = true;
-                    }
-
-                    let nextChangesSource = false;
-                    if (index < startupLogs.length - 1) {
-                      nextChangesSource =
-                        getLogSource(startupLogs[index + 1].source_id).id !==
-                        log.source_id;
-                    }
-                    // We don't want every line to repeat the icon, because
-                    // that is ugly and repetitive. This removes the icon
-                    // for subsequent lines of the same source and shows a
-                    // line instead, visually indicating they are from the
-                    // same source.
-                    if (
-                      index > 0 &&
-                      getLogSource(startupLogs[index - 1].source_id).id ===
-                        log.source_id
-                    ) {
-                      icon = (
-                        <div
-                          css={{
-                            width: 14,
-                            height: 14,
-                            marginRight: 8,
-                            display: "flex",
-                            justifyContent: "center",
-                            position: "relative",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <div
-                            className="dashed-line"
-                            css={(theme) => ({
-                              height: nextChangesSource ? "50%" : "100%",
-                              width: 2,
-                              background: theme.experimental.l1.outline,
-                              borderRadius: 2,
-                            })}
-                          />
-                          {nextChangesSource && (
-                            <div
-                              className="dashed-line"
-                              css={(theme) => ({
-                                height: 2,
-                                width: "50%",
-                                top: "calc(50% - 2px)",
-                                left: "calc(50% - 1px)",
-                                background: theme.experimental.l1.outline,
-                                borderRadius: 2,
-                                position: "absolute",
-                              })}
-                            />
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <LogLine
-                        line={startupLogs[index]}
-                        number={index + 1}
-                        maxNumber={startupLogs.length}
-                        style={style}
-                        sourceIcon={
-                          <Tooltip
-                            title={
-                              <>
-                                {logSource.display_name}
-                                {assignedIcon && (
-                                  <i>
-                                    <br />
-                                    No icon specified!
-                                  </i>
-                                )}
-                              </>
-                            }
-                          >
-                            {icon}
-                          </Tooltip>
-                        }
-                      />
-                    );
-                  }}
-                </List>
+                  logs={startupLogs}
+                  sources={agent.log_sources}
+                />
               )}
             </AutoSizer>
           </Collapse>
@@ -462,64 +314,6 @@ export const AgentRow: FC<AgentRowProps> = ({
       )}
     </Stack>
   );
-};
-
-const useAgentLogs = (
-  agentId: string,
-  { enabled, initialData }: { enabled: boolean; initialData?: LineWithID[] },
-) => {
-  const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
-  const socket = useRef<WebSocket | null>(null);
-
-  useEffect(() => {
-    if (!enabled) {
-      socket.current?.close();
-      setLogs([]);
-      return;
-    }
-
-    socket.current = API.watchWorkspaceAgentLogs(agentId, {
-      // Get all logs
-      after: 0,
-      onMessage: (logs) => {
-        // Prevent new logs getting added when a connection is not open
-        if (socket.current?.readyState !== WebSocket.OPEN) {
-          return;
-        }
-
-        setLogs((previousLogs) => {
-          const newLogs: LineWithID[] = logs.map((log) => ({
-            id: log.id,
-            level: log.level || "info",
-            output: log.output,
-            time: log.created_at,
-            source_id: log.source_id,
-          }));
-
-          if (!previousLogs) {
-            return newLogs;
-          }
-
-          return [...previousLogs, ...newLogs];
-        });
-      },
-      onError: (error) => {
-        // For some reason Firefox and Safari throw an error when a websocket
-        // connection is close in the middle of a message and because of that we
-        // can't safely show to the users an error message since most of the
-        // time they are just internal stuff. This does not happen to Chrome at
-        // all and I tried to find better way to "soft close" a WS connection on
-        // those browsers without success.
-        console.error(error);
-      },
-    });
-
-    return () => {
-      socket.current?.close();
-    };
-  }, [agentId, enabled]);
-
-  return logs;
 };
 
 const styles = {
@@ -645,18 +439,6 @@ const styles = {
     color: theme.palette.text.secondary,
   }),
 
-  startupLogs: (theme) => ({
-    maxHeight: 256,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
-    paddingTop: 16,
-
-    // We need this to be able to apply the padding top from startupLogs
-    "& > div": {
-      position: "relative",
-    },
-  }),
-
   agentNameAndStatus: (theme) => ({
     display: "flex",
     alignItems: "center",
@@ -740,27 +522,16 @@ const styles = {
   agentOS: {
     textTransform: "capitalize",
   },
+
+  startupLogs: (theme) => ({
+    maxHeight: 256,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    backgroundColor: theme.palette.background.paper,
+    paddingTop: 16,
+
+    // We need this to be able to apply the padding top from startupLogs
+    "& > div": {
+      position: "relative",
+    },
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
-
-// These colors were picked at random. Feel free
-// to add more, adjust, or change! Users will not
-// depend on these colors.
-const scriptDisplayColors = [
-  "#85A3B2",
-  "#A37EB2",
-  "#C29FDE",
-  "#90B3D7",
-  "#829AC7",
-  "#728B8E",
-  "#506080",
-  "#5654B0",
-  "#6B56D6",
-  "#7847CC",
-];
-
-const determineScriptDisplayColor = (displayName: string): string => {
-  const hash = displayName.split("").reduce((hash, char) => {
-    return (hash << 5) + hash + char.charCodeAt(0); // bit-shift and add for our simple hash
-  }, 0);
-  return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
-};

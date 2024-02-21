@@ -2080,20 +2080,20 @@ type TemplateTable struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID     `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
-	Name                  string        `db:"name" json:"name"`
-	Readme                string        `db:"readme" json:"readme"`
-	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string        `db:"message" json:"message"`
-	Archived              bool          `db:"archived" json:"archived"`
-	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
+	Name                  string          `db:"name" json:"name"`
+	Readme                string          `db:"readme" json:"readme"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string          `db:"message" json:"message"`
+	Archived              bool            `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2143,7 +2143,7 @@ type TemplateVersionTable struct {
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of External auth providers for a specific template version
-	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
 	Message  string `db:"message" json:"message"`
 	Archived bool   `db:"archived" json:"archived"`

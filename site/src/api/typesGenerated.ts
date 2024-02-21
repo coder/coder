@@ -1187,6 +1187,7 @@ export interface TemplateVersionExternalAuth {
   readonly display_icon: string;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
+  readonly optional?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -1894,8 +1895,12 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "example" | "shared-ports";
-export const Experiments: Experiment[] = ["example", "shared-ports"];
+export type Experiment = "auto-fill-parameters" | "example" | "shared-ports";
+export const Experiments: Experiment[] = [
+  "auto-fill-parameters",
+  "example",
+  "shared-ports",
+];
 
 // From codersdk/deployment.go
 export type FeatureName =
