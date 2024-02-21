@@ -26,11 +26,11 @@ const (
 
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
-	ID        uuid.UUID `json:"id" validate:"required" format:"uuid"`
-	Name      string    `json:"name" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt time.Time `json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault bool      `json:"is_default" validate:"required"`
+	ID        uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
+	Name      string    `table:"name,default_sort" json:"name" validate:"required"`
+	CreatedAt time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault bool      `table:"default" json:"is_default" validate:"required"`
 }
 
 type OrganizationMember struct {
