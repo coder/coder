@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -235,10 +236,10 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Icon:        dbApp.Icon,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
-				Path: "/login/oauth2/authorize",
+				Path: "/oauth2/authorize",
 			}).String(),
 			Token: accessURL.ResolveReference(&url.URL{
-				Path: "/login/oauth2/tokens",
+				Path: "/oauth2/tokens",
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",
@@ -414,6 +415,16 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
+	sort.Slice(dbApps, func(i, j int) bool {
+		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
+			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
+		}
+		if dbApps[i].DisplayName != dbApps[j].DisplayName {
+			return dbApps[i].DisplayName < dbApps[j].DisplayName
+		}
+		return dbApps[i].Slug < dbApps[j].Slug
+	})
+
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{

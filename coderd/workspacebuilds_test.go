@@ -495,15 +495,42 @@ func TestWorkspaceBuildResources(t *testing.T) {
 				Type: &proto.Response_Apply{
 					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
-							Name: "some",
+							Name: "first_resource",
 							Type: "example",
 							Agents: []*proto.Agent{{
-								Id:   "something",
-								Auth: &proto.Agent_Token{},
+								Id:    "something-1",
+								Name:  "something-1",
+								Auth:  &proto.Agent_Token{},
+								Order: 3,
 							}},
 						}, {
-							Name: "another",
+							Name: "second_resource",
 							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:    "something-2",
+								Name:  "something-2",
+								Auth:  &proto.Agent_Token{},
+								Order: 1,
+							}, {
+								Id:    "something-3",
+								Name:  "something-3",
+								Auth:  &proto.Agent_Token{},
+								Order: 2,
+							}},
+						}, {
+							Name: "third_resource",
+							Type: "example",
+						}, {
+							Name: "fourth_resource",
+							Type: "example",
+						}, {
+							Name: "fifth_resource",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:   "something-4",
+								Name: "something-4",
+								Auth: &proto.Agent_Token{},
+							}},
 						}},
 					},
 				},
@@ -520,11 +547,19 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.NotNil(t, workspace.LatestBuild.Resources)
-		require.Len(t, workspace.LatestBuild.Resources, 2)
-		require.Equal(t, "some", workspace.LatestBuild.Resources[0].Name)
-		require.Equal(t, "example", workspace.LatestBuild.Resources[1].Type)
-		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+		require.Len(t, workspace.LatestBuild.Resources, 5)
+		assertWorkspaceResource(t, workspace.LatestBuild.Resources[0], "fifth_resource", "example", 1)  // resource has agent with implicit order = 0
+		assertWorkspaceResource(t, workspace.LatestBuild.Resources[1], "second_resource", "example", 2) // resource has 2 agents, one with low order value (2)
+		assertWorkspaceResource(t, workspace.LatestBuild.Resources[2], "first_resource", "example", 1)  // resource has 1 agent with explicit order
+		assertWorkspaceResource(t, workspace.LatestBuild.Resources[3], "fourth_resource", "example", 0) // resource has no agents, sorted by name
+		assertWorkspaceResource(t, workspace.LatestBuild.Resources[4], "third_resource", "example", 0)  // resource is the last one
 	})
+}
+
+func assertWorkspaceResource(t *testing.T, actual codersdk.WorkspaceResource, name, aType string, numAgents int) {
+	assert.Equal(t, name, actual.Name)
+	assert.Equal(t, aType, actual.Type)
+	assert.Len(t, actual.Agents, numAgents)
 }
 
 func TestWorkspaceBuildLogs(t *testing.T) {

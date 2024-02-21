@@ -14,7 +14,7 @@ import { css } from "@emotion/css";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 import { HealthMessage, HealthSeverity } from "api/typesGenerated";
 import Link from "@mui/material/Link";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 
 const CONTENT_PADDING = 36;
 

@@ -625,8 +625,6 @@ resource "coder_agent" "main" {
     vscode     = false
     ssh_helper = false
   }
-  startup_script_timeout  = 86400
-  shutdown_script_timeout = 7200
   startup_script_behavior = "blocking"
   startup_script          = file("startup.sh")
   shutdown_script         = file("shutdown.sh")

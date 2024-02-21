@@ -383,7 +383,8 @@ func (inv *Invocation) run(state *runState) error {
 			missing = append(missing, opt.Flag)
 		}
 	}
-	if len(missing) > 0 {
+	// Don't error for missing flags if `--help` was supplied.
+	if len(missing) > 0 && !errors.Is(state.flagParseErr, pflag.ErrHelp) {
 		return xerrors.Errorf("Missing values for the required flags: %s", strings.Join(missing, ", "))
 	}
 

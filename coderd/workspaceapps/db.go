@@ -198,11 +198,9 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		return nil, "", false
 	}
 
-	// Check that the app is healthy.
-	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
-		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
-		return nil, "", false
-	}
+	// This is where we used to check app health, but we don't do that anymore
+	// in case there are bugs with the healthcheck code that lock users out of
+	// their apps completely.
 
 	// As a sanity check, ensure the token we just made is valid for this
 	// request.

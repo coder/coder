@@ -39,8 +39,10 @@ test("app", async ({ context, page }) => {
                     {
                       url: "http://localhost:" + addr.port,
                       displayName: appName,
+                      order: 0,
                     },
                   ],
+                  order: 0,
                 },
               ],
             },

@@ -6,6 +6,11 @@ USAGE:
   Edit the metadata of a template by name.
 
 OPTIONS:
+      --activity-bump duration
+          Edit the template activity bump - workspaces created from this
+          template will have their shutdown time bumped by this value when
+          activity is detected. Maps to "Activity bump" in the UI.
+
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.

@@ -24,12 +24,14 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	// Bumps the workspace deadline by 1 hour. If the workspace bump will
-	// cross an autostart threshold, then the bump is autostart + TTL. This
-	// is the deadline behavior if the workspace was to autostart from a stopped
-	// state.
-	// Max deadline is respected, and will never be bumped.
+	// Bumps the workspace deadline by the template's configured "activity_bump"
+	// duration (default 1h). If the workspace bump will cross an autostart
+	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
+	// the workspace was to autostart from a stopped state.
+	//
+	// Max deadline is respected, and the deadline will never be bumped past it.
 	// The deadline will never decrease.
+	// We only bump if the template has an activity bump duration set.
 	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
@@ -56,10 +58,12 @@ type sqlcQuerier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
-	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
+	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
@@ -75,6 +79,7 @@ type sqlcQuerier interface {
 	DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
+	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -99,6 +104,7 @@ type sqlcQuerier interface {
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error)
 	GetDERPMeshKey(ctx context.Context) (string, error)
+	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
 	GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
@@ -128,9 +134,14 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
+	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error)
+	GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error)
+	GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOAuthSigningKey(ctx context.Context) (string, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
@@ -225,6 +236,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error)
 	GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWorkspaceAgentLogsAfterParams) ([]WorkspaceAgentLog, error)
 	GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorkspaceAgentMetadataParams) ([]WorkspaceAgentMetadatum, error)
+	GetWorkspaceAgentPortShare(ctx context.Context, arg GetWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error)
@@ -286,7 +298,9 @@ type sqlcQuerier interface {
 	// If the name conflicts, do nothing.
 	InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error)
 	InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAuth2ProviderAppParams) (OAuth2ProviderApp, error)
+	InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error)
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
+	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
@@ -315,7 +329,9 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
@@ -349,7 +365,7 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (User, error)
-	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
+	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
@@ -398,6 +414,7 @@ type sqlcQuerier interface {
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
+	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

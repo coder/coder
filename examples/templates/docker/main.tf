@@ -23,10 +23,9 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch                   = data.coder_provisioner.me.arch
-  os                     = "linux"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
+  startup_script = <<-EOT
     set -e
 
     # install and start code-server

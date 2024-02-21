@@ -1,7 +1,7 @@
 import { css } from "@emotion/css";
 import Button, { ButtonProps } from "@mui/material/Button";
 import IconButton, { IconButtonProps } from "@mui/material/IconButton";
-import { useTheme } from "@mui/material/styles";
+import { useTheme } from "@emotion/react";
 import { AvatarProps, ExternalAvatar } from "components/Avatar/Avatar";
 import {
   type FC,

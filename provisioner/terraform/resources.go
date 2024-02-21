@@ -50,6 +50,7 @@ type agentAttributes struct {
 	MOTDFile                 string                       `mapstructure:"motd_file"`
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+	Order                    int64                        `mapstructure:"order"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -76,6 +77,7 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order       int64                      `mapstructure:"order"`
 }
 
 type agentEnvAttributes struct {
@@ -240,6 +242,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				MotdFile:                 attrs.MOTDFile,
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
+				Order:                    attrs.Order,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
@@ -437,6 +440,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
+						Order:        attrs.Order,
 					})
 				}
 			}

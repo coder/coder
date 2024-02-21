@@ -60,7 +60,7 @@ func validateBuildParameter(richParameter TemplateVersionParameter, buildParamet
 		value = richParameter.DefaultValue
 	}
 
-	if lastBuildParameter != nil && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
+	if lastBuildParameter != nil && lastBuildParameter.Value != "" && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
 		prev, err := strconv.Atoi(lastBuildParameter.Value)
 		if err != nil {
 			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)

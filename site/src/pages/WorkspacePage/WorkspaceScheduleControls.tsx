@@ -16,7 +16,6 @@ import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import Tooltip from "@mui/material/Tooltip";
-import _ from "lodash";
 import { getErrorMessage } from "api/errors";
 import {
   updateDeadline,

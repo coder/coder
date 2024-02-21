@@ -90,6 +90,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
+		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 	})
 	require.NoError(t, err, "insert template")
 
@@ -133,6 +134,17 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
+func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.WorkspaceAgentPortShare) database.WorkspaceAgentPortShare {
+	ps, err := db.UpsertWorkspaceAgentPortShare(genCtx, database.UpsertWorkspaceAgentPortShareParams{
+		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
+		Port:        takeFirst(orig.Port, 8080),
+		ShareLevel:  takeFirst(orig.ShareLevel, database.AppSharingLevelPublic),
+	})
+	require.NoError(t, err, "insert workspace agent")
+	return ps
+}
+
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -164,6 +176,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
+		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return agt
@@ -298,10 +311,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	}
 
 	if orig.Deleted {
-		err = db.UpdateUserDeletedByID(genCtx, database.UpdateUserDeletedByIDParams{
-			ID:      user.ID,
-			Deleted: orig.Deleted,
-		})
+		err = db.UpdateUserDeletedByID(genCtx, user.ID)
 		require.NoError(t, err, "set user as deleted")
 	}
 	return user
@@ -465,6 +475,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		HealthcheckInterval:  takeFirst(orig.HealthcheckInterval, 60),
 		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
 		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
+		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
 	})
 	require.NoError(t, err, "insert app")
 	return resource
@@ -696,12 +707,41 @@ func OAuth2ProviderAppSecret(t testing.TB, db database.Store, seed database.OAut
 	app, err := db.InsertOAuth2ProviderAppSecret(genCtx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:            takeFirst(seed.ID, uuid.New()),
 		CreatedAt:     takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix:  takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
 		HashedSecret:  takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
 		DisplaySecret: takeFirst(seed.DisplaySecret, "secret"),
 		AppID:         takeFirst(seed.AppID, uuid.New()),
 	})
 	require.NoError(t, err, "insert oauth2 app secret")
 	return app
+}
+
+func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2ProviderAppCode) database.OAuth2ProviderAppCode {
+	code, err := db.InsertOAuth2ProviderAppCode(genCtx, database.InsertOAuth2ProviderAppCodeParams{
+		ID:           takeFirst(seed.ID, uuid.New()),
+		CreatedAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:    takeFirst(seed.CreatedAt, dbtime.Now()),
+		SecretPrefix: takeFirstSlice(seed.SecretPrefix, []byte("prefix")),
+		HashedSecret: takeFirstSlice(seed.HashedSecret, []byte("hashed-secret")),
+		AppID:        takeFirst(seed.AppID, uuid.New()),
+		UserID:       takeFirst(seed.UserID, uuid.New()),
+	})
+	require.NoError(t, err, "insert oauth2 app code")
+	return code
+}
+
+func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
+		ID:          takeFirst(seed.ID, uuid.New()),
+		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
+		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
+		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
+		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
+	})
+	require.NoError(t, err, "insert oauth2 app token")
+	return token
 }
 
 func must[V any](v V, err error) V {

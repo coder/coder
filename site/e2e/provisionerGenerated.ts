@@ -123,6 +123,7 @@ export interface Agent {
   displayApps: DisplayApps | undefined;
   scripts: Script[];
   extraEnvs: Env[];
+  order: number;
 }
 
 export interface Agent_Metadata {
@@ -180,6 +181,7 @@ export interface App {
   healthcheck: Healthcheck | undefined;
   sharingLevel: AppSharingLevel;
   external: boolean;
+  order: number;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -534,6 +536,9 @@ export const Agent = {
     for (const v of message.extraEnvs) {
       Env.encode(v!, writer.uint32(178).fork()).ldelim();
     }
+    if (message.order !== 0) {
+      writer.uint32(184).int64(message.order);
+    }
     return writer;
   },
 };
@@ -683,6 +688,9 @@ export const App = {
     }
     if (message.external === true) {
       writer.uint32(72).bool(message.external);
+    }
+    if (message.order !== 0) {
+      writer.uint32(80).int64(message.order);
     }
     return writer;
   },

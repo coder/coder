@@ -201,6 +201,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	query := serverURL.Query()
 	query.Add("id", req.ID.String())
 	query.Add("name", req.Name)
+	query.Add("version", proto.VersionCurrent.String())
+
 	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}

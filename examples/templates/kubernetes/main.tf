@@ -103,10 +103,9 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  os                     = "linux"
-  arch                   = "amd64"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  os             = "linux"
+  arch           = "amd64"
+  startup_script = <<-EOT
     set -e
 
     # install and start code-server
@@ -243,7 +242,6 @@ resource "kubernetes_deployment" "main" {
   }
 
   spec {
-    # replicas = data.coder_workspace.me.start_count
     replicas = 1
     selector {
       match_labels = {

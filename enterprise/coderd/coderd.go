@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -164,6 +166,29 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
 	}
+
+	api.AGPL.RootHandler.Group(func(r chi.Router) {
+		// Oauth2 linking routes do not make sense under the /api/v2 path.
+		r.Route("/oauth2", func(r chi.Router) {
+			r.Use(
+				api.oAuth2ProviderMiddleware,
+				// Fetch the app as system because in the /tokens route there will be no
+				// authenticated user.
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+			)
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/authorize", api.postOAuth2ProviderAppAuthorize())
+				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+				// route used to revoke permissions from an application.  It is here for
+				// parity with POST on /tokens.
+				r.Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
+			})
+			// The /tokens endpoint will be called from an unauthorized client so we
+			// cannot require an API key.
+			r.Post("/tokens", api.postOAuth2ProviderAppToken())
+		})
+	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
@@ -533,6 +558,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureWorkspaceProxy:             true,
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
+			codersdk.FeatureControlSharedPorts:         true,
 		})
 	if err != nil {
 		return err
@@ -688,6 +714,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		} else {
 			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 		}
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
+		var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
+		if enabled {
+			ps = portsharing.NewEnterprisePortSharer()
+		}
+		api.AGPL.PortSharer.Store(&ps)
 	}
 
 	// External token encryption is soft-enforced

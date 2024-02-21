@@ -2543,6 +2543,66 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Healthcheck.Threshold, got.Healthcheck.Threshold)
 	})
 
+	t.Run("Apps_DisplayOrder", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		apps := []*proto.App{
+			{
+				Slug:        "aaa",
+				DisplayName: "aaa",
+			},
+			{
+				Slug:  "aaa-code-server",
+				Order: 4,
+			},
+			{
+				Slug:  "bbb-code-server",
+				Order: 3,
+			},
+			{
+				Slug: "bbb",
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:   "something",
+								Auth: &proto.Agent_Token{},
+								Apps: apps,
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+		agent := workspace.LatestBuild.Resources[0].Agents[0]
+		require.Len(t, agent.Apps, 4)
+		require.Equal(t, "bbb", agent.Apps[0].Slug)             // empty-display-name < "aaa"
+		require.Equal(t, "aaa", agent.Apps[1].Slug)             // no order < any order
+		require.Equal(t, "bbb-code-server", agent.Apps[2].Slug) // order = 3 < order = 4
+		require.Equal(t, "aaa-code-server", agent.Apps[3].Slug)
+	})
+
 	t.Run("Metadata", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
