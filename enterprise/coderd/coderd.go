@@ -168,15 +168,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	api.AGPL.RootHandler.Group(func(r chi.Router) {
-		r.Use(
-			api.oAuth2ProviderMiddleware,
-			// Fetch the app as system because in the /tokens route there will be no
-			// authenticated user.
-			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
-		)
 		// Oauth2 linking routes do not make sense under the /api/v2 path.
 		r.Route("/login", func(r chi.Router) {
 			r.Route("/oauth2", func(r chi.Router) {
+				r.Use(
+					api.oAuth2ProviderMiddleware,
+					// Fetch the app as system because in the /tokens route there will be no
+					// authenticated user.
+					httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+				)
 				r.Group(func(r chi.Router) {
 					r.Use(apiKeyMiddleware)
 					r.Get("/authorize", api.postOAuth2ProviderAppAuthorize())
