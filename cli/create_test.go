@@ -803,7 +803,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						ExternalAuthProviders: []string{"github"},
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}},
 					},
 				},
 			},

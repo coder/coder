@@ -928,8 +928,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			JobID:      jobID,
 		})
 		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-			JobID:                 jobID,
-			ExternalAuthProviders: []string{},
+			JobID: jobID,
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {

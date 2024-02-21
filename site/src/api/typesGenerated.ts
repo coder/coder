@@ -1187,6 +1187,7 @@ export interface TemplateVersionExternalAuth {
   readonly display_icon: string;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
+  readonly optional?: boolean;
 }
 
 // From codersdk/templateversions.go

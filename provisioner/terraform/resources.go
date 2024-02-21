@@ -125,7 +125,7 @@ type resourceMetadataItem struct {
 type State struct {
 	Resources             []*proto.Resource
 	Parameters            []*proto.RichParameter
-	ExternalAuthProviders []string
+	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
@@ -699,23 +699,33 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	// A map is used to ensure we don't have duplicates!
-	externalAuthProvidersMap := map[string]struct{}{}
+	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
 	for _, tfResources := range tfResourcesByLabel {
 		for _, resource := range tfResources {
 			// Checking for `coder_git_auth` is legacy!
 			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
 				continue
 			}
+
 			id, ok := resource.AttributeValues["id"].(string)
 			if !ok {
 				return nil, xerrors.Errorf("external auth id is not a string")
 			}
-			externalAuthProvidersMap[id] = struct{}{}
+			optional := false
+			optionalAttribute, ok := resource.AttributeValues["optional"].(bool)
+			if ok {
+				optional = optionalAttribute
+			}
+
+			externalAuthProvidersMap[id] = &proto.ExternalAuthProviderResource{
+				Id:       id,
+				Optional: optional,
+			}
 		}
 	}
-	externalAuthProviders := make([]string, 0, len(externalAuthProvidersMap))
-	for id := range externalAuthProvidersMap {
-		externalAuthProviders = append(externalAuthProviders, id)
+	externalAuthProviders := make([]*proto.ExternalAuthProviderResource, 0, len(externalAuthProvidersMap))
+	for _, it := range externalAuthProvidersMap {
+		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
 	return &State{

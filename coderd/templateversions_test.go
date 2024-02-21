@@ -347,7 +347,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						ExternalAuthProviders: []string{"github"},
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github", Optional: true}},
 					},
 				},
 			}},
@@ -373,6 +373,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.True(t, providers[0].Authenticated)
+		require.True(t, providers[0].Optional)
 	})
 }
 

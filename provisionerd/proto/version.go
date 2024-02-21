@@ -4,10 +4,10 @@ import "github.com/coder/coder/v2/apiversion"
 
 const (
 	CurrentMajor = 1
-	CurrentMinor = 0
+	CurrentMinor = 1
 )
 
-// VersionCurrent is the current provisionerd API version.
+// CurrentVersion is the current provisionerd API version.
 // Breaking changes to the provisionerd API **MUST** increment
 // CurrentMajor above.
-var VersionCurrent = apiversion.New(CurrentMajor, CurrentMinor)
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
