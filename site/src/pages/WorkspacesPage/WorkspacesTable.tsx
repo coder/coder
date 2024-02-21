@@ -255,7 +255,6 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
   const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-
   const clickableProps = useClickableTableRow({
     onMiddleClick: openLinkInNewTab,
     onClick: (event) => {
@@ -272,7 +271,9 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
       }
     },
   });
+
   const bgColor = checked ? theme.palette.action.hover : undefined;
+
   return (
     <TableRow
       {...clickableProps}
