@@ -18,14 +18,6 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ## Options
 
-### --always-prompt
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Always prompt all parameters. Does not pull parameter values from existing workspace.
-
 ### --build-option
 
 |             |                                  |
@@ -60,3 +52,11 @@ Rich parameter value in the format "name=value".
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
 Specify a file path with values for rich parameters defined in the template.
+
+### --always-prompt
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Always prompt all parameters. Does not pull parameter values from existing workspace.

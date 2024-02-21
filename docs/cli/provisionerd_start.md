@@ -22,51 +22,14 @@ coder provisionerd start [flags]
 
 Directory to store cached data.
 
-### --log-filter
+### -t, --tag
 
-|             |                                                   |
-| ----------- | ------------------------------------------------- |
-| Type        | <code>string-array</code>                         |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>string-array</code>             |
+| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
 
-Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
-
-### --log-human
-
-|             |                                                      |
-| ----------- | ---------------------------------------------------- |
-| Type        | <code>string</code>                                  |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_HUMAN</code> |
-| Default     | <code>/dev/stderr</code>                             |
-
-Output human-readable logs to a given file.
-
-### --log-json
-
-|             |                                                     |
-| ----------- | --------------------------------------------------- |
-| Type        | <code>string</code>                                 |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_JSON</code> |
-
-Output JSON logs to a given file.
-
-### --log-stackdriver
-
-|             |                                                            |
-| ----------- | ---------------------------------------------------------- |
-| Type        | <code>string</code>                                        |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER</code> |
-
-Output Stackdriver compatible logs to a given file.
-
-### --name
-
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
-
-Name of this provisioner daemon. Defaults to the current hostname without FQDN.
+Tags to filter provisioner jobs by.
 
 ### --poll-interval
 
@@ -97,14 +60,14 @@ Deprecated and ignored.
 
 Pre-shared key to authenticate with Coder server.
 
-### -t, --tag
+### --name
 
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>string-array</code>             |
-| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
 
-Tags to filter provisioner jobs by.
+Name of this provisioner daemon. Defaults to the current hostname without FQDN.
 
 ### --verbose
 
@@ -115,3 +78,40 @@ Tags to filter provisioner jobs by.
 | Default     | <code>false</code>                             |
 
 Output debug-level logs.
+
+### --log-human
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_HUMAN</code> |
+| Default     | <code>/dev/stderr</code>                             |
+
+Output human-readable logs to a given file.
+
+### --log-json
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>string</code>                                 |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_JSON</code> |
+
+Output JSON logs to a given file.
+
+### --log-stackdriver
+
+|             |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| Type        | <code>string</code>                                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER</code> |
+
+Output Stackdriver compatible logs to a given file.
+
+### --log-filter
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>string-array</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
+
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
