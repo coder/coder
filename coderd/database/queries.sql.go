@@ -3540,7 +3540,7 @@ SELECT
 FROM
 	organizations
 WHERE
-	id = (
+	id = ANY(
 		SELECT
 			organization_id
 		FROM
