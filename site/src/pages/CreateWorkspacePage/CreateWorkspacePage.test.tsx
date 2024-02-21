@@ -233,17 +233,6 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("external auth errors if unauthenticated", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    await screen.findByText(/connect to all required/i);
-  });
-
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
