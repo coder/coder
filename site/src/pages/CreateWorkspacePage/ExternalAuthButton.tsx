@@ -57,7 +57,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
             <>
               Login with {auth.display_name}
               {!auth.optional && (
-                <Pill type={error ? "error" : "info"} css={{ marginLeft: 8 }}>
+                <Pill type={error ? "error" : "info"} css={{ marginLeft: 12 }}>
                   Required
                 </Pill>
               )}

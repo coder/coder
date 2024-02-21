@@ -255,13 +255,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             description="This template uses external services for authentication."
           >
             <FormFields>
-              {hasAllRequiredExternalAuth ? (
-                <Alert severity="info">
-                  This template can connect to the external authentication
-                  providers listed below.
-                </Alert>
-              ) : (
-                <Alert severity={error ? "error" : "info"}>
+              {Boolean(error) && !hasAllRequiredExternalAuth && (
+                <Alert severity="error">
                   To create a workspace using this template, please connect to
                   all required external authentication providers listed below.
                 </Alert>
