@@ -524,10 +524,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
-		ID:      user.ID,
-		Deleted: true,
-	})
+	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -586,7 +583,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	p := httpapi.NewQueryParamParser().Required("template_id")
+	p := httpapi.NewQueryParamParser().RequiredNotEmpty("template_id")
 	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
 	p.ErrorExcessParams(r.URL.Query())
 	if len(p.Errors) > 0 {
