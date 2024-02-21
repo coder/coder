@@ -86,21 +86,14 @@ func (f File) Write(s string) error {
 	return write(string(f), 0o600, []byte(s))
 }
 
-func (f File) ReadNormalizeSpace() (string, error) {
-	str, err := f.Read()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(str), nil
-}
-
-// Read reads the file to a string.
+// Read reads the file to a string. All leading and trailing whitespace
+// is removed.
 func (f File) Read() (string, error) {
 	if f == "" {
 		return "", xerrors.Errorf("empty file path")
 	}
 	byt, err := read(string(f))
-	return string(byt), err
+	return strings.TrimSpace(string(byt)), err
 }
 
 // open opens a file in the configuration directory,

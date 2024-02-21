@@ -558,7 +558,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 			}
 
 			if r.token == "" {
-				r.token, err = conf.Session().ReadNormalizeSpace()
+				r.token, err = conf.Session().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					if !allowTokenMissing {
