@@ -181,8 +181,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					UUID:  uuid.New(),
 					Valid: true,
 				},
-				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-				Tags:  json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
+				Types:         []database.ProvisionerType{database.ProvisionerTypeEcho},
+				Tags:          json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
+				ExactTagMatch: false,
 			})
 			require.NoError(t, err)
 			require.Equal(t, job.ID, acquiredJob.ID)

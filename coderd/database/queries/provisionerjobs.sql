@@ -21,8 +21,12 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ @tags :: jsonb
+			-- Ensure the job matches satisfies all requested tags.
+			AND CASE
+				WHEN @exact_tag_match :: boolean THEN nested.tags = @tags :: jsonb
+			ELSE
+				nested.tags <@ @tags :: jsonb
+			END
 		ORDER BY
 			nested.created_at
 		FOR UPDATE

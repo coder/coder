@@ -573,7 +573,8 @@ func TestUpdateJob(t *testing.T) {
 				UUID:  srvID,
 				Valid: true,
 			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Types:         []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ExactTagMatch: false,
 		})
 		require.NoError(t, err)
 		return job.ID

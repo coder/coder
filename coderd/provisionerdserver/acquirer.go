@@ -49,6 +49,8 @@ type Acquirer struct {
 	mu sync.Mutex
 	q  map[dKey]domain
 
+	exactTagMatch bool
+
 	// testing only
 	backupPollDuration time.Duration
 }
@@ -58,6 +60,12 @@ type AcquirerOption func(*Acquirer)
 func TestingBackupPollDuration(dur time.Duration) AcquirerOption {
 	return func(a *Acquirer) {
 		a.backupPollDuration = dur
+	}
+}
+
+func WithExactTagMatch() AcquirerOption {
+	return func(a *Acquirer) {
+		a.exactTagMatch = true
 	}
 }
 
@@ -76,6 +84,7 @@ func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, p
 		ps:                 ps,
 		q:                  make(map[dKey]domain),
 		backupPollDuration: backupPollDuration,
+		exactTagMatch:      false,
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -96,7 +105,8 @@ func (a *Acquirer) AcquireJob(
 	logger := a.logger.With(
 		slog.F("worker_id", worker),
 		slog.F("provisioner_types", pt),
-		slog.F("tags", tags))
+		slog.F("tags", tags),
+		slog.F("exact_tag_match", a.exactTagMatch))
 	logger.Debug(ctx, "acquiring job")
 	dk := domainKey(pt, tags)
 	dbTags, err := tags.ToJSON()
@@ -128,8 +138,9 @@ func (a *Acquirer) AcquireJob(
 					UUID:  worker,
 					Valid: true,
 				},
-				Types: pt,
-				Tags:  dbTags,
+				Types:         pt,
+				Tags:          dbTags,
+				ExactTagMatch: a.exactTagMatch,
 			})
 			if xerrors.Is(err, sql.ErrNoRows) {
 				logger.Debug(ctx, "no job available")

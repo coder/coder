@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -18,6 +19,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -313,6 +316,91 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	acquiree1.startAcquire(ctx, uut)
 	job := acquiree1.success(ctx)
 	require.Equal(t, jobID, job.ID)
+}
+
+func TestAcquirer_ExactTagMatch(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping this test due to -short")
+	}
+
+	for _, tt := range []struct {
+		name               string
+		provisionerJobTags map[string]string
+		acquireJobTags     map[string]string
+		expectAcquire      bool
+	}{
+		{
+			name:               "match",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "foo": "bar"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "foo": "bar"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "subset",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "foo": "bar"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      false,
+		},
+		{
+			name:               "key mismatch",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "fop": "bar"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "foo": "bar"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "value mismatch",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "foo": "baz"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "foo": "bar"},
+			expectAcquire:      false,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// NOTE: explicitly not using fake store for this test.
+			db, ps := dbtestutil.NewDB(t)
+			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+				ID:          uuid.New(),
+				Name:        "test org",
+				Description: "the organization of testing",
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+			})
+			require.NoError(t, err)
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.New(),
+				CreatedAt:      dbtime.Now(),
+				UpdatedAt:      dbtime.Now(),
+				OrganizationID: org.ID,
+				InitiatorID:    uuid.New(),
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input:          []byte("{}"),
+				Tags:           tt.provisionerJobTags,
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
+			opts := []provisionerdserver.AcquirerOption{
+				provisionerdserver.WithExactTagMatch(),
+			}
+			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps, opts...)
+			aj, err := acq.AcquireJob(ctx, uuid.New(), ptypes, tt.acquireJobTags)
+			if tt.expectAcquire {
+				require.NoError(t, err)
+				require.Equal(t, pj.ID, aj.ID)
+			} else {
+				require.ErrorIs(t, err, context.DeadlineExceeded, "should have timed out")
+				require.Empty(t, aj, "should not have acquired job")
+			}
+		})
+	}
 }
 
 func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags provisionerdserver.Tags) {

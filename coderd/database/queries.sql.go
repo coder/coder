@@ -3936,8 +3936,12 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb
+			-- Ensure the job matches satisfies all requested tags.
+			AND CASE
+				WHEN $4 :: boolean THEN nested.tags = $5 :: jsonb
+			ELSE
+				nested.tags <@ $5 :: jsonb
+			END
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -3948,10 +3952,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID  uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	Types     []ProvisionerType `db:"types" json:"types"`
-	Tags      json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt     sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID      uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	Types         []ProvisionerType `db:"types" json:"types"`
+	ExactTagMatch bool              `db:"exact_tag_match" json:"exact_tag_match"`
+	Tags          json.RawMessage   `db:"tags" json:"tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -3965,6 +3970,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		arg.StartedAt,
 		arg.WorkerID,
 		pq.Array(arg.Types),
+		arg.ExactTagMatch,
 		arg.Tags,
 	)
 	var i ProvisionerJob
