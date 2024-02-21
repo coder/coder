@@ -242,7 +242,7 @@ func (r *RootCmd) templateEdit() *serpent.Cmd {
 		{
 			Flag:        "activity-bump",
 			Description: "Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to \"Activity bump\" in the UI.",
-			Value:       clibase.DurationOf(&activityBump),
+			Value:       serpent.DurationOf(&activityBump),
 		},
 		{
 			Flag:        "max-ttl",

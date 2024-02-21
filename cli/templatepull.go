@@ -169,7 +169,7 @@ func (r *RootCmd) templatePull() *serpent.Cmd {
 			Description: "Output the template as a zip archive to stdout.",
 			Flag:        "zip",
 
-			Value: clibase.BoolOf(&zipMode),
+			Value: serpent.BoolOf(&zipMode),
 		},
 		{
 			Description: "The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.",

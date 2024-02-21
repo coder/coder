@@ -52,16 +52,10 @@ fi
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
 		),
-<<<<<<< HEAD
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 		),
-		Options: clibase.OptionSet{{
-||||||| parent of 76d9588bf (chore(cli): use external `coder/serpent` instead of clibase)
-		Options: clibase.OptionSet{{
-=======
 		Options: serpent.OptionSet{{
->>>>>>> 76d9588bf (chore(cli): use external `coder/serpent` instead of clibase)
 			Name:        "Extra",
 			Flag:        "extra",
 			Description: "Extract a field from the \"extra\" properties of the OAuth token.",

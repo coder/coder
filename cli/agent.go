@@ -346,7 +346,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Cmd {
 			Default:     os.TempDir(),
 			Description: "Specify the location for storing script data.",
 			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
-			Value:       clibase.StringOf(&scriptDataDir),
+			Value:       serpent.StringOf(&scriptDataDir),
 		},
 		{
 			Flag:        "pprof-address",

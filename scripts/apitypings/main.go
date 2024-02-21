@@ -34,7 +34,7 @@ var (
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/health", "./coderd/healthcheck/derphealth"}
+	externalTypeDirs = [...]string{"./coderd/healthcheck/health", "./coderd/healthcheck/derphealth"}
 	indent           = "  "
 )
 
@@ -829,24 +829,24 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// We would need to add more logic to determine this, but for now
 		// just hard code them.
 		switch n.String() {
-		case "github.com/coder/serpent".Regexp":
+		case "serpent.Regexp":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/serpent".HostPort":
+		case "serpent.HostPort":
 			// Custom marshal json to be a string
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/serpent".StringArray":
+		case "serpent.StringArray":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/serpent".String":
+		case "serpent.String":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/serpent".YAMLConfigPath":
+		case "serpent.YAMLConfigPath":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/serpent".Strings":
+		case "serpent.Strings":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/serpent".Int64":
+		case "serpent.Int64":
 			return TypescriptType{ValueType: "number"}, nil
-		case "github.com/coder/serpent".Bool":
+		case "serpent.Bool":
 			return TypescriptType{ValueType: "boolean"}, nil
-		case "github.com/coder/serpent".Duration":
+		case "serpent.Duration":
 			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
@@ -865,7 +865,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
-		case "github.com/coder/serpent".URL":
+		case "serpent.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		// XXX: For some reason, the type generator generates these as `any`
 		//      so explicitly specifying the correct generic TS type.
