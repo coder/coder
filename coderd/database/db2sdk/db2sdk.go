@@ -236,10 +236,10 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Icon:        dbApp.Icon,
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
-				Path: "/login/oauth2/authorize",
+				Path: "/oauth2/authorize",
 			}).String(),
 			Token: accessURL.ResolveReference(&url.URL{
-				Path: "/login/oauth2/tokens",
+				Path: "/oauth2/tokens",
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",

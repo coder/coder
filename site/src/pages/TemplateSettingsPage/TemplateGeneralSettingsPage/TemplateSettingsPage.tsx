@@ -18,8 +18,11 @@ export const TemplateSettingsPage: FC = () => {
   const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const { entitlements } = useDashboard();
+  const { entitlements, experiments } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
+  const sharedPortsExperimentEnabled = experiments.includes("shared-ports");
+  const sharedPortControlsEnabled =
+    entitlements.features.control_shared_ports.enabled;
 
   const {
     mutate: updateTemplate,
@@ -67,6 +70,8 @@ export const TemplateSettingsPage: FC = () => {
           });
         }}
         accessControlEnabled={accessControlEnabled}
+        sharedPortsExperimentEnabled={sharedPortsExperimentEnabled}
+        sharedPortControlsEnabled={sharedPortControlsEnabled}
       />
     </>
   );

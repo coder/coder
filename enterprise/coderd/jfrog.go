@@ -67,8 +67,8 @@ func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 		ctx     = r.Context()
 		vals    = r.URL.Query()
 		p       = httpapi.NewQueryParamParser()
-		wsID    = p.Required("workspace_id").UUID(vals, uuid.UUID{}, "workspace_id")
-		agentID = p.Required("agent_id").UUID(vals, uuid.UUID{}, "agent_id")
+		wsID    = p.RequiredNotEmpty("workspace_id").UUID(vals, uuid.UUID{}, "workspace_id")
+		agentID = p.RequiredNotEmpty("agent_id").UUID(vals, uuid.UUID{}, "agent_id")
 	)
 
 	if len(p.Errors) > 0 {

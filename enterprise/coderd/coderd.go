@@ -167,6 +167,29 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
 	}
 
+	api.AGPL.RootHandler.Group(func(r chi.Router) {
+		// Oauth2 linking routes do not make sense under the /api/v2 path.
+		r.Route("/oauth2", func(r chi.Router) {
+			r.Use(
+				api.oAuth2ProviderMiddleware,
+				// Fetch the app as system because in the /tokens route there will be no
+				// authenticated user.
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+			)
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/authorize", api.postOAuth2ProviderAppAuthorize())
+				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+				// route used to revoke permissions from an application.  It is here for
+				// parity with POST on /tokens.
+				r.Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
+			})
+			// The /tokens endpoint will be called from an unauthorized client so we
+			// cannot require an API key.
+			r.Post("/tokens", api.postOAuth2ProviderAppToken())
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint

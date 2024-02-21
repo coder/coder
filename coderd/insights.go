@@ -72,8 +72,8 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
-		Required("start_time").
-		Required("end_time")
+		RequiredNotEmpty("start_time").
+		RequiredNotEmpty("end_time")
 	vals := r.URL.Query()
 	var (
 		// The QueryParamParser does not preserve timezone, so we need
@@ -161,8 +161,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
-		Required("start_time").
-		Required("end_time")
+		RequiredNotEmpty("start_time").
+		RequiredNotEmpty("end_time")
 	vals := r.URL.Query()
 	var (
 		// The QueryParamParser does not preserve timezone, so we need
@@ -253,8 +253,8 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser().
-		Required("start_time").
-		Required("end_time")
+		RequiredNotEmpty("start_time").
+		RequiredNotEmpty("end_time")
 	vals := r.URL.Query()
 	var (
 		// The QueryParamParser does not preserve timezone, so we need
