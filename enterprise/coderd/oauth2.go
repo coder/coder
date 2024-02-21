@@ -291,7 +291,7 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Token scopes (currently ignored)"
 // @Success 302
-// @Router /login/oauth2/authorize [post]
+// @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return identityprovider.Authorize(api.Database, api.AccessURL)
 }
@@ -306,7 +306,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
-// @Router /login/oauth2/tokens [post]
+// @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return identityprovider.Tokens(api.Database, api.DeploymentValues.SessionDuration.Value())
 }
@@ -317,7 +317,7 @@ func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
 // @Success 204
-// @Router /login/oauth2/tokens [delete]
+// @Router /oauth2/tokens [delete]
 func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 	return identityprovider.RevokeApp(api.Database)
 }

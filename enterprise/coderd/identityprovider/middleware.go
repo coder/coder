@@ -44,7 +44,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 			// a minimum in order to detect whether "allow" has been pressed, however.
 			cameFromSelf := (origin == "" || originU.Hostname() == accessURL.Hostname()) &&
 				refererU.Hostname() == accessURL.Hostname() &&
-				refererU.Path == "/login/oauth2/authorize"
+				refererU.Path == "/oauth2/authorize"
 
 			// If we were redirected here from this same page it means the user
 			// pressed the allow button so defer to the authorize handler which
