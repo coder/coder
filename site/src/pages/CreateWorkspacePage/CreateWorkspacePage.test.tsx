@@ -213,7 +213,11 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
-    await screen.findByText("Authenticated with GitHub");
+    await screen.findByText(
+      "Authenticated with GitHub",
+      {},
+      { interval: 500, timeout: 5000 },
+    );
 
     const submitButton = screen.getByText(createWorkspaceText);
     await userEvent.click(submitButton);
@@ -229,7 +233,7 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("external auth: errors if unauthenticated", async () => {
+  it("external auth errors if unauthenticated", async () => {
     jest
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
