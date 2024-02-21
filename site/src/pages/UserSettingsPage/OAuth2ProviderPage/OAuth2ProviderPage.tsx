@@ -18,14 +18,6 @@ const OAuth2ProviderPage: FC = () => {
     (app) => app.id === appIdToRevoke,
   );
 
-  // This can happen if the app disappears from the query data but a user has
-  // already started the revoke flow.  It is safe to place this directly in the
-  // render, because it does not run every single time.
-  if (appToRevoke === undefined && typeof appIdToRevoke === "string") {
-    setAppIdToRevoke(undefined);
-    displayError("Application no longer exists.");
-  }
-
   return (
     <Section title="OAuth2 Applications" layout="fluid">
       <OAuth2ProviderPageView
