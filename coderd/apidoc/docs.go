@@ -9681,6 +9681,7 @@ const docTemplate = `{
                 "auto-fill-parameters"
             ],
             "x-enum-comments": {
+                "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything."
             },
             "x-enum-varnames": [
