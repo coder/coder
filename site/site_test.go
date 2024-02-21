@@ -18,6 +18,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -658,4 +659,30 @@ func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 	require.Contains(t, bodyStr, d.Description)
 	require.Contains(t, bodyStr, "Retry")
 	require.Contains(t, bodyStr, d.DashboardURL)
+}
+
+func TestJustFilesSystem(t *testing.T) {
+	t.Parallel()
+
+	tfs := fstest.MapFS{
+		"dir/foo.txt": &fstest.MapFile{
+			Data: []byte("hello world"),
+		},
+		"dir/bar.txt": &fstest.MapFile{
+			Data: []byte("hello world"),
+		},
+	}
+
+	mux := chi.NewRouter()
+	mux.Mount("/onlyfiles/", http.StripPrefix("/onlyfiles", http.FileServer(http.FS(site.OnlyFiles(tfs)))))
+	mux.Mount("/all/", http.StripPrefix("/all", http.FileServer(http.FS(tfs))))
+
+	// The /all/ endpoint should serve the directory listing.
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/all/dir/", nil))
+	require.Equal(t, http.StatusOK, resp.Code, "all serves the directory")
+
+	resp = httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/onlyfiles/dir/", nil))
+	require.Equal(t, http.StatusNotFound, resp.Code, "onlyfiles does not serve the directory")
 }

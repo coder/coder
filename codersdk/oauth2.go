@@ -28,10 +28,21 @@ type OAuth2AppEndpoints struct {
 	DeviceAuth string `json:"device_authorization"`
 }
 
+type OAuth2ProviderAppFilter struct {
+	UserID uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+}
+
 // OAuth2ProviderApps returns the applications configured to authenticate using
 // Coder as an OAuth2 provider.
-func (c *Client) OAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil)
+func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) ([]OAuth2ProviderApp, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil,
+		func(r *http.Request) {
+			if filter.UserID != uuid.Nil {
+				q := r.URL.Query()
+				q.Set("user_id", filter.UserID.String())
+				r.URL.RawQuery = q.Encode()
+			}
+		})
 	if err != nil {
 		return []OAuth2ProviderApp{}, err
 	}
@@ -159,6 +170,54 @@ func (c *Client) PostOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUI
 // also invalidating any tokens that generated from it.
 func (c *Client) DeleteOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUID, secretID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s/secrets/%s", appID, secretID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type OAuth2ProviderGrantType string
+
+const (
+	OAuth2ProviderGrantTypeAuthorizationCode OAuth2ProviderGrantType = "authorization_code"
+	OAuth2ProviderGrantTypeRefreshToken      OAuth2ProviderGrantType = "refresh_token"
+)
+
+func (e OAuth2ProviderGrantType) Valid() bool {
+	switch e {
+	case OAuth2ProviderGrantTypeAuthorizationCode, OAuth2ProviderGrantTypeRefreshToken:
+		return true
+	}
+	return false
+}
+
+type OAuth2ProviderResponseType string
+
+const (
+	OAuth2ProviderResponseTypeCode OAuth2ProviderResponseType = "code"
+)
+
+func (e OAuth2ProviderResponseType) Valid() bool {
+	//nolint:gocritic,revive // More cases might be added later.
+	switch e {
+	case OAuth2ProviderResponseTypeCode:
+		return true
+	}
+	return false
+}
+
+// RevokeOAuth2ProviderApp completely revokes an app's access for the
+// authenticated user.
+func (c *Client) RevokeOAuth2ProviderApp(ctx context.Context, appID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, "/login/oauth2/tokens", nil, func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("client_id", appID.String())
+		r.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return err
 	}

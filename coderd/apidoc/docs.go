@@ -1491,6 +1491,146 @@ const docTemplate = `{
                 }
             }
         },
+        "/login/oauth2/authorize": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 authorization request.",
+                "operationId": "oauth2-authorization-request",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "A random unguessable string",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "code"
+                        ],
+                        "type": "string",
+                        "description": "Response type",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect here after authorization",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token scopes (currently ignored)",
+                        "name": "scope",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    }
+                }
+            }
+        },
+        "/login/oauth2/tokens": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "OAuth2 token exchange.",
+                "operationId": "oauth2-token-exchange",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID, required if grant_type=authorization_code",
+                        "name": "client_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client secret, required if grant_type=authorization_code",
+                        "name": "client_secret",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code, required if grant_type=authorization_code",
+                        "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Refresh token, required if grant_type=refresh_token",
+                        "name": "refresh_token",
+                        "in": "formData"
+                    },
+                    {
+                        "enum": [
+                            "authorization_code",
+                            "refresh_token"
+                        ],
+                        "type": "string",
+                        "description": "Grant type",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/oauth2.Token"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete OAuth2 application tokens.",
+                "operationId": "delete-oauth2-application-tokens",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/oauth2-provider/apps": {
             "get": {
                 "security": [
@@ -1506,6 +1646,14 @@ const docTemplate = `{
                 ],
                 "summary": "Get OAuth2 applications.",
                 "operationId": "get-oauth2-applications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by applications authorized for a user",
+                        "name": "user_id",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -13944,6 +14092,27 @@ const docTemplate = `{
                 },
                 "upnP": {
                     "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                }
+            }
+        },
+        "oauth2.Token": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
+                    "type": "string"
+                },
+                "expiry": {
+                    "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "description": "RefreshToken is a token that's used by the application\n(as opposed to the user) to refresh the access token\nif it expires.",
+                    "type": "string"
+                },
+                "token_type": {
+                    "description": "TokenType is the type of token.\nThe Type method returns either this or \"Bearer\", the default.",
                     "type": "string"
                 }
             }
