@@ -994,11 +994,11 @@ export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
 };
 
 export const MockBuilds = [
-  MockWorkspaceBuild,
-  MockWorkspaceBuildAutostart,
-  MockWorkspaceBuildAutostop,
-  MockWorkspaceBuildStop,
-  MockWorkspaceBuildDelete,
+  { ...MockWorkspaceBuild, id: "1" },
+  { ...MockWorkspaceBuildAutostart, id: "2" },
+  { ...MockWorkspaceBuildAutostop, id: "3" },
+  { ...MockWorkspaceBuildStop, id: "4" },
+  { ...MockWorkspaceBuildDelete, id: "5" },
 ];
 
 export const MockWorkspace: TypesGen.Workspace = {

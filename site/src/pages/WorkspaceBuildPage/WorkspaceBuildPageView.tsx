@@ -28,7 +28,7 @@ import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useTab } from "hooks";
 import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 
-const LOGS_TAB_KEY = "logs";
+export const LOGS_TAB_KEY = "logs";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -186,6 +186,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
               </div>
             </Alert>
           )}
+
           {tab.value === "build" ? (
             <BuildLogsContent logs={logs} />
           ) : (
