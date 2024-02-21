@@ -24,7 +24,7 @@ import {
   WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
-import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useTab } from "hooks";
 import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 
@@ -208,7 +208,7 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
     <WorkspaceBuildLogs
       css={{
         border: 0,
-        "--log-line-side-padding": "16px",
+        "--log-line-side-padding": `${TAB_PADDING_X}px`,
         // Add extra spacing to the first log header to prevent it from being
         // too close to the tabs
         "& .logs-header:first-of-type": {

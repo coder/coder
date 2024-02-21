@@ -3,6 +3,7 @@ import { Link, LinkProps } from "react-router-dom";
 import { Interpolation, Theme, useTheme } from "@emotion/react";
 
 export const TAB_PADDING_Y = 12;
+export const TAB_PADDING_X = 16;
 
 type TabsContextValue = {
   active: string;
@@ -69,7 +70,7 @@ const styles = {
     color: theme.palette.text.secondary,
     fontSize: 14,
     display: "block",
-    padding: `${TAB_PADDING_Y}px 16px`,
+    padding: `${TAB_PADDING_Y}px ${TAB_PADDING_X}px`,
     fontWeight: 500,
     lineHeight: "1",
 
