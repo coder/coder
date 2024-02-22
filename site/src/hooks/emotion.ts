@@ -56,31 +56,31 @@ export function makeClassNames<
 
   const computeNewStyles = (
     theme: Theme,
-    hookProps: THookInput,
+    hookInput: THookInput,
   ): StyleRecord => {
     const result: Partial<StyleRecord> = {};
 
     for (const key in styleConfig) {
       const configFunc = styleConfig[key];
-      result[key] = configFunc({ css, theme, ...hookProps });
+      result[key] = configFunc({ css, theme, ...hookInput });
     }
 
     return result as StyleRecord;
   };
 
-  const didPropsChangeByValue = (
-    hookProps1: THookInput,
-    hookProps2: THookInput,
+  const didInputsChangeByValue = (
+    inputs1: THookInput,
+    inputs2: THookInput,
   ): boolean => {
-    for (const key in hookProps1) {
-      const prop1 = hookProps1[key];
-      const prop2 = hookProps2[key];
+    for (const key in inputs1) {
+      const value1 = inputs1[key];
+      const value2 = inputs2[key];
 
-      if (Number.isNaN(prop1) && Number.isNaN(prop2)) {
+      if (Number.isNaN(value1) && Number.isNaN(value2)) {
         continue;
       }
 
-      if (prop1 !== prop2) {
+      if (value1 !== value2) {
         return true;
       }
     }
@@ -88,35 +88,42 @@ export function makeClassNames<
     return false;
   };
 
-  return function useClassNames(hookProps: THookInput): StyleRecord {
+  return function useClassNames(hookInputs: THookInput): StyleRecord {
     const activeTheme = useTheme();
-    const computeNewCache = () => {
-      return {
-        theme: activeTheme,
-        props: hookProps,
-        styles: computeNewStyles(activeTheme, hookProps),
-      };
-    };
+    const computeNewCacheValue = () => ({
+      theme: activeTheme,
+      inputs: hookInputs,
+      styles: computeNewStyles(activeTheme, hookInputs),
+    });
 
-    const [cache, setCache] = useState(computeNewCache);
+    const [cache, setCache] = useState(computeNewCacheValue);
     const needNewStyles =
       cache.theme !== activeTheme ||
-      didPropsChangeByValue(cache.props, hookProps);
+      didInputsChangeByValue(cache.inputs, hookInputs);
 
     if (needNewStyles) {
-      setCache(computeNewCache());
+      setCache(computeNewCacheValue());
     }
 
     return cache.styles;
   };
 }
 
-// type HookProps = Readonly<{ arg1: string; arg2: string }>;
+type HookInput = Readonly<{
+  paddingTop: number;
+  variant: "contained" | "stroked";
+}>;
 
-// const useClassnames = makeClassNames<HookProps>({
-//   class1: ({ css, theme, arg1 }) => css`
-//     background-color: red;
-//   `,
+export const useClassNames = makeClassNames<HookInput>({
+  class1: ({ css, theme, paddingTop }) =>
+    css`
+      background-color: red;
+      padding: ${theme.spacing(2)};
+      padding-top: ${paddingTop}px;
+    ` as unknown as string,
 
-//   class2: ({ css, theme, arg2 }) => css``,
-// });
+  class2: ({ css, variant }) =>
+    css`
+      color: ${variant === "contained" ? "red" : "blue"};
+    ` as unknown as string,
+});
