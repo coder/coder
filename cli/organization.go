@@ -71,7 +71,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 				if err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(inv.Stdout, out)
+				_, _ = fmt.Fprint(inv.Stdout, out)
 			}
 			return nil
 		},
