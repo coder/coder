@@ -35,9 +35,7 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 }
 
 func (r *RootCmd) switchOrganization() *clibase.Cmd {
-	var (
-		client = new(codersdk.Client)
-	)
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:   "switch <organization name | ID>",
