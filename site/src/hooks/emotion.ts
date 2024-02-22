@@ -1,4 +1,5 @@
-import { type Theme, css, useTheme } from "@emotion/react";
+import { type Theme, useTheme } from "@emotion/react";
+import { css } from "@emotion/css";
 import { useState } from "react";
 
 type Primitive = string | number | boolean | null | undefined | symbol | bigint;
@@ -14,13 +15,16 @@ type ClassNameFunction<TInput extends NonNullable<unknown>> = (
 ) => string; // TEMP!
 
 /**
- * Hook factory for giving you an escape hatch for making Emotion styles.
+ * Hook factory for giving you an escape hatch for making Emotion styles. This
+ * should be used as a last resort; use the React CSS prop whenever possible.
+ *
+ * ---
  *
  * Sometimes you need to combine/collate styles using the className prop in a
  * component, but Emotion does not give you an easy way to define a className
  * and use it from within the same component.
  *
- * Other times, you need to use  inputs that will change on each render to make
+ * Other times, you need to use inputs that will change on each render to make
  * your styles, but you only want the styles relying on those inputs to be
  * re-computed when the input actually changes. Otherwise, CSS will keep
  * thrashing the <style> tag with diffs each and every render.
@@ -109,21 +113,31 @@ export function makeClassNames<
   };
 }
 
+/**
+ * Issues left to figure out:
+ * 1. Bare minimum, you'll almost always want to pass in one type parameter for
+ *    the additional inputs that you're accessing. Having one explicit type
+ *    parameter should not break type inference for the other type parameter,
+ *    and destroy auto-complete for classNames's properties
+ */
 type HookInput = Readonly<{
   paddingTop: number;
   variant: "contained" | "stroked";
 }>;
 
-export const useClassNames = makeClassNames<HookInput>({
-  class1: ({ css, theme, paddingTop }) =>
-    css`
-      background-color: red;
-      padding: ${theme.spacing(2)};
-      padding-top: ${paddingTop}px;
-    ` as unknown as string,
+const useClassNames = makeClassNames<HookInput>({
+  class1: ({ css, theme, paddingTop }) => css`
+    background-color: red;
+    padding: ${theme.spacing(2)};
+    padding-top: ${paddingTop}px;
+  `,
 
-  class2: ({ css, variant }) =>
-    css`
-      color: ${variant === "contained" ? "red" : "blue"};
-    ` as unknown as string,
+  class2: ({ css, variant }) => css`
+    color: ${variant === "contained" ? "red" : "blue"};
+  `,
 });
+
+export function useTempBlah() {
+  const classNames = useClassNames({ variant: "contained", paddingTop: 12 });
+  return classNames;
+}
