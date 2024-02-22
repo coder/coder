@@ -2,6 +2,8 @@
 
 package cli
 
+import "github.com/coder/serpent"
+
 func (r *RootCmd) scaletestCmd() *serpent.Cmd {
 	cmd := &serpent.Cmd{
 		Use:   "scaletest",
