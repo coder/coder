@@ -191,6 +191,11 @@
           "path": "./templates/parameters.md"
         },
         {
+          "title": "Variables",
+          "description": "Prompt the template administrator for additional information about a template",
+          "path": "./templates/variables.md"
+        },
+        {
           "title": "Administering templates",
           "description": "Configuration settings for template admins",
           "path": "./templates/configuration.md",
