@@ -25,14 +25,14 @@ type CreateGroupRequest struct {
 }
 
 type Group struct {
-	ID             uuid.UUID   `json:"id" format:"uuid"`
-	Name           string      `json:"name"`
-	DisplayName    string      `json:"display_name"`
-	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
-	Members        []User      `json:"members"`
-	AvatarURL      string      `json:"avatar_url"`
-	QuotaAllowance int         `json:"quota_allowance"`
-	Source         GroupSource `json:"source"`
+	ID             uuid.UUID     `json:"id" format:"uuid"`
+	Name           string        `json:"name"`
+	DisplayName    string        `json:"display_name"`
+	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
+	Members        []ReducedUser `json:"members"`
+	AvatarURL      string        `json:"avatar_url"`
+	QuotaAllowance int           `json:"quota_allowance"`
+	Source         GroupSource   `json:"source"`
 }
 
 func (g Group) IsEveryone() bool {

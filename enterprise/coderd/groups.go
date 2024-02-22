@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -77,7 +78,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	var emptyUsers []database.User
 	aReq.New = group.Auditable(emptyUsers)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertGroup(group, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(group, nil))
 }
 
 // @Summary Update group by name
@@ -281,7 +282,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = group.Auditable(patchedMembers)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, patchedMembers))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers))
 }
 
 // @Summary Delete group by name
@@ -365,7 +366,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, users))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users))
 }
 
 // @Summary Get groups by organization
@@ -410,68 +411,8 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp = append(resp, convertGroup(group, members))
+		resp = append(resp, db2sdk.Group(group, members))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-func convertGroup(g database.Group, users []database.User) codersdk.Group {
-	// It's ridiculous to query all the orgs of a user here
-	// especially since as of the writing of this comment there
-	// is only one org. So we pretend everyone is only part of
-	// the group's organization.
-	orgs := make(map[uuid.UUID][]uuid.UUID)
-	for _, user := range users {
-		orgs[user.ID] = []uuid.UUID{g.OrganizationID}
-	}
-
-	return codersdk.Group{
-		ID:             g.ID,
-		Name:           g.Name,
-		DisplayName:    g.DisplayName,
-		OrganizationID: g.OrganizationID,
-		AvatarURL:      g.AvatarURL,
-		QuotaAllowance: int(g.QuotaAllowance),
-		Members:        convertUsers(users, orgs),
-		Source:         codersdk.GroupSource(g.Source),
-	}
-}
-
-func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	convertedUser := codersdk.User{
-		ID:              user.ID,
-		Email:           user.Email,
-		CreatedAt:       user.CreatedAt,
-		LastSeenAt:      user.LastSeenAt,
-		Username:        user.Username,
-		Status:          codersdk.UserStatus(user.Status),
-		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL,
-		LoginType:       codersdk.LoginType(user.LoginType),
-	}
-
-	for _, roleName := range user.RBACRoles {
-		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
-	}
-
-	return convertedUser
-}
-
-func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
-	converted := make([]codersdk.User, 0, len(users))
-	for _, u := range users {
-		userOrganizationIDs := organizationIDsByUserID[u.ID]
-		converted = append(converted, convertUser(u, userOrganizationIDs))
-	}
-	return converted
-}
-
-func convertRole(role rbac.Role) codersdk.Role {
-	return codersdk.Role{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
-	}
 }

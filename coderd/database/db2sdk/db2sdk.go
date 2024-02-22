@@ -24,6 +24,17 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+// List is a helper function to reduce boilerplate when converting slices of
+// database types to slices of codersdk types.
+// Only works if the function takes a single argument.
+func List[F any, T any](list []F, convert func(F) T) []T {
+	into := make([]T, 0, len(list))
+	for _, item := range list {
+		into = append(into, convert(item))
+	}
+	return into
+}
+
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string
@@ -49,19 +60,15 @@ func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersd
 	}
 }
 
-func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
-	out := make([]codersdk.WorkspaceBuildParameter, len(params))
-	for i, p := range params {
-		out[i] = WorkspaceBuildParameter(p)
-	}
-	return out
-}
-
 func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.WorkspaceBuildParameter {
 	return codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: p.Value,
 	}
+}
+
+func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	return List(params, WorkspaceBuildParameter)
 }
 
 func TemplateVersionParameters(params []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
@@ -118,20 +125,32 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
-func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	convertedUser := codersdk.User{
-		ID:              user.ID,
+func ReducedUser(user database.User) codersdk.ReducedUser {
+	return codersdk.ReducedUser{
+		MinimalUser: codersdk.MinimalUser{
+			ID:        user.ID,
+			Username:  user.Username,
+			AvatarURL: user.AvatarURL,
+		},
 		Email:           user.Email,
 		Name:            user.Name,
 		CreatedAt:       user.CreatedAt,
 		LastSeenAt:      user.LastSeenAt,
-		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
-		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
-		AvatarURL:       user.AvatarURL,
 		LoginType:       codersdk.LoginType(user.LoginType),
 		ThemePreference: user.ThemePreference,
+	}
+}
+
+func ReducedUsers(users []database.User) []codersdk.ReducedUser {
+	return List(users, ReducedUser)
+}
+
+func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+	convertedUser := codersdk.User{
+		ReducedUser:     ReducedUser(user),
+		OrganizationIDs: organizationIDs,
+		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
 	}
 
 	for _, roleName := range user.RBACRoles {
@@ -140,6 +159,25 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	}
 
 	return convertedUser
+}
+
+func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []codersdk.User {
+	return List(users, func(user database.User) codersdk.User {
+		return User(user, organizationIDs[user.ID])
+	})
+}
+
+func Group(group database.Group, members []database.User) codersdk.Group {
+	return codersdk.Group{
+		ID:             group.ID,
+		Name:           group.Name,
+		DisplayName:    group.DisplayName,
+		OrganizationID: group.OrganizationID,
+		AvatarURL:      group.AvatarURL,
+		Members:        ReducedUsers(members),
+		QuotaAllowance: int(group.QuotaAllowance),
+		Source:         codersdk.GroupSource(group.Source),
+	}
 }
 
 func Role(role rbac.Role) codersdk.Role {
@@ -248,11 +286,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 }
 
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
-	apps := []codersdk.OAuth2ProviderApp{}
-	for _, dbApp := range dbApps {
-		apps = append(apps, OAuth2ProviderApp(accessURL, dbApp))
-	}
-	return apps
+	return List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
+		return OAuth2ProviderApp(accessURL, dbApp)
+	})
 }
 
 func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {

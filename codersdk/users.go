@@ -42,21 +42,28 @@ type MinimalUser struct {
 	AvatarURL string    `json:"avatar_url" format:"uri"`
 }
 
+// ReducedUser omits role and organization information. Roles are deduced from
+// the user's site and organization roles. This requires fetching the user's
+// organizational memberships. Fetching that is more expensive, and not usually
+// required by the frontend.
+type ReducedUser struct {
+	MinimalUser `table:"m,recursive_inline"`
+	Name        string    `json:"name"`
+	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
+	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
+
+	Status          UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType       LoginType  `json:"login_type"`
+	ThemePreference string     `json:"theme_preference"`
+}
+
 // User represents a user in Coder.
 type User struct {
-	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
-	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
-	Name       string    `json:"name"`
-	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
-	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
-	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
+	ReducedUser `table:"r,recursive_inline"`
 
-	Status          UserStatus  `json:"status" table:"status" enums:"active,suspended"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []Role      `json:"roles"`
-	AvatarURL       string      `json:"avatar_url" format:"uri"`
-	LoginType       LoginType   `json:"login_type"`
-	ThemePreference string      `json:"theme_preference"`
 }
 
 type GetUsersResponse struct {
