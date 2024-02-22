@@ -118,6 +118,8 @@ export function makeClassNames<
  *    the additional inputs that you're accessing. Having one explicit type
  *    parameter should not break type inference for the other type parameter,
  *    and destroy auto-complete for classNames's properties
+ * 2. If the hook is being called with no additional inputs, it'd be nice if you
+ *    could just call the hook with no arguments whatsoever
  */
 type HookInput = Readonly<{
   paddingTop: number;
@@ -135,6 +137,27 @@ const useClassNames = makeClassNames<HookInput>({
     color: ${variant === "contained" ? "red" : "blue"};
   `,
 });
+
+/**
+ * Idea I have - there are two main benefits to having the main function
+ * argument be defined like this:
+ * 1. Gives you another function boundary, so TConfig should hopefully be
+ *    bindable to it. That lets you split up the type parameters and gives you
+ *    more options for restoring type inference/auto-complete
+ * 2. The logic centralizes the css and theme arguments, which reduces keyboard
+ *    typing
+ */
+// const useRevampedClassNames = makeClassNames<HookInput>((css, theme) => ({
+//   class1: ({ paddingTop }) => css`
+//     background-color: red;
+//     padding: ${theme.spacing(2)};
+//     padding-top: ${paddingTop}px;
+//   `,
+
+//   class2: ({ variant }) => css`
+//     color: ${variant === "contained" ? "red" : "blue"};
+//   `,
+// }));
 
 export function useTempBlah() {
   const classNames = useClassNames({ variant: "contained", paddingTop: 12 });
