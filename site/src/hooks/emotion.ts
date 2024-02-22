@@ -73,7 +73,14 @@ export function makeClassNames<
     hookProps2: THookInput,
   ): boolean => {
     for (const key in hookProps1) {
-      if (hookProps1[key] !== hookProps2[key]) {
+      const prop1 = hookProps1[key];
+      const prop2 = hookProps2[key];
+
+      if (Number.isNaN(prop1) && Number.isNaN(prop2)) {
+        continue;
+      }
+
+      if (prop1 !== prop2) {
         return true;
       }
     }
