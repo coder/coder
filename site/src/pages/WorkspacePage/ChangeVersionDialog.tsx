@@ -10,13 +10,13 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "components/Form/Form";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { Loader } from "components/Loader/Loader";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Pill } from "components/Pill/Pill";
 import { Avatar } from "components/Avatar/Avatar";
 import { createDayString } from "utils/createDayString";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined;
@@ -35,7 +35,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   ...dialogProps
 }) => {
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-  const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
+  const selectedTemplateVersion = useRef<TemplateVersion | undefined>(
+    defaultTemplateVersion,
+  );
   const version = selectedTemplateVersion.current;
   const validTemplateVersions = templateVersions?.filter((version) => {
     return version.job.status === "succeeded";
@@ -139,16 +141,18 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                 />
               </FormFields>
               {version && (
-                <Alert severity="info">
-                  <AlertTitle>
-                    Published by {version.created_by.username}
-                  </AlertTitle>
+                <>
                   {version.message && (
-                    <AlertDetail>
-                      <MemoizedMarkdown>{version.message}</MemoizedMarkdown>
-                    </AlertDetail>
+                    <TemplateUpdateMessage>
+                      {version.message}
+                    </TemplateUpdateMessage>
                   )}
-                </Alert>
+                  <Alert severity="info">
+                    <AlertTitle>
+                      Published by {version.created_by.username}
+                    </AlertTitle>
+                  </Alert>
+                </>
               )}
             </>
           ) : (

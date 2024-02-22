@@ -15,6 +15,7 @@ import {
   NotificationItem,
   Notifications,
 } from "./Notifications";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;
@@ -69,9 +70,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
         title: "An update is available for your workspace",
         severity: "info",
         detail: (
-          <MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
-            {latestVersion.message}
-          </MemoizedInlineMarkdown>
+          <TemplateUpdateMessage>{latestVersion.message}</TemplateUpdateMessage>
         ),
         actions,
       });

@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
@@ -18,7 +17,7 @@ import type { TemplateVersion } from "api/typesGenerated";
 import { createDayString } from "utils/createDayString";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 
 export interface TemplateVersionPageViewProps {
   versionName: string;
@@ -73,9 +72,9 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       <Stack spacing={4}>
         {Boolean(error) && <ErrorAlert error={error} />}
         {currentVersion?.message && (
-          <MemoizedMarkdown css={styles.versionMessage}>
+          <TemplateUpdateMessage>
             {currentVersion.message}
-          </MemoizedMarkdown>
+          </TemplateUpdateMessage>
         )}
         {currentVersion && currentFiles && (
           <>
@@ -110,34 +109,5 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
     </Margins>
   );
 };
-
-const styles = {
-  versionMessage: {
-    fontSize: "0.9em",
-    lineHeight: 1.2,
-
-    "& h1, & h2, & h3, & h4, & h5, & h6": {
-      margin: "0 0 0.75em",
-    },
-    "& h1": {
-      fontSize: "1.2em",
-    },
-    "& h2": {
-      fontSize: "1.15em",
-    },
-    "& h3": {
-      fontSize: "1.1em",
-    },
-    "& h4": {
-      fontSize: "1.05em",
-    },
-    "& h5": {
-      fontSize: "1em",
-    },
-    "& h6": {
-      fontSize: "0.95em",
-    },
-  },
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default TemplateVersionPageView;
