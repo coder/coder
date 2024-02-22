@@ -117,9 +117,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				defer closeLogger()
 			}
 
-			if len(tags) != 0 {
-				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")
-				logger.Info(ctx, "see https://github.com/coder/coder/issues/6442 for details")
+			if len(tags) == 0 {
+				logger.Info(ctx, "note: untagged provisioners can only pick up jobs from untagged templates")
 			}
 
 			// When authorizing with a PSK, we automatically scope the provisionerd
