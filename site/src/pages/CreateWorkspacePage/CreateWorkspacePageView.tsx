@@ -147,6 +147,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     );
   }, [autofillParameters]);
 
+  const hasAllRequiredExternalAuth = externalAuth.every(
+    (auth) => auth.optional || auth.authenticated,
+  );
+
   return (
     <Margins size="medium">
       <PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
@@ -179,7 +183,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {Boolean(error) && <ErrorAlert error={error} />}
 
         {mode === "duplicate" && (
-          <Alert severity="info" dismissible>
+          <Alert severity="info" dismissible data-testid="duplication-warning">
             {Language.duplicationWarning}
           </Alert>
         )}
@@ -248,21 +252,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         {externalAuth && externalAuth.length > 0 && (
           <FormSection
             title="External Authentication"
-            description="This template requires authentication to external services."
+            description="This template uses external services for authentication."
           >
             <FormFields>
-              {requiresExternalAuth && (
-                // This should really be a `notice` but `severity` is a MUI prop, and we'd need
-                // to basically make our own `Alert` component.
-                <Alert severity="info">
-                  To create a workspace using the selected template, please
-                  ensure you are authenticated with all the external providers
-                  listed below.
+              {Boolean(error) && !hasAllRequiredExternalAuth && (
+                <Alert severity="error">
+                  To create a workspace using this template, please connect to
+                  all required external authentication providers listed below.
                 </Alert>
               )}
               {externalAuth.map((auth) => (
                 <ExternalAuthButton
                   key={auth.id}
+                  error={error}
                   auth={auth}
                   isLoading={externalAuthPollingState === "polling"}
                   onStartPolling={startPollingExternalAuth}
@@ -313,6 +315,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         <FormFooter
           onCancel={onCancel}
           isLoading={creatingWorkspace}
+          submitDisabled={!hasAllRequiredExternalAuth}
           submitLabel="Create Workspace"
         />
       </HorizontalForm>

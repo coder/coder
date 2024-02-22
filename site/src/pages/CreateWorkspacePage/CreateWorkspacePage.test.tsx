@@ -233,19 +233,6 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("external auth errors if unauthenticated", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
-
-    renderCreateWorkspacePage();
-    await waitForLoaderToBeRemoved();
-
-    await screen.findByText(
-      "To create a workspace using the selected template, please ensure you are authenticated with all the external providers listed below.",
-    );
-  });
-
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
@@ -312,7 +299,7 @@ describe("CreateWorkspacePage", () => {
       route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
     });
 
-    const warningMessage = await screen.findByRole("alert");
+    const warningMessage = await screen.findByTestId("duplication-warning");
     const nameInput = await screen.findByRole("textbox", {
       name: "Workspace Name",
     });

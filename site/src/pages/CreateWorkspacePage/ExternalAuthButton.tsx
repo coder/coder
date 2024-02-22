@@ -1,17 +1,19 @@
 import ReplayIcon from "@mui/icons-material/Replay";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC } from "react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import { visuallyHidden } from "@mui/utils";
+import { type FC } from "react";
+import type { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { TemplateVersionExternalAuth } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
 
 export interface ExternalAuthButtonProps {
   auth: TemplateVersionExternalAuth;
   displayRetry: boolean;
   isLoading: boolean;
   onStartPolling: () => void;
+  error?: unknown;
 }
 
 export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
@@ -19,6 +21,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
   displayRetry,
   isLoading,
   onStartPolling,
+  error,
 }) => {
   return (
     <>
@@ -48,9 +51,18 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
             onStartPolling();
           }}
         >
-          {auth.authenticated
-            ? `Authenticated with ${auth.display_name}`
-            : `Login with ${auth.display_name}`}
+          {auth.authenticated ? (
+            `Authenticated with ${auth.display_name}`
+          ) : (
+            <>
+              Login with {auth.display_name}
+              {!auth.optional && (
+                <Pill type={error ? "error" : "info"} css={{ marginLeft: 12 }}>
+                  Required
+                </Pill>
+              )}
+            </>
+          )}
         </LoadingButton>
 
         {displayRetry && (
