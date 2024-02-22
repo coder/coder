@@ -748,10 +748,6 @@ var deletedUserLinkError = &pq.Error{
 	Routine: "exec_stmt_raise",
 }
 
-func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
-	return xerrors.New("AcquireLock must only be called within a transaction")
-}
-
 // m1 and m2 are equal iff |m1| = |m2| ^ m2 ⊆ m1
 func tagsEqual(m1, m2 map[string]string) bool {
 	return len(m1) == len(m2) && tagsSubset(m1, m2)
@@ -770,6 +766,10 @@ func tagsSubset(m1, m2 map[string]string) bool {
 
 // default tags when no tag is specified for a provisioner or job
 var tagsUntagged = provisionersdk.MutateTags(uuid.Nil, nil)
+
+func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
+	return xerrors.New("AcquireLock must only be called within a transaction")
+}
 
 func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
