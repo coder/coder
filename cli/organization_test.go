@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -17,8 +18,10 @@ func TestCurrentOrganization(t *testing.T) {
 
 	t.Run("OnlyID", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		ownerClient := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		// Owner is required to make orgs
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleOwner())
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		orgs := []string{"foo", "bar"}
