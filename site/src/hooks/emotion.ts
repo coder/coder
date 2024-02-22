@@ -12,7 +12,12 @@ type CSSInput = Readonly<{
 
 type ClassNameFunction<TInput extends NonNullable<unknown>> = (
   args: CSSInput & TInput,
-) => string; // TEMP!
+) => string;
+
+type MakeClassNamesResult<
+  THookInput extends Record<string, Primitive>,
+  TConfig extends Record<string, ClassNameFunction<THookInput>>,
+> = (hookInput: THookInput) => Readonly<Record<keyof TConfig, string>>;
 
 /**
  * Hook factory for giving you an escape hatch for making Emotion styles. This
@@ -53,23 +58,17 @@ export function makeClassNames<
     string,
     ClassNameFunction<THookInput>
   >,
->(
-  styleConfig: TConfig,
-): (hookInput: THookInput) => Readonly<Record<keyof TConfig, string>> {
+>(styleConfig: TConfig): MakeClassNamesResult<THookInput, TConfig> {
   type StyleRecord = Record<keyof TConfig, string>;
 
-  const computeNewStyles = (
-    theme: Theme,
-    hookInput: THookInput,
-  ): Readonly<StyleRecord> => {
+  const computeNewStyles = (theme: Theme, hookInput: THookInput) => {
     const result: Partial<StyleRecord> = {};
-
     for (const key in styleConfig) {
       const configFunc = styleConfig[key];
       result[key] = configFunc({ css, theme, ...hookInput });
     }
 
-    return result as StyleRecord;
+    return result as Readonly<StyleRecord>;
   };
 
   const didInputsChangeByValue = (
@@ -92,7 +91,7 @@ export function makeClassNames<
     return false;
   };
 
-  return function useClassNames(hookInputs: THookInput) {
+  return function useClassNames(hookInputs) {
     const activeTheme = useTheme();
     const computeNewCacheValue = () => ({
       theme: activeTheme,
