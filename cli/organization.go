@@ -14,7 +14,7 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 		Use:         "organizations { current }",
 		Short:       "Organization related commands",
 		Aliases:     []string{"organization", "org", "orgs"},
-
+		Hidden:      true, // Hidden until these commands are complete.
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -45,7 +45,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 	)
 	cmd := &clibase.Cmd{
 		Use:   "current",
-		Short: "Show the current selected organization the cli will use",
+		Short: "Show the current selected organization the cli will use.",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
