@@ -9,7 +9,6 @@ import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderCaption,
-  PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
