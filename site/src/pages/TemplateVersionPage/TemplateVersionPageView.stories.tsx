@@ -2,6 +2,7 @@ import {
   mockApiError,
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
 import {
   TemplateVersionPageView,
@@ -47,18 +48,7 @@ export const Default: Story = {};
 
 export const LongVersionMessage: Story = {
   args: {
-    currentVersion: {
-      ...MockTemplateVersion,
-      message: `
-# Abiding Grace
-## Enchantment
-At the beginning of your end step, choose one —
-
-- You gain 1 life.
-
-- Return target creature card with mana value 1 from your graveyard to the battlefield.
-`,
-    },
+    currentVersion: MockTemplateVersionWithMarkdownMessage,
   },
 };
 
