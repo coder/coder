@@ -55,13 +55,13 @@ export function makeClassNames<
   >,
 >(
   styleConfig: TConfig,
-): (hookInput: THookInput) => Record<keyof TConfig, string> {
+): (hookInput: THookInput) => Readonly<Record<keyof TConfig, string>> {
   type StyleRecord = Record<keyof TConfig, string>;
 
   const computeNewStyles = (
     theme: Theme,
     hookInput: THookInput,
-  ): StyleRecord => {
+  ): Readonly<StyleRecord> => {
     const result: Partial<StyleRecord> = {};
 
     for (const key in styleConfig) {
@@ -92,7 +92,7 @@ export function makeClassNames<
     return false;
   };
 
-  return function useClassNames(hookInputs: THookInput): StyleRecord {
+  return function useClassNames(hookInputs: THookInput) {
     const activeTheme = useTheme();
     const computeNewCacheValue = () => ({
       theme: activeTheme,
