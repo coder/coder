@@ -186,8 +186,9 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           disableUpdate={
             templateVersionQuery.data.job.status !== "succeeded" ||
+            !lastSuccessfulPublishedVersion ||
             templateVersionQuery.data.name ===
-              lastSuccessfulPublishedVersion?.name
+              lastSuccessfulPublishedVersion.name
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
