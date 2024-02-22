@@ -120,7 +120,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 				var sdkError *codersdk.Error
 				if errors.As(err, &sdkError) {
 					if sdkError.Helper == "" && sdkError.StatusCode() != 500 {
-						sdkError.Helper = fmt.Sprintf("If this error persists, try unsetting your org with 'coder organizations switch \"\"'")
+						sdkError.Helper = `If this error persists, try unsetting your org with 'coder organizations switch ""'`
 					}
 					return sdkError
 				}
