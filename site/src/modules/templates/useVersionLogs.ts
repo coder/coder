@@ -15,6 +15,7 @@ export const useVersionLogs = (
   const templateVersionStatus = templateVersion?.job.status;
 
   useEffect(() => {
+    setLogs([]);
     const enabledStatuses: ProvisionerJobStatus[] = ["running", "pending"];
 
     if (!templateVersionId || !templateVersionStatus) {

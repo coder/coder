@@ -15,6 +15,8 @@ import { CreateTemplatePageViewProps } from "./types";
 
 export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
   isCreating,
   error,
 }) => {
@@ -42,6 +44,8 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   return (
     <CreateTemplateForm
       {...formPermissions}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
+      variablesSectionRef={variablesSectionRef}
       variables={missedVariables.data}
       error={error}
       isSubmitting={isCreating}

@@ -21,6 +21,8 @@ import { CreateTemplatePageViewProps } from "./types";
 
 export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
   error,
   isCreating,
 }) => {
@@ -46,6 +48,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
 
   const missedVariables = useQuery({
     ...templateVersionVariables(isJobError ? error.version.id : ""),
+    keepPreviousData: true,
     enabled:
       isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
   });
@@ -61,6 +64,8 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   return (
     <CreateTemplateForm
       {...formPermissions}
+      variablesSectionRef={variablesSectionRef}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
       starterTemplate={templateExample!}
       variables={missedVariables.data}
       error={error}

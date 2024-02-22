@@ -1,4 +1,4 @@
-import { useState, type FC } from "react";
+import { useState, type FC, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -18,6 +18,7 @@ const CreateTemplatePage: FC = () => {
   const [isBuildLogsOpen, setIsBuildLogsOpen] = useState(false);
   const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
   const createTemplateMutation = useMutation(createTemplate());
+  const variablesSectionRef = useRef<HTMLDivElement>(null);
 
   const onCancel = () => {
     navigate(-1);
@@ -32,8 +33,10 @@ const CreateTemplatePage: FC = () => {
       });
       navigate(`/templates/${template.name}/files`);
     },
+    onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
     error: createTemplateMutation.error,
     isCreating: createTemplateMutation.isLoading,
+    variablesSectionRef,
   };
 
   return (
@@ -53,9 +56,11 @@ const CreateTemplatePage: FC = () => {
       </FullPageHorizontalForm>
 
       <BuildLogsDrawer
+        error={createTemplateMutation.error}
         open={isBuildLogsOpen}
         onClose={() => setIsBuildLogsOpen(false)}
         templateVersion={templateVersion}
+        variablesSectionRef={variablesSectionRef}
       />
     </>
   );

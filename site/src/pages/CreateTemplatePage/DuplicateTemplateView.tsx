@@ -18,6 +18,8 @@ import { CreateTemplatePageViewProps } from "./types";
 
 export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
   error,
   isCreating,
 }) => {
@@ -65,6 +67,8 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   return (
     <CreateTemplateForm
       {...formPermissions}
+      variablesSectionRef={variablesSectionRef}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
       copiedTemplate={templateByNameQuery.data!}
       error={error}
       isSubmitting={isCreating}

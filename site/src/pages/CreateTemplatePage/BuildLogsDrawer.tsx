@@ -8,27 +8,51 @@ import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/Worksp
 import { useTheme } from "@emotion/react";
 import { navHeight } from "theme/constants";
 import { useVersionLogs } from "modules/templates/useVersionLogs";
+import { JobError } from "api/queries/templates";
+import AlertTitle from "@mui/material/AlertTitle";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import Button from "@mui/material/Button";
+import Collapse from "@mui/material/Collapse";
 
 type BuildLogsDrawerProps = {
+  error: unknown;
   open: boolean;
   onClose: () => void;
   templateVersion: TemplateVersion | undefined;
+  variablesSectionRef: React.RefObject<HTMLDivElement>;
 };
 
 export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
   templateVersion,
+  error,
+  variablesSectionRef,
   ...drawerProps
 }) => {
   const theme = useTheme();
   const { logs } = useVersionLogs(templateVersion);
-
-  // Auto scroll
   const logsContainer = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      if (logsContainer.current) {
+        logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
+      }
+    }, 0);
+  };
+
   useEffect(() => {
-    if (logsContainer.current) {
-      logsContainer.current.scrollTop = logsContainer.current.scrollHeight;
-    }
+    scrollToBottom();
   }, [logs]);
+
+  useEffect(() => {
+    if (drawerProps.open) {
+      scrollToBottom();
+    }
+  }, [drawerProps.open]);
+
+  const isMissingVariables =
+    error instanceof JobError &&
+    error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES";
 
   return (
     <Drawer anchor="right" {...drawerProps}>
@@ -43,7 +67,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
         <header
           css={{
             height: navHeight,
-            padding: "0 20px",
+            padding: "0 24px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -59,6 +83,39 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
           </IconButton>
         </header>
 
+        <Collapse in={isMissingVariables}>
+          <Alert
+            css={{
+              borderTop: 0,
+              borderRight: 0,
+              backgroundColor: theme.palette.background.paper,
+              borderRadius: 0,
+              borderBottomColor: theme.palette.divider,
+              paddingLeft: 24,
+            }}
+            severity="warning"
+            actions={
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => {
+                  variablesSectionRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                  });
+                  const firstVariableInput =
+                    variablesSectionRef.current?.querySelector("input");
+                  setTimeout(() => firstVariableInput?.focus(), 0);
+                  drawerProps.onClose();
+                }}
+              >
+                Add variables
+              </Button>
+            }
+          >
+            <AlertTitle>Failed to create template</AlertTitle>
+            <AlertDetail>{isMissingVariables && error.message}</AlertDetail>
+          </Alert>
+        </Collapse>
         <section
           ref={logsContainer}
           css={{

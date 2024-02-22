@@ -19,10 +19,12 @@ export interface FormFooterProps {
   styles?: FormFooterStyles;
   submitLabel?: string;
   submitDisabled?: boolean;
+  extraActions?: React.ReactNode;
 }
 
 export const FormFooter: FC<FormFooterProps> = ({
   onCancel,
+  extraActions,
   isLoading,
   submitDisabled,
   submitLabel = Language.defaultSubmitLabel,
@@ -52,6 +54,7 @@ export const FormFooter: FC<FormFooterProps> = ({
       >
         {Language.cancelLabel}
       </Button>
+      {extraActions}
     </div>
   );
 };

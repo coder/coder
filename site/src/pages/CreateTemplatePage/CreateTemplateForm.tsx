@@ -1,7 +1,6 @@
-import { type Interpolation, type Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC, useEffect } from "react";
+import { type FC } from "react";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
@@ -12,7 +11,6 @@ import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -25,7 +23,6 @@ import {
   type TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { IconField } from "components/IconField/IconField";
 import {
   HorizontalForm,
@@ -166,24 +163,28 @@ export type CreateTemplateFormProps = (
 ) & {
   onCancel: () => void;
   onSubmit: (data: CreateTemplateData) => void;
+  onOpenBuildLogsDrawer: () => void;
   isSubmitting: boolean;
   variables?: TemplateVersionVariable[];
   error?: unknown;
   jobError?: string;
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
+  variablesSectionRef: React.RefObject<HTMLDivElement>;
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const {
     onCancel,
     onSubmit,
+    onOpenBuildLogsDrawer,
     variables,
     isSubmitting,
     error,
     jobError,
     logs,
     allowAdvancedScheduling,
+    variablesSectionRef,
   } = props;
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
@@ -197,18 +198,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     onSubmit,
   });
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
-
-  useEffect(() => {
-    if (error) {
-      window.scrollTo(0, 0);
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (jobError) {
-      window.scrollTo(0, document.body.scrollHeight);
-    }
-  }, [logs, jobError]);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -283,6 +272,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       {/* Variables */}
       {variables && variables.length > 0 && (
         <FormSection
+          ref={variablesSectionRef}
           title="Variables"
           description="Input variables allow you to customize templates without altering their source code."
         >
@@ -305,27 +295,37 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         </FormSection>
       )}
 
-      {jobError && (
-        <Stack>
-          <div css={styles.error}>
-            <h5 css={styles.errorTitle}>Error during provisioning</h5>
-            <p css={styles.errorDescription}>
-              Looks like we found an error during the template provisioning. You
-              can see the logs bellow.
-            </p>
+      <div className="flex items-center">
+        <FormFooter
+          extraActions={
+            logs && (
+              <button
+                type="button"
+                onClick={onOpenBuildLogsDrawer}
+                css={(theme) => ({
+                  backgroundColor: "transparent",
+                  border: 0,
+                  fontWeight: 500,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  color: theme.palette.text.secondary,
 
-            <code css={styles.errorDetails}>{jobError}</code>
-          </div>
-
-          <WorkspaceBuildLogs logs={logs ?? []} />
-        </Stack>
-      )}
-
-      <FormFooter
-        onCancel={onCancel}
-        isLoading={isSubmitting}
-        submitLabel={jobError ? "Retry" : "Create template"}
-      />
+                  "&:hover": {
+                    textDecoration: "underline",
+                    textUnderlineOffset: 4,
+                    color: theme.palette.text.primary,
+                  },
+                })}
+              >
+                Show build logs
+              </button>
+            )
+          }
+          onCancel={onCancel}
+          isLoading={isSubmitting}
+          submitLabel={jobError ? "Retry" : "Create template"}
+        />
+      </div>
     </HorizontalForm>
   );
 };
@@ -344,44 +344,3 @@ const fillNameAndDisplayWithFilename = async (
     form.setFieldValue("display_name", capitalize(name)),
   ]);
 };
-
-const styles = {
-  ttlFields: {
-    width: "100%",
-  },
-
-  optionText: (theme) => ({
-    fontSize: 16,
-    color: theme.palette.text.primary,
-  }),
-
-  optionHelperText: (theme) => ({
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  }),
-
-  error: (theme) => ({
-    padding: 24,
-    borderRadius: 8,
-    background: theme.palette.background.paper,
-    border: `1px solid ${theme.palette.error.main}`,
-  }),
-
-  errorTitle: {
-    fontSize: 16,
-    margin: 0,
-  },
-
-  errorDescription: (theme) => ({
-    margin: 0,
-    color: theme.palette.text.secondary,
-    marginTop: 4,
-  }),
-
-  errorDetails: (theme) => ({
-    display: "block",
-    marginTop: 8,
-    color: theme.palette.error.light,
-    fontSize: 16,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
