@@ -211,6 +211,7 @@ export type CreateTemplateOptions = {
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
   onCreateVersion?: (version: TemplateVersion) => void;
+  onTemplateVersionChanges?: (version: TemplateVersion) => void;
 };
 
 const createTemplateFn = async (options: CreateTemplateOptions) => {
@@ -219,7 +220,7 @@ const createTemplateFn = async (options: CreateTemplateOptions) => {
     options.version,
   );
   options.onCreateVersion?.(version);
-  await waitBuildToBeFinished(version);
+  await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
   return API.createTemplate(options.organizationId, {
     ...options.template,
     template_version_id: version.id,
@@ -282,12 +283,16 @@ export const previousTemplateVersion = (
   };
 };
 
-const waitBuildToBeFinished = async (version: TemplateVersion) => {
+const waitBuildToBeFinished = async (
+  version: TemplateVersion,
+  onRequest?: (data: TemplateVersion) => void,
+) => {
   let data: TemplateVersion;
   let jobStatus: ProvisionerJobStatus;
   do {
     await delay(1000);
     data = await API.getTemplateVersion(version.id);
+    onRequest?.(data);
     jobStatus = data.job.status;
 
     if (jobStatus === "succeeded") {

@@ -7,12 +7,11 @@ import { TemplateVersion } from "api/typesGenerated";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { useTheme } from "@emotion/react";
 import { navHeight } from "theme/constants";
-import { useVersionLogs } from "modules/templates/useVersionLogs";
+import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { JobError } from "api/queries/templates";
-import AlertTitle from "@mui/material/AlertTitle";
-import { Alert, AlertDetail } from "components/Alert/Alert";
 import Button from "@mui/material/Button";
-import Collapse from "@mui/material/Collapse";
+import { Loader } from "components/Loader/Loader";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
 
 type BuildLogsDrawerProps = {
   error: unknown;
@@ -29,7 +28,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
   ...drawerProps
 }) => {
   const theme = useTheme();
-  const { logs } = useVersionLogs(templateVersion);
+  const logs = useWatchVersionLogs(templateVersion);
   const logsContainer = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -83,21 +82,54 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
           </IconButton>
         </header>
 
-        <Collapse in={isMissingVariables}>
-          <Alert
+        {isMissingVariables ? (
+          <div
             css={{
-              borderTop: 0,
-              borderRight: 0,
-              backgroundColor: theme.palette.background.paper,
-              borderRadius: 0,
-              borderBottomColor: theme.palette.divider,
-              paddingLeft: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 40,
             }}
-            severity="warning"
-            actions={
+          >
+            <div
+              css={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+                maxWidth: 360,
+              }}
+            >
+              <WarningOutlined
+                css={{ fontSize: 32, color: theme.roles.warning.fill.outline }}
+              />
+              <h3
+                css={{
+                  fontWeight: 500,
+                  lineHeight: "1",
+                  margin: 0,
+                  marginTop: 16,
+                }}
+              >
+                Missing variables
+              </h3>
+              <p
+                css={{
+                  color: theme.palette.text.secondary,
+                  fontSize: 14,
+                  margin: 0,
+                  marginTop: 8,
+                  lineHeight: "1.5",
+                }}
+              >
+                During the build process, we identified some missing variables.
+                Rest assured, we have automatically added them to the form for
+                you.
+              </p>
               <Button
+                css={{ marginTop: 16 }}
                 size="small"
-                variant="text"
+                variant="outlined"
                 onClick={() => {
                   variablesSectionRef.current?.scrollIntoView({
                     behavior: "smooth",
@@ -108,24 +140,24 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
                   drawerProps.onClose();
                 }}
               >
-                Add variables
+                Fill variables
               </Button>
-            }
+            </div>
+          </div>
+        ) : logs ? (
+          <section
+            ref={logsContainer}
+            css={{
+              flex: 1,
+              overflow: "auto",
+              backgroundColor: theme.palette.background.default,
+            }}
           >
-            <AlertTitle>Failed to create template</AlertTitle>
-            <AlertDetail>{isMissingVariables && error.message}</AlertDetail>
-          </Alert>
-        </Collapse>
-        <section
-          ref={logsContainer}
-          css={{
-            flex: 1,
-            overflow: "auto",
-            backgroundColor: theme.palette.background.default,
-          }}
-        >
-          <WorkspaceBuildLogs logs={logs ?? []} css={{ border: 0 }} />
-        </section>
+            <WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
+          </section>
+        ) : (
+          <Loader />
+        )}
       </div>
     </Drawer>
   );

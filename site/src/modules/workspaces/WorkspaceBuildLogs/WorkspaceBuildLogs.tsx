@@ -62,9 +62,6 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
       }}
       {...attrs}
     >
-      {stages.length === 0 && (
-        <div css={styles.header(theme)}>Waiting for logs...</div>
-      )}
       {stages.map((stage) => {
         const logs = groupedLogsByStage[stage];
         const isEmpty = logs.every((log) => log.output === "");

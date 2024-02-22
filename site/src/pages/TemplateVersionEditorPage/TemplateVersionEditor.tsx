@@ -67,7 +67,7 @@ export interface TemplateVersionEditorProps {
   resources?: WorkspaceResource[];
   disablePreview?: boolean;
   disableUpdate?: boolean;
-  onPreview: (files: FileTree) => void;
+  onPreview: (files: FileTree) => Promise<void>;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
   onCancelPublish: () => void;
@@ -122,14 +122,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [renameFileOpen, setRenameFileOpen] = useState<string>();
   const [dirty, setDirty] = useState(false);
 
-  const triggerPreview = useCallback(() => {
-    onPreview(fileTree);
+  const triggerPreview = useCallback(async () => {
+    await onPreview(fileTree);
     setSelectedTab("logs");
   }, [fileTree, onPreview]);
 
   // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
   useEffect(() => {
-    const keyListener = (event: KeyboardEvent) => {
+    const keyListener = async (event: KeyboardEvent) => {
       if (!(navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey)) {
         return;
       }
@@ -140,7 +140,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           break;
         case "Enter":
           event.preventDefault();
-          triggerPreview();
+          await triggerPreview();
           break;
       }
     };
@@ -252,8 +252,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }
                 title="Build template (Ctrl + Enter)"
                 disabled={disablePreview}
-                onClick={() => {
-                  triggerPreview();
+                onClick={async () => {
+                  await triggerPreview();
                 }}
               >
                 Build
@@ -719,7 +719,7 @@ const styles = {
     // Hack to update logs header and lines
     "& .logs-header": {
       border: 0,
-      padding: "0 16px",
+      padding: "8px 16px",
       fontFamily: MONOSPACE_FONT_FAMILY,
 
       "&:first-of-type": {

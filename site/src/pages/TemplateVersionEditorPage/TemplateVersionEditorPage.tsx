@@ -23,7 +23,7 @@ import { FileTree, traverse } from "utils/filetree";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { useVersionLogs } from "modules/templates/useVersionLogs";
+import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 
 type Params = {
   version: string;
@@ -54,7 +54,7 @@ export const TemplateVersionEditorPage: FC = () => {
     ...resources(templateVersionQuery.data?.id ?? ""),
     enabled: templateVersionQuery.data?.job.status === "succeeded",
   });
-  const { logs, setLogs } = useVersionLogs(templateVersionQuery.data, {
+  const logs = useWatchVersionLogs(templateVersionQuery.data, {
     onDone: templateVersionQuery.refetch,
   });
   const { fileTree, tarFile } = useFileTree(templateVersionQuery.data);
@@ -93,22 +93,6 @@ export const TemplateVersionEditorPage: FC = () => {
     );
   };
 
-  // Optimistically update the template version data job status to make the
-  // build action feels faster
-  const onBuildStart = () => {
-    setLogs([]);
-
-    queryClient.setQueryData(templateVersionOptions.queryKey, () => {
-      return {
-        ...templateVersionQuery.data,
-        job: {
-          ...templateVersionQuery.data?.job,
-          status: "pending",
-        },
-      };
-    });
-  };
-
   const onBuildEnds = (newVersion: TemplateVersion) => {
     queryClient.setQueryData(templateVersionOptions.queryKey, newVersion);
     navigateToVersion(newVersion);
@@ -141,7 +125,6 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!tarFile) {
               return;
             }
-            onBuildStart();
             const newVersionFile = await generateVersionFiles(
               tarFile,
               newFileTree,
@@ -214,7 +197,6 @@ export const TemplateVersionEditorPage: FC = () => {
             if (!uploadFileMutation.data) {
               return;
             }
-            onBuildStart();
             const newVersion = await createTemplateVersionMutation.mutateAsync({
               provisioner: "terraform",
               storage_method: "file",

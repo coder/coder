@@ -1,12 +1,8 @@
 import { watchBuildLogsByTemplateVersionId } from "api/api";
-import {
-  ProvisionerJobLog,
-  ProvisionerJobStatus,
-  TemplateVersion,
-} from "api/typesGenerated";
+import { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
 import { useState, useEffect } from "react";
 
-export const useVersionLogs = (
+export const useWatchVersionLogs = (
   templateVersion: TemplateVersion | undefined,
   options?: { onDone: () => Promise<unknown> },
 ) => {
@@ -15,14 +11,15 @@ export const useVersionLogs = (
   const templateVersionStatus = templateVersion?.job.status;
 
   useEffect(() => {
-    setLogs([]);
-    const enabledStatuses: ProvisionerJobStatus[] = ["running", "pending"];
+    setLogs(undefined);
+  }, [templateVersionId]);
 
+  useEffect(() => {
     if (!templateVersionId || !templateVersionStatus) {
       return;
     }
 
-    if (!enabledStatuses.includes(templateVersionStatus)) {
+    if (templateVersionStatus !== "running") {
       return;
     }
 
@@ -41,8 +38,5 @@ export const useVersionLogs = (
     };
   }, [options?.onDone, templateVersionId, templateVersionStatus]);
 
-  return {
-    logs,
-    setLogs,
-  };
+  return logs;
 };

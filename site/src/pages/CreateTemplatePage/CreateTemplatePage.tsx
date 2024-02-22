@@ -30,6 +30,7 @@ const CreateTemplatePage: FC = () => {
       const template = await createTemplateMutation.mutateAsync({
         ...options,
         onCreateVersion: setTemplateVersion,
+        onTemplateVersionChanges: setTemplateVersion,
       });
       navigate(`/templates/${template.name}/files`);
     },
