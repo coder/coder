@@ -15,10 +15,11 @@ variable "CLOUD_API_KEY" {
 }
 ```
 
-Given that variables are a fundamental concept in Terraform, Coder endeavors to
-fully support them. Native support includes `string`, `number`, and `bool`
-formats. However, other types such as `list(string)` or `map(any)` will default
-to being treated as strings.
+Given that variables are a
+[fundamental concept in Terraform](https://developer.hashicorp.com/terraform/language/values/variables),
+Coder endeavors to fully support them. Native support includes `string`,
+`number`, and `bool` formats. However, other types such as `list(string)` or
+`map(any)` will default to being treated as strings.
 
 ## Default value
 
