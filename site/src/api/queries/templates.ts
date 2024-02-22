@@ -288,9 +288,10 @@ const waitBuildToBeFinished = async (
   onRequest?: (data: TemplateVersion) => void,
 ) => {
   let data: TemplateVersion;
-  let jobStatus: ProvisionerJobStatus;
+  let jobStatus: ProvisionerJobStatus | undefined = undefined;
   do {
-    await delay(1000);
+    // When pending we want to poll more frequently
+    await delay(jobStatus === "pending" ? 250 : 1000);
     data = await API.getTemplateVersion(version.id);
     onRequest?.(data);
     jobStatus = data.job.status;
