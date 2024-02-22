@@ -23,7 +23,7 @@ import {
   toggleFavorite,
   cancelBuild,
 } from "api/queries/workspaces";
-import { Alert } from "components/Alert/Alert";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import {
   ConfirmDialog,
@@ -324,7 +324,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
               <strong>delete non-persistent data</strong>.
             </p>
             {latestVersion?.message && (
-              <Alert severity="info">{latestVersion.message}</Alert>
+              <MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
+                {latestVersion.message}
+              </MemoizedInlineMarkdown>
             )}
           </Stack>
         }

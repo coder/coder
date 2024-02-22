@@ -71,7 +71,11 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
       notifications.push({
         title: "An update is available for your workspace",
         severity: "info",
-        detail: latestVersion.message,
+        detail: (
+          <MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
+            {latestVersion.message}
+          </MemoizedInlineMarkdown>
+        ),
         actions,
       });
     }

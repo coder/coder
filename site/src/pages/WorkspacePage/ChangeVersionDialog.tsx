@@ -10,6 +10,7 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "components/Form/Form";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { Loader } from "components/Loader/Loader";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -143,7 +144,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                     Published by {version.created_by.username}
                   </AlertTitle>
                   {version.message && (
-                    <AlertDetail>{version.message}</AlertDetail>
+                    <AlertDetail>
+                      <MemoizedMarkdown>{version.message}</MemoizedMarkdown>
+                    </AlertDetail>
                   )}
                 </Alert>
               )}
