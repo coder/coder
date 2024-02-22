@@ -159,6 +159,57 @@ const useClassNames = makeClassNames<HookInput>({
 //   `,
 // }));
 
+// function makeClassNames2(styleFunction) {
+//   const computeNewStyles = (theme, hookInput) => {
+//     const stylesObject = styleFunction(css, theme);
+//     const result = {};
+
+//     for (const key in stylesObject) {
+//       const configFunc = stylesObject[key];
+//       result[key] = configFunc(hookInput);
+//     }
+
+//     return result;
+//   };
+
+//   const didInputsChangeByValue = (inputs1, inputs2) => {
+//     for (const key in inputs1) {
+//       const value1 = inputs1[key];
+//       const value2 = inputs2[key];
+
+//       if (Number.isNaN(value1) && Number.isNaN(value2)) {
+//         continue;
+//       }
+
+//       if (value1 !== value2) {
+//         return true;
+//       }
+//     }
+
+//     return false;
+//   };
+
+//   return function useClassNames(hookInput) {
+//     const activeTheme = useTheme();
+//     const computeNewCacheValue = () => ({
+//       prevTheme: activeTheme,
+//       prevInput: hookInput,
+//       styles: computeNewStyles(activeTheme, hookInput),
+//     });
+
+//     const [cache, setCache] = useState(computeNewCacheValue);
+//     const needNewStyles =
+//       cache.prevTheme !== activeTheme ||
+//       didInputsChangeByValue(cache.prevInput, hookInput);
+
+//     if (needNewStyles) {
+//       setCache(computeNewCacheValue());
+//     }
+
+//     return cache.styles;
+//   };
+// }
+
 export function useTempBlah() {
   const classNames = useClassNames({ variant: "contained", paddingTop: 12 });
   return classNames;
