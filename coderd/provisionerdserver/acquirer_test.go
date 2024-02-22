@@ -324,6 +324,9 @@ func TestAcquirer_MatchTags(t *testing.T) {
 		t.Skip("skipping this test due to -short")
 	}
 
+	someID := uuid.NewString()
+	someOtherID := uuid.NewString()
+
 	for _, tt := range []struct {
 		name               string
 		provisionerJobTags map[string]string
@@ -371,6 +374,30 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "foo": "bar", "baz": "zap"},
 			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "foo": "bar", "baz": "zap"},
 			expectAcquire:      true,
+		},
+		{
+			name:               "owner-scoped provisioner and untagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": ""},
+			acquireJobTags:     map[string]string{"scope": "owner", "owner": someID},
+			expectAcquire:      false,
+		},
+		{
+			name:               "owner-scoped provisioner and owner-scoped job",
+			provisionerJobTags: map[string]string{"scope": "owner", "owner": someID},
+			acquireJobTags:     map[string]string{"scope": "owner", "owner": someID},
+			expectAcquire:      true,
+		},
+		{
+			name:               "owner-scoped provisioner and different owner-scoped job",
+			provisionerJobTags: map[string]string{"scope": "owner", "owner": someOtherID},
+			acquireJobTags:     map[string]string{"scope": "owner", "owner": someID},
+			expectAcquire:      false,
+		},
+		{
+			name:               "org-scoped provisioner and owner-scoped job",
+			provisionerJobTags: map[string]string{"scope": "owner", "owner": someID},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      false,
 		},
 	} {
 		tt := tt
