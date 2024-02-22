@@ -4,7 +4,7 @@
 
 // From codersdk/templates.go
 export interface ACLAvailable {
-  readonly users: User[];
+  readonly users: ReducedUser[];
   readonly groups: Group[];
 }
 
@@ -581,7 +581,7 @@ export interface Group {
   readonly name: string;
   readonly display_name: string;
   readonly organization_id: string;
-  readonly members: User[];
+  readonly members: ReducedUser[];
   readonly avatar_url: string;
   readonly quota_allowance: number;
   readonly source: GroupSource;
@@ -911,6 +911,17 @@ export interface RateLimitConfig {
   readonly api: number;
 }
 
+// From codersdk/users.go
+export interface ReducedUser extends MinimalUser {
+  readonly name: string;
+  readonly email: string;
+  readonly created_at: string;
+  readonly last_seen_at: string;
+  readonly status: UserStatus;
+  readonly login_type: LoginType;
+  readonly theme_preference: string;
+}
+
 // From codersdk/workspaceproxy.go
 export interface Region {
   readonly id: string;
@@ -1187,6 +1198,7 @@ export interface TemplateVersionExternalAuth {
   readonly display_icon: string;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
+  readonly optional?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -1384,19 +1396,9 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 }
 
 // From codersdk/users.go
-export interface User {
-  readonly id: string;
-  readonly username: string;
-  readonly name: string;
-  readonly email: string;
-  readonly created_at: string;
-  readonly last_seen_at: string;
-  readonly status: UserStatus;
+export interface User extends ReducedUser {
   readonly organization_ids: string[];
   readonly roles: Role[];
-  readonly avatar_url: string;
-  readonly login_type: LoginType;
-  readonly theme_preference: string;
 }
 
 // From codersdk/insights.go

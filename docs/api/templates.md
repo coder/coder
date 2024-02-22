@@ -2002,6 +2002,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
     "display_icon": "string",
     "display_name": "string",
     "id": "string",
+    "optional": true,
     "type": "string"
   }
 ]
@@ -2025,6 +2026,7 @@ Status Code **200**
 | `» display_icon`     | string  | false    |              |             |
 | `» display_name`     | string  | false    |              |             |
 | `» id`               | string  | false    |              |             |
+| `» optional`         | boolean | false    |              |             |
 | `» type`             | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -8308,7 +8308,7 @@ const docTemplate = `{
                 "users": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.User"
+                        "$ref": "#/definitions/codersdk.ReducedUser"
                     }
                 }
             }
@@ -9946,7 +9946,7 @@ const docTemplate = `{
                 "members": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.User"
+                        "$ref": "#/definitions/codersdk.ReducedUser"
                     }
                 },
                 "name": {
@@ -10996,6 +10996,60 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ReducedUser": {
+            "type": "object",
+            "required": [
+                "created_at",
+                "email",
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
+                "theme_preference": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.Region": {
             "type": "object",
             "properties": {
@@ -11827,6 +11881,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "optional": {
+                    "type": "boolean"
                 },
                 "type": {
                     "type": "string"

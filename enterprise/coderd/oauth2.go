@@ -292,7 +292,7 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 // @Param scope query string false "Token scopes (currently ignored)"
 // @Success 302
 // @Router /oauth2/authorize [post]
-func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
+func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return identityprovider.Authorize(api.Database, api.AccessURL)
 }
 

@@ -200,8 +200,8 @@ type UpdateTemplateACL struct {
 // ACLAvailable is a list of users and groups that can be added to a template
 // ACL.
 type ACLAvailable struct {
-	Users  []User  `json:"users"`
-	Groups []Group `json:"groups"`
+	Users  []ReducedUser `json:"users"`
+	Groups []Group       `json:"groups"`
 }
 
 type UpdateTemplateMeta struct {
