@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -23,6 +24,7 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 		},
 		Children: []*clibase.Cmd{
 			r.currentOrganization(),
+			r.switchOrganization(),
 		},
 	}
 
@@ -53,12 +55,43 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 		),
 		Options: clibase.OptionSet{},
 		Handler: func(inv *clibase.Invocation) error {
+			orgArg := inv.Args[0]
 			conf := r.createConfig()
+			orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
+			if err != nil {
+				return fmt.Errorf("failed to get organizations: %w", err)
+			}
+
 			// If the user passes an empty string, we want to remove the organization
-			if inv.Args[0] == "" {
+			if orgArg == "" {
 				err := conf.Organization().Delete()
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					return fmt.Errorf("failed to unset organization: %w", err)
+				}
+			} else {
+				index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
+					return org.Name == orgArg || org.ID.String() == orgArg
+				})
+				if index < 0 {
+					names := make([]string, 0, len(orgs))
+					for _, org := range orgs {
+						names = append(names, org.Name)
+					}
+
+					// Using this error for better error message formatting
+					err := &codersdk.Error{
+						Response: codersdk.Response{
+							Message: fmt.Sprintf("Organization %q not found.", orgArg),
+							Detail:  "Ensure the organization argument is correct and you are a member of it.",
+						},
+						Helper: fmt.Sprintf("Valid organizations you can switch to: %q", strings.Join(names, ", ")),
+					}
+					return err
+				}
+
+				err := conf.Organization().Write(orgs[index].ID.String())
+				if err != nil {
+					return fmt.Errorf("failed to write organization to config file: %w", err)
 				}
 			}
 
