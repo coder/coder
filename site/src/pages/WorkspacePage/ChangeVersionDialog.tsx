@@ -6,7 +6,7 @@ import AlertTitle from "@mui/material/AlertTitle";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { css } from "@emotion/css";
 import type { Template, TemplateVersion } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert } from "components/Alert/Alert";
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "components/Form/Form";
