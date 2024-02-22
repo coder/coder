@@ -32,7 +32,11 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 		client    = new(codersdk.Client)
 		formatter = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
-				typed := data.([]codersdk.Organization)
+				typed, ok := data.([]codersdk.Organization)
+				if !ok {
+					// This should never happen
+					return "", fmt.Errorf("expected []Organization, got %T", data)
+				}
 				if len(typed) != 1 {
 					return "", fmt.Errorf("expected 1 organization, got %d", len(typed))
 				}
