@@ -8,7 +8,6 @@ import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderCaption,
-  PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
@@ -18,6 +17,7 @@ import type { TemplateVersion } from "api/typesGenerated";
 import { createDayString } from "utils/createDayString";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 
 export interface TemplateVersionPageViewProps {
   versionName: string;
@@ -65,17 +65,17 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       >
         <PageHeaderCaption>Version</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
-        {currentVersion &&
-          currentVersion.message &&
-          currentVersion.message !== "" && (
-            <PageHeaderSubtitle>{currentVersion.message}</PageHeaderSubtitle>
-          )}
       </PageHeader>
 
       {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
         {Boolean(error) && <ErrorAlert error={error} />}
+        {currentVersion?.message && (
+          <TemplateUpdateMessage>
+            {currentVersion.message}
+          </TemplateUpdateMessage>
+        )}
         {currentVersion && currentFiles && (
           <>
             <Stats>

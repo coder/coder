@@ -1,13 +1,15 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import {
   MockOutdatedWorkspace,
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersionWithMarkdownMessage,
   MockWorkspace,
 } from "testHelpers/entities";
-import { WorkspaceNotifications } from "./WorkspaceNotifications";
-import type { Meta, StoryObj } from "@storybook/react";
-import { withDashboardProvider } from "testHelpers/storybook";
 import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
+import { withDashboardProvider } from "testHelpers/storybook";
+import { WorkspaceNotifications } from "./WorkspaceNotifications";
 
 const defaultPermissions = {
   readWorkspace: true,
@@ -17,7 +19,7 @@ const defaultPermissions = {
 };
 
 const meta: Meta<typeof WorkspaceNotifications> = {
-  title: "components/WorkspaceNotifications",
+  title: "pages/WorkspacePage/WorkspaceNotifications",
   component: WorkspaceNotifications,
   args: {
     latestVersion: MockTemplateVersion,
@@ -45,7 +47,37 @@ type Story = StoryObj<typeof WorkspaceNotifications>;
 export const Outdated: Story = {
   args: {
     workspace: MockOutdatedWorkspace,
-    defaultOpen: "info",
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("info-notifications"));
+      await waitFor(() =>
+        expect(
+          screen.getByText(MockTemplateVersion.message),
+        ).toBeInTheDocument(),
+      );
+    });
+  },
+};
+
+export const OutdatedWithMarkdownMessage: Story = {
+  args: {
+    workspace: MockOutdatedWorkspace,
+    latestVersion: MockTemplateVersionWithMarkdownMessage,
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("info-notifications"));
+      await waitFor(() =>
+        expect(screen.getByText(/an update is available/i)).toBeInTheDocument(),
+      );
+    });
   },
 };
 
@@ -56,7 +88,6 @@ export const RequiresManualUpdate: Story = {
       automatic_updates: "always",
       autostart_schedule: "daily",
     },
-    defaultOpen: "warning",
   },
   parameters: {
     queries: [
@@ -67,6 +98,19 @@ export const RequiresManualUpdate: Story = {
         },
       },
     ],
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("warning-notifications"));
+      await waitFor(() =>
+        expect(
+          screen.getByText(/unable to automatically update/i),
+        ).toBeInTheDocument(),
+      );
+    });
   },
 };
 
@@ -83,7 +127,17 @@ export const Unhealthy: Story = {
         status: "running",
       },
     },
-    defaultOpen: "warning",
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("warning-notifications"));
+      await waitFor(() =>
+        expect(screen.getByText(/workspace is unhealthy/i)).toBeInTheDocument(),
+      );
+    });
   },
 };
 
@@ -95,6 +149,8 @@ export const UnhealthyWithoutUpdatePermission: Story = {
       updateWorkspace: false,
     },
   },
+
+  play: Unhealthy.play,
 };
 
 const DormantWorkspace = {
@@ -104,8 +160,18 @@ const DormantWorkspace = {
 
 export const Dormant: Story = {
   args: {
-    defaultOpen: "warning",
     workspace: DormantWorkspace,
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("warning-notifications"));
+      await waitFor(() =>
+        expect(screen.getByText(/workspace is dormant/i)).toBeInTheDocument(),
+      );
+    });
   },
 };
 
@@ -117,6 +183,8 @@ export const DormantWithDeletingDate: Story = {
       deleting_at: new Date("2020-10-01T00:00:00Z").toISOString(),
     },
   },
+
+  play: Dormant.play,
 };
 
 export const PendingInQueue: Story = {
@@ -133,7 +201,17 @@ export const PendingInQueue: Story = {
         },
       },
     },
-    defaultOpen: "info",
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(await screen.findByTestId("info-notifications"));
+      await waitFor(() =>
+        expect(screen.getByText(/build is pending/i)).toBeInTheDocument(),
+      );
+    });
   },
 };
 
@@ -145,6 +223,16 @@ export const TemplateDeprecated: Story = {
       deprecation_message:
         "Template deprecated due to reasons. [Learn more](#)",
     },
-    defaultOpen: "warning",
+  },
+
+  play: async ({ canvasElement, step }) => {
+    const screen = within(canvasElement);
+
+    await step("activate hover trigger", async () => {
+      await userEvent.hover(screen.getByTestId("warning-notifications"));
+      await waitFor(() =>
+        expect(screen.getByText(/deprecated template/i)).toBeInTheDocument(),
+      );
+    });
   },
 };
