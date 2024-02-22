@@ -66,21 +66,21 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 				return strings.Compare(a.Name, b.Name)
 			})
 
-			var orgArg string
+			var switchToOrg string
 			if len(inv.Args) == 0 {
-				// Pull orgArg from a prompt selector, rather than command line
+				// Pull switchToOrg from a prompt selector, rather than command line
 				// args.
-				orgArg, err = promptUserSelectOrg(inv, conf, orgs)
+				switchToOrg, err = promptUserSelectOrg(inv, conf, orgs)
 				if err != nil {
 					return err
 				}
 			} else {
-				orgArg = inv.Args[0]
+				switchToOrg = inv.Args[0]
 			}
 
 			// If the user passes an empty string, we want to remove the organization
 			// from the config file. This will defer to default behavior.
-			if orgArg == "" {
+			if switchToOrg == "" {
 				err := conf.Organization().Delete()
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					return fmt.Errorf("failed to unset organization: %w", err)
@@ -89,13 +89,13 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 			} else {
 				// Find the selected org in our list.
 				index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-					return org.Name == orgArg || org.ID.String() == orgArg
+					return org.Name == switchToOrg || org.ID.String() == switchToOrg
 				})
 				if index < 0 {
 					// Using this error for better error message formatting
 					err := &codersdk.Error{
 						Response: codersdk.Response{
-							Message: fmt.Sprintf("Organization %q not found. Is the name correct, and are you a member of it?", orgArg),
+							Message: fmt.Sprintf("Organization %q not found. Is the name correct, and are you a member of it?", switchToOrg),
 							Detail:  "Ensure the organization argument is correct and you are a member of it.",
 						},
 						Helper: fmt.Sprintf("Valid organizations you can switch to: %q", strings.Join(orgNames(orgs), ", ")),
