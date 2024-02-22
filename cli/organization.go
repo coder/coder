@@ -11,7 +11,7 @@ import (
 func (r *RootCmd) organizations() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "organizations { current }",
+		Use:         "organizations [subcommand]",
 		Short:       "Organization related commands",
 		Aliases:     []string{"organization", "org", "orgs"},
 		Hidden:      true, // Hidden until these commands are complete.
