@@ -455,12 +455,9 @@ func TestSSH(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		tGo(t, func() {
-			// When the agent connects, the workspace was started, and we should
-			// have access to the shell.
-			_ = agenttest.New(t, client.URL, authToken)
-			coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-		})
+		// When the agent connects, the workspace was started, and we should
+		// have access to the shell.
+		_ = agenttest.New(t, client.URL, authToken)
 
 		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
 			Reader: proxyCommandStdoutR,
