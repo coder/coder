@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
@@ -27,7 +28,7 @@ func TestNetcheck(t *testing.T) {
 
 	b := out.Bytes()
 	t.Log(string(b))
-	var report derphealth.Report
+	var report codersdk.DERPHealthReport
 	require.NoError(t, json.Unmarshal(b, &report))
 
 	assert.True(t, report.Healthy)

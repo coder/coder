@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
+
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -33,72 +35,25 @@ const (
 	missingNodeReport        = "Missing node health report, probably a developer error."
 )
 
-// @typescript-generate Report
-type Report struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool             `json:"healthy"`
-	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings  []health.Message `json:"warnings"`
-	Dismissed bool             `json:"dismissed"`
-
-	Regions map[int]*RegionReport `json:"regions"`
-
-	Netcheck     *netcheck.Report `json:"netcheck"`
-	NetcheckErr  *string          `json:"netcheck_err"`
-	NetcheckLogs []string         `json:"netcheck_logs"`
-
-	Error *string `json:"error"`
-}
-
-// @typescript-generate RegionReport
-type RegionReport struct {
-	mu sync.Mutex
-
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool             `json:"healthy"`
-	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings []health.Message `json:"warnings"`
-
-	Region      *tailcfg.DERPRegion `json:"region"`
-	NodeReports []*NodeReport       `json:"node_reports"`
-	Error       *string             `json:"error"`
-}
-
-// @typescript-generate NodeReport
-type NodeReport struct {
-	mu            sync.Mutex
-	clientCounter int
-
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy  bool             `json:"healthy"`
-	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings []health.Message `json:"warnings"`
-
-	Node *tailcfg.DERPNode `json:"node"`
-
-	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
-	CanExchangeMessages bool                   `json:"can_exchange_messages"`
-	RoundTripPing       string                 `json:"round_trip_ping"`
-	RoundTripPingMs     int                    `json:"round_trip_ping_ms"`
-	UsesWebsocket       bool                   `json:"uses_websocket"`
-	ClientLogs          [][]string             `json:"client_logs"`
-	ClientErrs          [][]string             `json:"client_errs"`
-	Error               *string                `json:"error"`
-
-	STUN StunReport `json:"stun"`
-}
-
-// @typescript-generate StunReport
-type StunReport struct {
-	Enabled bool
-	CanSTUN bool
-	Error   *string
-}
-
 type ReportOptions struct {
 	Dismissed bool
 
 	DERPMap *tailcfg.DERPMap
+}
+
+type Report struct {
+	codersdk.DERPHealthReport
+}
+
+type RegionReport struct {
+	codersdk.DERPRegionReport
+	mu sync.Mutex
+}
+
+type NodeReport struct {
+	codersdk.DERPNodeReport
+	mu            sync.Mutex
+	clientCounter int
 }
 
 func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
@@ -107,7 +62,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
-	r.Regions = map[int]*RegionReport{}
+	r.Regions = map[int]*codersdk.DERPRegionReport{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -116,22 +71,16 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	for _, region := range opts.DERPMap.Regions {
 		var (
 			region       = region
-			regionReport = RegionReport{
-				Region: region,
-			}
+			regionReport RegionReport
 		)
+		regionReport.Region = region
 		go func() {
 			defer wg.Done()
-			defer func() {
-				if err := recover(); err != nil {
-					regionReport.Error = ptr.Ref(fmt.Sprint(err))
-				}
-			}()
 
 			regionReport.Run(ctx)
 
 			mu.Lock()
-			r.Regions[region.RegionID] = &regionReport
+			r.Regions[region.RegionID] = &regionReport.DERPRegionReport
 			if !regionReport.Healthy {
 				r.Healthy = false
 			}
@@ -167,7 +116,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.NodeReports = []*NodeReport{}
+	r.NodeReports = []*codersdk.DERPNodeReport{}
 	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
@@ -177,11 +126,10 @@ func (r *RegionReport) Run(ctx context.Context) {
 	for _, node := range r.Region.Nodes {
 		var (
 			node       = node
-			nodeReport = NodeReport{
-				Node:    node,
-				Healthy: true,
-			}
+			nodeReport NodeReport
 		)
+		nodeReport.Node = node
+		nodeReport.Healthy = true
 
 		go func() {
 			defer wg.Done()
@@ -195,7 +143,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			nodeReport.Run(ctx)
 
 			r.mu.Lock()
-			r.NodeReports = append(r.NodeReports, &nodeReport)
+			r.NodeReports = append(r.NodeReports, &nodeReport.DERPNodeReport)
 			if nodeReport.Severity != health.SeverityOK {
 				unhealthyNodes++
 			}
@@ -347,8 +295,8 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 		}
 		defer send.Close()
 
-		key := send.SelfPublicKey()
-		peerKey.Store(&key)
+		pk := send.SelfPublicKey()
+		peerKey.Store(&pk)
 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -543,8 +491,8 @@ func convertError(err error) *string {
 	return nil
 }
 
-func sortNodeReports(reports []*NodeReport) {
-	slices.SortFunc(reports, func(a, b *NodeReport) int {
+func sortNodeReports(reports []*codersdk.DERPNodeReport) {
+	slices.SortFunc(reports, func(a, b *codersdk.DERPNodeReport) int {
 		return slice.Ascending(a.Node.Name, b.Node.Name)
 	})
 }

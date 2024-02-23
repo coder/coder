@@ -9,24 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
+
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
-// @typescript-generate WebsocketReport
-type WebsocketReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool            `json:"healthy"`
-	Severity  health.Severity `json:"severity" enums:"ok,warning,error"`
-	Warnings  []string        `json:"warnings"`
-	Dismissed bool            `json:"dismissed"`
-
-	Body  string  `json:"body"`
-	Code  int     `json:"code"`
-	Error *string `json:"error"`
-}
+type WebsocketReport codersdk.WebsocketReport
 
 type WebsocketReportOptions struct {
 	APIKey     string

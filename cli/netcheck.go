@@ -38,7 +38,7 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 				DERPMap: connInfo.DERPMap,
 			})
 
-			raw, err := json.MarshalIndent(report, "", "  ")
+			raw, err := json.MarshalIndent(report.DERPHealthReport, "", "  ")
 			if err != nil {
 				return err
 			}

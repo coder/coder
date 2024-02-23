@@ -61,7 +61,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
-	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -111,7 +110,7 @@ type Options struct {
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
-	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckFunc    func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 

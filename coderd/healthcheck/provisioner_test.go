@@ -34,21 +34,21 @@ func TestProvisionerDaemonReport(t *testing.T) {
 		expectedSeverity       health.Severity
 		expectedWarningCode    health.Code
 		expectedError          string
-		expectedItems          []healthcheck.ProvisionerDaemonsReportItem
+		expectedItems          []codersdk.ProvisionerDaemonsReportItem
 	}{
 		{
 			name:             "current version empty",
 			currentVersion:   "",
 			expectedSeverity: health.SeverityError,
 			expectedError:    "Developer error: CurrentVersion is empty",
-			expectedItems:    []healthcheck.ProvisionerDaemonsReportItem{},
+			expectedItems:    []codersdk.ProvisionerDaemonsReportItem{},
 		},
 		{
 			name:                   "no daemons",
 			currentVersion:         "v1.2.3",
 			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityError,
-			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
+			expectedItems:          []codersdk.ProvisionerDaemonsReportItem{},
 			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
 		},
 		{
@@ -58,7 +58,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			provisionerDaemonsErr:  assert.AnError,
 			expectedSeverity:       health.SeverityError,
 			expectedError:          assert.AnError.Error(),
-			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
+			expectedItems:          []codersdk.ProvisionerDaemonsReportItem{},
 		},
 		{
 			name:                   "one daemon up to date",
@@ -66,7 +66,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -89,7 +89,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -117,7 +117,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-version", "invalid", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -145,7 +145,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeUnknown,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-invalid-api", "v1.2.3", "invalid", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -173,7 +173,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonAPIMajorVersionDeprecated,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-old-api", "v2.3.4", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -201,7 +201,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-old", "v1.1.2", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -242,7 +242,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityWarning,
 			expectedWarningCode:    health.CodeProvisionerDaemonVersionMismatch,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemon(t, "pd-ok", "v1.2.3", "1.0", now), fakeProvisionerDaemon(t, "pd-new", "v2.3.4", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -282,7 +282,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			currentAPIMajorVersion: proto.CurrentMajor,
 			expectedSeverity:       health.SeverityOK,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-stale", "v1.2.3", "0.9", now.Add(-5*time.Minute), now), fakeProvisionerDaemon(t, "pd-ok", "v2.3.4", "1.0", now)},
-			expectedItems: []healthcheck.ProvisionerDaemonsReportItem{
+			expectedItems: []codersdk.ProvisionerDaemonsReportItem{
 				{
 					ProvisionerDaemon: codersdk.ProvisionerDaemon{
 						ID:           uuid.Nil,
@@ -305,7 +305,7 @@ func TestProvisionerDaemonReport(t *testing.T) {
 			expectedSeverity:       health.SeverityError,
 			expectedWarningCode:    health.CodeProvisionerDaemonsNoProvisionerDaemons,
 			provisionerDaemons:     []database.ProvisionerDaemon{fakeProvisionerDaemonStale(t, "pd-ok", "v1.2.3", "0.9", now.Add(-5*time.Minute), now)},
-			expectedItems:          []healthcheck.ProvisionerDaemonsReportItem{},
+			expectedItems:          []codersdk.ProvisionerDaemonsReportItem{},
 		},
 	} {
 		tt := tt
