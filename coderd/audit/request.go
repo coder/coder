@@ -25,6 +25,9 @@ type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
+	// OrganizationID is only provided when possible. If an audit resource extends
+	// beyond the org scope, leave this as the nil uuid.
+	OrganizationID   uuid.UUID
 	Request          *http.Request
 	Action           database.AuditAction
 	AdditionalFields json.RawMessage
@@ -96,7 +99,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.HealthSettings:
 		return "" // no target?
 	default:
-		panic(fmt.Sprintf("unknown resource %T", tgt))
+		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
 }
 
@@ -129,7 +132,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		// Artificial ID for auditing purposes
 		return typed.ID
 	default:
-		panic(fmt.Sprintf("unknown resource %T", tgt))
+		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
 }
 
@@ -160,7 +163,39 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.HealthSettings:
 		return database.ResourceTypeHealthSettings
 	default:
-		panic(fmt.Sprintf("unknown resource %T", typed))
+		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
+	}
+}
+
+// ResourceRequiresOrgID will ensure given resources are always audited with an
+// organization ID.
+func ResourceRequiresOrgID[T Auditable]() bool {
+	var tgt T
+	switch any(tgt).(type) {
+	case database.Template, database.TemplateVersion:
+		return true
+	case database.Workspace, database.WorkspaceBuild:
+		return true
+	case database.AuditableGroup:
+		return true
+	case database.User:
+		return false
+	case database.GitSSHKey:
+		return false
+	case database.APIKey:
+		return false
+	case database.License:
+		return false
+	case database.WorkspaceProxy:
+		return false
+	case database.AuditOAuthConvertState:
+		// The merge state is for the given user
+		return false
+	case database.HealthSettings:
+		// Artificial ID for auditing purposes
+		return false
+	default:
+		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}
 }
 
@@ -228,6 +263,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
+		if ResourceRequiresOrgID[T]() && p.OrganizationID == uuid.Nil {
+			// We panic as this is a developer error and should never happen.
+			panic(fmt.Sprintf("missing required organization ID for resource %s", either(req.Old, req.New, ResourceType[T], req.params.Action)))
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
@@ -243,6 +283,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: p.AdditionalFields,
+			OrganizationID:   p.OrganizationID,
 		}
 		err := p.Audit.Export(ctx, auditLog)
 		if err != nil {
@@ -270,6 +311,11 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
+	}
+
+	if ResourceRequiresOrgID[T]() && p.OrganizationID == uuid.Nil {
+		// We panic as this is a developer error and should never happen.
+		panic(fmt.Sprintf("missing required organization ID for resource %s", either(p.Old, p.New, ResourceType[T], p.Action))
 	}
 
 	auditLog := database.AuditLog{
