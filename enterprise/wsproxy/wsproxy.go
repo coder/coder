@@ -410,8 +410,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) RegisterNow(ctx context.Context) error {
-	_, err := s.registerLoop.RegisterNow(ctx)
+func (s *Server) RegisterNow() error {
+	_, err := s.registerLoop.RegisterNow()
 	return err
 }
 

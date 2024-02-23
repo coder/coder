@@ -38,7 +38,9 @@ type ProxyOptions struct {
 	// ProxyURL is optional
 	ProxyURL *url.URL
 
-	// Token is optional. If specified, a new proxy won't be created.
+	// Token is optional. If specified, a new workspace proxy region will not be
+	// created, and the proxy will become a replica of the existing proxy
+	// region.
 	Token string
 
 	// FlushStats is optional
@@ -51,11 +53,14 @@ type WorkspaceProxy struct {
 	ServerURL *url.URL
 }
 
-// NewWorkspaceProxy will configure a wsproxy.Server with the given options.
-// The new wsproxy will register itself with the given coderd.API instance.
-// The first user owner client is required to create the wsproxy on the coderd
-// api server.
-func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) WorkspaceProxy {
+// NewWorkspaceProxyReplica will configure a wsproxy.Server with the given
+// options. The new wsproxy replica will register itself with the given
+// coderd.API instance.
+//
+// If a token is not provided, a new workspace proxy region is created using the
+// owner client. If a token is provided, the proxy will become a replica of the
+// existing proxy region.
+func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) WorkspaceProxy {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
@@ -134,7 +139,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	}
 
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
-		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug).With(slog.F("server_url", serverURL.String())),
 		Experiments:       options.Experiments,
 		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,

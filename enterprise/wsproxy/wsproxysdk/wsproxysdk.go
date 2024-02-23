@@ -285,52 +285,26 @@ type RegisterWorkspaceProxyLoopOpts struct {
 }
 
 type RegisterWorkspaceProxyLoop struct {
-	opts        RegisterWorkspaceProxyLoopOpts
-	c           *Client
-	originalRes *RegisterWorkspaceProxyResponse
+	opts RegisterWorkspaceProxyLoopOpts
+	c    *Client
 
-	closedCtx context.Context
-	close     context.CancelFunc
-	done      chan struct{}
+	// runLoopNow takes a response channel to send the response to and triggers
+	// the loop to run immediately if it's waiting.
+	runLoopNow chan chan RegisterWorkspaceProxyResponse
+	closedCtx  context.Context
+	close      context.CancelFunc
+	done       chan struct{}
 }
 
-// register registers once. It returns the response, whether the loop should
-// exit immediately, and any error that occurred.
-func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWorkspaceProxyResponse, bool, error) {
-	// If it's not the first registration, call the mutate function.
-	if l.originalRes != nil {
-		l.mutateFn(&l.opts.Request)
-	}
-
+func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
 	registerCtx, registerCancel := context.WithTimeout(ctx, l.opts.AttemptTimeout)
 	res, err := l.c.RegisterWorkspaceProxy(registerCtx, l.opts.Request)
 	registerCancel()
 	if err != nil {
-		return RegisterWorkspaceProxyResponse{}, false, xerrors.Errorf("register workspace proxy: %w", err)
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("register workspace proxy: %w", err)
 	}
 
-	// Catastrophic failures if any of the "permanent" values change.
-	if l.originalRes != nil && res.AppSecurityKey != l.originalRes.AppSecurityKey {
-		return RegisterWorkspaceProxyResponse{}, true, xerrors.New("app security key has changed, proxy must be restarted")
-	}
-	if l.originalRes != nil && res.DERPMeshKey != l.originalRes.DERPMeshKey {
-		return RegisterWorkspaceProxyResponse{}, true, xerrors.New("DERP mesh key has changed, proxy must be restarted")
-	}
-	if l.originalRes != nil && res.DERPRegionID != l.originalRes.DERPRegionID {
-		return RegisterWorkspaceProxyResponse{}, true, xerrors.New("DERP region ID has changed, proxy must be restarted")
-	}
-
-	// If it's not the first registration, call the callback function.
-	if l.originalRes != nil {
-		err = l.callbackFn(res)
-		if err != nil {
-			return RegisterWorkspaceProxyResponse{}, true, xerrors.Errorf("callback err: %w", err)
-		}
-	} else {
-		l.originalRes = &res
-	}
-
-	return res, false, nil
+	return res, nil
 }
 
 // Start starts the proxy registration loop. The provided context is only used
@@ -346,7 +320,8 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 		l.opts.AttemptTimeout = 10 * time.Second
 	}
 
-	originalRes, _, err := l.register(ctx)
+	var err error
+	originalRes, err := l.register(ctx)
 	if err != nil {
 		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("initial registration: %w", err)
 	}
@@ -359,10 +334,12 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			ticker         = time.NewTicker(l.opts.Interval)
 		)
 		for {
+			var respCh chan RegisterWorkspaceProxyResponse
 			select {
 			case <-l.closedCtx.Done():
 				l.failureFn(xerrors.Errorf("proxy registration loop closed"))
 				return
+			case respCh = <-l.runLoopNow:
 			case <-ticker.C:
 			}
 
@@ -373,12 +350,9 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 				slog.F("failed_attempts", failedAttempts),
 			)
 
-			_, catastrophicErr, err := l.register(l.closedCtx)
+			l.mutateFn(&l.opts.Request)
+			resp, err := l.register(l.closedCtx)
 			if err != nil {
-				if catastrophicErr {
-					l.failureFn(err)
-					return
-				}
 				failedAttempts++
 				l.opts.Logger.Warn(context.Background(),
 					"failed to re-register workspace proxy with Coder primary",
@@ -396,6 +370,44 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			}
 			failedAttempts = 0
 
+			// Check for consistency.
+			if originalRes.AppSecurityKey != resp.AppSecurityKey {
+				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
+				return
+			}
+			if originalRes.DERPMeshKey != resp.DERPMeshKey {
+				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
+				return
+			}
+			if originalRes.DERPRegionID != resp.DERPRegionID {
+				l.failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
+				return
+			}
+
+			err = l.callbackFn(resp)
+			if err != nil {
+				l.failureFn(xerrors.Errorf("callback function returned an error: %w", err))
+				return
+			}
+
+			// If we were triggered by RegisterNow(), send the response back.
+			// Use a blocking send with 1s timeout in case the caller somehow
+			// exited.
+			//
+			// If this does block then the interval will be off by 1s, but since
+			// we only call RegisterNow() in tests it's fine.
+			if respCh != nil {
+				timeout := time.NewTimer(time.Second)
+				select {
+				case respCh <- resp:
+					close(respCh)
+				case <-timeout.C:
+					l.opts.Logger.Warn(ctx, "timeout sending response to RegisterNow from registration loop")
+					close(respCh)
+				}
+				timeout.Stop()
+			}
+
 			ticker.Reset(l.opts.Interval)
 		}
 	}()
@@ -403,10 +415,29 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 	return originalRes, nil
 }
 
-func (l *RegisterWorkspaceProxyLoop) RegisterNow(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
-	// Catastrophic failures don't affect the loop when manually re-registering.
-	res, _, err := l.register(ctx)
-	return res, err
+// RegisterNow asks the registration loop to register immediately. A timeout of
+// 2x the attempt timeout is used to wait for the response.
+func (l *RegisterWorkspaceProxyLoop) RegisterNow() (RegisterWorkspaceProxyResponse, error) {
+	// Pre-check before we do anything.
+	select {
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	default:
+	}
+
+	// The channel is closed by the loop after sending the response.
+	respCh := make(chan RegisterWorkspaceProxyResponse)
+	select {
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case l.runLoopNow <- respCh:
+	}
+	select {
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case resp := <-respCh:
+		return resp, nil
+	}
 }
 
 func (l *RegisterWorkspaceProxyLoop) Close() {
@@ -460,11 +491,12 @@ func (l *RegisterWorkspaceProxyLoop) failureFn(err error) {
 func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWorkspaceProxyLoopOpts) (*RegisterWorkspaceProxyLoop, RegisterWorkspaceProxyResponse, error) {
 	closedCtx, closeFn := context.WithCancel(context.Background())
 	loop := &RegisterWorkspaceProxyLoop{
-		opts:      opts,
-		c:         c,
-		closedCtx: closedCtx,
-		close:     closeFn,
-		done:      make(chan struct{}),
+		opts:       opts,
+		c:          c,
+		runLoopNow: make(chan chan RegisterWorkspaceProxyResponse),
+		closedCtx:  closedCtx,
+		close:      closeFn,
+		done:       make(chan struct{}),
 	}
 
 	regResp, err := loop.Start(ctx)
