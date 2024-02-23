@@ -48,7 +48,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 	)
 	cmd := &clibase.Cmd{
 		Use:   "show [current|me|uuid]",
-		Short: "Show organization information. By default, if no argument is provided, the current cli configured organization is shown.",
+		Short: "Show the organization, if no argument is given, the organization currently in use will be shown.",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 			clibase.RequireRangeArgs(0, 1),
@@ -64,7 +64,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			orgArg := "current"
-			if len(inv.Args) == 1 {
+			if len(inv.Args) >= 1 {
 				orgArg = inv.Args[0]
 			}
 
