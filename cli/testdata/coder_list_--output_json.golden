@@ -1,8 +1,8 @@
 [
   {
     "id": "[workspace ID]",
-    "created_at": "[timestamp                ]",
-    "updated_at": "[timestamp                ]",
+    "created_at": "[timestamp               ]",
+    "updated_at": "[timestamp               ]",
     "owner_id": "[first user ID]",
     "owner_name": "testuser",
     "owner_avatar_url": "",
