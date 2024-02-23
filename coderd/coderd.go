@@ -125,6 +125,8 @@ type Options struct {
 	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
+	RefreshEntitlements func(ctx context.Context) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -188,9 +190,6 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
-
-	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
-	RefreshEntitlements func(ctx context.Context) error
 }
 
 // @title Coder API
