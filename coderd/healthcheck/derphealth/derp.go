@@ -40,9 +40,7 @@ type ReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-type Report struct {
-	codersdk.DERPHealthReport
-}
+type Report codersdk.DERPHealthReport
 
 type RegionReport struct {
 	codersdk.DERPRegionReport

@@ -37,7 +37,7 @@ type defaultChecker struct{}
 func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) codersdk.DERPHealthReport {
 	var report derphealth.Report
 	report.Run(ctx, opts)
-	return report.DERPHealthReport
+	return codersdk.DERPHealthReport(report)
 }
 
 func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) codersdk.AccessURLReport {
