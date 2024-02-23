@@ -6,7 +6,7 @@ import {
   MockTemplateVersion,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
-import { withWSMessages } from "testHelpers/storybook";
+import { withWebSocket } from "testHelpers/storybook";
 
 const meta: Meta<typeof BuildLogsDrawer> = {
   title: "pages/CreateTemplatePage/BuildLogsDrawer",
@@ -44,8 +44,10 @@ export const Logs: Story = {
       },
     },
   },
-  decorators: [withWSMessages],
+  decorators: [withWebSocket],
   parameters: {
-    messages: MockWorkspaceBuildLogs.map((log) => JSON.stringify(log)),
+    webSocket: {
+      messages: MockWorkspaceBuildLogs.map((log) => JSON.stringify(log)),
+    },
   },
 };
