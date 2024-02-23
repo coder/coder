@@ -33,8 +33,6 @@ export const useWatchVersionLogs = (
       },
     });
 
-    console.log("Get logs", socket);
-
     return () => {
       socket.close();
     };
