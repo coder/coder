@@ -80,7 +80,7 @@ type Options struct {
 	DERPOnly bool
 
 	// ReplicaErrCallback is called when the proxy replica successfully or
-	// unsuccessfully pings it's peers in the mesh.
+	// unsuccessfully pings its peers in the mesh.
 	ReplicaErrCallback func(replicas []codersdk.Replica, err string)
 
 	ProxySessionToken string
@@ -455,7 +455,7 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 		relayURLs[i] = r.RelayAddress
 	}
 	slices.Sort(relayURLs)
-	singleflightStr := strings.Join(relayURLs, ",")
+	singleflightStr := strings.Join(relayURLs, " ") // URLs can't contain spaces.
 
 	//nolint:dogsled
 	_, _, _ = s.replicaPingSingleflight.Do(singleflightStr, func() (any, error) {
@@ -475,60 +475,33 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 		}
 		defer client.CloseIdleConnections()
 
-		var (
-			wg     sync.WaitGroup
-			mu     sync.Mutex
-			failed = []string{}
-		)
+		errs := make(chan error, len(replicas))
 		for _, peer := range replicas {
-			wg.Add(1)
 			go func(peer codersdk.Replica) {
-				defer wg.Done()
-
-				fail := func(err error) {
-					mu.Lock()
-					failed = append(failed, fmt.Sprintf("relay %s (%s): %s", peer.Hostname, peer.RelayAddress, err))
-					mu.Unlock()
-					s.Logger.Warn(s.ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
+				err := replicasync.PingPeerReplica(ctx, client, peer.RelayAddress)
+				if err != nil {
+					errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
+					s.Logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
 						slog.F("replica_hostname", peer.Hostname),
 						slog.F("replica_relay_address", peer.RelayAddress),
 						slog.Error(err),
 					)
-				}
-
-				ra, err := url.Parse(peer.RelayAddress)
-				if err != nil {
-					fail(xerrors.Errorf("parse relay address %q: %w", peer.RelayAddress, err))
 					return
 				}
-				target, err := ra.Parse("/derp/latency-check")
-				if err != nil {
-					fail(xerrors.Errorf("parse latency-check URL: %w", err))
-					return
-				}
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
-				if err != nil {
-					fail(xerrors.Errorf("create request: %w", err))
-					return
-				}
-				res, err := client.Do(req)
-				if err != nil {
-					fail(xerrors.Errorf("do probe: %w", err))
-					return
-				}
-				if res.StatusCode != http.StatusOK {
-					fail(xerrors.Errorf("unexpected status code: %d", res.StatusCode))
-				}
-				_ = res.Body.Close()
+				errs <- nil
 			}(peer)
 		}
-		wg.Wait()
 
-		s.replicaErrMut.Lock()
-		defer s.replicaErrMut.Unlock()
+		replicaErrs := make([]string, 0, len(replicas))
+		for i := 0; i < len(replicas); i++ {
+			err := <-errs
+			if err != nil {
+				replicaErrs = append(replicaErrs, err.Error())
+			}
+		}
 		s.replicaErr = ""
-		if len(failed) > 0 {
-			s.replicaErr = fmt.Sprintf("Failed to dial peers: %s", strings.Join(failed, ", "))
+		if len(replicaErrs) > 0 {
+			s.replicaErr = fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", "))
 		}
 		if s.Options.ReplicaErrCallback != nil {
 			s.Options.ReplicaErrCallback(replicas, s.replicaErr)
