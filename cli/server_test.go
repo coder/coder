@@ -1764,7 +1764,29 @@ func TestConnectToPostgres(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
-	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
+	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, codersdk.PostgresAuthPassword)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	require.NoError(t, sqlDB.PingContext(ctx))
+}
+
+func TestConnectToPostgres_AWSIAMRDS(t *testing.T) {
+	t.Parallel()
+
+	// Be sure to set AWS_DEFAULT_REGION to the database region as well.
+	dbURL := os.Getenv("DBAWSIAMRDS_TEST_URL")
+	if dbURL == "" {
+		t.Skip()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	t.Cleanup(cancel)
+
+	log := slogtest.Make(t, nil)
+
+	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, codersdk.PostgresAuthAWSIAMRDS)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sqlDB.Close()

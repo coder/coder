@@ -29,8 +29,7 @@ const maxRetries = 5
 // fail.  Let's say the transaction that sets A=2 succeeds.  Then the first B=2
 // transaction fails, but here we retry.  The second attempt we read A=2, B=1,
 // then write A=2, B=2 as desired, and this succeeds.
-func ReadModifyUpdate(db Store, f func(tx Store) error,
-) error {
+func ReadModifyUpdate(db Store, f func(tx Store) error) error {
 	var err error
 	for retries := 0; retries < maxRetries; retries++ {
 		err = db.InTx(f, &sql.TxOptions{

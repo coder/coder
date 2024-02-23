@@ -25,6 +25,7 @@ import (
 func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 	var (
 		newUserDBURL              string
+		newUserPgAuth             string
 		newUserSSHKeygenAlgorithm string
 		newUserUsername           string
 		newUserEmail              string
@@ -62,7 +63,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				newUserDBURL = url
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, "postgres", newUserDBURL)
+			sqlDB, err := ConnectToPostgres(ctx, logger, "postgres", newUserDBURL, codersdk.PostgresAuth(newUserPgAuth))
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -242,6 +243,14 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       clibase.StringOf(&newUserDBURL),
+		},
+		clibase.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       clibase.EnumOf(&newUserPgAuth, codersdk.PostgresConnectors...),
 		},
 		clibase.Option{
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",

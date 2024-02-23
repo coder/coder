@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbawsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -669,7 +670,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("escaping postgres URL: %w", err)
 				}
 
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, codersdk.PostgresAuth(vals.PostgresAuth))
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2051,7 +2052,7 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (sqlDB *sql.DB, err error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, auth codersdk.PostgresAuth) (sqlDB *sql.DB, err error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.
@@ -2069,11 +2070,25 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
 	}()
 
+	connect := func() (*sql.DB, error) {
+		return sql.Open(driver, dbURL)
+	}
+	if auth == codersdk.PostgresAuthAWSIAMRDS {
+		connect = func() (*sql.DB, error) {
+			connector, err := dbawsiamrds.NewConnector(ctx, dbURL)
+			if err != nil {
+				return nil, xerrors.Errorf("create rds iam connector: %w", err)
+			}
+
+			return sql.OpenDB(connector), nil
+		}
+	}
+
 	var tries int
 	for r := retry.New(time.Second, 3*time.Second); r.Wait(ctx); {
 		tries++
 
-		sqlDB, err = sql.Open(driver, dbURL)
+		sqlDB, err = connect()
 		if err != nil {
 			logger.Warn(ctx, "connect to postgres: retrying", slog.Error(err), slog.F("try", tries))
 			continue

@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 
 	"golang.org/x/xerrors"
@@ -88,7 +89,7 @@ func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL, codersdk.PostgresAuth(flags.PostgresAuth))
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -145,7 +146,7 @@ func (*RootCmd) dbcryptDecryptCmd() *clibase.Cmd {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL, codersdk.PostgresAuth(flags.PostgresAuth))
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -192,7 +193,7 @@ Are you sure you want to continue?`
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL, codersdk.PostgresAuth(flags.PostgresAuth))
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -212,9 +213,10 @@ Are you sure you want to continue?`
 }
 
 type rotateFlags struct {
-	PostgresURL string
-	New         string
-	Old         []string
+	PostgresURL  string
+	PostgresAuth string
+	New          string
+	Old          []string
 }
 
 func (f *rotateFlags) attach(opts *clibase.OptionSet) {
@@ -225,6 +227,14 @@ func (f *rotateFlags) attach(opts *clibase.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       clibase.StringOf(&f.PostgresURL),
+		},
+		clibase.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       clibase.EnumOf(&f.PostgresAuth, codersdk.PostgresConnectors...),
 		},
 		clibase.Option{
 			Flag:        "new-key",
@@ -274,8 +284,9 @@ func (f *rotateFlags) valid() error {
 }
 
 type decryptFlags struct {
-	PostgresURL string
-	Keys        []string
+	PostgresURL  string
+	PostgresAuth string
+	Keys         []string
 }
 
 func (f *decryptFlags) attach(opts *clibase.OptionSet) {
@@ -286,6 +297,14 @@ func (f *decryptFlags) attach(opts *clibase.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       clibase.StringOf(&f.PostgresURL),
+		},
+		clibase.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       clibase.EnumOf(&f.PostgresAuth, codersdk.PostgresConnectors...),
 		},
 		clibase.Option{
 			Flag:        "keys",
@@ -318,8 +337,9 @@ func (f *decryptFlags) valid() error {
 }
 
 type deleteFlags struct {
-	PostgresURL string
-	Confirm     bool
+	PostgresURL  string
+	PostgresAuth string
+	Confirm      bool
 }
 
 func (f *deleteFlags) attach(opts *clibase.OptionSet) {
@@ -330,6 +350,14 @@ func (f *deleteFlags) attach(opts *clibase.OptionSet) {
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       clibase.StringOf(&f.PostgresURL),
+		},
+		clibase.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       clibase.EnumOf(&f.PostgresAuth, codersdk.PostgresConnectors...),
 		},
 		cliui.SkipPromptOption(),
 	)

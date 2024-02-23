@@ -133,6 +133,18 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
 
+type PostgresAuth string
+
+const (
+	PostgresAuthPassword  PostgresAuth = "password"
+	PostgresAuthAWSIAMRDS PostgresAuth = "awsiamrds"
+)
+
+var PostgresConnectors = []string{
+	string(PostgresAuthPassword),
+	string(PostgresAuthAWSIAMRDS),
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             clibase.Bool   `json:"verbose,omitempty"`
@@ -152,6 +164,7 @@ type DeploymentValues struct {
 	CacheDir                        clibase.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                clibase.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     clibase.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -1610,6 +1623,16 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
+			YAML:        "pgConnectionURL",
+		},
+		{
+			Name:        "Postgres Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-auth",
+			Env:         "CODER_PG_AUTH",
+			Default:     "password",
+			Value:       clibase.EnumOf(&c.PostgresAuth, PostgresConnectors...),
+			YAML:        "pgAuth",
 		},
 		{
 			Name:        "Secure Auth Cookie",
