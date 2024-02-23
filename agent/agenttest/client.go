@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"storj.io/drpc"
@@ -86,11 +88,10 @@ type Client struct {
 	fakeAgentAPI       *FakeAgentAPI
 	LastWorkspaceAgent func()
 
-	mu              sync.Mutex // Protects following.
-	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	logs            []agentsdk.Log
-	derpMapUpdates  chan *tailcfg.DERPMap
-	derpMapOnce     sync.Once
+	mu             sync.Mutex // Protects following.
+	logs           []agentsdk.Log
+	derpMapUpdates chan *tailcfg.DERPMap
+	derpMapOnce    sync.Once
 }
 
 func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}
@@ -122,17 +123,7 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 }
 
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lifecycleStates
-}
-
-func (c *Client) PostLifecycle(ctx context.Context, req agentsdk.PostLifecycleRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.lifecycleStates = append(c.lifecycleStates, req.State)
-	c.logger.Debug(ctx, "post lifecycle", slog.F("req", req))
-	return nil
+	return c.fakeAgentAPI.GetLifecycleStates()
 }
 
 func (c *Client) GetStartup() <-chan *agentproto.Startup {
@@ -189,11 +180,12 @@ type FakeAgentAPI struct {
 	t      testing.TB
 	logger slog.Logger
 
-	manifest    *agentproto.Manifest
-	startupCh   chan *agentproto.Startup
-	statsCh     chan *agentproto.Stats
-	appHealthCh chan *agentproto.BatchUpdateAppHealthRequest
-	logsCh      chan<- *agentproto.BatchCreateLogsRequest
+	manifest        *agentproto.Manifest
+	startupCh       chan *agentproto.Startup
+	statsCh         chan *agentproto.Stats
+	appHealthCh     chan *agentproto.BatchUpdateAppHealthRequest
+	logsCh          chan<- *agentproto.BatchCreateLogsRequest
+	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -231,9 +223,20 @@ func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateSt
 	return &agentproto.UpdateStatsResponse{ReportInterval: durationpb.New(statsInterval)}, nil
 }
 
-func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.lifecycleStates)
+}
+
+func (f *FakeAgentAPI) UpdateLifecycle(_ context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
+	f.Lock()
+	defer f.Unlock()
+	s, err := agentsdk.LifecycleStateFromProto(req.GetLifecycle().GetState())
+	if assert.NoError(f.t, err) {
+		f.lifecycleStates = append(f.lifecycleStates, s)
+	}
+	return req.GetLifecycle(), nil
 }
 
 func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
