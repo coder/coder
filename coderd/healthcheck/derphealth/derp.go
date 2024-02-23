@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk"
-
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -27,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -71,11 +70,19 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	for _, region := range opts.DERPMap.Regions {
 		var (
 			region       = region
-			regionReport RegionReport
+			regionReport = RegionReport{
+				DERPRegionReport: codersdk.DERPRegionReport{
+					Region: region,
+				},
+			}
 		)
-		regionReport.Region = region
 		go func() {
 			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					regionReport.Error = ptr.Ref(fmt.Sprint(err))
+				}
+			}()
 
 			regionReport.Run(ctx)
 
@@ -126,10 +133,13 @@ func (r *RegionReport) Run(ctx context.Context) {
 	for _, node := range r.Region.Nodes {
 		var (
 			node       = node
-			nodeReport NodeReport
+			nodeReport = NodeReport{
+				DERPNodeReport: codersdk.DERPNodeReport{
+					Node:    node,
+					Healthy: true,
+				},
+			}
 		)
-		nodeReport.Node = node
-		nodeReport.Healthy = true
 
 		go func() {
 			defer wg.Done()

@@ -4,12 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk"
-
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (

@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
