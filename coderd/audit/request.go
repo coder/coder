@@ -315,7 +315,7 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 
 	if ResourceRequiresOrgID[T]() && p.OrganizationID == uuid.Nil {
 		// We panic as this is a developer error and should never happen.
-		panic(fmt.Sprintf("missing required organization ID for resource %s", either(p.Old, p.New, ResourceType[T], p.Action))
+		panic(fmt.Sprintf("missing required organization ID for resource %s", either(p.Old, p.New, ResourceType[T], p.Action)))
 	}
 
 	auditLog := database.AuditLog{
