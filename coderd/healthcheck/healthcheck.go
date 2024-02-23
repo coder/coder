@@ -13,35 +13,12 @@ import (
 )
 
 type Checker interface {
-	DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report
-	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
-	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
-	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
-	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport
-	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport
-}
-
-// @typescript-generate Report
-type Report struct {
-	// Time is the time the report was generated at.
-	Time time.Time `json:"time"`
-	// Healthy is true if the report returns no errors.
-	// Deprecated: use `Severity` instead
-	Healthy bool `json:"healthy"`
-	// Severity indicates the status of Coder health.
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	// FailingSections is a list of sections that have failed their healthcheck.
-	FailingSections []codersdk.HealthSection `json:"failing_sections"`
-
-	DERP               derphealth.Report        `json:"derp"`
-	AccessURL          AccessURLReport          `json:"access_url"`
-	Websocket          WebsocketReport          `json:"websocket"`
-	Database           DatabaseReport           `json:"database"`
-	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
-	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
-
-	// The Coder version of the server that the report was generated on.
-	CoderVersion string `json:"coder_version"`
+	DERP(ctx context.Context, opts *derphealth.ReportOptions) codersdk.DERPHealthReport
+	AccessURL(ctx context.Context, opts *AccessURLReportOptions) codersdk.AccessURLReport
+	Websocket(ctx context.Context, opts *WebsocketReportOptions) codersdk.WebsocketReport
+	Database(ctx context.Context, opts *DatabaseReportOptions) codersdk.DatabaseReport
+	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) codersdk.WorkspaceProxyReport
+	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) codersdk.ProvisionerDaemonsReport
 }
 
 type ReportOptions struct {
@@ -57,46 +34,46 @@ type ReportOptions struct {
 
 type defaultChecker struct{}
 
-func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) derphealth.Report {
+func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) codersdk.DERPHealthReport {
 	var report derphealth.Report
 	report.Run(ctx, opts)
-	return report
+	return codersdk.DERPHealthReport(report)
 }
 
-func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport {
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) codersdk.AccessURLReport {
 	var report AccessURLReport
 	report.Run(ctx, opts)
-	return report
+	return codersdk.AccessURLReport(report)
 }
 
-func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport {
+func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) codersdk.WebsocketReport {
 	var report WebsocketReport
 	report.Run(ctx, opts)
-	return report
+	return codersdk.WebsocketReport(report)
 }
 
-func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport {
+func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) codersdk.DatabaseReport {
 	var report DatabaseReport
 	report.Run(ctx, opts)
-	return report
+	return codersdk.DatabaseReport(report)
 }
 
-func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) WorkspaceProxyReport {
+func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) codersdk.WorkspaceProxyReport {
 	var report WorkspaceProxyReport
 	report.Run(ctx, opts)
-	return report
+	return codersdk.WorkspaceProxyReport(report)
 }
 
-func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) ProvisionerDaemonsReport {
+func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) codersdk.ProvisionerDaemonsReport {
 	var report ProvisionerDaemonsReport
 	report.Run(ctx, opts)
-	return report
+	return codersdk.ProvisionerDaemonsReport(report)
 }
 
-func Run(ctx context.Context, opts *ReportOptions) *Report {
+func Run(ctx context.Context, opts *ReportOptions) *codersdk.HealthcheckReport {
 	var (
 		wg     sync.WaitGroup
-		report Report
+		report codersdk.HealthcheckReport
 	)
 
 	if opts.Checker == nil {
