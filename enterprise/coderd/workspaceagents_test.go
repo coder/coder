@@ -44,9 +44,9 @@ func TestBlockNonBrowser(t *testing.T) {
 				},
 			},
 		})
-		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		r := setupWorkspaceAgent(t, client, user, 0)
 		//nolint:gocritic // Testing that even the owner gets blocked.
-		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
+		_, err := client.DialWorkspaceAgent(context.Background(), r.sdkAgent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -63,15 +63,21 @@ func TestBlockNonBrowser(t *testing.T) {
 				},
 			},
 		})
-		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		r := setupWorkspaceAgent(t, client, user, 0)
 		//nolint:gocritic // Testing RBAC is not the point of this test.
-		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
+		conn, err := client.DialWorkspaceAgent(context.Background(), r.sdkAgent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
 }
 
-func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, appPort uint16) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+type setupResp struct {
+	workspace codersdk.Workspace
+	sdkAgent  codersdk.WorkspaceAgent
+	agent     agent.Agent
+}
+
+func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, appPort uint16) setupResp {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -127,20 +133,20 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 		},
 	}
 	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
+	agnt := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {
-		_ = agentCloser.Close()
+		_ = agnt.Close()
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	agnt, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+	sdkAgent, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 
-	return workspace, agnt
+	return setupResp{workspace, sdkAgent, agnt}
 }
