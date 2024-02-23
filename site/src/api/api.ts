@@ -1543,7 +1543,7 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
 type WatchBuildLogsByTemplateVersionIdOptions = {
   after?: number;
   onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone: () => void;
+  onDone?: () => void;
   onError: (error: Error) => void;
 };
 export const watchBuildLogsByTemplateVersionId = (
@@ -1575,7 +1575,7 @@ export const watchBuildLogsByTemplateVersionId = (
   });
   socket.addEventListener("close", () => {
     // When the socket closes, logs have finished streaming!
-    onDone();
+    onDone?.();
   });
   return socket;
 };

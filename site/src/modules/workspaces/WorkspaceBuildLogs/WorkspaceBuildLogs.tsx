@@ -112,7 +112,7 @@ const styles = {
       borderRadius: "0 0 8px 8px",
     },
 
-    "&:first-child": {
+    "&:first-of-type": {
       borderRadius: "8px 8px 0 0",
     },
   }),

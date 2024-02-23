@@ -206,16 +206,21 @@ export const createTemplate = () => {
   };
 };
 
-const createTemplateFn = async (options: {
+export type CreateTemplateOptions = {
   organizationId: string;
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
-}) => {
+  onCreateVersion?: (version: TemplateVersion) => void;
+  onTemplateVersionChanges?: (version: TemplateVersion) => void;
+};
+
+const createTemplateFn = async (options: CreateTemplateOptions) => {
   const version = await API.createTemplateVersion(
     options.organizationId,
     options.version,
   );
-  await waitBuildToBeFinished(version);
+  options.onCreateVersion?.(version);
+  await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
   return API.createTemplate(options.organizationId, {
     ...options.template,
     template_version_id: version.id,
@@ -278,12 +283,17 @@ export const previousTemplateVersion = (
   };
 };
 
-const waitBuildToBeFinished = async (version: TemplateVersion) => {
+const waitBuildToBeFinished = async (
+  version: TemplateVersion,
+  onRequest?: (data: TemplateVersion) => void,
+) => {
   let data: TemplateVersion;
-  let jobStatus: ProvisionerJobStatus;
+  let jobStatus: ProvisionerJobStatus | undefined = undefined;
   do {
-    await delay(1000);
+    // When pending we want to poll more frequently
+    await delay(jobStatus === "pending" ? 250 : 1000);
     data = await API.getTemplateVersion(version.id);
+    onRequest?.(data);
     jobStatus = data.job.status;
 
     if (jobStatus === "succeeded") {

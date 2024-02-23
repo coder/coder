@@ -6,6 +6,7 @@ import {
   useContext,
   ReactNode,
   ComponentProps,
+  forwardRef,
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
@@ -81,59 +82,49 @@ interface FormSectionProps {
   deprecated?: boolean;
 }
 
-export const FormSection: FC<FormSectionProps> = ({
-  children,
-  title,
-  description,
-  classes = {},
-  alpha = false,
-  deprecated = false,
-}) => {
-  const { direction } = useContext(FormContext);
-  const theme = useTheme();
+export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
+  (
+    {
+      children,
+      title,
+      description,
+      classes = {},
+      alpha = false,
+      deprecated = false,
+    },
+    ref,
+  ) => {
+    const { direction } = useContext(FormContext);
 
-  return (
-    <div
-      css={{
-        display: "flex",
-        alignItems: "flex-start",
-        flexDirection: direction === "horizontal" ? "row" : "column",
-        gap: direction === "horizontal" ? 120 : 24,
-
-        [theme.breakpoints.down("md")]: {
-          flexDirection: "column",
-          gap: 16,
-        },
-      }}
-      className={classes.root}
-    >
-      <div
-        css={{
-          width: "100%",
-          maxWidth: direction === "horizontal" ? 312 : undefined,
-          flexShrink: 0,
-          position: direction === "horizontal" ? "sticky" : undefined,
-          top: 24,
-
-          [theme.breakpoints.down("md")]: {
-            width: "100%",
-            position: "initial" as const,
-          },
-        }}
-        className={classes.sectionInfo}
+    return (
+      <section
+        ref={ref}
+        css={[
+          styles.formSection,
+          direction === "horizontal" && styles.formSectionHorizontal,
+        ]}
+        className={classes.root}
       >
-        <h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
-          {title}
-          {alpha && <AlphaBadge />}
-          {deprecated && <DeprecatedBadge />}
-        </h2>
-        <div css={styles.formSectionInfoDescription}>{description}</div>
-      </div>
+        <div
+          css={[
+            styles.formSectionInfo,
+            direction === "horizontal" && styles.formSectionInfoHorizontal,
+          ]}
+          className={classes.sectionInfo}
+        >
+          <h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
+            {title}
+            {alpha && <AlphaBadge />}
+            {deprecated && <DeprecatedBadge />}
+          </h2>
+          <div css={styles.formSectionInfoDescription}>{description}</div>
+        </div>
 
-      {children}
-    </div>
-  );
-};
+        {children}
+      </section>
+    );
+  },
+);
 
 export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
   return (
@@ -147,6 +138,35 @@ export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
 };
 
 const styles = {
+  formSection: (theme) => ({
+    display: "flex",
+    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: 24,
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      gap: 16,
+    },
+  }),
+  formSectionHorizontal: {
+    flexDirection: "row",
+    gap: 120,
+  },
+  formSectionInfo: (theme) => ({
+    width: "100%",
+    flexShrink: 0,
+    top: 24,
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+      position: "initial" as const,
+    },
+  }),
+  formSectionInfoHorizontal: {
+    maxWidth: 312,
+    position: "sticky",
+  },
   formSectionInfoTitle: (theme) => ({
     fontSize: 20,
     color: theme.palette.text.primary,
