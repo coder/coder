@@ -344,7 +344,7 @@ func TestDERPEndToEnd(t *testing.T) {
 		Name: "best-proxy",
 	})
 
-	// Wait for the proxy to become healthy and appear in the DERP map.
+	// Wait for the proxy to become healthy.
 	require.Eventually(t, func() bool {
 		healthCtx := testutil.Context(t, testutil.WaitLong)
 		err := api.ProxyHealth.ForceUpdate(healthCtx)
