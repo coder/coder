@@ -517,6 +517,8 @@ type PatchLogs struct {
 
 // PatchLogs writes log messages to the agent startup script.
 // Log messages are limited to 1MB in total.
+//
+// Deprecated: use the DRPCAgentClient.BatchCreateLogs instead
 func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/logs", req)
 	if err != nil {

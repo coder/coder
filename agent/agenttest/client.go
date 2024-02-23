@@ -46,7 +46,7 @@ func NewClient(t testing.TB,
 	derpMapUpdates := make(chan *tailcfg.DERPMap)
 	drpcService := &tailnet.DRPCService{
 		CoordPtr:               &coordPtr,
-		Logger:                 logger,
+		Logger:                 logger.Named("tailnetsvc"),
 		DerpMapUpdateFrequency: time.Microsecond,
 		DerpMapFn:              func() *tailcfg.DERPMap { return <-derpMapUpdates },
 	}
@@ -85,7 +85,6 @@ type Client struct {
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
 	LastWorkspaceAgent func()
-	PatchWorkspaceLogs func() error
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
@@ -165,17 +164,6 @@ func (c *Client) GetStartupLogs() []agentsdk.Log {
 	return c.logs
 }
 
-func (c *Client) PatchLogs(ctx context.Context, logs agentsdk.PatchLogs) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.PatchWorkspaceLogs != nil {
-		return c.PatchWorkspaceLogs()
-	}
-	c.logs = append(c.logs, logs.Logs...)
-	c.logger.Debug(ctx, "patch startup logs", slog.F("req", logs))
-	return nil
-}
-
 func (c *Client) SetServiceBannerFunc(f func() (codersdk.ServiceBannerConfig, error)) {
 	c.fakeAgentAPI.SetServiceBannerFunc(f)
 }
@@ -192,6 +180,10 @@ func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	return nil
 }
 
+func (c *Client) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
+	c.fakeAgentAPI.SetLogsChannel(ch)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -201,6 +193,7 @@ type FakeAgentAPI struct {
 	startupCh   chan *agentproto.Startup
 	statsCh     chan *agentproto.Stats
 	appHealthCh chan *agentproto.BatchUpdateAppHealthRequest
+	logsCh      chan<- *agentproto.BatchCreateLogsRequest
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -263,9 +256,26 @@ func (*FakeAgentAPI) BatchUpdateMetadata(context.Context, *agentproto.BatchUpdat
 	panic("implement me")
 }
 
-func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
+	f.Lock()
+	defer f.Unlock()
+	f.logsCh = ch
+}
+
+func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
+	f.logger.Info(ctx, "batch create logs called", slog.F("req", req))
+	f.Lock()
+	ch := f.logsCh
+	f.Unlock()
+	if ch != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case ch <- req:
+			// ok
+		}
+	}
+	return &agentproto.BatchCreateLogsResponse{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
