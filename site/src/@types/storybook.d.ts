@@ -7,5 +7,6 @@ declare module "@storybook/react" {
     features?: FeatureName[];
     experiments?: Experiments;
     queries?: { key: QueryKey; data: unknown }[];
+    messages?: string[];
   }
 }

@@ -44,3 +44,28 @@ export const withDashboardProvider = (
     </DashboardContext.Provider>
   );
 };
+
+export const withWSMessages = (Story: FC, { parameters }: StoryContext) => {
+  if (!parameters.messages) {
+    console.warn("Looks like you forgot to add messages to the story");
+  }
+
+  // @ts-expect-error -- TS doesn't know about the global WebSocket
+  window.WebSocket = function () {
+    return {
+      addEventListener: (
+        type: string,
+        callback: (ev: Record<"data", string>) => void,
+      ) => {
+        if (type === "message") {
+          parameters.messages?.forEach((message) => {
+            callback({ data: message });
+          });
+        }
+      },
+      close: () => {},
+    };
+  };
+
+  return <Story />;
+};
