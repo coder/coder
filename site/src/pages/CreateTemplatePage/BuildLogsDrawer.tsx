@@ -2,10 +2,10 @@ import Drawer from "@mui/material/Drawer";
 import Close from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import { visuallyHidden } from "@mui/utils";
-import { FC, useEffect, useRef } from "react";
+import { FC, useLayoutEffect, useRef } from "react";
 import { TemplateVersion } from "api/typesGenerated";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { useTheme } from "@emotion/react";
+import { Interpolation, Theme } from "@emotion/react";
 import { navHeight } from "theme/constants";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { JobError } from "api/queries/templates";
@@ -27,7 +27,6 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
   variablesSectionRef,
   ...drawerProps
 }) => {
-  const theme = useTheme();
   const logs = useWatchVersionLogs(templateVersion);
   const logsContainer = useRef<HTMLDivElement>(null);
 
@@ -39,11 +38,11 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
     }, 0);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     scrollToBottom();
   }, [logs]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (drawerProps.open) {
       scrollToBottom();
     }
@@ -55,104 +54,29 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 
   return (
     <Drawer anchor="right" {...drawerProps}>
-      <div
-        css={{
-          width: 800,
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <header
-          css={{
-            height: navHeight,
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <h3 css={{ margin: 0, fontWeight: 500, fontSize: 16 }}>
-            Creating template...
-          </h3>
+      <div css={styles.root}>
+        <header css={styles.header}>
+          <h3 css={styles.title}>Creating template...</h3>
           <IconButton size="small" onClick={drawerProps.onClose}>
-            <Close css={{ fontSize: 20 }} />
+            <Close css={styles.closeIcon} />
             <span style={visuallyHidden}>Close build logs</span>
           </IconButton>
         </header>
 
         {isMissingVariables ? (
-          <div
-            css={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 40,
+          <MissingVariablesBanner
+            onFillVariables={() => {
+              variablesSectionRef.current?.scrollIntoView({
+                behavior: "smooth",
+              });
+              const firstVariableInput =
+                variablesSectionRef.current?.querySelector("input");
+              setTimeout(() => firstVariableInput?.focus(), 0);
+              drawerProps.onClose();
             }}
-          >
-            <div
-              css={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-                maxWidth: 360,
-              }}
-            >
-              <WarningOutlined
-                css={{ fontSize: 32, color: theme.roles.warning.fill.outline }}
-              />
-              <h3
-                css={{
-                  fontWeight: 500,
-                  lineHeight: "1",
-                  margin: 0,
-                  marginTop: 16,
-                }}
-              >
-                Missing variables
-              </h3>
-              <p
-                css={{
-                  color: theme.palette.text.secondary,
-                  fontSize: 14,
-                  margin: 0,
-                  marginTop: 8,
-                  lineHeight: "1.5",
-                }}
-              >
-                During the build process, we identified some missing variables.
-                Rest assured, we have automatically added them to the form for
-                you.
-              </p>
-              <Button
-                css={{ marginTop: 16 }}
-                size="small"
-                variant="outlined"
-                onClick={() => {
-                  variablesSectionRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                  });
-                  const firstVariableInput =
-                    variablesSectionRef.current?.querySelector("input");
-                  setTimeout(() => firstVariableInput?.focus(), 0);
-                  drawerProps.onClose();
-                }}
-              >
-                Fill variables
-              </Button>
-            </div>
-          </div>
+          />
         ) : logs ? (
-          <section
-            ref={logsContainer}
-            css={{
-              flex: 1,
-              overflow: "auto",
-              backgroundColor: theme.palette.background.default,
-            }}
-          >
+          <section ref={logsContainer} css={styles.logs}>
             <WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
           </section>
         ) : (
@@ -162,3 +86,94 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
     </Drawer>
   );
 };
+
+const MissingVariablesBanner: FC<{ onFillVariables: () => void }> = ({
+  onFillVariables,
+}) => {
+  return (
+    <div css={bannerStyles.root}>
+      <div css={bannerStyles.content}>
+        <WarningOutlined css={bannerStyles.icon} />
+        <h4 css={bannerStyles.title}>Missing variables</h4>
+        <p css={bannerStyles.description}>
+          During the build process, we identified some missing variables. Rest
+          assured, we have automatically added them to the form for you.
+        </p>
+        <Button
+          css={bannerStyles.button}
+          size="small"
+          variant="outlined"
+          onClick={onFillVariables}
+        >
+          Fill variables
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const styles = {
+  root: {
+    width: 800,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+  },
+  header: (theme) => ({
+    height: navHeight,
+    padding: "0 24px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  }),
+  title: {
+    margin: 0,
+    fontWeight: 500,
+    fontSize: 16,
+  },
+  closeIcon: {
+    fontSize: 20,
+  },
+  logs: (theme) => ({
+    flex: 1,
+    overflow: "auto",
+    backgroundColor: theme.palette.background.default,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
+const bannerStyles = {
+  root: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  content: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    maxWidth: 360,
+  },
+  icon: (theme) => ({
+    fontSize: 32,
+    color: theme.roles.warning.fill.outline,
+  }),
+  title: {
+    fontWeight: 500,
+    lineHeight: "1",
+    margin: 0,
+    marginTop: 16,
+  },
+  description: (theme) => ({
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+    margin: 0,
+    marginTop: 8,
+    lineHeight: "1.5",
+  }),
+  button: {
+    marginTop: 16,
+  },
+} satisfies Record<string, Interpolation<Theme>>;

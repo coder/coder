@@ -6,7 +6,7 @@ export const useWatchVersionLogs = (
   templateVersion: TemplateVersion | undefined,
   options?: { onDone: () => Promise<unknown> },
 ) => {
-  const [logs, setLogs] = useState<ProvisionerJobLog[]>();
+  const [logs, setLogs] = useState<ProvisionerJobLog[] | undefined>();
   const templateVersionId = templateVersion?.id;
   const templateVersionStatus = templateVersion?.job.status;
 

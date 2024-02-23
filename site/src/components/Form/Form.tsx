@@ -95,37 +95,21 @@ export const FormSection = forwardRef<HTMLDivElement, FormSectionProps>(
     ref,
   ) => {
     const { direction } = useContext(FormContext);
-    const theme = useTheme();
 
     return (
       <section
         ref={ref}
-        css={{
-          display: "flex",
-          alignItems: "flex-start",
-          flexDirection: direction === "horizontal" ? "row" : "column",
-          gap: direction === "horizontal" ? 120 : 24,
-
-          [theme.breakpoints.down("md")]: {
-            flexDirection: "column",
-            gap: 16,
-          },
-        }}
+        css={[
+          styles.formSection,
+          direction === "horizontal" && styles.formSectionHorizontal,
+        ]}
         className={classes.root}
       >
         <div
-          css={{
-            width: "100%",
-            maxWidth: direction === "horizontal" ? 312 : undefined,
-            flexShrink: 0,
-            position: direction === "horizontal" ? "sticky" : undefined,
-            top: 24,
-
-            [theme.breakpoints.down("md")]: {
-              width: "100%",
-              position: "initial" as const,
-            },
-          }}
+          css={[
+            styles.formSectionInfo,
+            direction === "horizontal" && styles.formSectionInfoHorizontal,
+          ]}
           className={classes.sectionInfo}
         >
           <h2 css={styles.formSectionInfoTitle} className={classes.infoTitle}>
@@ -154,6 +138,35 @@ export const FormFields: FC<ComponentProps<typeof Stack>> = (props) => {
 };
 
 const styles = {
+  formSection: (theme) => ({
+    display: "flex",
+    alignItems: "flex-start",
+    flexDirection: "column",
+    gap: 24,
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      gap: 16,
+    },
+  }),
+  formSectionHorizontal: {
+    flexDirection: "row",
+    gap: 120,
+  },
+  formSectionInfo: (theme) => ({
+    width: "100%",
+    flexShrink: 0,
+    top: 24,
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+      position: "initial" as const,
+    },
+  }),
+  formSectionInfoHorizontal: {
+    maxWidth: 312,
+    position: "sticky",
+  },
   formSectionInfoTitle: (theme) => ({
     fontSize: 20,
     color: theme.palette.text.primary,
