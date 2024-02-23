@@ -98,7 +98,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 							Message: fmt.Sprintf("Organization %q not found. Is the name correct, and are you a member of it?", switchToOrg),
 							Detail:  "Ensure the organization argument is correct and you are a member of it.",
 						},
-						Helper: fmt.Sprintf("Valid organizations you can switch to: %q", strings.Join(orgNames(orgs), ", ")),
+						Helper: fmt.Sprintf("Valid organizations you can switch to: %s", strings.Join(orgNames(orgs), ", ")),
 					}
 					return err
 				}
