@@ -66,7 +66,7 @@ func TestOrganizationSwitch(t *testing.T) {
 		exp, err := client.OrganizationByName(ctx, codersdk.Me, "foo")
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "organizations", "switch", "foo")
+		inv, root := clitest.New(t, "organizations", "set", "foo")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)

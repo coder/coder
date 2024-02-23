@@ -38,16 +38,16 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:   "switch <organization name | ID>",
-		Short: "Switch the organization used by the cli. Pass an empty string to reset to the default organization.",
-		Long: "Switch the organization used by the cli. Pass an empty string to reset to the default organization.\n" + formatExamples(
+		Use:   "set <organization name | ID>",
+		Short: "set the organization used by the CLI. Pass an empty string to reset to the default organization.",
+		Long: "set the organization used by the CLI. Pass an empty string to reset to the default organization.\n" + formatExamples(
 			example{
 				Description: "Remove the current organization and defer to the default.",
-				Command:     "coder organizations switch ''",
+				Command:     "coder organizations set ''",
 			},
 			example{
 				Description: "Switch to a custom organization.",
-				Command:     "coder organizations switch my-org",
+				Command:     "coder organizations set my-org",
 			},
 		),
 		Middleware: clibase.Chain(
@@ -118,7 +118,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 				var sdkError *codersdk.Error
 				if errors.As(err, &sdkError) {
 					if sdkError.Helper == "" && sdkError.StatusCode() != 500 {
-						sdkError.Helper = `If this error persists, try unsetting your org with 'coder organizations switch ""'`
+						sdkError.Helper = `If this error persists, try unsetting your org with 'coder organizations set ""'`
 					}
 					return sdkError
 				}
@@ -167,13 +167,15 @@ func promptUserSelectOrg(inv *clibase.Invocation, conf config.Root, orgs []coder
 		defaultOrg = orgs[index].Name
 	}
 
-	const deselectOption = "--Deselect--"
+	// deselectOption is the option to delete the organization config file and defer
+	// to default behavior.
+	const deselectOption = "[Default]"
 	if defaultOrg == "" {
 		defaultOrg = deselectOption
 	}
 
 	// Pull value from a prompt
-	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select an organization below to switch the current cli context to:"))
+	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select an organization below to set the current CLI context to:"))
 	value, err := cliui.Select(inv, cliui.SelectOptions{
 		Options:    append([]string{deselectOption}, orgNames(orgs)...),
 		Default:    defaultOrg,
