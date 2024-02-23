@@ -9,6 +9,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -160,4 +161,18 @@ func TestSubsystems(t *testing.T) {
 		proto.Startup_ENVBUILDER,
 		proto.Startup_EXECTRACE,
 	})
+}
+
+func TestProtoFromLifecycle(t *testing.T) {
+	t.Parallel()
+	now := dbtime.Now()
+	for _, s := range codersdk.WorkspaceAgentLifecycleOrder {
+		sr := agentsdk.PostLifecycleRequest{State: s, ChangedAt: now}
+		pr, err := agentsdk.ProtoFromLifecycle(sr)
+		require.NoError(t, err)
+		require.Equal(t, now, pr.ChangedAt.AsTime())
+		state, err := agentsdk.LifecycleStateFromProto(pr.State)
+		require.NoError(t, err)
+		require.Equal(t, s, state)
+	}
 }

@@ -90,7 +90,6 @@ type Options struct {
 
 type Client interface {
 	ConnectRPC(ctx context.Context) (drpc.Conn, error)
-	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
@@ -299,7 +298,6 @@ func (a *agent) init() {
 // may be happening, but regardless after the intermittent
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop() {
-	go a.reportLifecycleUntilClose()
 	go a.reportMetadataUntilGracefulShutdown()
 	go a.manageProcessPriorityUntilGracefulShutdown()
 
@@ -618,21 +616,19 @@ func (a *agent) reportMetadataUntilGracefulShutdown() {
 	}
 }
 
-// reportLifecycleUntilClose reports the current lifecycle state once. All state
+// reportLifecycle reports the current lifecycle state once. All state
 // changes are reported in order.
-func (a *agent) reportLifecycleUntilClose() {
-	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
-	// lifecycle reporting has to be via the "hard" context.
-	ctx := a.hardCtx
+func (a *agent) reportLifecycle(ctx context.Context, conn drpc.Conn) error {
+	aAPI := proto.NewDRPCAgentClient(conn)
 	lastReportedIndex := 0 // Start off with the created state without reporting it.
 	for {
 		select {
 		case <-a.lifecycleUpdate:
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		}
 
-		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+		for {
 			a.lifecycleMu.RLock()
 			lastIndex := len(a.lifecycleStates) - 1
 			report := a.lifecycleStates[lastReportedIndex]
@@ -644,33 +640,36 @@ func (a *agent) reportLifecycleUntilClose() {
 			if lastIndex == lastReportedIndex {
 				break
 			}
-
-			a.logger.Debug(ctx, "reporting lifecycle state", slog.F("payload", report))
-
-			err := a.client.PostLifecycle(ctx, report)
-			if err == nil {
-				a.logger.Debug(ctx, "successfully reported lifecycle state", slog.F("payload", report))
-				r.Reset() // don't back off when we are successful
+			l, err := agentsdk.ProtoFromLifecycle(report)
+			if err != nil {
+				a.logger.Critical(ctx, "failed to convert lifecycle state", slog.F("report", report))
+				// Skip this report; there is no point retrying.  Maybe we can successfully convert the next one?
 				lastReportedIndex++
-				select {
-				case a.lifecycleReported <- report.State:
-				case <-a.lifecycleReported:
-					a.lifecycleReported <- report.State
-				}
-				if lastReportedIndex < lastIndex {
-					// Keep reporting until we've sent all messages, we can't
-					// rely on the channel triggering us before the backlog is
-					// consumed.
-					continue
-				}
-				break
+				continue
 			}
-			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-				a.logger.Debug(ctx, "canceled reporting lifecycle state", slog.F("payload", report))
-				return
+			payload := &proto.UpdateLifecycleRequest{Lifecycle: l}
+			logger := a.logger.With(slog.F("payload", payload))
+			logger.Debug(ctx, "reporting lifecycle state")
+
+			_, err = aAPI.UpdateLifecycle(ctx, payload)
+			if err != nil {
+				return xerrors.Errorf("failed to update lifecycle: %w", err)
 			}
-			// If we fail to report the state we probably shouldn't exit, log only.
-			a.logger.Error(ctx, "agent failed to report the lifecycle state", slog.Error(err))
+
+			logger.Debug(ctx, "successfully reported lifecycle state")
+			lastReportedIndex++
+			select {
+			case a.lifecycleReported <- report.State:
+			case <-a.lifecycleReported:
+				a.lifecycleReported <- report.State
+			}
+			if lastReportedIndex < lastIndex {
+				// Keep reporting until we've sent all messages, we can't
+				// rely on the channel triggering us before the backlog is
+				// consumed.
+				continue
+			}
+			break
 		}
 	}
 }
@@ -779,6 +778,10 @@ func (a *agent) run() (retErr error) {
 			}
 			return err
 		})
+
+	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
+	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
+	connMan.start("report lifecycle", gracefulShutdownBehaviorRemain, a.reportLifecycle)
 
 	// channels to sync goroutines below
 	//  handle manifest

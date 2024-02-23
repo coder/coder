@@ -485,6 +485,9 @@ type PostLifecycleRequest struct {
 	ChangedAt time.Time                        `json:"changed_at"`
 }
 
+// PostLifecycle posts the agent's lifecycle to the Coder server.
+//
+// Deprecated: Use UpdateLifecycle on the dRPC API instead
 func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
 	if err != nil {
