@@ -191,8 +191,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Refresh entitlements independently of trial generator as admin may not want to generate license,
-	// and actual "user_limit" entitlement should be equal to 1 (first user only).
 	if api.RefreshEntitlements != nil {
 		err = api.RefreshEntitlements(ctx)
 		if err != nil {

@@ -200,7 +200,7 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 	err = api.refreshEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update entitlements",
+			Message: "Failed to refresh entitlements",
 			Detail:  err.Error(),
 		})
 		return
