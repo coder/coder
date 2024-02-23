@@ -138,6 +138,7 @@ export const TemplateVersionEditorPage: FC = () => {
               template_id: templateQuery.data.id,
               file_id: serverFile.hash,
             });
+
             onBuildEnds(newVersion);
           }}
           onPublish={() => {
@@ -186,9 +187,8 @@ export const TemplateVersionEditorPage: FC = () => {
           }
           disableUpdate={
             templateVersionQuery.data.job.status !== "succeeded" ||
-            !lastSuccessfulPublishedVersion ||
             templateVersionQuery.data.name ===
-              lastSuccessfulPublishedVersion.name
+              lastSuccessfulPublishedVersion?.name
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
