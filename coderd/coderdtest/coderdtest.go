@@ -107,6 +107,7 @@ type Options struct {
 	TLSCertificates       []tls.Certificate
 	ExternalAuthConfigs   []*externalauth.Config
 	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	RefreshEntitlements   func(ctx context.Context) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
 
@@ -434,6 +435,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AccessControlStore:                 accessControlStore,
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
+			RefreshEntitlements:                options.RefreshEntitlements,
 			TailnetCoordinator:                 options.Coordinator,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,

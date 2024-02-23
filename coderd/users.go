@@ -191,6 +191,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.RefreshEntitlements != nil {
+		err = api.RefreshEntitlements(ctx)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to refresh entitlements after generating trial license")
+			return
+		}
+	} else {
+		api.Logger.Debug(ctx, "entitlements will not be refreshed")
+	}
+
 	telemetryUser := telemetry.ConvertUser(user)
 	// Send the initial users email address!
 	telemetryUser.Email = &user.Email

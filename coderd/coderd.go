@@ -125,6 +125,8 @@ type Options struct {
 	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
+	RefreshEntitlements func(ctx context.Context) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator

@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -217,4 +218,22 @@ func TestUserQuietHours(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "cannot set custom quiet hours schedule")
 	})
+}
+
+func TestCreateFirstUser_Entitlements_Trial(t *testing.T) {
+	t.Parallel()
+
+	adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Trial: true,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	//nolint:gocritic // we need the first user so admin
+	entitlements, err := adminClient.Entitlements(ctx)
+	require.NoError(t, err)
+	require.True(t, entitlements.Trial, "Trial license should be immediately active.")
 }
