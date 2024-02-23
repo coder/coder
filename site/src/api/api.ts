@@ -1575,7 +1575,7 @@ export const watchBuildLogsByTemplateVersionId = (
   });
   socket.addEventListener("close", () => {
     // When the socket closes, logs have finished streaming!
-    onDone && onDone();
+    onDone?.();
   });
   return socket;
 };

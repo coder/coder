@@ -12,6 +12,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestMultiOrgFetch(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	makeOrgs := []string{"foo", "bar", "baz"}
+	for _, name := range makeOrgs {
+		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: name,
+		})
+		require.NoError(t, err)
+	}
+
+	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NotNil(t, orgs)
+	require.Len(t, orgs, len(makeOrgs)+1)
+}
+
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

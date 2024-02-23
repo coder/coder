@@ -2,6 +2,7 @@ import {
   mockApiError,
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
 import {
   TemplateVersionPageView,
@@ -44,6 +45,12 @@ export default meta;
 type Story = StoryObj<typeof TemplateVersionPageView>;
 
 export const Default: Story = {};
+
+export const LongVersionMessage: Story = {
+  args: {
+    currentVersion: MockTemplateVersionWithMarkdownMessage,
+  },
+};
 
 export const Error: Story = {
   args: {

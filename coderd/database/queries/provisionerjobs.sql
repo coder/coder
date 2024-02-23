@@ -21,8 +21,13 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ @tags :: jsonb
+			AND CASE
+				-- Special case for untagged provisioners: only match untagged jobs.
+				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+				THEN nested.tags :: jsonb = @tags :: jsonb
+				-- Ensure the caller satisfies all job tags.
+				ELSE nested.tags :: jsonb <@ @tags :: jsonb
+			END
 		ORDER BY
 			nested.created_at
 		FOR UPDATE

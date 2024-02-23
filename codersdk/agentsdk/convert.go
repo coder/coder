@@ -311,3 +311,22 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }
+
+func ProtoFromLifecycle(req PostLifecycleRequest) (*proto.Lifecycle, error) {
+	s, ok := proto.Lifecycle_State_value[strings.ToUpper(string(req.State))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown lifecycle state: %s", req.State)
+	}
+	return &proto.Lifecycle{
+		State:     proto.Lifecycle_State(s),
+		ChangedAt: timestamppb.New(req.ChangedAt),
+	}, nil
+}
+
+func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLifecycle, error) {
+	caps, ok := proto.Lifecycle_State_name[int32(s)]
+	if !ok {
+		return "", xerrors.Errorf("unknown lifecycle state: %d", s)
+	}
+	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
+}

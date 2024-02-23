@@ -748,6 +748,25 @@ var deletedUserLinkError = &pq.Error{
 	Routine: "exec_stmt_raise",
 }
 
+// m1 and m2 are equal iff |m1| = |m2| ^ m2 ⊆ m1
+func tagsEqual(m1, m2 map[string]string) bool {
+	return len(m1) == len(m2) && tagsSubset(m1, m2)
+}
+
+// m2 is a subset of m1 if each key in m1 exists in m2
+// with the same value
+func tagsSubset(m1, m2 map[string]string) bool {
+	for k, v1 := range m1 {
+		if v2, found := m2[k]; !found || v1 != v2 {
+			return false
+		}
+	}
+	return true
+}
+
+// default tags when no tag is specified for a provisioner or job
+var tagsUntagged = provisionersdk.MutateTags(uuid.Nil, nil)
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -783,19 +802,15 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			}
 		}
 
-		missing := false
-		for key, value := range provisionerJob.Tags {
-			provided, found := tags[key]
-			if !found {
-				missing = true
-				break
-			}
-			if provided != value {
-				missing = true
-				break
-			}
+		// Special case for untagged provisioners: only match untagged jobs.
+		// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+		// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+		//      THEN nested.tags :: jsonb = @tags :: jsonb
+		if tagsEqual(provisionerJob.Tags, tagsUntagged) && !tagsEqual(provisionerJob.Tags, tags) {
+			continue
 		}
-		if missing {
+		// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+		if !tagsSubset(provisionerJob.Tags, tags) {
 			continue
 		}
 		provisionerJob.StartedAt = arg.StartedAt
