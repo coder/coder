@@ -188,6 +188,9 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
+	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
+	RefreshEntitlements func(ctx context.Context) error
 }
 
 // @title Coder API

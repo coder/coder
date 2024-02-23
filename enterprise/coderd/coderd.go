@@ -203,6 +203,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})
 	})
+	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
+		return api.refreshEntitlements(ctx)
+	}
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
