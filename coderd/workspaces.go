@@ -345,6 +345,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		Request:          r,
 		Action:           database.AuditActionCreate,
 		AdditionalFields: wriBytes,
+		OrganizationID:   organization.ID,
 	})
 
 	defer commitAudit()
@@ -644,10 +645,11 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -734,10 +736,11 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -808,10 +811,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -896,10 +900,11 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		oldWorkspace      = workspace
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
 		})
 	)
 	aReq.Old = oldWorkspace
@@ -1094,10 +1099,11 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-		Audit:   *auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionWrite,
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: workspace.OrganizationID,
 	})
 	defer commitAudit()
 	aReq.Old = workspace
@@ -1140,10 +1146,11 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-		Audit:   *auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionWrite,
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: workspace.OrganizationID,
 	})
 
 	defer commitAudit()
@@ -1178,10 +1185,11 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: workspace.OrganizationID,
 		})
 	)
 	defer commitAudit()

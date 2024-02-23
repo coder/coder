@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -199,6 +200,23 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	}
 }
 
+// requireOrgID will either panic (in unit tests) or log an error (in production)
+// if the given resource requires an organization ID and the provided ID is nil.
+func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logger) uuid.UUID {
+	if ResourceRequiresOrgID[T]() && id == uuid.Nil {
+		var tgt T
+		resourceName := fmt.Sprintf("%T", tgt)
+		if flag.Lookup("test.v") != nil {
+			// In unit tests we panic to fail the tests
+			panic(fmt.Sprintf("missing required organization ID for resource %q", resourceName))
+		}
+		log.Error(ctx, "missing required organization ID for resource in audit log",
+			slog.F("resource", resourceName),
+		)
+	}
+	return id
+}
+
 // InitRequest initializes an audit log for a request. It returns a function
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
@@ -283,7 +301,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: p.AdditionalFields,
-			OrganizationID:   p.OrganizationID,
+			OrganizationID:   requireOrgID[T](logCtx, p.OrganizationID, p.Log),
 		}
 		err := p.Audit.Export(ctx, auditLog)
 		if err != nil {
@@ -313,16 +331,11 @@ func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[
 		p.AdditionalFields = json.RawMessage("{}")
 	}
 
-	if ResourceRequiresOrgID[T]() && p.OrganizationID == uuid.Nil {
-		// We panic as this is a developer error and should never happen.
-		panic(fmt.Sprintf("missing required organization ID for resource %s", either(p.Old, p.New, ResourceType[T], p.Action)))
-	}
-
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
 		Time:             dbtime.Now(),
 		UserID:           p.UserID,
-		OrganizationID:   p.OrganizationID,
+		OrganizationID:   requireOrgID[T](ctx, p.OrganizationID, p.Log),
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
