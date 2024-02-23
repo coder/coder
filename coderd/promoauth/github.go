@@ -41,7 +41,7 @@ func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 		Limit:     p.int("x-ratelimit-limit"),
 		Remaining: p.int("x-ratelimit-remaining"),
 		Used:      p.int("x-ratelimit-used"),
-		Resource:  p.string("x-ratelimit-resource")+"-unauthorized"",
+		Resource:  p.string("x-ratelimit-resource") + "-unauthorized",
 	}
 
 	if limits.Limit == 0 &&
