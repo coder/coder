@@ -434,6 +434,20 @@ You can add instructions here
   archived: false,
 };
 
+export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
+  {
+    ...MockTemplateVersion,
+    message: `
+# Abiding Grace
+## Enchantment
+At the beginning of your end step, choose one —
+
+- You gain 1 life.
+
+- Return target creature card with mana value 1 from your graveyard to the battlefield.
+`,
+  };
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",

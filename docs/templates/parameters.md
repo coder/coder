@@ -282,23 +282,6 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Terraform template-wide variables
-
-As parameters are intended to be used only for workspace customization purposes,
-Terraform variables can be freely managed by the template author to build
-templates. Workspace users are not able to modify template variables.
-
-```hcl
-
-variable "CLOUD_API_KEY" {
-  type        = string
-  description = "API key for the service"
-  default     = "1234567890"
-  sensitive   = true
-}
-
-```
-
 ## Create Autofill
 
 When the template doesn't specify default values, Coder may still autofill

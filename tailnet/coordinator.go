@@ -131,7 +131,8 @@ func (c *remoteCoordination) Close() (retErr error) {
 		}
 	}()
 	err := c.protocol.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-	if err != nil {
+	if err != nil && !xerrors.Is(err, io.EOF) {
+		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
 		return xerrors.Errorf("send disconnect: %w", err)
 	}
 	c.logger.Debug(context.Background(), "sent disconnect")

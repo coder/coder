@@ -46,12 +46,12 @@ type tableTest2 struct {
 
 type tableTest3 struct {
 	NotIncluded string     // no table tag
-	Sub         tableTest2 `table:"inner,recursive,default_sort"`
+	Sub         tableTest2 `table:"inner,recursive"`
 }
 
 type tableTest4 struct {
 	Inline    tableTest2 `table:"ignored,recursive_inline"`
-	SortField string     `table:"sort_field,default_sort"`
+	SortField string     `table:"sort_field"`
 }
 
 func Test_DisplayTable(t *testing.T) {

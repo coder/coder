@@ -197,20 +197,10 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = api.updateEntitlements(ctx)
+	err = api.refreshEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update entitlements",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
-	if err != nil {
-		api.Logger.Error(context.Background(), "failed to publish forced entitlement update", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to publish forced entitlement update. Other replicas might not be updated.",
+			Message: "Failed to refresh entitlements",
 			Detail:  err.Error(),
 		})
 		return
@@ -219,6 +209,21 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Entitlements updated",
 	})
+}
+
+func (api *API) refreshEntitlements(ctx context.Context) error {
+	api.Logger.Info(ctx, "refresh entitlements now")
+
+	err := api.updateEntitlements(ctx)
+	if err != nil {
+		return xerrors.Errorf("failed to update entitlements: %w", err)
+	}
+	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
+	if err != nil {
+		api.Logger.Error(ctx, "failed to publish forced entitlement update", slog.Error(err))
+		return xerrors.Errorf("failed to publish forced entitlement update, other replicas might not be updated: %w", err)
+	}
+	return nil
 }
 
 // @Summary Get licenses

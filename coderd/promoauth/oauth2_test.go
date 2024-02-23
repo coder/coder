@@ -179,6 +179,15 @@ func TestGithubRateLimits(t *testing.T) {
 							}
 						}
 
+						// Ignore the well known, required for setup
+						if !strings.Contains(r.URL.String(), ".well-known") {
+							// GitHub rate limits only are instrumented for unauthenticated calls. So emulate
+							// that here. We cannot actually use invalid credentials because the fake IDP
+							// will throw a test error, as it only expects things to work. And we want to use
+							// a real idp to emulate the right http calls to be instrumented.
+							rw.WriteHeader(http.StatusUnauthorized)
+							return
+						}
 						next.ServeHTTP(rw, r)
 					})
 				}))
@@ -195,13 +204,13 @@ func TestGithubRateLimits(t *testing.T) {
 			// Do a single oauth2 call
 			ctx := testutil.Context(t, testutil.WaitShort)
 			ctx = context.WithValue(ctx, oauth2.HTTPClient, idp.HTTPClient(nil))
-			_, err := cfg.Exchange(ctx, idp.CreateAuthCode(t, "foo"))
-			require.NoError(t, err)
+			_, err := cfg.Exchange(ctx, "invalid")
+			require.Error(t, err, "expected unauthorized exchange")
 
 			// Verify
 			labels := prometheus.Labels{
 				"name":     "test",
-				"resource": "core",
+				"resource": "core-unauthorized",
 			}
 			pass := true
 			if !c.ExpectNoMetrics {

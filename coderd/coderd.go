@@ -125,6 +125,8 @@ type Options struct {
 	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
+	RefreshEntitlements func(ctx context.Context) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -143,7 +145,7 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -397,7 +399,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
+		healthCheckGroup:            &singleflight.Group[string, *codersdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
@@ -433,7 +435,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -1170,8 +1172,8 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
-	healthCheckCache atomic.Pointer[healthcheck.Report]
+	healthCheckGroup *singleflight.Group[string, *codersdk.HealthcheckReport]
+	healthCheckCache atomic.Pointer[codersdk.HealthcheckReport]
 
 	statsBatcher *batchstats.Batcher
 

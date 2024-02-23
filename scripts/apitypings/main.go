@@ -28,14 +28,14 @@ import (
 
 var (
 	// baseDirs are the directories to introspect for types to generate.
-	baseDirs = [...]string{"./codersdk", "./coderd/healthcheck"}
+	baseDirs = [...]string{"./codersdk"}
 	// externalTypes are types that are not in the baseDirs, but we want to
 	// support. These are usually types that are used in the baseDirs.
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
 	externalTypePkgs = [...]string{
-		"./coderd/healthcheck/health", "./coderd/healthcheck/derphealth",
+		"./coderd/healthcheck/health",
 		// CLI option types:
 		"github.com/coder/serpent",
 	}

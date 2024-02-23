@@ -485,6 +485,9 @@ type PostLifecycleRequest struct {
 	ChangedAt time.Time                        `json:"changed_at"`
 }
 
+// PostLifecycle posts the agent's lifecycle to the Coder server.
+//
+// Deprecated: Use UpdateLifecycle on the dRPC API instead
 func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
 	if err != nil {
@@ -517,6 +520,8 @@ type PatchLogs struct {
 
 // PatchLogs writes log messages to the agent startup script.
 // Log messages are limited to 1MB in total.
+//
+// Deprecated: use the DRPCAgentClient.BatchCreateLogs instead
 func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/logs", req)
 	if err != nil {

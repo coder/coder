@@ -974,10 +974,13 @@ export const unlinkExternalAuthProvider = async (
   return resp.data;
 };
 
-export const getOAuth2ProviderApps = async (): Promise<
-  TypesGen.OAuth2ProviderApp[]
-> => {
-  const resp = await axios.get(`/api/v2/oauth2-provider/apps`);
+export const getOAuth2ProviderApps = async (
+  filter?: TypesGen.OAuth2ProviderAppFilter,
+): Promise<TypesGen.OAuth2ProviderApp[]> => {
+  const params = filter?.user_id
+    ? new URLSearchParams({ user_id: filter.user_id })
+    : "";
+  const resp = await axios.get(`/api/v2/oauth2-provider/apps?${params}`);
   return resp.data;
 };
 
@@ -1002,6 +1005,7 @@ export const putOAuth2ProviderApp = async (
   const response = await axios.put(`/api/v2/oauth2-provider/apps/${id}`, data);
   return response.data;
 };
+
 export const deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
   await axios.delete(`/api/v2/oauth2-provider/apps/${id}`);
 };
@@ -1027,6 +1031,10 @@ export const deleteOAuth2ProviderAppSecret = async (
   await axios.delete(
     `/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
   );
+};
+
+export const revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
+  await axios.delete(`/oauth2/tokens?client_id=${appId}`);
 };
 
 export const getAuditLogs = async (

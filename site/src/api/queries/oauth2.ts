@@ -3,13 +3,14 @@ import * as API from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 
 const appsKey = ["oauth2-provider", "apps"];
-const appKey = (id: string) => appsKey.concat(id);
-const appSecretsKey = (id: string) => appKey(id).concat("secrets");
+const userAppsKey = (userId: string) => appsKey.concat(userId);
+const appKey = (appId: string) => appsKey.concat(appId);
+const appSecretsKey = (appId: string) => appKey(appId).concat("secrets");
 
-export const getApps = () => {
+export const getApps = (userId?: string) => {
   return {
-    queryKey: appsKey,
-    queryFn: () => API.getOAuth2ProviderApps(),
+    queryKey: userId ? appsKey.concat(userId) : appsKey,
+    queryFn: () => API.getOAuth2ProviderApps({ user_id: userId }),
   };
 };
 
@@ -87,6 +88,17 @@ export const deleteAppSecret = (queryClient: QueryClient) => {
     onSuccess: async (_: void, { appId }: { appId: string }) => {
       await queryClient.invalidateQueries({
         queryKey: appSecretsKey(appId),
+      });
+    },
+  };
+};
+
+export const revokeApp = (queryClient: QueryClient, userId: string) => {
+  return {
+    mutationFn: API.revokeOAuth2ProviderApp,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: userAppsKey(userId),
       });
     },
   };

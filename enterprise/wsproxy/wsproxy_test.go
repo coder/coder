@@ -367,17 +367,29 @@ func TestDERPEndToEnd(t *testing.T) {
 		return true
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
-	// Swap out the DERPMapper for a fake one that only returns the proxy. This
-	// allows us to force the agent to pick the proxy as its preferred region.
-	oldDERPMapper := *api.AGPL.DERPMapper.Load()
-	newDERPMapper := func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
-		derpMap = oldDERPMapper(derpMap)
-		// Strip everything but the proxy, which is region ID 10001.
-		derpMap.Regions = map[int]*tailcfg.DERPRegion{
-			10001: derpMap.Regions[10001],
+	// Wait until the proxy appears in the DERP map, and then swap out the DERP
+	// map for one that only contains the proxy region. This allows us to force
+	// the agent to pick the proxy as its preferred region.
+	var proxyOnlyDERPMap *tailcfg.DERPMap
+	require.Eventually(t, func() bool {
+		derpMap := api.AGPL.DERPMap()
+		if derpMap == nil {
+			return false
 		}
-		derpMap.OmitDefaultRegions = true
-		return derpMap
+		if _, ok := derpMap.Regions[10001]; !ok {
+			return false
+		}
+
+		// Make a DERP map that only contains the proxy region.
+		proxyOnlyDERPMap = derpMap.Clone()
+		proxyOnlyDERPMap.Regions = map[int]*tailcfg.DERPRegion{
+			10001: proxyOnlyDERPMap.Regions[10001],
+		}
+		proxyOnlyDERPMap.OmitDefaultRegions = true
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	newDERPMapper := func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+		return proxyOnlyDERPMap
 	}
 	api.AGPL.DERPMapper.Store(&newDERPMapper)
 

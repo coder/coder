@@ -28,13 +28,10 @@ func TestMain(m *testing.M) {
 
 func TestExecuteBasic(t *testing.T) {
 	t.Parallel()
-	logs := make(chan agentsdk.PatchLogs, 1)
-	runner := setup(t, func(ctx context.Context, req agentsdk.PatchLogs) error {
-		select {
-		case <-ctx.Done():
-		case logs <- req:
-		}
-		return nil
+	ctx := testutil.Context(t, testutil.WaitShort)
+	fLogger := newFakeScriptLogger()
+	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
+		return fLogger
 	})
 	defer runner.Close()
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
@@ -45,19 +42,15 @@ func TestExecuteBasic(t *testing.T) {
 	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
 		return true
 	}))
-	log := <-logs
-	require.Equal(t, "hello", log.Logs[0].Output)
+	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+	require.Equal(t, "hello", log.Output)
 }
 
 func TestEnv(t *testing.T) {
 	t.Parallel()
-	logs := make(chan agentsdk.PatchLogs, 2)
-	runner := setup(t, func(ctx context.Context, req agentsdk.PatchLogs) error {
-		select {
-		case <-ctx.Done():
-		case logs <- req:
-		}
-		return nil
+	fLogger := newFakeScriptLogger()
+	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
+		return fLogger
 	})
 	defer runner.Close()
 	id := uuid.New()
@@ -88,11 +81,9 @@ func TestEnv(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			require.Fail(t, "timed out waiting for logs")
-		case l := <-logs:
-			for _, l := range l.Logs {
-				t.Logf("log: %s", l.Output)
-			}
-			log = append(log, l.Logs...)
+		case l := <-fLogger.logs:
+			t.Logf("log: %s", l.Output)
+			log = append(log, l)
 		}
 		if len(log) >= 2 {
 			break
@@ -124,12 +115,12 @@ func TestCronClose(t *testing.T) {
 	require.NoError(t, runner.Close(), "close runner")
 }
 
-func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchLogs) error) *agentscripts.Runner {
+func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger) *agentscripts.Runner {
 	t.Helper()
-	if patchLogs == nil {
+	if getScriptLogger == nil {
 		// noop
-		patchLogs = func(ctx context.Context, req agentsdk.PatchLogs) error {
-			return nil
+		getScriptLogger = func(uuid uuid.UUID) agentscripts.ScriptLogger {
+			return noopScriptLogger{}
 		}
 	}
 	fs := afero.NewMemMapFs()
@@ -140,11 +131,45 @@ func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchL
 		_ = s.Close()
 	})
 	return agentscripts.New(agentscripts.Options{
-		LogDir:      t.TempDir(),
-		DataDirBase: t.TempDir(),
-		Logger:      logger,
-		SSHServer:   s,
-		Filesystem:  fs,
-		PatchLogs:   patchLogs,
+		LogDir:          t.TempDir(),
+		DataDirBase:     t.TempDir(),
+		Logger:          logger,
+		SSHServer:       s,
+		Filesystem:      fs,
+		GetScriptLogger: getScriptLogger,
 	})
+}
+
+type noopScriptLogger struct{}
+
+func (noopScriptLogger) Send(context.Context, ...agentsdk.Log) error {
+	return nil
+}
+
+func (noopScriptLogger) Flush(context.Context) error {
+	return nil
+}
+
+type fakeScriptLogger struct {
+	logs chan agentsdk.Log
+}
+
+func (f *fakeScriptLogger) Send(ctx context.Context, logs ...agentsdk.Log) error {
+	for _, log := range logs {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case f.logs <- log:
+			// OK!
+		}
+	}
+	return nil
+}
+
+func (*fakeScriptLogger) Flush(context.Context) error {
+	return nil
+}
+
+func newFakeScriptLogger() *fakeScriptLogger {
+	return &fakeScriptLogger{make(chan agentsdk.Log, 100)}
 }
