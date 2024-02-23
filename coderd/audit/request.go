@@ -281,11 +281,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			action = req.Action
 		}
 
-		if ResourceRequiresOrgID[T]() && p.OrganizationID == uuid.Nil {
-			// We panic as this is a developer error and should never happen.
-			panic(fmt.Sprintf("missing required organization ID for resource %s", either(req.Old, req.New, ResourceType[T], req.params.Action)))
-		}
-
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
