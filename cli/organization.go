@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -29,18 +30,16 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 
 func (r *RootCmd) currentOrganization() *clibase.Cmd {
 	var (
-		client    = new(codersdk.Client)
-		formatter = cliui.NewOutputFormatter(
+		stringFormat func(orgs []codersdk.Organization) (string, error)
+		client       = new(codersdk.Client)
+		formatter    = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 				typed, ok := data.([]codersdk.Organization)
 				if !ok {
 					// This should never happen
 					return "", fmt.Errorf("expected []Organization, got %T", data)
 				}
-				if len(typed) != 1 {
-					return "", fmt.Errorf("expected 1 organization, got %d", len(typed))
-				}
-				return fmt.Sprintf("Current organization: %s (%s)\n", typed[0].Name, typed[0].ID.String()), nil
+				return stringFormat(typed)
 			}),
 			cliui.TableFormat([]codersdk.Organization{}, []string{"id", "name", "default"}),
 			cliui.JSONFormat(),
@@ -48,10 +47,11 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 		onlyID = false
 	)
 	cmd := &clibase.Cmd{
-		Use:   "current",
-		Short: "Show the current selected organization the cli will use.",
+		Use:   "show [current|me|uuid]",
+		Short: "Show organization information. By default, if no argument is provided, the current cli configured organization is shown.",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
+			clibase.RequireRangeArgs(0, 1),
 		),
 		Options: clibase.OptionSet{
 			{
@@ -63,15 +63,60 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			org, err := CurrentOrganization(r, inv, client)
-			if err != nil {
-				return err
+			orgArg := "current"
+			if len(inv.Args) == 1 {
+				orgArg = inv.Args[0]
+			}
+
+			var orgs []codersdk.Organization
+			var err error
+			switch strings.ToLower(orgArg) {
+			case "current":
+				stringFormat = func(orgs []codersdk.Organization) (string, error) {
+					if len(orgs) != 1 {
+						return "", fmt.Errorf("expected 1 organization, got %d", len(orgs))
+					}
+					return fmt.Sprintf("Current CLI Organization: %s (%s)\n", orgs[0].Name, orgs[0].ID.String()), nil
+				}
+				org, err := CurrentOrganization(r, inv, client)
+				if err != nil {
+					return err
+				}
+				orgs = []codersdk.Organization{org}
+			case "me":
+				stringFormat = func(orgs []codersdk.Organization) (string, error) {
+					var str strings.Builder
+					_, _ = fmt.Fprint(&str, "Organizations you are a member of:\n")
+					for _, org := range orgs {
+						_, _ = fmt.Fprintf(&str, "\t%s (%s)\n", org.Name, org.ID.String())
+					}
+					return str.String(), nil
+				}
+				orgs, err = client.OrganizationsByUser(inv.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
+			default:
+				stringFormat = func(orgs []codersdk.Organization) (string, error) {
+					if len(orgs) != 1 {
+						return "", fmt.Errorf("expected 1 organization, got %d", len(orgs))
+					}
+					return fmt.Sprintf("Organization: %s (%s)\n", orgs[0].Name, orgs[0].ID.String()), nil
+				}
+				// This works for a uuid or a name
+				org, err := client.OrganizationByName(inv.Context(), orgArg)
+				if err != nil {
+					return err
+				}
+				orgs = []codersdk.Organization{org}
 			}
 
 			if onlyID {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", org.ID)
+				for _, org := range orgs {
+					_, _ = fmt.Fprintf(inv.Stdout, "%s\n", org.ID)
+				}
 			} else {
-				out, err := formatter.Format(inv.Context(), []codersdk.Organization{org})
+				out, err := formatter.Format(inv.Context(), orgs)
 				if err != nil {
 					return err
 				}
