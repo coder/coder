@@ -32,7 +32,7 @@ func TestCurrentOrganization(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		inv, root := clitest.New(t, "organizations", "current", "--only-id")
+		inv, root := clitest.New(t, "organizations", "show", "--only-id")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
