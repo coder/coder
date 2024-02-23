@@ -299,7 +299,7 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	aReq.New = dbSecret
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppSecretFull{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuth2ProviderAppSecretFull{
 		ID:               dbSecret.ID,
 		ClientSecretFull: secret.Formatted,
 	})

@@ -159,7 +159,7 @@ func (c *Client) PostOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUI
 		return OAuth2ProviderAppSecretFull{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusCreated {
 		return OAuth2ProviderAppSecretFull{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderAppSecretFull
