@@ -417,6 +417,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		seed := database.Workspace{OrganizationID: user.OrganizationID, OwnerID: user.UserID}
 		wsb := dbfake.WorkspaceBuild(t, db, seed).WithAgent().Do()
 		// When: the workspace is marked as soft-deleted
+		// nolint:gocritic // this is a test
 		err := db.UpdateWorkspaceDeletedByID(
 			dbauthz.AsProvisionerd(ctx),
 			database.UpdateWorkspaceDeletedByIDParams{ID: wsb.Workspace.ID, Deleted: true},
