@@ -173,11 +173,15 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
               <Button
                 css={{ borderRadius: 999 }}
                 startIcon={
-                  clipboard.isCopied ? <CheckOutlined /> : <FileCopyOutlined />
+                  clipboard.showCopiedSuccess ? (
+                    <CheckOutlined />
+                  ) : (
+                    <FileCopyOutlined />
+                  )
                 }
                 variant="contained"
                 onClick={clipboard.copyToClipboard}
-                disabled={clipboard.isCopied}
+                disabled={clipboard.showCopiedSuccess}
               >
                 Copy button code
               </Button>
