@@ -57,7 +57,10 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 
-		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.ActivityBumpMillis = ptr.Ref((3 * time.Hour).Milliseconds())
+		})
+		assert.Equal(t, (3 * time.Hour).Milliseconds(), expected.ActivityBumpMillis)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -67,6 +70,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
+		assert.Equal(t, expected.ActivityBumpMillis, got.ActivityBumpMillis)
 
 		require.Len(t, auditor.AuditLogs(), 3)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
@@ -268,6 +272,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							UseMaxTtl:                     options.UseMaxTTL,
 							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
@@ -320,6 +325,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							UseMaxTtl:                     options.UseMaxTTL,
 							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
@@ -508,6 +514,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		assert.Equal(t, (1 * time.Hour).Milliseconds(), template.ActivityBumpMillis)
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
@@ -515,6 +522,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Description:                  "lorem ipsum dolor sit amet et cetera",
 			Icon:                         "/icon/new-icon.png",
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
+			ActivityBumpMillis:           3 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
@@ -532,6 +540,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		// Extra paranoid: did it _really_ happen?
@@ -543,6 +552,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		require.Len(t, auditor.AuditLogs(), 5)
@@ -613,6 +623,36 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.False(t, updated.Deprecated)
 		assert.Empty(t, updated.DeprecationMessage)
+	})
+
+	t.Run("AGPL_MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelOwner, template.MaxPortShareLevel)
+
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		req := codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		// AGPL cannot change max port sharing level
+		require.ErrorContains(t, err, "port sharing level is an enterprise feature")
+
+		// Ensure the same value port share level is a no-op
+		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:              template.Name + "2",
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {
@@ -707,6 +747,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							MaxTTL:                        int64(options.MaxTTL),
 							UseMaxTtl:                     options.UseMaxTTL,
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
@@ -1015,6 +1056,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Description:         template.Description,
 			Icon:                template.Icon,
 			DefaultTTLMillis:    template.DefaultTTLMillis,
+			ActivityBumpMillis:  template.ActivityBumpMillis,
 			AutostopRequirement: nil,
 			AllowUserAutostart:  template.AllowUserAutostart,
 			AllowUserAutostop:   template.AllowUserAutostop,
@@ -1105,6 +1147,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							UseMaxTtl:                     options.UseMaxTTL,
 							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
@@ -1177,6 +1220,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							UseMaxTtl:                     options.UseMaxTTL,
 							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),

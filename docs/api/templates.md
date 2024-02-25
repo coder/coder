@@ -28,6 +28,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   {
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
@@ -59,6 +60,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -87,6 +89,7 @@ Status Code **200**
 | `[array item]`                                                                        | array                                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» active_user_count`                                                                 | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                                                                                                                   |
 | `» active_version_id`                                                                 | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» activity_bump_ms`                                                                  | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» allow_user_autostart`                                                              | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                                                                                                        |
 | `» allow_user_autostop`                                                               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» allow_user_cancel_workspace_jobs`                                                  | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -111,6 +114,7 @@ Status Code **200**
 | `» failure_ttl_ms`                                                                    | integer                                                                                  | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
 | `» icon`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» id`                                                                                | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_ttl_ms`                                                                        | integer                                                                                  | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                 |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -123,9 +127,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `provisioner` | `terraform` |
+| Property               | Value           |
+| ---------------------- | --------------- |
+| `max_port_share_level` | `owner`         |
+| `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `public`        |
+| `provisioner`          | `terraform`     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -147,6 +154,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "activity_bump_ms": 0,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -187,6 +195,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "activity_bump_ms": 0,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -218,6 +227,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -326,6 +336,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "activity_bump_ms": 0,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -357,6 +368,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -641,6 +653,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "activity_bump_ms": 0,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -672,6 +685,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -763,6 +777,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "activity_bump_ms": 0,
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
@@ -794,6 +809,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_port_share_level": "owner",
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -1986,6 +2002,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
     "display_icon": "string",
     "display_name": "string",
     "id": "string",
+    "optional": true,
     "type": "string"
   }
 ]
@@ -2009,6 +2026,7 @@ Status Code **200**
 | `» display_icon`     | string  | false    |              |             |
 | `» display_name`     | string  | false    |              |             |
 | `» id`               | string  | false    |              |             |
+| `» optional`         | boolean | false    |              |             |
 | `» type`             | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

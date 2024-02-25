@@ -32,9 +32,9 @@ func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
 		return false
 	}
 
-	err = s.fs.MkdirAll(s.x11SocketDir, 0o700)
+	err = s.fs.MkdirAll(s.config.X11SocketDir, 0o700)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.x11SocketDir), slog.Error(err))
+		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.config.X11SocketDir), slog.Error(err))
 		s.metrics.x11HandlerErrors.WithLabelValues("socker_dir").Add(1)
 		return false
 	}
@@ -57,7 +57,7 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 		return false
 	}
 	// We want to overwrite the socket so that subsequent connections will succeed.
-	socketPath := filepath.Join(s.x11SocketDir, fmt.Sprintf("X%d", x11.ScreenNumber))
+	socketPath := filepath.Join(s.config.X11SocketDir, fmt.Sprintf("X%d", x11.ScreenNumber))
 	err := os.Remove(socketPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		s.logger.Warn(ctx, "failed to remove existing X11 socket", slog.Error(err))

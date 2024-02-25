@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -64,15 +65,14 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			return
 		}
 
-		sdkGroups = append(sdkGroups, convertGroup(group, members))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, members))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
-		// No need to pass organization info here.
 		// TODO: @emyrk we should return a MinimalUser here instead of a full user.
 		// The FE requires the `email` field, so this cannot be done without
 		// a UI change.
-		Users:  convertUsers(users, map[uuid.UUID][]uuid.UUID{}),
+		Users:  db2sdk.ReducedUsers(users),
 		Groups: sdkGroups,
 	})
 }
@@ -134,7 +134,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: convertGroup(group.Group, members),
+			Group: db2sdk.Group(group.Group, members),
 			Role:  convertToTemplateRole(group.Actions),
 		})
 	}
@@ -287,7 +287,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 
 	for _, tu := range tus {
 		users = append(users, codersdk.TemplateUser{
-			User: convertUser(tu.User, orgIDsByUserIDs[tu.User.ID]),
+			User: db2sdk.User(tu.User, orgIDsByUserIDs[tu.User.ID]),
 			Role: convertToTemplateRole(tu.Actions),
 		})
 	}

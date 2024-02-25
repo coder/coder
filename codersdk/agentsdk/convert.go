@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -286,10 +287,46 @@ func ProtoFromAppHealthsRequest(req PostAppHealthsRequest) (*proto.BatchUpdateAp
 		if !ok {
 			return nil, xerrors.Errorf("unknown app health: %s", h)
 		}
+
+		// Copy the ID, otherwise all updates will have the same ID (the last
+		// one in the list).
+		var idCopy uuid.UUID
+		copy(idCopy[:], id[:])
 		pReq.Updates = append(pReq.Updates, &proto.BatchUpdateAppHealthRequest_HealthUpdate{
-			Id:     id[:],
+			Id:     idCopy[:],
 			Health: proto.AppHealth(hp),
 		})
 	}
 	return pReq, nil
+}
+
+func ProtoFromLog(log Log) (*proto.Log, error) {
+	lvl, ok := proto.Log_Level_value[strings.ToUpper(string(log.Level))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown log level: %s", log.Level)
+	}
+	return &proto.Log{
+		CreatedAt: timestamppb.New(log.CreatedAt),
+		Output:    log.Output,
+		Level:     proto.Log_Level(lvl),
+	}, nil
+}
+
+func ProtoFromLifecycle(req PostLifecycleRequest) (*proto.Lifecycle, error) {
+	s, ok := proto.Lifecycle_State_value[strings.ToUpper(string(req.State))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown lifecycle state: %s", req.State)
+	}
+	return &proto.Lifecycle{
+		State:     proto.Lifecycle_State(s),
+		ChangedAt: timestamppb.New(req.ChangedAt),
+	}, nil
+}
+
+func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLifecycle, error) {
+	caps, ok := proto.Lifecycle_State_name[int32(s)]
+	if !ok {
+		return "", xerrors.Errorf("unknown lifecycle state: %d", s)
+	}
+	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
 }

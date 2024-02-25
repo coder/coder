@@ -42,12 +42,11 @@ SELECT
 FROM
     groups;
 
--- name: DeleteGroupMembersByOrgAndUser :exec
+-- name: RemoveUserFromAllGroups :exec
 DELETE FROM
 	group_members
 WHERE
-	group_members.user_id = @user_id
-	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = @organization_id);
+	user_id = @user_id;
 
 -- name: InsertGroupMember :exec
 INSERT INTO

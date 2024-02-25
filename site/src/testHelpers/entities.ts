@@ -16,6 +16,7 @@ export const MockOrganization: TypesGen.Organization = {
   name: "Test Organization",
   created_at: "",
   updated_at: "",
+  is_default: true,
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
@@ -433,6 +434,20 @@ You can add instructions here
   archived: false,
 };
 
+export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
+  {
+    ...MockTemplateVersion,
+    message: `
+# Abiding Grace
+## Enchantment
+At the beginning of your end step, choose one —
+
+- You gain 1 life.
+
+- Return target creature card with mana value 1 from your graveyard to the battlefield.
+`,
+  };
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -459,6 +474,7 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
+  activity_bump_ms: 1 * 60 * 60 * 1000,
   use_max_ttl: false,
   max_ttl_ms: 0,
   autostop_requirement: {
@@ -488,6 +504,7 @@ export const MockTemplate: TypesGen.Template = {
   require_active_version: false,
   deprecated: false,
   deprecation_message: "",
+  max_port_share_level: "public",
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -991,11 +1008,11 @@ export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
 };
 
 export const MockBuilds = [
-  MockWorkspaceBuild,
-  MockWorkspaceBuildAutostart,
-  MockWorkspaceBuildAutostop,
-  MockWorkspaceBuildStop,
-  MockWorkspaceBuildDelete,
+  { ...MockWorkspaceBuild, id: "1" },
+  { ...MockWorkspaceBuildAutostart, id: "2" },
+  { ...MockWorkspaceBuildAutostop, id: "3" },
+  { ...MockWorkspaceBuildStop, id: "4" },
+  { ...MockWorkspaceBuildDelete, id: "5" },
 ];
 
 export const MockWorkspace: TypesGen.Workspace = {
@@ -3236,11 +3253,34 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
   {
     ports: [
-      { process_name: "web", network: "", port: 3000 },
-      { process_name: "go", network: "", port: 8080 },
+      { process_name: "webb", network: "", port: 3000 },
+      { process_name: "gogo", network: "", port: 8080 },
       { process_name: "", network: "", port: 8081 },
     ],
   };
+
+export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
+  shares: [
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 4000,
+      share_level: "authenticated",
+    },
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 8080,
+      share_level: "authenticated",
+    },
+    {
+      workspace_id: MockWorkspace.id,
+      agent_name: "a-workspace-agent",
+      port: 8081,
+      share_level: "public",
+    },
+  ],
+};
 
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
@@ -3385,8 +3425,8 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
     callback_url: "http://localhost:3001",
     icon: "/icon/github.svg",
     endpoints: {
-      authorization: "http://localhost:3001/login/oauth2/authorize",
-      token: "http://localhost:3001/login/oauth2/token",
+      authorization: "http://localhost:3001/oauth2/authorize",
+      token: "http://localhost:3001/oauth2/token",
       device_authorization: "",
     },
   },

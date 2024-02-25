@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"io"
@@ -56,6 +57,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -83,6 +85,8 @@ var globalHTTPSwaggerHandler http.HandlerFunc
 func init() {
 	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
 }
+
+var expDERPOnce = sync.Once{}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
@@ -121,6 +125,8 @@ type Options struct {
 	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
+	RefreshEntitlements func(ctx context.Context) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -130,7 +136,7 @@ type Options struct {
 	BaseDERPMap                 *tailcfg.DERPMap
 	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error
+	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
 	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -139,7 +145,7 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthcheck.Report
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -297,9 +303,11 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, groups []string, createMissingGroups bool) error {
+		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error {
 			logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("user_id", userID), slog.F("groups", groups), slog.F("create_missing_groups", createMissingGroups),
+				slog.F("user_id", userID),
+				slog.F("groups", orgGroupNames),
+				slog.F("create_missing_groups", createMissingGroups),
 			)
 			return nil
 		}
@@ -391,7 +399,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
+		healthCheckGroup:            &singleflight.Group[string, *codersdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
@@ -400,6 +408,7 @@ func New(options *Options) *API {
 	}
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
 		BinHashes:         binHashes,
@@ -426,7 +435,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -450,7 +459,7 @@ func New(options *Options) *API {
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
 					CurrentVersion:         buildinfo.Version(),
-					CurrentAPIMajorVersion: provisionersdk.CurrentMajor,
+					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
 					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
 				},
@@ -559,6 +568,16 @@ func New(options *Options) *API {
 
 	derpHandler := derphttp.Handler(api.DERPServer)
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
+	// These are the metrics the DERP server exposes.
+	// TODO: export via prometheus
+	expDERPOnce.Do(func() {
+		// We need to do this via a global Once because expvar registry is global and panics if we
+		// register multiple times.  In production there is only one Coderd and one DERP server per
+		// process, but in testing, we create multiple of both, so the Once protects us from
+		// panicking.
+		expvar.Publish("derp", api.DERPServer.ExpVar())
+	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
@@ -957,6 +976,14 @@ func New(options *Options) *API {
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
+				r.Route("/port-share", func(r chi.Router) {
+					r.Use(
+						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentSharedPorts),
+					)
+					r.Get("/", api.workspaceAgentPortShares)
+					r.Post("/", api.postWorkspaceAgentPortShare)
+					r.Delete("/", api.deleteWorkspaceAgentPortShare)
+				})
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -969,7 +996,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
-			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
@@ -1028,6 +1055,10 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
+			r.Route("/derp", func(r chi.Router) {
+				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+			})
+			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 		})
 	})
 
@@ -1038,6 +1069,14 @@ func New(options *Options) *API {
 		// See globalHTTPSwaggerHandler comment as to why we use a package
 		// global variable here.
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
+	} else {
+		swaggerDisabled := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
+				Message: "Swagger documentation is disabled.",
+			})
+		})
+		r.Get("/swagger", swaggerDisabled)
+		r.Get("/swagger/*", swaggerDisabled)
 	}
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
@@ -1107,6 +1146,7 @@ type API struct {
 	// AccessControlStore is a pointer to an atomic pointer since it is
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
+	PortSharer         atomic.Pointer[portsharing.PortSharer]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1132,8 +1172,8 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
-	healthCheckCache atomic.Pointer[healthcheck.Report]
+	healthCheckGroup *singleflight.Group[string, *codersdk.HealthcheckReport]
+	healthCheckCache atomic.Pointer[codersdk.HealthcheckReport]
 
 	statsBatcher *batchstats.Batcher
 
@@ -1209,7 +1249,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
 		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:    buildinfo.Version(),
-		APIVersion: provisionersdk.VersionCurrent.String(),
+		APIVersion: proto.CurrentVersion.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

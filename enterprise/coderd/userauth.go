@@ -14,7 +14,7 @@ import (
 )
 
 // nolint: revive
-func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error {
+func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error {
 	api.entitlementsMu.RLock()
 	enabled := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
 	api.entitlementsMu.RUnlock()
@@ -24,6 +24,8 @@ func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db databa
 	}
 
 	return db.InTx(func(tx database.Store) error {
+		// When setting the user's groups, it's easier to just clear their groups and re-add them.
+		// This ensures that the user's groups are always in sync with the auth provider.
 		orgs, err := tx.GetOrganizationsByUserID(ctx, userID)
 		if err != nil {
 			return xerrors.Errorf("get user orgs: %w", err)
@@ -33,41 +35,47 @@ func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db databa
 		}
 
 		// Delete all groups the user belongs to.
-		err = tx.DeleteGroupMembersByOrgAndUser(ctx, database.DeleteGroupMembersByOrgAndUserParams{
-			UserID:         userID,
-			OrganizationID: orgs[0].ID,
-		})
+		// nolint:gocritic // Requires system context to remove user from all groups.
+		err = tx.RemoveUserFromAllGroups(dbauthz.AsSystemRestricted(ctx), userID)
 		if err != nil {
 			return xerrors.Errorf("delete user groups: %w", err)
 		}
 
-		if createMissingGroups {
-			// This is the system creating these additional groups, so we use the system restricted context.
-			// nolint:gocritic
-			created, err := tx.InsertMissingGroups(dbauthz.AsSystemRestricted(ctx), database.InsertMissingGroupsParams{
-				OrganizationID: orgs[0].ID,
+		// TODO: This could likely be improved by making these single queries.
+		// 	Either by batching or some other means. This for loop could be really
+		//	inefficient if there are a lot of organizations. There was deployments
+		//	on v1 with >100 orgs.
+		for orgID, groupNames := range orgGroupNames {
+			// Create the missing groups for each organization.
+			if createMissingGroups {
+				// This is the system creating these additional groups, so we use the system restricted context.
+				// nolint:gocritic
+				created, err := tx.InsertMissingGroups(dbauthz.AsSystemRestricted(ctx), database.InsertMissingGroupsParams{
+					OrganizationID: orgID,
+					GroupNames:     groupNames,
+					Source:         database.GroupSourceOidc,
+				})
+				if err != nil {
+					return xerrors.Errorf("insert missing groups: %w", err)
+				}
+				if len(created) > 0 {
+					logger.Debug(ctx, "auto created missing groups",
+						slog.F("org_id", orgID.ID),
+						slog.F("created", created),
+						slog.F("num", len(created)),
+					)
+				}
+			}
+
+			// Re-add the user to all groups returned by the auth provider.
+			err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
+				UserID:         userID,
+				OrganizationID: orgID,
 				GroupNames:     groupNames,
-				Source:         database.GroupSourceOidc,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert missing groups: %w", err)
+				return xerrors.Errorf("insert user groups: %w", err)
 			}
-			if len(created) > 0 {
-				logger.Debug(ctx, "auto created missing groups",
-					slog.F("org_id", orgs[0].ID),
-					slog.F("created", created),
-				)
-			}
-		}
-
-		// Re-add the user to all groups returned by the auth provider.
-		err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
-			UserID:         userID,
-			OrganizationID: orgs[0].ID,
-			GroupNames:     groupNames,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert user groups: %w", err)
 		}
 
 		return nil

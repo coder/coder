@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -14,27 +15,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
-	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
 )
 
-// @typescript-generate ProvisionerDaemonsReport
-type ProvisionerDaemonsReport struct {
-	Severity  health.Severity  `json:"severity"`
-	Warnings  []health.Message `json:"warnings"`
-	Dismissed bool             `json:"dismissed"`
-	Error     *string          `json:"error"`
-
-	Items []ProvisionerDaemonsReportItem `json:"items"`
-}
-
-// @typescript-generate ProvisionerDaemonsReportItem
-type ProvisionerDaemonsReportItem struct {
-	codersdk.ProvisionerDaemon `json:"provisioner_daemon"`
-	Warnings                   []health.Message `json:"warnings"`
-}
+type ProvisionerDaemonsReport codersdk.ProvisionerDaemonsReport
 
 type ProvisionerDaemonsReportDeps struct {
 	// Required
@@ -54,7 +40,7 @@ type ProvisionerDaemonsStore interface {
 }
 
 func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportDeps) {
-	r.Items = make([]ProvisionerDaemonsReportItem, 0)
+	r.Items = make([]codersdk.ProvisionerDaemonsReportItem, 0)
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
@@ -109,7 +95,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			continue
 		}
 
-		it := ProvisionerDaemonsReportItem{
+		it := codersdk.ProvisionerDaemonsReportItem{
 			ProvisionerDaemon: db2sdk.ProvisionerDaemon(daemon),
 			Warnings:          make([]health.Message, 0),
 		}
@@ -144,7 +130,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 				r.Severity = health.SeverityWarning
 			}
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Some provisioner daemons report deprecated major API versions. Consider upgrading!"))
-			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Deprecated major API version %d.", provisionersdk.CurrentMajor))
+			it.Warnings = append(it.Warnings, health.Messagef(health.CodeProvisionerDaemonAPIMajorVersionDeprecated, "Deprecated major API version %d.", proto.CurrentMajor))
 		}
 
 		r.Items = append(r.Items, it)

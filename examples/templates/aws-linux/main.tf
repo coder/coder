@@ -157,12 +157,11 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "coder_agent" "dev" {
-  count                  = data.coder_workspace.me.start_count
-  arch                   = "amd64"
-  auth                   = "aws-instance-identity"
-  os                     = "linux"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  count          = data.coder_workspace.me.start_count
+  arch           = "amd64"
+  auth           = "aws-instance-identity"
+  os             = "linux"
+  startup_script = <<-EOT
     set -e
 
     # install and start code-server

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -603,6 +605,11 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+
+	// The bug only is exercised when a deleted user with the same linked_id exists.
+	// Still related open issues:
+	// - https://github.com/coder/coder/issues/12116
+	// - https://github.com/coder/coder/issues/12115
 	t.Run("ChangedEmail", func(t *testing.T) {
 		t.Parallel()
 
@@ -627,7 +634,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			coderEmail,
 		}
 
-		client := coderdtest.New(t, &coderdtest.Options{
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor: auditor,
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				AllowSignups:  true,
@@ -650,9 +657,41 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
+		first := coderdtest.CreateFirstUser(t, owner)
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		// This should register the user
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerUser, err := owner.User(context.Background(), "me")
+		require.NoError(t, err)
+
+		// Create the user, then delete the user, then create again.
+		// This causes the email change to fail.
+		client := codersdk.New(owner.URL)
+
+		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		deleted, err := client.User(ctx, "me")
+		require.NoError(t, err)
+
+		err = owner.DeleteUser(ctx, deleted.ID)
+		require.NoError(t, err)
+		// Check no user links for the user
+		links, err := db.GetUserLinksByUserID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser, first.OrganizationID)), deleted.ID)
+		require.NoError(t, err)
+		require.Empty(t, links)
+
+		// Make sure a user_link cannot be created with a deleted user.
+		// nolint:gocritic // Unit test
+		_, err = db.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
+			UserID:            deleted.ID,
+			LoginType:         "github",
+			LinkedID:          "100",
+			OAuthAccessToken:  "random",
+			OAuthRefreshToken: "random",
+			OAuthExpiry:       time.Now(),
+			DebugContext:      []byte(`{}`),
+		})
+		require.ErrorContains(t, err, "Cannot create user_link for deleted user")
+
+		// Create the user again.
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
@@ -666,7 +705,8 @@ func TestUserOAuth2Github(t *testing.T) {
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-		require.Equal(t, user.ID, userID)
+
+		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, *gmailEmail.Email)
 
 		// Entirely change emails.
@@ -681,7 +721,8 @@ func TestUserOAuth2Github(t *testing.T) {
 		client, _ = fake.Login(t, client, jwt.MapClaims{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-		require.Equal(t, user.ID, userID)
+
+		require.Equal(t, user.ID, userID, "user_id is different, a new user was likely created")
 		require.Equal(t, user.Email, newEmail)
 	})
 }

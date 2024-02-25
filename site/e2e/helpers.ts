@@ -134,7 +134,7 @@ export const createTemplate = async (
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();
-  await expect(page).toHaveURL("/templates/" + name, {
+  await expect(page).toHaveURL(`/templates/${name}/files`, {
     timeout: 30000,
   });
   return name;
@@ -736,6 +736,10 @@ export const updateTemplateSettings = async (
   await expect(page).toHaveURL(`/templates/${templateName}/settings`);
 
   for (const [key, value] of Object.entries(templateSettingValues)) {
+    // Skip max_port_share_level for now since the frontend is not yet able to handle it
+    if (key === "max_port_share_level") {
+      continue;
+    }
     const labelText = capitalize(key).replace("_", " ");
     await page.getByLabel(labelText, { exact: true }).fill(value);
   }

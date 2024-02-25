@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"storj.io/drpc"
@@ -46,7 +48,7 @@ func NewClient(t testing.TB,
 	derpMapUpdates := make(chan *tailcfg.DERPMap)
 	drpcService := &tailnet.DRPCService{
 		CoordPtr:               &coordPtr,
-		Logger:                 logger,
+		Logger:                 logger.Named("tailnetsvc"),
 		DerpMapUpdateFrequency: time.Microsecond,
 		DerpMapFn:              func() *tailcfg.DERPMap { return <-derpMapUpdates },
 	}
@@ -85,13 +87,11 @@ type Client struct {
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
 	LastWorkspaceAgent func()
-	PatchWorkspaceLogs func() error
 
-	mu              sync.Mutex // Protects following.
-	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	logs            []agentsdk.Log
-	derpMapUpdates  chan *tailcfg.DERPMap
-	derpMapOnce     sync.Once
+	mu             sync.Mutex // Protects following.
+	logs           []agentsdk.Log
+	derpMapUpdates chan *tailcfg.DERPMap
+	derpMapOnce    sync.Once
 }
 
 func (*Client) RewriteDERPMap(*tailcfg.DERPMap) {}
@@ -123,17 +123,7 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 }
 
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lifecycleStates
-}
-
-func (c *Client) PostLifecycle(ctx context.Context, req agentsdk.PostLifecycleRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.lifecycleStates = append(c.lifecycleStates, req.State)
-	c.logger.Debug(ctx, "post lifecycle", slog.F("req", req))
-	return nil
+	return c.fakeAgentAPI.GetLifecycleStates()
 }
 
 func (c *Client) GetStartup() <-chan *agentproto.Startup {
@@ -165,17 +155,6 @@ func (c *Client) GetStartupLogs() []agentsdk.Log {
 	return c.logs
 }
 
-func (c *Client) PatchLogs(ctx context.Context, logs agentsdk.PatchLogs) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.PatchWorkspaceLogs != nil {
-		return c.PatchWorkspaceLogs()
-	}
-	c.logs = append(c.logs, logs.Logs...)
-	c.logger.Debug(ctx, "patch startup logs", slog.F("req", logs))
-	return nil
-}
-
 func (c *Client) SetServiceBannerFunc(f func() (codersdk.ServiceBannerConfig, error)) {
 	c.fakeAgentAPI.SetServiceBannerFunc(f)
 }
@@ -192,14 +171,21 @@ func (c *Client) PushDERPMapUpdate(update *tailcfg.DERPMap) error {
 	return nil
 }
 
+func (c *Client) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
+	c.fakeAgentAPI.SetLogsChannel(ch)
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
 	logger slog.Logger
 
-	manifest  *agentproto.Manifest
-	startupCh chan *agentproto.Startup
-	statsCh   chan *agentproto.Stats
+	manifest        *agentproto.Manifest
+	startupCh       chan *agentproto.Startup
+	statsCh         chan *agentproto.Stats
+	appHealthCh     chan *agentproto.BatchUpdateAppHealthRequest
+	logsCh          chan<- *agentproto.BatchCreateLogsRequest
+	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -237,14 +223,30 @@ func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateSt
 	return &agentproto.UpdateStatsResponse{ReportInterval: durationpb.New(statsInterval)}, nil
 }
 
-func (*FakeAgentAPI) UpdateLifecycle(context.Context, *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.lifecycleStates)
+}
+
+func (f *FakeAgentAPI) UpdateLifecycle(_ context.Context, req *agentproto.UpdateLifecycleRequest) (*agentproto.Lifecycle, error) {
+	f.Lock()
+	defer f.Unlock()
+	s, err := agentsdk.LifecycleStateFromProto(req.GetLifecycle().GetState())
+	if assert.NoError(f.t, err) {
+		f.lifecycleStates = append(f.lifecycleStates, s)
+	}
+	return req.GetLifecycle(), nil
 }
 
 func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	f.logger.Debug(ctx, "batch update app health", slog.F("req", req))
+	f.appHealthCh <- req
 	return &agentproto.BatchUpdateAppHealthResponse{}, nil
+}
+
+func (f *FakeAgentAPI) AppHealthCh() <-chan *agentproto.BatchUpdateAppHealthRequest {
+	return f.appHealthCh
 }
 
 func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
@@ -257,17 +259,35 @@ func (*FakeAgentAPI) BatchUpdateMetadata(context.Context, *agentproto.BatchUpdat
 	panic("implement me")
 }
 
-func (*FakeAgentAPI) BatchCreateLogs(context.Context, *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {
+	f.Lock()
+	defer f.Unlock()
+	f.logsCh = ch
+}
+
+func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCreateLogsRequest) (*agentproto.BatchCreateLogsResponse, error) {
+	f.logger.Info(ctx, "batch create logs called", slog.F("req", req))
+	f.Lock()
+	ch := f.logsCh
+	f.Unlock()
+	if ch != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case ch <- req:
+			// ok
+		}
+	}
+	return &agentproto.BatchCreateLogsResponse{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
-		t:         t,
-		logger:    logger.Named("FakeAgentAPI"),
-		manifest:  manifest,
-		statsCh:   statsCh,
-		startupCh: make(chan *agentproto.Startup, 100),
+		t:           t,
+		logger:      logger.Named("FakeAgentAPI"),
+		manifest:    manifest,
+		statsCh:     statsCh,
+		startupCh:   make(chan *agentproto.Startup, 100),
+		appHealthCh: make(chan *agentproto.BatchUpdateAppHealthRequest, 100),
 	}
 }

@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,9 +26,9 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionerd"
-	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/coder/v2/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -59,8 +62,110 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		if assert.Len(t, daemons, 1) {
 			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-			assert.Equal(t, provisionersdk.VersionCurrent.String(), daemons[0].APIVersion)
+			assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 		}
+	})
+
+	t.Run("NoVersion", func(t *testing.T) {
+		t.Parallel()
+		// In this test, we just send a HTTP request with minimal parameters to the provisionerdaemons
+		// endpoint. We do not pass the required machinery to start a websocket connection, so we expect a
+		// WebSocket protocol violation. This just means the pre-flight checks have passed though.
+
+		// Sending a HTTP request triggers an error log, which would otherwise fail the test.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+			Options: &coderdtest.Options{
+				Logger: &logger,
+			},
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Formulate the correct URL for provisionerd server.
+		srvURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", user.OrganizationID))
+		require.NoError(t, err)
+		q := srvURL.Query()
+		// Set required query parameters.
+		q.Add("provisioner", "echo")
+		// Note: Explicitly not setting API version.
+		q.Add("version", "")
+		srvURL.RawQuery = q.Encode()
+
+		// Set PSK header for auth.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srvURL.String(), nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.ProvisionerDaemonPSK, "provisionersftw")
+
+		// Do the request!
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		// The below means that provisionerd tried to serve us!
+		require.Contains(t, string(b), "Internal error accepting websocket connection.")
+
+		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
+		require.NoError(t, err)
+		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, "1.0", daemons[0].APIVersion) // The whole point of this test is here.
+		}
+	})
+
+	t.Run("OldVersion", func(t *testing.T) {
+		t.Parallel()
+		// In this test, we just send a HTTP request with minimal parameters to the provisionerdaemons
+		// endpoint. We do not pass the required machinery to start a websocket connection, but we pass a
+		// version header that should cause provisionerd to refuse to serve us, so no websocket for you!
+
+		// Sending a HTTP request triggers an error log, which would otherwise fail the test.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+			Options: &coderdtest.Options{
+				Logger: &logger,
+			},
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Formulate the correct URL for provisionerd server.
+		srvURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", user.OrganizationID))
+		require.NoError(t, err)
+		q := srvURL.Query()
+		// Set required query parameters.
+		q.Add("provisioner", "echo")
+
+		// Set a different (newer) version than the current.
+		v := apiversion.New(proto.CurrentMajor+1, proto.CurrentMinor+1)
+		q.Add("version", v.String())
+		srvURL.RawQuery = q.Encode()
+
+		// Set PSK header for auth.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srvURL.String(), nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.ProvisionerDaemonPSK, "provisionersftw")
+
+		// Do the request!
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		// The below means that provisionerd tried to serve us, checked our api version, and said nope.
+		require.Contains(t, string(b), fmt.Sprintf("server is at version %s, behind requested major version %s", proto.CurrentVersion.String(), v.String()))
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
@@ -154,13 +259,13 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Plan{
-					Plan: &proto.PlanComplete{
-						Resources: []*proto.Resource{{
+			ProvisionPlan: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Plan{
+					Plan: &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
-							Agents: []*proto.Agent{{
+							Agents: []*sdkproto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",
 							}},
@@ -278,10 +383,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		}()
 
 		connector := provisionerd.LocalProvisioners{
-			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(terraformClient),
+			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(terraformClient),
 		}
 		another := codersdk.New(client.URL)
-		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		pd := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 				ID:           uuid.New(),
 				Name:         testutil.MustRandString(t, 63),
@@ -310,17 +415,17 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
-				Type: &proto.Response_Apply{
-					Apply: &proto.ApplyComplete{
-						Resources: []*proto.Resource{{
+			ProvisionApply: []*sdkproto.Response{{
+				Type: &sdkproto.Response_Apply{
+					Apply: &sdkproto.ApplyComplete{
+						Resources: []*sdkproto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
 							DailyCost: 1,
-							Agents: []*proto.Agent{{
+							Agents: []*sdkproto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",
-								Auth: &proto.Agent_Token{
+								Auth: &sdkproto.Agent_Token{
 									Token: authToken,
 								},
 							}},

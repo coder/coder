@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -151,6 +153,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		Optional:                    false,
 		SessionTokenFunc:            nil, // Default behavior
 	})
+	// Same as above but it redirects to the login page.
+	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             true,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
+	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
@@ -163,6 +174,37 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
+	}
+
+	api.AGPL.RootHandler.Group(func(r chi.Router) {
+		// OAuth2 linking routes do not make sense under the /api/v2 path.
+		r.Route("/oauth2", func(r chi.Router) {
+			r.Use(
+				api.oAuth2ProviderMiddleware,
+				// Fetch the app as system because in the /tokens route there will be no
+				// authenticated user.
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+			)
+			r.Route("/authorize", func(r chi.Router) {
+				r.Use(apiKeyMiddlewareRedirect)
+				r.Get("/", api.getOAuth2ProviderAppAuthorize())
+			})
+			r.Route("/tokens", func(r chi.Router) {
+				r.Group(func(r chi.Router) {
+					r.Use(apiKeyMiddleware)
+					// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+					// route used to revoke permissions from an application.  It is here for
+					// parity with POST on /tokens.
+					r.Delete("/", api.deleteOAuth2ProviderAppTokens())
+				})
+				// The POST /tokens endpoint will be called from an unauthorized client so we
+				// cannot require an API key.
+				r.Post("/", api.postOAuth2ProviderAppToken())
+			})
+		})
+	})
+	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
+		return api.refreshEntitlements(ctx)
 	}
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -533,6 +575,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureWorkspaceProxy:             true,
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
+			codersdk.FeatureControlSharedPorts:         true,
 		})
 	if err != nil {
 		return err
@@ -688,6 +731,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		} else {
 			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 		}
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
+		var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
+		if enabled {
+			ps = portsharing.NewEnterprisePortSharer()
+		}
+		api.AGPL.PortSharer.Store(&ps)
 	}
 
 	// External token encryption is soft-enforced

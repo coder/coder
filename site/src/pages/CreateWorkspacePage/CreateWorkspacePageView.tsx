@@ -25,6 +25,7 @@ import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
+import { ExternalAuthButton } from "./ExternalAuthButton";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { Alert } from "components/Alert/Alert";
@@ -42,7 +43,6 @@ import {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { ExternalAuthBanner } from "./ExternalAuthBanner/ExternalAuthBanner";
 import { CreateWSPermissions } from "./permissions";
 
 export const Language = {
@@ -147,6 +147,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     );
   }, [autofillParameters]);
 
+  const hasAllRequiredExternalAuth = externalAuth.every(
+    (auth) => auth.optional || auth.authenticated,
+  );
+
   return (
     <Margins size="medium">
       <PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
@@ -171,131 +175,150 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         </Stack>
       </PageHeader>
 
-      {requiresExternalAuth ? (
-        <ExternalAuthBanner
-          providers={externalAuth}
-          pollingState={externalAuthPollingState}
-          onStartPolling={startPollingExternalAuth}
-        />
-      ) : (
-        <HorizontalForm
-          name="create-workspace-form"
-          onSubmit={form.handleSubmit}
-          css={{ padding: "16px 0" }}
+      <HorizontalForm
+        name="create-workspace-form"
+        onSubmit={form.handleSubmit}
+        css={{ padding: "16px 0" }}
+      >
+        {Boolean(error) && <ErrorAlert error={error} />}
+
+        {mode === "duplicate" && (
+          <Alert severity="info" dismissible data-testid="duplication-warning">
+            {Language.duplicationWarning}
+          </Alert>
+        )}
+
+        {/* General info */}
+        <FormSection
+          title="General"
+          description={
+            permissions.createWorkspaceForUser
+              ? "The name of the workspace and its owner. Only admins can create workspace for other users."
+              : "The name of your new workspace."
+          }
         >
-          {Boolean(error) && <ErrorAlert error={error} />}
+          <FormFields>
+            {versionId && versionId !== template.active_version_id && (
+              <Stack spacing={1} css={styles.hasDescription}>
+                <TextField
+                  disabled
+                  fullWidth
+                  value={versionId}
+                  label="Version ID"
+                />
+                <span css={styles.description}>
+                  This parameter has been preset, and cannot be modified.
+                </span>
+              </Stack>
+            )}
 
-          {mode === "duplicate" && (
-            <Alert severity="info" dismissible>
-              {Language.duplicationWarning}
-            </Alert>
-          )}
+            <div>
+              <TextField
+                {...getFieldHelpers("name")}
+                disabled={creatingWorkspace}
+                // resetMutation facilitates the clearing of validation errors
+                onChange={onChangeTrimmed(form, resetMutation)}
+                fullWidth
+                label="Workspace Name"
+              />
+              <FormHelperText data-chromatic="ignore">
+                Need a suggestion?{" "}
+                <Button
+                  variant="text"
+                  css={styles.nameSuggestion}
+                  onClick={async () => {
+                    await form.setFieldValue("name", suggestedName);
+                    rerollSuggestedName();
+                  }}
+                >
+                  {suggestedName}
+                </Button>
+              </FormHelperText>
+            </div>
 
-          {/* General info */}
+            {permissions.createWorkspaceForUser && (
+              <UserAutocomplete
+                value={owner}
+                onChange={(user) => {
+                  setOwner(user ?? defaultOwner);
+                }}
+                label="Owner"
+                size="medium"
+              />
+            )}
+          </FormFields>
+        </FormSection>
+
+        {externalAuth && externalAuth.length > 0 && (
           <FormSection
-            title="General"
-            description={
-              permissions.createWorkspaceForUser
-                ? "The name of the workspace and its owner. Only admins can create workspace for other users."
-                : "The name of your new workspace."
-            }
+            title="External Authentication"
+            description="This template uses external services for authentication."
           >
             <FormFields>
-              {versionId && versionId !== template.active_version_id && (
-                <Stack spacing={1} css={styles.hasDescription}>
-                  <TextField
-                    disabled
-                    fullWidth
-                    value={versionId}
-                    label="Version ID"
-                  />
-                  <span css={styles.description}>
-                    This parameter has been preset, and cannot be modified.
-                  </span>
-                </Stack>
+              {Boolean(error) && !hasAllRequiredExternalAuth && (
+                <Alert severity="error">
+                  To create a workspace using this template, please connect to
+                  all required external authentication providers listed below.
+                </Alert>
               )}
-              <div>
-                <TextField
-                  {...getFieldHelpers("name")}
-                  disabled={creatingWorkspace}
-                  // resetMutation facilitates the clearing of validation errors
-                  onChange={onChangeTrimmed(form, resetMutation)}
-                  fullWidth
-                  label="Workspace Name"
+              {externalAuth.map((auth) => (
+                <ExternalAuthButton
+                  key={auth.id}
+                  error={error}
+                  auth={auth}
+                  isLoading={externalAuthPollingState === "polling"}
+                  onStartPolling={startPollingExternalAuth}
+                  displayRetry={externalAuthPollingState === "abandoned"}
                 />
-                <FormHelperText data-chromatic="ignore">
-                  Need a suggestion?{" "}
-                  <Button
-                    variant="text"
-                    css={styles.nameSuggestion}
-                    onClick={async () => {
-                      await form.setFieldValue("name", suggestedName);
-                      rerollSuggestedName();
-                    }}
-                  >
-                    {suggestedName}
-                  </Button>
-                </FormHelperText>
-              </div>
-
-              {permissions.createWorkspaceForUser && (
-                <UserAutocomplete
-                  value={owner}
-                  onChange={(user) => {
-                    setOwner(user ?? defaultOwner);
-                  }}
-                  label="Owner"
-                  size="medium"
-                />
-              )}
+              ))}
             </FormFields>
           </FormSection>
+        )}
 
-          {parameters.length > 0 && (
-            <FormSection
-              title="Parameters"
-              description="These are the settings used by your template. Please note that immutable parameters cannot be modified once the workspace is created."
-            >
-              {/*
-                Opted not to use FormFields in order to increase spacing.
-                This decision was made because rich parameter inputs are more visually dense than standard text fields.
-              */}
-              <div css={{ display: "flex", flexDirection: "column", gap: 36 }}>
-                {parameters.map((parameter, index) => {
-                  const parameterField = `rich_parameter_values.${index}`;
-                  const parameterInputName = `${parameterField}.value`;
-                  const isDisabled =
-                    disabledParamsList?.includes(
-                      parameter.name.toLowerCase().replace(/ /g, "_"),
-                    ) || creatingWorkspace;
+        {parameters.length > 0 && (
+          <FormSection
+            title="Parameters"
+            description="These are the settings used by your template. Please note that immutable parameters cannot be modified once the workspace is created."
+          >
+            {/* The parameter fields are densely packed and carry significant information,
+                hence they require additional vertical spacing for better readability and
+                user experience. */}
+            <FormFields css={{ gap: 36 }}>
+              {parameters.map((parameter, index) => {
+                const parameterField = `rich_parameter_values.${index}`;
+                const parameterInputName = `${parameterField}.value`;
+                const isDisabled =
+                  disabledParamsList?.includes(
+                    parameter.name.toLowerCase().replace(/ /g, "_"),
+                  ) || creatingWorkspace;
 
-                  return (
-                    <RichParameterInput
-                      {...getFieldHelpers(parameterInputName)}
-                      onChange={async (value) => {
-                        await form.setFieldValue(parameterField, {
-                          name: parameter.name,
-                          value,
-                        });
-                      }}
-                      autofillSource={autofillSources[parameter.name]}
-                      key={parameter.name}
-                      parameter={parameter}
-                      disabled={isDisabled}
-                    />
-                  );
-                })}
-              </div>
-            </FormSection>
-          )}
+                return (
+                  <RichParameterInput
+                    {...getFieldHelpers(parameterInputName)}
+                    onChange={async (value) => {
+                      await form.setFieldValue(parameterField, {
+                        name: parameter.name,
+                        value,
+                      });
+                    }}
+                    autofillSource={autofillSources[parameter.name]}
+                    key={parameter.name}
+                    parameter={parameter}
+                    disabled={isDisabled}
+                  />
+                );
+              })}
+            </FormFields>
+          </FormSection>
+        )}
 
-          <FormFooter
-            onCancel={onCancel}
-            isLoading={creatingWorkspace}
-            submitLabel="Create Workspace"
-          />
-        </HorizontalForm>
-      )}
+        <FormFooter
+          onCancel={onCancel}
+          isLoading={creatingWorkspace}
+          submitDisabled={!hasAllRequiredExternalAuth}
+          submitLabel="Create Workspace"
+        />
+      </HorizontalForm>
     </Margins>
   );
 };

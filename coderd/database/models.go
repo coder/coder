@@ -593,11 +593,12 @@ func AllLogSourceValues() []LogSource {
 type LoginType string
 
 const (
-	LoginTypePassword LoginType = "password"
-	LoginTypeGithub   LoginType = "github"
-	LoginTypeOIDC     LoginType = "oidc"
-	LoginTypeToken    LoginType = "token"
-	LoginTypeNone     LoginType = "none"
+	LoginTypePassword          LoginType = "password"
+	LoginTypeGithub            LoginType = "github"
+	LoginTypeOIDC              LoginType = "oidc"
+	LoginTypeToken             LoginType = "token"
+	LoginTypeNone              LoginType = "none"
+	LoginTypeOAuth2ProviderApp LoginType = "oauth2_provider_app"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -641,7 +642,8 @@ func (e LoginType) Valid() bool {
 		LoginTypeGithub,
 		LoginTypeOIDC,
 		LoginTypeToken,
-		LoginTypeNone:
+		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp:
 		return true
 	}
 	return false
@@ -654,6 +656,7 @@ func AllLoginTypeValues() []LoginType {
 		LoginTypeOIDC,
 		LoginTypeToken,
 		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp,
 	}
 }
 
@@ -1807,6 +1810,17 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
 }
 
+// Codes are meant to be exchanged for access tokens.
+type OAuth2ProviderAppCode struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+}
+
 type OAuth2ProviderAppSecret struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
@@ -1815,6 +1829,18 @@ type OAuth2ProviderAppSecret struct {
 	// The tail end of the original secret so secrets can be differentiated.
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
+	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
+}
+
+type OAuth2ProviderAppToken struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
+	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
+	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
+	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
 }
 
 type Organization struct {
@@ -1823,6 +1849,7 @@ type Organization struct {
 	Description string    `db:"description" json:"description"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault   bool      `db:"is_default" json:"is_default"`
 }
 
 type OrganizationMember struct {
@@ -2003,6 +2030,8 @@ type Template struct {
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
+	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2043,26 +2072,28 @@ type TemplateTable struct {
 	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
-	Deprecated string `db:"deprecated" json:"deprecated"`
-	UseMaxTtl  bool   `db:"use_max_ttl" json:"use_max_ttl"`
+	Deprecated          string          `db:"deprecated" json:"deprecated"`
+	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
+	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID     `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
-	Name                  string        `db:"name" json:"name"`
-	Readme                string        `db:"readme" json:"readme"`
-	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string        `db:"message" json:"message"`
-	Archived              bool          `db:"archived" json:"archived"`
-	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
+	Name                  string          `db:"name" json:"name"`
+	Readme                string          `db:"readme" json:"readme"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string          `db:"message" json:"message"`
+	Archived              bool            `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2112,7 +2143,7 @@ type TemplateVersionTable struct {
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of External auth providers for a specific template version
-	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
 	Message  string `db:"message" json:"message"`
 	Archived bool   `db:"archived" json:"archived"`
@@ -2239,6 +2270,8 @@ type WorkspaceAgent struct {
 	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 	APIVersion  string                    `db:"api_version" json:"api_version"`
+	// Specifies the order in which to display agents in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type WorkspaceAgentLog struct {
@@ -2268,6 +2301,15 @@ type WorkspaceAgentMetadatum struct {
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+	// Specifies the order in which to display agent metadata in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
+}
+
+type WorkspaceAgentPortShare struct {
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	AgentName   string          `db:"agent_name" json:"agent_name"`
+	Port        int32           `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
 }
 
 type WorkspaceAgentScript struct {
@@ -2319,6 +2361,8 @@ type WorkspaceApp struct {
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
 	External             bool               `db:"external" json:"external"`
+	// Specifies the order in which to display agent app in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 // A record of workspace app usage statistics

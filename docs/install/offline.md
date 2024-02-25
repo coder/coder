@@ -232,55 +232,8 @@ accessible for your team to use.
 
 ## Coder Modules
 
-### Artifactory
-
-Air gapped users can clone the [coder/modules](htpps://github.com/coder/modules)
-repo and publish a
-[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
-to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
-
-1. Create a local-terraform-repository with name `coder-modules-local`
-2. Create a virtual repository with name `tf`
-3. Follow the below instructions to publish coder modules to Artifactory
-
-   ```shell
-   git clone https://github.com/coder/modules
-   cd modules
-   jf tfc
-   jf tf p --namespace="coder" --provider="coder" --tag="1.0.0"
-   ```
-
-4. Generate a token with access to the `tf` repo and set an `ENV` variable
-   `TF_TOKEN_example.jfrog.io="XXXXXXXXXXXXXXX"` on the Coder provisioner.
-5. Create a file `.terraformrc` with following content and mount at
-   `/home/coder/.terraformrc` within the Coder provisioner.
-
-   ```hcl
-   provider_installation {
-     direct {
-         exclude = ["registry.terraform.io/*/*"]
-     }
-     network_mirror {
-         url = "https://example.jfrog.io/artifactory/api/terraform/tf/providers/"
-     }
-   }
-   ```
-
-6. Update module source as,
-
-   ```hcl
-   module "module-name" {
-     source = "https://example.jfrog.io/tf__coder/module-name/coder"
-     version = "1.0.0"
-     agent_id = coder_agent.example.id
-     ...
-   }
-   ```
-
-> Do not forget to replace example.jgrog.io with uour Artifactory URL
-
-Based on the instructions
-[here](https://jfrog.com/blog/tour-terraform-registries-in-artifactory/).
+To Use Coder modules in offline installations please follow the instrcutiosn
+[here](../templates/modules.md#offline-installations).
 
 ## Firewall exceptions
 

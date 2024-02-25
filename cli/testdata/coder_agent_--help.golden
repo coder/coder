@@ -33,6 +33,9 @@ OPTIONS:
       --prometheus-address string, $CODER_AGENT_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve Prometheus metrics.
 
+      --script-data-dir string, $CODER_AGENT_SCRIPT_DATA_DIR (default: /tmp)
+          Specify the location for storing script data.
+
       --ssh-max-timeout duration, $CODER_AGENT_SSH_MAX_TIMEOUT (default: 72h)
           Specify the max timeout for a SSH connection, it is advisable to set
           it to a minimum of 60s, but no more than 72h.

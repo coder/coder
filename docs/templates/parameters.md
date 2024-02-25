@@ -249,6 +249,23 @@ data "coder_parameter" "instances" {
 }
 ```
 
+It is possible to override the default `error` message for a `number` parameter,
+along with its associated `min` and/or `max` properties. The following message
+placeholders are available `{min}`, `{max}`, and `{value}`.
+
+```hcl
+data "coder_parameter" "instances" {
+  name        = "Instances"
+  type        = "number"
+  description = "Number of compute instances"
+  validation {
+    min       = 1
+    max       = 4
+    error     = "Sorry, we can't provision too many instances - maximum limit: {max}, wanted: {value}."
+  }
+}
+```
+
 ### String
 
 You can validate a `string` parameter to match a regular expression. The `regex`
@@ -263,23 +280,6 @@ data "coder_parameter" "project_id" {
     error = "Unfortunately, this isn't a valid project ID"
   }
 }
-```
-
-## Terraform template-wide variables
-
-As parameters are intended to be used only for workspace customization purposes,
-Terraform variables can be freely managed by the template author to build
-templates. Workspace users are not able to modify template variables.
-
-```hcl
-
-variable "CLOUD_API_KEY" {
-  type        = string
-  description = "API key for the service"
-  default     = "1234567890"
-  sensitive   = true
-}
-
 ```
 
 ## Create Autofill

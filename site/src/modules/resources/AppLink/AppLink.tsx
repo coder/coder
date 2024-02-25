@@ -61,12 +61,16 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     app,
   );
 
+  // canClick is ONLY false when it's a subdomain app and the admin hasn't
+  // enabled wildcard access URL or the session token is being fetched.
+  //
+  // To avoid bugs in the healthcheck code locking users out of apps, we no
+  // longer block access to apps if they are unhealthy/initializing.
   let canClick = true;
   let icon = <BaseIcon app={app} />;
 
   let primaryTooltip = "";
   if (app.health === "initializing") {
-    canClick = false;
     icon = (
       // This is a hack to make the spinner appear in the center of the start
       // icon space
@@ -85,7 +89,6 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     primaryTooltip = "Initializing...";
   }
   if (app.health === "unhealthy") {
-    canClick = false;
     icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
     primaryTooltip = "Unhealthy";
   }

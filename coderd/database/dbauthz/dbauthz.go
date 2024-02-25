@@ -607,16 +607,6 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
 }
 
-func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
-	deleteF := func(ctx context.Context, id uuid.UUID) error {
-		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
-			ID:      id,
-			Deleted: true,
-		})
-	}
-	return deleteQ(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
-}
-
 func (q *querier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
@@ -793,16 +783,6 @@ func (q *querier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.D
 	return update(q.log, q.auth, fetch, q.db.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
-func (q *querier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
-	// This will remove the user from all groups in the org. This counts as updating a group.
-	// NOTE: instead of fetching all groups in the org with arg.UserID as a member, we instead
-	// check if the caller has permission to update any group in the org.
-	fetch := func(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) (rbac.Objecter, error) {
-		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
-	}
-	return update(q.log, q.auth, fetch, q.db.DeleteGroupMembersByOrgAndUser)(ctx, arg)
-}
-
 func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	err := deleteQ(q.log, q.auth, q.db.GetLicenseByID, func(ctx context.Context, id int32) error {
 		_, err := q.db.DeleteLicense(ctx, id)
@@ -821,11 +801,38 @@ func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteOAuth2ProviderAppByID(ctx, id)
 }
 
+func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
+	code, err := q.db.GetOAuth2ProviderAppCodeByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, code); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppCodeByID(ctx, id)
+}
+
+func (q *querier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, arg)
+}
+
 func (q *querier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppSecretByID(ctx, id)
+}
+
+func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		return err
+	}
+	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
@@ -889,6 +896,20 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	// deleting a workspace port share is more akin to just updating the workspace.
+	if err = q.authorizeContext(ctx, rbac.ActionUpdate, w.RBACObject()); err != nil {
+		return xerrors.Errorf("authorize context: %w", err)
+	}
+
+	return q.db.DeleteWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
@@ -1000,6 +1021,12 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return q.db.GetDERPMeshKey(ctx)
+}
+
+func (q *querier) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
+	return fetch(q.log, q.auth, func(ctx context.Context, _ any) (database.Organization, error) {
+		return q.db.GetDefaultOrganization(ctx)
+	})(ctx, nil)
 }
 
 func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaultProxyConfigRow, error) {
@@ -1175,11 +1202,23 @@ func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (d
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
 }
 
+func (q *querier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByID)(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppCodeByPrefix)(ctx, secretPrefix)
+}
+
 func (q *querier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.GetOAuth2ProviderAppSecretByID(ctx, id)
+}
+
+func (q *querier) GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secretPrefix []byte) (database.OAuth2ProviderAppSecret, error) {
+	return fetch(q.log, q.auth, q.db.GetOAuth2ProviderAppSecretByPrefix)(ctx, secretPrefix)
 }
 
 func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
@@ -1189,11 +1228,36 @@ func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID 
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
 }
 
+func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
+	token, err := q.db.GetOAuth2ProviderAppTokenByPrefix(ctx, hashPrefix)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	// The user ID is on the API key so that has to be fetched.
+	key, err := q.db.GetAPIKeyByID(ctx, token.APIKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(key.UserID.String())); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	return token, nil
+}
+
 func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
 		return []database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderApps(ctx)
+}
+
+func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetOAuth2ProviderAppsByUserIDRow, error) {
+	// This authz check is to make sure the caller can read all their own tokens.
+	if err := q.authorizeContext(ctx, rbac.ActionRead,
+		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(userID.String())); err != nil {
+		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
+	}
+	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
 }
 
 func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
@@ -1868,6 +1932,20 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.Ge
 	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	// reading a workspace port share is more akin to just reading the workspace.
+	if err = q.authorizeContext(ctx, rbac.ActionRead, w.RBACObject()); err != nil {
+		return database.WorkspaceAgentPortShare{}, xerrors.Errorf("authorize context: %w", err)
+	}
+
+	return q.db.GetWorkspaceAgentPortShare(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2228,11 +2306,30 @@ func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.Inse
 	return q.db.InsertOAuth2ProviderApp(ctx, arg)
 }
 
+func (q *querier) InsertOAuth2ProviderAppCode(ctx context.Context, arg database.InsertOAuth2ProviderAppCodeParams) (database.OAuth2ProviderAppCode, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate,
+		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		return database.OAuth2ProviderAppCode{}, err
+	}
+	return q.db.InsertOAuth2ProviderAppCode(ctx, arg)
+}
+
 func (q *querier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppSecret(ctx, arg)
+}
+
+func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database.InsertOAuth2ProviderAppTokenParams) (database.OAuth2ProviderAppToken, error) {
+	key, err := q.db.GetAPIKeyByID(ctx, arg.APIKeyID)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(key.UserID.String())); err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
 }
 
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
@@ -2500,11 +2597,33 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// listing port shares is more akin to reading the workspace.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
+}
+
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	fetch := func(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+	// This is a system function to clear user groups in group sync.
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.RemoveUserFromAllGroups(ctx, userID)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -2835,16 +2954,8 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
 }
 
-// UpdateUserDeletedByID
-// Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
-// irreversible.
-func (q *querier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateUserDeletedByIDParams) (database.User, error) {
-		return q.db.GetUserByID(ctx, arg.ID)
-	}
-	// This uses the rbac.ActionDelete action always as this function should always delete.
-	// We should delete this function in favor of 'SoftDeleteUserByID'.
-	return deleteQ(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
+func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
 
 func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
@@ -3271,6 +3382,20 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	return q.db.UpsertWorkspaceAgentPortShare(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {

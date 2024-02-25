@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -279,6 +280,91 @@ func TestAgent_SessionExec(t *testing.T) {
 	output, err := session.Output(command)
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+//nolint:tparallel // Sub tests need to run sequentially.
+func TestAgent_Session_EnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := t.TempDir()
+
+	// Defined by the coder script runner, hardcoded here since we don't
+	// have a reference to it.
+	scriptBinDir := filepath.Join(tmpdir, "coder-script-data", "bin")
+
+	manifest := agentsdk.Manifest{
+		EnvironmentVariables: map[string]string{
+			"MY_MANIFEST":         "true",
+			"MY_OVERRIDE":         "false",
+			"MY_SESSION_MANIFEST": "false",
+		},
+	}
+	banner := codersdk.ServiceBannerConfig{}
+	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ScriptDataDir = tmpdir
+		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
+	})
+
+	err := session.Setenv("MY_SESSION_MANIFEST", "true")
+	require.NoError(t, err)
+	err = session.Setenv("MY_SESSION", "true")
+	require.NoError(t, err)
+
+	command := "sh"
+	echoEnv := func(t *testing.T, w io.Writer, env string) {
+		if runtime.GOOS == "windows" {
+			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
+			require.NoError(t, err)
+		} else {
+			_, err := fmt.Fprintf(w, "echo $%s\n", env)
+			require.NoError(t, err)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe"
+	}
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	defer stdin.Close()
+	stdout, err := session.StdoutPipe()
+	require.NoError(t, err)
+
+	err = session.Start(command)
+	require.NoError(t, err)
+
+	// Context is fine here since we're not doing a parallel subtest.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
+
+	s := bufio.NewScanner(stdout)
+
+	//nolint:paralleltest // These tests need to run sequentially.
+	for k, partialV := range map[string]string{
+		"CODER":               "true",  // From the agent.
+		"MY_MANIFEST":         "true",  // From the manifest.
+		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
+		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
+		"MY_SESSION":          "true",  // From the session.
+		"PATH":                scriptBinDir + string(filepath.ListSeparator),
+	} {
+		t.Run(k, func(t *testing.T) {
+			echoEnv(t, stdin, k)
+			// Windows is unreliable, so keep scanning until we find a match.
+			for s.Scan() {
+				got := strings.TrimSpace(s.Text())
+				t.Logf("%s=%s", k, got)
+				if strings.Contains(got, partialV) {
+					break
+				}
+			}
+			if err := s.Err(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestAgent_GitSSH(t *testing.T) {
@@ -1976,6 +2062,80 @@ func TestAgent_DebugServer(t *testing.T) {
 	})
 }
 
+func TestAgent_ScriptLogging(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash scripts only")
+	}
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	logsCh := make(chan *proto.BatchCreateLogsRequest, 100)
+	lsStart := uuid.UUID{0x11}
+	lsStop := uuid.UUID{0x22}
+	//nolint:dogsled
+	_, _, _, _, agnt := setupAgent(
+		t,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{
+				{
+					LogSourceID: lsStart,
+					RunOnStart:  true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 5 ]
+do
+        i=$(($i+1))
+        echo "start $i"
+done
+`,
+				},
+				{
+					LogSourceID: lsStop,
+					RunOnStop:   true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 3000 ]
+do
+        i=$(($i+1))
+        echo "stop $i"
+done
+`, // send a lot of stop logs to make sure we don't truncate shutdown logs before closing the API conn
+				},
+			},
+		},
+		0,
+		func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		},
+	)
+
+	n := 1
+	for n <= 5 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("start %d", n), l.GetOutput())
+			n++
+		}
+	}
+
+	err := agnt.Close()
+	require.NoError(t, err)
+
+	n = 1
+	for n <= 3000 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("stop %d", n), l.GetOutput())
+			n++
+		}
+		t.Logf("got %d stop logs", n-1)
+	}
+}
+
 // setupAgentSSHClient creates an agent, dials it, and sets up an ssh.Client for it
 func setupAgentSSHClient(ctx context.Context, t *testing.T) *ssh.Client {
 	//nolint: dogsled
@@ -1991,15 +2151,17 @@ func setupSSHSession(
 	manifest agentsdk.Manifest,
 	serviceBanner codersdk.ServiceBannerConfig,
 	prepareFS func(fs afero.Fs),
+	opts ...func(*agenttest.Client, *agent.Options),
 ) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, _ *agent.Options) {
+	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
 		c.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
 			return serviceBanner, nil
 		})
 	})
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, manifest, 0, opts...)
 	if prepareFS != nil {
 		prepareFS(fs)
 	}
@@ -2049,7 +2211,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{
@@ -2057,15 +2219,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
+		EnvironmentVariables:   map[string]string{},
 	}
 
 	for _, opt := range opts {
 		opt(c, &options)
 	}
 
-	closer := agent.New(options)
+	agnt := agent.New(options)
 	t.Cleanup(func() {
-		_ = closer.Close()
+		_ = agnt.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -2102,7 +2265,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
 	}
-	return agentConn, c, statsCh, fs, closer
+	return agentConn, c, statsCh, fs, agnt
 }
 
 var dialTestPayload = []byte("dean-was-here123")

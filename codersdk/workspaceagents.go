@@ -534,14 +534,14 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 		tac.logger.Debug(tac.ctx, "main context canceled; do graceful disconnect")
 		crdErr := coordination.Close()
 		if crdErr != nil {
-			tac.logger.Error(tac.ctx, "failed to close remote coordination", slog.Error(err))
+			tac.logger.Warn(tac.ctx, "failed to close remote coordination", slog.Error(err))
 		}
 	case err = <-coordination.Error():
 		if err != nil &&
 			!xerrors.Is(err, io.EOF) &&
 			!xerrors.Is(err, context.Canceled) &&
 			!xerrors.Is(err, context.DeadlineExceeded) {
-			tac.logger.Error(tac.ctx, "remote coordination error: %w", err)
+			tac.logger.Error(tac.ctx, "remote coordination error", slog.Error(err))
 		}
 	}
 }
@@ -844,7 +844,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}
 	logChunks := make(chan []WorkspaceAgentLog, 1)
 	closed := make(chan struct{})
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)
 	go func() {
 		defer close(closed)

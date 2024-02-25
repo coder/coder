@@ -564,14 +564,21 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, r.failedJobf("template import provision for stop: %s", err)
 	}
 
+	// For backwards compatibility with older versions of coderd
+	externalAuthProviderNames := make([]string, 0, len(startProvision.ExternalAuthProviders))
+	for _, it := range startProvision.ExternalAuthProviders {
+		externalAuthProviderNames = append(externalAuthProviderNames, it.Id)
+	}
+
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
-				StartResources:        startProvision.Resources,
-				StopResources:         stopProvision.Resources,
-				RichParameters:        startProvision.Parameters,
-				ExternalAuthProviders: startProvision.ExternalAuthProviders,
+				StartResources:             startProvision.Resources,
+				StopResources:              stopProvision.Resources,
+				RichParameters:             startProvision.Parameters,
+				ExternalAuthProvidersNames: externalAuthProviderNames,
+				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
 			},
 		},
 	}, nil
@@ -629,7 +636,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
-	ExternalAuthProviders []string
+	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
 }
 
 // Performs a dry-run provision when importing a template.

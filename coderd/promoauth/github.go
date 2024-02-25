@@ -16,9 +16,21 @@ type rateLimits struct {
 	Resource  string
 }
 
-// githubRateLimits checks the returned response headers and
+// githubRateLimits returns rate limit information from a GitHub response.
+// GitHub rate limits are on a per-user basis, and tracking each user as
+// a prometheus label might be too much. So only track rate limits for
+// unauthorized responses.
+//
+// Unauthorized responses have a much stricter rate limit of 60 per hour.
+// Tracking this is vital to ensure we do not hit the limit.
 func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 	if err != nil || resp == nil {
+		return rateLimits{}, false
+	}
+
+	// Only track 401 responses which indicates we are using the 60 per hour
+	// rate limit.
+	if resp.StatusCode != http.StatusUnauthorized {
 		return rateLimits{}, false
 	}
 
@@ -29,7 +41,7 @@ func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 		Limit:     p.int("x-ratelimit-limit"),
 		Remaining: p.int("x-ratelimit-remaining"),
 		Used:      p.int("x-ratelimit-used"),
-		Resource:  p.string("x-ratelimit-resource"),
+		Resource:  p.string("x-ratelimit-resource") + "-unauthorized",
 	}
 
 	if limits.Limit == 0 &&
@@ -49,18 +61,6 @@ func githubRateLimits(resp *http.Response, err error) (rateLimits, bool) {
 		resetAt = time.Time{}
 	}
 	limits.Reset = resetAt
-
-	// Unauthorized requests have their own rate limit, so we should
-	// track them separately.
-	if resp.StatusCode == http.StatusUnauthorized {
-		limits.Resource += "-unauthorized"
-	}
-
-	// A 401 or 429 means too many requests. This might mess up the
-	// "resource" string because we could hit the unauthorized limit,
-	// and we do not want that to override the authorized one.
-	// However, in testing, it seems a 401 is always a 401, even if
-	// the limit is hit.
 
 	if len(p.errors) > 0 {
 		// If we are missing any headers, then do not try and guess

@@ -70,7 +70,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	}
 
 	// Get the list of table column headers.
-	headersRaw, defaultSort, err := typeToTableHeaders(v.Type().Elem())
+	headersRaw, defaultSort, err := typeToTableHeaders(v.Type().Elem(), true)
 	if err != nil {
 		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
 	}
@@ -230,7 +230,11 @@ func isStructOrStructPointer(t reflect.Type) bool {
 // typeToTableHeaders converts a type to a slice of column names. If the given
 // type is invalid (not a struct or a pointer to a struct, has invalid table
 // tags, etc.), an error is returned.
-func typeToTableHeaders(t reflect.Type) ([]string, string, error) {
+//
+// requireDefault is only needed for the root call. This is recursive, so nested
+// structs do not need the default sort name.
+// nolint:revive
+func typeToTableHeaders(t reflect.Type, requireDefault bool) ([]string, string, error) {
 	if !isStructOrStructPointer(t) {
 		return nil, "", xerrors.Errorf("typeToTableHeaders called with a non-struct or a non-pointer-to-a-struct type")
 	}
@@ -246,6 +250,12 @@ func typeToTableHeaders(t reflect.Type) ([]string, string, error) {
 		if err != nil {
 			return nil, "", xerrors.Errorf("parse struct tags for field %q in type %q: %w", field.Name, t.String(), err)
 		}
+
+		if name == "" && (recursive && skip) {
+			return nil, "", xerrors.Errorf("a name is required for the field %q. "+
+				"recursive_line will ensure this is never shown to the user, but is still needed", field.Name)
+		}
+		// If recurse and skip is set, the name is intentionally empty.
 		if name == "" {
 			continue
 		}
@@ -262,7 +272,7 @@ func typeToTableHeaders(t reflect.Type) ([]string, string, error) {
 				return nil, "", xerrors.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, t.String())
 			}
 
-			childNames, _, err := typeToTableHeaders(fieldType)
+			childNames, defaultSort, err := typeToTableHeaders(fieldType, false)
 			if err != nil {
 				return nil, "", xerrors.Errorf("get child field header names for field %q in type %q: %w", field.Name, fieldType.String(), err)
 			}
@@ -273,13 +283,16 @@ func typeToTableHeaders(t reflect.Type) ([]string, string, error) {
 				}
 				headers = append(headers, fullName)
 			}
+			if defaultSortName == "" {
+				defaultSortName = defaultSort
+			}
 			continue
 		}
 
 		headers = append(headers, name)
 	}
 
-	if defaultSortName == "" {
+	if defaultSortName == "" && requireDefault {
 		return nil, "", xerrors.Errorf("no field marked as default_sort in type %q", t.String())
 	}
 

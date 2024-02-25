@@ -31,6 +31,7 @@ type Template struct {
 	DeprecationMessage string                 `json:"deprecation_message"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
+	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
 	// UseMaxTTL picks whether to use the deprecated max TTL for the template or
 	// the new autostop requirement.
 	UseMaxTTL bool `json:"use_max_ttl"`
@@ -60,7 +61,8 @@ type Template struct {
 
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
-	RequireActiveVersion bool `json:"require_active_version"`
+	RequireActiveVersion bool                         `json:"require_active_version"`
+	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -198,8 +200,8 @@ type UpdateTemplateACL struct {
 // ACLAvailable is a list of users and groups that can be added to a template
 // ACL.
 type ACLAvailable struct {
-	Users  []User  `json:"users"`
-	Groups []Group `json:"groups"`
+	Users  []ReducedUser `json:"users"`
+	Groups []Group       `json:"groups"`
 }
 
 type UpdateTemplateMeta struct {
@@ -208,6 +210,10 @@ type UpdateTemplateMeta struct {
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	// ActivityBumpMillis allows optionally specifying the activity bump
+	// duration for all workspaces created from this template. Defaults to 1h
+	// but can be set to 0 to disable activity bumping.
+	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
@@ -246,7 +252,8 @@ type UpdateTemplateMeta struct {
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
-	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
+	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
+	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 }
 
 type TemplateExample struct {

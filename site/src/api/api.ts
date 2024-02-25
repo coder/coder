@@ -974,10 +974,13 @@ export const unlinkExternalAuthProvider = async (
   return resp.data;
 };
 
-export const getOAuth2ProviderApps = async (): Promise<
-  TypesGen.OAuth2ProviderApp[]
-> => {
-  const resp = await axios.get(`/api/v2/oauth2-provider/apps`);
+export const getOAuth2ProviderApps = async (
+  filter?: TypesGen.OAuth2ProviderAppFilter,
+): Promise<TypesGen.OAuth2ProviderApp[]> => {
+  const params = filter?.user_id
+    ? new URLSearchParams({ user_id: filter.user_id })
+    : "";
+  const resp = await axios.get(`/api/v2/oauth2-provider/apps?${params}`);
   return resp.data;
 };
 
@@ -1002,6 +1005,7 @@ export const putOAuth2ProviderApp = async (
   const response = await axios.put(`/api/v2/oauth2-provider/apps/${id}`, data);
   return response.data;
 };
+
 export const deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
   await axios.delete(`/api/v2/oauth2-provider/apps/${id}`);
 };
@@ -1027,6 +1031,10 @@ export const deleteOAuth2ProviderAppSecret = async (
   await axios.delete(
     `/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
   );
+};
+
+export const revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
+  await axios.delete(`/oauth2/tokens?client_id=${appId}`);
 };
 
 export const getAuditLogs = async (
@@ -1159,6 +1167,39 @@ export const getAgentListeningPorts = async (
 ): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
   const response = await axios.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
+  );
+  return response.data;
+};
+
+export const getWorkspaceAgentSharedPorts = async (
+  workspaceID: string,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.get(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+  );
+  return response.data;
+};
+
+export const upsertWorkspaceAgentSharedPort = async (
+  workspaceID: string,
+  req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+    req,
+  );
+  return response.data;
+};
+
+export const deleteWorkspaceAgentSharedPort = async (
+  workspaceID: string,
+  req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
+): Promise<TypesGen.WorkspaceAgentPortShares> => {
+  const response = await axios.delete(
+    `/api/v2/workspaces/${workspaceID}/port-share`,
+    {
+      data: req,
+    },
   );
   return response.data;
 };
@@ -1502,7 +1543,7 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
 type WatchBuildLogsByTemplateVersionIdOptions = {
   after?: number;
   onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone: () => void;
+  onDone?: () => void;
   onError: (error: Error) => void;
 };
 export const watchBuildLogsByTemplateVersionId = (
@@ -1534,7 +1575,7 @@ export const watchBuildLogsByTemplateVersionId = (
   });
   socket.addEventListener("close", () => {
     // When the socket closes, logs have finished streaming!
-    onDone();
+    onDone?.();
   });
   return socket;
 };

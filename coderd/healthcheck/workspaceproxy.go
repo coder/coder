@@ -14,16 +14,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// @typescript-generate WorkspaceProxyReport
-type WorkspaceProxyReport struct {
-	Healthy   bool             `json:"healthy"`
-	Severity  health.Severity  `json:"severity"`
-	Warnings  []health.Message `json:"warnings"`
-	Dismissed bool             `json:"dismissed"`
-	Error     *string          `json:"error"`
-
-	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
-}
+type WorkspaceProxyReport codersdk.WorkspaceProxyReport
 
 type WorkspaceProxyReportOptions struct {
 	// CurrentVersion is the current server version.

@@ -140,6 +140,43 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureControlSharedPorts: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// OK
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, level, updated.MaxPortShareLevel)
+
+		// Invalid level
+		level = "invalid"
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.ErrorContains(t, err, "invalid max port sharing level")
+	})
+
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{

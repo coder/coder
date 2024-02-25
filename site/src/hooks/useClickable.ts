@@ -10,44 +10,62 @@ type ClickableElement = {
   click: () => void;
 };
 
-export interface UseClickableResult<
-  T extends ClickableElement = ClickableElement,
-> {
-  ref: RefObject<T>;
+/**
+ * May be worth adding support for the 'spinbutton' role at some point, but that
+ * will change the structure of the return result in a big way. Better to wait
+ * until we actually need it.
+ *
+ * @see {@link https://www.w3.org/WAI/ARIA/apg/patterns/spinbutton/}
+ */
+export type ClickableAriaRole = "button" | "switch";
+
+export type UseClickableResult<
+  TElement extends ClickableElement = ClickableElement,
+  TRole extends ClickableAriaRole = ClickableAriaRole,
+> = Readonly<{
+  ref: RefObject<TElement>;
   tabIndex: 0;
-  role: "button";
-  onClick: MouseEventHandler<T>;
-  onKeyDown: KeyboardEventHandler<T>;
-}
+  role: TRole;
+  onClick: MouseEventHandler<TElement>;
+  onKeyDown: KeyboardEventHandler<TElement>;
+  onKeyUp: KeyboardEventHandler<TElement>;
+}>;
 
 /**
- * Exposes props to add basic click/interactive behavior to HTML elements that
- * don't traditionally have support for them.
+ * Exposes props that let you turn traditionally non-interactive elements into
+ * buttons.
  */
 export const useClickable = <
-  // T doesn't have a default type on purpose; the hook should error out if it
-  // doesn't have an explicit type, or a type it can infer from onClick
-  T extends ClickableElement,
+  TElement extends ClickableElement,
+  TRole extends ClickableAriaRole = ClickableAriaRole,
 >(
-  // Even though onClick isn't used in any of the internal calculations, it's
-  // still a required argument, just to make sure that useClickable can't
-  // accidentally be called in a component without also defining click behavior
-  onClick: MouseEventHandler<T>,
-): UseClickableResult<T> => {
-  const ref = useRef<T>(null);
+  onClick: MouseEventHandler<TElement>,
+  role?: TRole,
+): UseClickableResult<TElement, TRole> => {
+  const ref = useRef<TElement>(null);
 
   return {
     ref,
-    tabIndex: 0,
-    role: "button",
     onClick,
+    tabIndex: 0,
+    role: (role ?? "button") as TRole,
 
-    // Most interactive elements automatically make Space/Enter trigger onClick
-    // callbacks, but you explicitly have to add it for non-interactive elements
+    /*
+     * Native buttons are programmed to handle both space and enter, but they're
+     * each handled via different event handlers.
+     *
+     * 99% of the time, you shouldn't be able to tell the difference, but one
+     * edge case behavior is that holding down Enter will continually fire
+     * events, while holding down Space won't fire anything until you let go.
+     */
     onKeyDown: (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        // Can't call onClick from here because onKeydown's keyboard event isn't
-        // compatible with mouse events. Have to use a ref to simulate a click
+      if (event.key === "Enter") {
+        ref.current?.click();
+        event.stopPropagation();
+      }
+    },
+    onKeyUp: (event) => {
+      if (event.key === " ") {
         ref.current?.click();
         event.stopPropagation();
       }

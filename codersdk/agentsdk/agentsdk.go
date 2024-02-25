@@ -203,7 +203,7 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	_, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 
 	netConn := &closeNetConn{
 		Conn: wsNetConn,
@@ -226,7 +226,12 @@ type PostAppHealthsRequest struct {
 	Healths map[uuid.UUID]codersdk.WorkspaceAppHealth
 }
 
-func AppHealthPoster(aAPI proto.DRPCAgentClient) func(ctx context.Context, req PostAppHealthsRequest) error {
+// BatchUpdateAppHealthsClient is a partial interface of proto.DRPCAgentClient.
+type BatchUpdateAppHealthsClient interface {
+	BatchUpdateAppHealths(ctx context.Context, req *proto.BatchUpdateAppHealthRequest) (*proto.BatchUpdateAppHealthResponse, error)
+}
+
+func AppHealthPoster(aAPI BatchUpdateAppHealthsClient) func(ctx context.Context, req PostAppHealthsRequest) error {
 	return func(ctx context.Context, req PostAppHealthsRequest) error {
 		pReq, err := ProtoFromAppHealthsRequest(req)
 		if err != nil {
@@ -480,6 +485,9 @@ type PostLifecycleRequest struct {
 	ChangedAt time.Time                        `json:"changed_at"`
 }
 
+// PostLifecycle posts the agent's lifecycle to the Coder server.
+//
+// Deprecated: Use UpdateLifecycle on the dRPC API instead
 func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
 	if err != nil {
@@ -512,6 +520,8 @@ type PatchLogs struct {
 
 // PatchLogs writes log messages to the agent startup script.
 // Log messages are limited to 1MB in total.
+//
+// Deprecated: use the DRPCAgentClient.BatchCreateLogs instead
 func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/logs", req)
 	if err != nil {
@@ -594,50 +604,6 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 
 	var authResp ExternalAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
-}
-
-// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
-// is called if a read or write error is encountered.
-type wsNetConn struct {
-	cancel context.CancelFunc
-	net.Conn
-}
-
-func (c *wsNetConn) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Write(b []byte) (n int, err error) {
-	n, err = c.Conn.Write(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Close() error {
-	defer c.cancel()
-	return c.Conn.Close()
-}
-
-// websocketNetConn wraps websocket.NetConn and returns a context that
-// is tied to the parent context and the lifetime of the conn. Any error
-// during read or write will cancel the context, but not close the
-// conn. Close should be called to release context resources.
-func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
-	// Set the read limit to 4 MiB -- about the limit for protobufs.  This needs to be larger than
-	// the default because some of our protocols can include large messages like startup scripts.
-	conn.SetReadLimit(1 << 22)
-	ctx, cancel := context.WithCancel(ctx)
-	nc := websocket.NetConn(ctx, conn, msgType)
-	return ctx, &wsNetConn{
-		cancel: cancel,
-		Conn:   nc,
-	}
 }
 
 // LogsNotifyChannel returns the channel name responsible for notifying

@@ -75,10 +75,16 @@ func TestFirstUser(t *testing.T) {
 
 	t.Run("Trial", func(t *testing.T) {
 		t.Parallel()
-		called := make(chan struct{})
+		trialGenerated := make(chan struct{})
+		entitlementsRefreshed := make(chan struct{})
+
 		client := coderdtest.New(t, &coderdtest.Options{
 			TrialGenerator: func(context.Context, codersdk.LicensorTrialRequest) error {
-				close(called)
+				close(trialGenerated)
+				return nil
+			},
+			RefreshEntitlements: func(context.Context) error {
+				close(entitlementsRefreshed)
 				return nil
 			},
 		})
@@ -94,7 +100,9 @@ func TestFirstUser(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
-		<-called
+
+		_ = testutil.RequireRecvCtx(ctx, t, trialGenerated)
+		_ = testutil.RequireRecvCtx(ctx, t, entitlementsRefreshed)
 	})
 }
 
@@ -493,14 +501,18 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs())
-
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		numLogs++ // add an audit log for user create
-		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+
+		// Add an extra org to try and confuse user creation
+		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "foobar",
+		})
+		require.NoError(t, err)
+
+		numLogs := len(auditor.AuditLogs())
 
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:    "another@user.org",
@@ -508,6 +520,7 @@ func TestPostUsers(t *testing.T) {
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
+		numLogs++ // add an audit log for user create
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)

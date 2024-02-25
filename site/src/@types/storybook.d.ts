@@ -7,5 +7,8 @@ declare module "@storybook/react" {
     features?: FeatureName[];
     experiments?: Experiments;
     queries?: { key: QueryKey; data: unknown }[];
+    webSocket?: {
+      messages: string[];
+    };
   }
 }

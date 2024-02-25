@@ -1,5 +1,5 @@
 import { type FC } from "react";
-import { useQuery, useMutation } from "react-query";
+import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   templateVersionLogs,
@@ -7,7 +7,6 @@ import {
   templateVersion,
   templateVersionVariables,
   JobError,
-  createTemplate,
 } from "api/queries/templates";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -15,8 +14,15 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
+import { CreateTemplatePageViewProps } from "./types";
 
-export const DuplicateTemplateView: FC = () => {
+export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
+  onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
+  error,
+  isCreating,
+}) => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();
@@ -44,11 +50,9 @@ export const DuplicateTemplateView: FC = () => {
   const dashboard = useDashboard();
   const formPermissions = getFormPermissions(dashboard.entitlements);
 
-  const createTemplateMutation = useMutation(createTemplate());
-  const createError = createTemplateMutation.error;
-  const isJobError = createError instanceof JobError;
+  const isJobError = error instanceof JobError;
   const templateVersionLogsQuery = useQuery({
-    ...templateVersionLogs(isJobError ? createError.version.id : ""),
+    ...templateVersionLogs(isJobError ? error.version.id : ""),
     enabled: isJobError,
   });
 
@@ -63,15 +67,17 @@ export const DuplicateTemplateView: FC = () => {
   return (
     <CreateTemplateForm
       {...formPermissions}
+      variablesSectionRef={variablesSectionRef}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
       copiedTemplate={templateByNameQuery.data!}
-      error={createTemplateMutation.error}
-      isSubmitting={createTemplateMutation.isLoading}
+      error={error}
+      isSubmitting={isCreating}
       variables={templateVersionVariablesQuery.data}
       onCancel={() => navigate(-1)}
-      jobError={isJobError ? createError.job.error : undefined}
+      jobError={isJobError ? error.job.error : undefined}
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
-        const template = await createTemplateMutation.mutateAsync({
+        await onCreateTemplate({
           organizationId,
           version: firstVersionFromFile(
             templateVersionQuery.data!.job.file_id,
@@ -79,7 +85,6 @@ export const DuplicateTemplateView: FC = () => {
           ),
           template: newTemplate(formData),
         });
-        navigate(`/templates/${template.name}`);
       }}
     />
   );

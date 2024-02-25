@@ -200,19 +200,14 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		sUser.UserName = httpapi.UsernameFrom(sUser.UserName)
 	}
 
-	var organizationID uuid.UUID
+	// TODO: This is a temporary solution that does not support multi-org
+	// 	deployments. This assumption places all new SCIM users into the
+	//	default organization.
 	//nolint:gocritic
-	organizations, err := api.Database.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
+	defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
 		return
-	}
-
-	if len(organizations) > 0 {
-		// Add the user to the first organization. Once multi-organization
-		// support is added, we should enable a configuration map of user
-		// email to organization.
-		organizationID = organizations[0].ID
 	}
 
 	//nolint:gocritic // needed for SCIM
@@ -220,7 +215,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username:       sUser.UserName,
 			Email:          email,
-			OrganizationID: organizationID,
+			OrganizationID: defaultOrganization.ID,
 		},
 		LoginType: database.LoginTypeOIDC,
 	})

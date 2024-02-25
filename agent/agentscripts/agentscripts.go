@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/afero"
@@ -41,13 +42,19 @@ var (
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
 
+type ScriptLogger interface {
+	Send(ctx context.Context, log ...agentsdk.Log) error
+	Flush(context.Context) error
+}
+
 // Options are a set of options for the runner.
 type Options struct {
-	LogDir     string
-	Logger     slog.Logger
-	SSHServer  *agentssh.Server
-	Filesystem afero.Fs
-	PatchLogs  func(ctx context.Context, req agentsdk.PatchLogs) error
+	DataDirBase     string
+	LogDir          string
+	Logger          slog.Logger
+	SSHServer       *agentssh.Server
+	Filesystem      afero.Fs
+	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
 }
 
 // New creates a runner for the provided scripts.
@@ -59,6 +66,7 @@ func New(opts Options) *Runner {
 		cronCtxCancel: cronCtxCancel,
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
+		dataDir:       filepath.Join(opts.DataDirBase, "coder-script-data"),
 		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "agent",
 			Subsystem: "scripts",
@@ -78,11 +86,23 @@ type Runner struct {
 	cron          *cron.Cron
 	initialized   atomic.Bool
 	scripts       []codersdk.WorkspaceAgentScript
+	dataDir       string
 
 	// scriptsExecuted includes all scripts executed by the workspace agent. Agents
 	// execute startup scripts, and scripts on a cron schedule. Both will increment
 	// this counter.
 	scriptsExecuted *prometheus.CounterVec
+}
+
+// DataDir returns the directory where scripts data is stored.
+func (r *Runner) DataDir() string {
+	return r.dataDir
+}
+
+// ScriptBinDir returns the directory where scripts can store executable
+// binaries.
+func (r *Runner) ScriptBinDir() string {
+	return filepath.Join(r.dataDir, "bin")
 }
 
 func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
@@ -103,6 +123,11 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 	r.initialized.Store(true)
 	r.scripts = scripts
 	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
+
+	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
+	if err != nil {
+		return xerrors.Errorf("create script bin dir: %w", err)
+	}
 
 	for _, script := range scripts {
 		if script.Cron == "" {
@@ -208,7 +233,18 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	if !filepath.IsAbs(logPath) {
 		logPath = filepath.Join(r.LogDir, logPath)
 	}
-	logger := r.Logger.With(slog.F("log_path", logPath))
+
+	scriptDataDir := filepath.Join(r.DataDir(), script.LogSourceID.String())
+	err := r.Filesystem.MkdirAll(scriptDataDir, 0o700)
+	if err != nil {
+		return xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
+	}
+
+	logger := r.Logger.With(
+		slog.F("log_source_id", script.LogSourceID),
+		slog.F("log_path", logPath),
+		slog.F("script_data_dir", scriptDataDir),
+	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
@@ -238,20 +274,27 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	cmd.WaitDelay = 10 * time.Second
 	cmd.Cancel = cmdCancel(cmd)
 
-	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, r.PatchLogs, logger)
+	// Expose env vars that can be used in the script for storing data
+	// and binaries. In the future, we may want to expose more env vars
+	// for the script to use, like CODER_SCRIPT_DATA_DIR for persistent
+	// storage.
+	cmd.Env = append(cmd.Env, "CODER_SCRIPT_DATA_DIR="+scriptDataDir)
+	cmd.Env = append(cmd.Env, "CODER_SCRIPT_BIN_DIR="+r.ScriptBinDir())
+
+	scriptLogger := r.GetScriptLogger(script.LogSourceID)
 	// If ctx is canceled here (or in a writer below), we may be
 	// discarding logs, but that's okay because we're shutting down
 	// anyway. We could consider creating a new context here if we
 	// want better control over flush during shutdown.
 	defer func() {
-		if err := flushAndClose(ctx); err != nil {
+		if err := scriptLogger.Flush(ctx); err != nil {
 			logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
 		}
 	}()
 
-	infoW := agentsdk.LogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelInfo)
+	infoW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelInfo)
 	defer infoW.Close()
-	errW := agentsdk.LogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelError)
+	errW := agentsdk.LogsWriter(ctx, scriptLogger.Send, script.LogSourceID, codersdk.LogLevelError)
 	defer errW.Close()
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)

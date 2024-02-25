@@ -1,7 +1,7 @@
-import { Interpolation, Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { useTheme } from "@mui/material/styles";
-import { WorkspaceResource } from "api/typesGenerated";
+import { type FC } from "react";
+import type { WorkspaceResource } from "api/typesGenerated";
 import {
   Sidebar,
   SidebarCaption,
@@ -16,9 +16,13 @@ type ResourcesSidebarProps = {
   isSelected: (resource: WorkspaceResource) => boolean;
 };
 
-export const ResourcesSidebar = (props: ResourcesSidebarProps) => {
+export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
+  failed,
+  onChange,
+  isSelected,
+  resources,
+}) => {
   const theme = useTheme();
-  const { failed, onChange, isSelected, resources } = props;
 
   return (
     <Sidebar>
@@ -83,7 +87,7 @@ export const ResourcesSidebar = (props: ResourcesSidebarProps) => {
   );
 };
 
-export const ResourceSidebarItemSkeleton = () => {
+export const ResourceSidebarItemSkeleton: FC = () => {
   return (
     <div css={[styles.root, { pointerEvents: "none" }]}>
       <Skeleton variant="circular" width={16} height={16} />

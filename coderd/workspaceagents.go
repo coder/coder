@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -544,7 +543,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	go httpapi.Heartbeat(ctx, conn)
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close() // Also closes conn.
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
@@ -881,7 +880,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	ctx, nconn := websocketNetConn(ctx, ws, websocket.MessageBinary)
+	ctx, nconn := codersdk.WebsocketNetConn(ctx, ws, websocket.MessageBinary)
 	defer nconn.Close()
 
 	// Slurp all packets from the connection into io.Discard so pongs get sent
@@ -990,7 +989,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
@@ -1077,7 +1076,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
 	go httpapi.Heartbeat(ctx, conn)
@@ -1590,10 +1589,18 @@ func appendUnique[T comparable](dst, src []T) []T {
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
+	// Sort the input database slice by DisplayOrder and then by Key before processing
+	sort.Slice(db, func(i, j int) bool {
+		if db[i].DisplayOrder == db[j].DisplayOrder {
+			return db[i].Key < db[j].Key
+		}
+		return db[i].DisplayOrder < db[j].DisplayOrder
+	})
+
 	// An empty array is easier for clients to handle than a null.
-	result := make([]codersdk.WorkspaceAgentMetadata, 0, len(db))
-	for _, datum := range db {
-		result = append(result, codersdk.WorkspaceAgentMetadata{
+	result := make([]codersdk.WorkspaceAgentMetadata, len(db))
+	for i, datum := range db {
+		result[i] = codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,
@@ -1607,12 +1614,8 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 				Interval:    datum.Interval,
 				Timeout:     datum.Timeout,
 			},
-		})
+		}
 	}
-	// Sorting prevents the metadata from jumping around in the frontend.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Description.Key < result[j].Description.Key
-	})
 	return result
 }
 
@@ -2102,47 +2105,6 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 		err = json.Unmarshal(extra.RawMessage, &resp.TokenExtra)
 	}
 	return resp, err
-}
-
-// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
-// is called if a read or write error is encountered.
-type wsNetConn struct {
-	cancel context.CancelFunc
-	net.Conn
-}
-
-func (c *wsNetConn) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Write(b []byte) (n int, err error) {
-	n, err = c.Conn.Write(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Close() error {
-	defer c.cancel()
-	return c.Conn.Close()
-}
-
-// websocketNetConn wraps websocket.NetConn and returns a context that
-// is tied to the parent context and the lifetime of the conn. Any error
-// during read or write will cancel the context, but not close the
-// conn. Close should be called to release context resources.
-func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
-	ctx, cancel := context.WithCancel(ctx)
-	nc := websocket.NetConn(ctx, conn, msgType)
-	return ctx, &wsNetConn{
-		cancel: cancel,
-		Conn:   nc,
-	}
 }
 
 func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.WorkspaceAgentLog {

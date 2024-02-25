@@ -1,6 +1,7 @@
 package dbmem
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -133,6 +134,8 @@ type data struct {
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
+	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
+	oauth2ProviderAppTokens       []database.OAuth2ProviderAppToken
 	parameterSchemas              []database.ParameterSchema
 	provisionerDaemons            []database.ProvisionerDaemon
 	provisionerJobLogs            []database.ProvisionerJobLog
@@ -147,6 +150,7 @@ type data struct {
 	workspaceAgentLogs            []database.WorkspaceAgentLog
 	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
 	workspaceAgentScripts         []database.WorkspaceAgentScript
+	workspaceAgentPortShares      []database.WorkspaceAgentPortShare
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
@@ -732,6 +736,37 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
+// Took the error from the real database.
+var deletedUserLinkError = &pq.Error{
+	Severity: "ERROR",
+	// "raise_exception" error
+	Code:    "P0001",
+	Message: "Cannot create user_link for deleted user",
+	Where:   "PL/pgSQL function insert_user_links_fail_if_user_deleted() line 7 at RAISE",
+	File:    "pl_exec.c",
+	Line:    "3864",
+	Routine: "exec_stmt_raise",
+}
+
+// m1 and m2 are equal iff |m1| = |m2| ^ m2 ⊆ m1
+func tagsEqual(m1, m2 map[string]string) bool {
+	return len(m1) == len(m2) && tagsSubset(m1, m2)
+}
+
+// m2 is a subset of m1 if each key in m1 exists in m2
+// with the same value
+func tagsSubset(m1, m2 map[string]string) bool {
+	for k, v1 := range m1 {
+		if v2, found := m2[k]; !found || v1 != v2 {
+			return false
+		}
+	}
+	return true
+}
+
+// default tags when no tag is specified for a provisioner or job
+var tagsUntagged = provisionersdk.MutateTags(uuid.Nil, nil)
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -767,19 +802,15 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			}
 		}
 
-		missing := false
-		for key, value := range provisionerJob.Tags {
-			provided, found := tags[key]
-			if !found {
-				missing = true
-				break
-			}
-			if provided != value {
-				missing = true
-				break
-			}
+		// Special case for untagged provisioners: only match untagged jobs.
+		// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+		// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+		//      THEN nested.tags :: jsonb = @tags :: jsonb
+		if tagsEqual(provisionerJob.Tags, tagsUntagged) && !tagsEqual(provisionerJob.Tags, tags) {
+			continue
 		}
-		if missing {
+		// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+		if !tagsSubset(provisionerJob.Tags, tags) {
 			continue
 		}
 		provisionerJob.StartedAt = arg.StartedAt
@@ -841,10 +872,14 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 		if err != nil {
 			return err
 		}
+		if template.ActivityBump == 0 {
+			return nil
+		}
+		activityBump := time.Duration(template.ActivityBump)
 
 		var ttlDur time.Duration
-		if now.Add(time.Hour).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
-			// Extend to TTL
+		if now.Add(activityBump).After(arg.NextAutostart) && arg.NextAutostart.After(now) {
+			// Extend to TTL (NOT activity bump)
 			add := arg.NextAutostart.Sub(now)
 			if workspace.Ttl.Valid && template.AllowUserAutostop {
 				add += time.Duration(workspace.Ttl.Int64)
@@ -853,7 +888,8 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.Ac
 			}
 			ttlDur = add
 		} else {
-			ttlDur = time.Hour
+			// Otherwise, default to regular activity bump duration.
+			ttlDur = activityBump
 		}
 
 		// Only bump if 5% of the deadline has passed.
@@ -1129,36 +1165,6 @@ func (q *FakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
-func (q *FakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	newMembers := q.groupMembers[:0]
-	for _, member := range q.groupMembers {
-		if member.UserID != arg.UserID {
-			// Do not delete the other members
-			newMembers = append(newMembers, member)
-		} else if member.UserID == arg.UserID {
-			// We only want to delete from groups in the organization in the args.
-			for _, group := range q.groups {
-				// Find the group that the member is apartof.
-				if group.ID == member.GroupID {
-					// Only add back the member if the organization ID does not match
-					// the arg organization ID. Since the arg is saying which
-					// org to delete.
-					if group.OrganizationID != arg.OrganizationID {
-						newMembers = append(newMembers, member)
-					}
-					break
-				}
-			}
-		}
-	}
-	q.groupMembers = newMembers
-
-	return nil
-}
-
 func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1177,19 +1183,72 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppByID(_ context.Context, id uuid.UUI
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, app := range q.oauth2ProviderApps {
-		if app.ID == id {
-			q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
-			q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+	index := slices.IndexFunc(q.oauth2ProviderApps, func(app database.OAuth2ProviderApp) bool {
+		return app.ID == id
+	})
 
-			secrets := []database.OAuth2ProviderAppSecret{}
-			for _, secret := range q.oauth2ProviderAppSecrets {
-				if secret.AppID != id {
-					secrets = append(secrets, secret)
-				}
-			}
-			q.oauth2ProviderAppSecrets = secrets
+	if index < 0 {
+		return sql.ErrNoRows
+	}
 
+	q.oauth2ProviderApps[index] = q.oauth2ProviderApps[len(q.oauth2ProviderApps)-1]
+	q.oauth2ProviderApps = q.oauth2ProviderApps[:len(q.oauth2ProviderApps)-1]
+
+	// Cascade delete secrets associated with the deleted app.
+	var deletedSecretIDs []uuid.UUID
+	q.oauth2ProviderAppSecrets = slices.DeleteFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
+		matches := secret.AppID == id
+		if matches {
+			deletedSecretIDs = append(deletedSecretIDs, secret.ID)
+		}
+		return matches
+	})
+
+	// Cascade delete tokens through the deleted secrets.
+	var keyIDsToDelete []string
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
+		matches := slice.Contains(deletedSecretIDs, token.AppSecretID)
+		if matches {
+			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
+		}
+		return matches
+	})
+
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppCodeByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, code := range q.oauth2ProviderAppCodes {
+		if code.ID == id {
+			q.oauth2ProviderAppCodes[index] = q.oauth2ProviderAppCodes[len(q.oauth2ProviderAppCodes)-1]
+			q.oauth2ProviderAppCodes = q.oauth2ProviderAppCodes[:len(q.oauth2ProviderAppCodes)-1]
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppCodesByAppAndUserID(_ context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, code := range q.oauth2ProviderAppCodes {
+		if code.AppID == arg.AppID && code.UserID == arg.UserID {
+			q.oauth2ProviderAppCodes[index] = q.oauth2ProviderAppCodes[len(q.oauth2ProviderAppCodes)-1]
+			q.oauth2ProviderAppCodes = q.oauth2ProviderAppCodes[:len(q.oauth2ProviderAppCodes)-1]
 			return nil
 		}
 	}
@@ -1200,14 +1259,68 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppSecretByID(_ context.Context, id uu
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, secret := range q.oauth2ProviderAppSecrets {
-		if secret.ID == id {
-			q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
-			q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
-			return nil
-		}
+	index := slices.IndexFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
+		return secret.ID == id
+	})
+
+	if index < 0 {
+		return sql.ErrNoRows
 	}
-	return sql.ErrNoRows
+
+	q.oauth2ProviderAppSecrets[index] = q.oauth2ProviderAppSecrets[len(q.oauth2ProviderAppSecrets)-1]
+	q.oauth2ProviderAppSecrets = q.oauth2ProviderAppSecrets[:len(q.oauth2ProviderAppSecrets)-1]
+
+	// Cascade delete tokens created through the deleted secret.
+	var keyIDsToDelete []string
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
+		matches := token.AppSecretID == id
+		if matches {
+			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
+		}
+		return matches
+	})
+
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Context, arg database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var keyIDsToDelete []string
+	q.oauth2ProviderAppTokens = slices.DeleteFunc(q.oauth2ProviderAppTokens, func(token database.OAuth2ProviderAppToken) bool {
+		// Join secrets and keys to see if the token matches.
+		secretIdx := slices.IndexFunc(q.oauth2ProviderAppSecrets, func(secret database.OAuth2ProviderAppSecret) bool {
+			return secret.ID == token.AppSecretID
+		})
+		keyIdx := slices.IndexFunc(q.apiKeys, func(key database.APIKey) bool {
+			return key.ID == token.APIKeyID
+		})
+		matches := secretIdx != -1 &&
+			q.oauth2ProviderAppSecrets[secretIdx].AppID == arg.AppID &&
+			keyIdx != -1 && q.apiKeys[keyIdx].UserID == arg.UserID
+		if matches {
+			keyIDsToDelete = append(keyIDsToDelete, token.APIKeyID)
+		}
+		return matches
+	})
+
+	// Cascade delete API keys linked to the deleted tokens.
+	q.apiKeys = slices.DeleteFunc(q.apiKeys, func(key database.APIKey) bool {
+		return slices.Contains(keyIDsToDelete, key.ID)
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
@@ -1315,6 +1428,25 @@ func (*FakeQuerier) DeleteTailnetTunnel(_ context.Context, arg database.DeleteTa
 	}
 
 	return database.DeleteTailnetTunnelRow{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
+			return nil
+		}
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -1630,6 +1762,18 @@ func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.derpMeshKey, nil
+}
+
+func (q *FakeQuerier) GetDefaultOrganization(_ context.Context) (database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, org := range q.organizations {
+		if org.IsDefault {
+			return org, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
@@ -2119,12 +2263,48 @@ func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) 
 	return database.OAuth2ProviderApp{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppCodeByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, code := range q.oauth2ProviderAppCodes {
+		if code.ID == id {
+			return code, nil
+		}
+	}
+	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppCodeByPrefix(_ context.Context, secretPrefix []byte) (database.OAuth2ProviderAppCode, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, code := range q.oauth2ProviderAppCodes {
+		if bytes.Equal(code.SecretPrefix, secretPrefix) {
+			return code, nil
+		}
+	}
+	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppSecretByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for _, secret := range q.oauth2ProviderAppSecrets {
 		if secret.ID == id {
+			return secret, nil
+		}
+	}
+	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppSecretByPrefix(_ context.Context, secretPrefix []byte) (database.OAuth2ProviderAppSecret, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, secret := range q.oauth2ProviderAppSecrets {
+		if bytes.Equal(secret.SecretPrefix, secretPrefix) {
 			return secret, nil
 		}
 	}
@@ -2159,6 +2339,18 @@ func (q *FakeQuerier) GetOAuth2ProviderAppSecretsByAppID(_ context.Context, appI
 	return []database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetOAuth2ProviderAppTokenByPrefix(_ context.Context, hashPrefix []byte) (database.OAuth2ProviderAppToken, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, token := range q.oauth2ProviderAppTokens {
+		if bytes.Equal(token.HashPrefix, hashPrefix) {
+			return token, nil
+		}
+	}
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderApps(_ context.Context) ([]database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2167,6 +2359,42 @@ func (q *FakeQuerier) GetOAuth2ProviderApps(_ context.Context) ([]database.OAuth
 		return slice.Ascending(a.Name, b.Name)
 	})
 	return q.oauth2ProviderApps, nil
+}
+
+func (q *FakeQuerier) GetOAuth2ProviderAppsByUserID(_ context.Context, userID uuid.UUID) ([]database.GetOAuth2ProviderAppsByUserIDRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	rows := []database.GetOAuth2ProviderAppsByUserIDRow{}
+	for _, app := range q.oauth2ProviderApps {
+		tokens := []database.OAuth2ProviderAppToken{}
+		for _, secret := range q.oauth2ProviderAppSecrets {
+			if secret.AppID == app.ID {
+				for _, token := range q.oauth2ProviderAppTokens {
+					if token.AppSecretID == secret.ID {
+						keyIdx := slices.IndexFunc(q.apiKeys, func(key database.APIKey) bool {
+							return key.ID == token.APIKeyID
+						})
+						if keyIdx != -1 && q.apiKeys[keyIdx].UserID == userID {
+							tokens = append(tokens, token)
+						}
+					}
+				}
+			}
+		}
+		if len(tokens) > 0 {
+			rows = append(rows, database.GetOAuth2ProviderAppsByUserIDRow{
+				OAuth2ProviderApp: database.OAuth2ProviderApp{
+					CallbackURL: app.CallbackURL,
+					ID:          app.ID,
+					Icon:        app.Icon,
+					Name:        app.Name,
+				},
+				TokenCount: int64(len(tokens)),
+			})
+		}
+	}
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
@@ -3762,6 +3990,10 @@ func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (datab
 	defer q.mutex.RUnlock()
 
 	for _, link := range q.userLinks {
+		user, err := q.getUserByIDNoLock(link.UserID)
+		if err == nil && user.Deleted {
+			continue
+		}
 		if link.LinkedID == id {
 			return link, nil
 		}
@@ -4152,6 +4384,24 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, arg database.
 		}
 	}
 	return metadata, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database.GetWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
+			return share, nil
+		}
+	}
+
+	return database.WorkspaceAgentPortShare{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
@@ -5199,6 +5449,34 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 	return app, nil
 }
 
+func (q *FakeQuerier) InsertOAuth2ProviderAppCode(_ context.Context, arg database.InsertOAuth2ProviderAppCodeParams) (database.OAuth2ProviderAppCode, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppCode{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, app := range q.oauth2ProviderApps {
+		if app.ID == arg.AppID {
+			code := database.OAuth2ProviderAppCode{
+				ID:           arg.ID,
+				CreatedAt:    arg.CreatedAt,
+				ExpiresAt:    arg.ExpiresAt,
+				SecretPrefix: arg.SecretPrefix,
+				HashedSecret: arg.HashedSecret,
+				UserID:       arg.UserID,
+				AppID:        arg.AppID,
+			}
+			q.oauth2ProviderAppCodes = append(q.oauth2ProviderAppCodes, code)
+			return code, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppCode{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -5213,6 +5491,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg datab
 			secret := database.OAuth2ProviderAppSecret{
 				ID:            arg.ID,
 				CreatedAt:     arg.CreatedAt,
+				SecretPrefix:  arg.SecretPrefix,
 				HashedSecret:  arg.HashedSecret,
 				DisplaySecret: arg.DisplaySecret,
 				AppID:         arg.AppID,
@@ -5223,6 +5502,35 @@ func (q *FakeQuerier) InsertOAuth2ProviderAppSecret(_ context.Context, arg datab
 	}
 
 	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) InsertOAuth2ProviderAppToken(_ context.Context, arg database.InsertOAuth2ProviderAppTokenParams) (database.OAuth2ProviderAppToken, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.OAuth2ProviderAppToken{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, secret := range q.oauth2ProviderAppSecrets {
+		if secret.ID == arg.AppSecretID {
+			//nolint:gosimple // Go wants database.OAuth2ProviderAppToken(arg), but we cannot be sure the structs will remain identical.
+			token := database.OAuth2ProviderAppToken{
+				ID:          arg.ID,
+				CreatedAt:   arg.CreatedAt,
+				ExpiresAt:   arg.ExpiresAt,
+				HashPrefix:  arg.HashPrefix,
+				RefreshHash: arg.RefreshHash,
+				APIKeyID:    arg.APIKeyID,
+				AppSecretID: arg.AppSecretID,
+			}
+			q.oauth2ProviderAppTokens = append(q.oauth2ProviderAppTokens, token)
+			return token, nil
+		}
+	}
+
+	return database.OAuth2ProviderAppToken{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
@@ -5238,6 +5546,7 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 		Name:      arg.Name,
 		CreatedAt: arg.CreatedAt,
 		UpdatedAt: arg.UpdatedAt,
+		IsDefault: len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -5369,6 +5678,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 		AllowUserAutostart:           true,
 		AllowUserAutostop:            true,
+		MaxPortSharingLevel:          arg.MaxPortSharingLevel,
 	}
 	q.templates = append(q.templates, template)
 	return nil
@@ -5529,6 +5839,10 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if u, err := q.getUserByIDNoLock(args.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
+
 	//nolint:gosimple
 	link := database.UserLink{
 		UserID:                 args.UserID,
@@ -5600,6 +5914,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 		DisplayApps:              arg.DisplayApps,
+		DisplayOrder:             arg.DisplayOrder,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -5687,6 +6002,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 		Key:              arg.Key,
 		Timeout:          arg.Timeout,
 		Interval:         arg.Interval,
+		DisplayOrder:     arg.DisplayOrder,
 	}
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
@@ -5825,6 +6141,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
+		DisplayOrder:         arg.DisplayOrder,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
@@ -5999,6 +6316,20 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
+func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	shares := []database.WorkspaceAgentPortShare{}
+	for _, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == workspaceID {
+			shares = append(shares, share)
+		}
+	}
+
+	return shares, nil
+}
+
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -6016,6 +6347,22 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 		}
 	}
 	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newMembers := q.groupMembers[:0]
+	for _, member := range q.groupMembers {
+		if member.UserID == userID {
+			continue
+		}
+		newMembers = append(newMembers, member)
+	}
+	q.groupMembers = newMembers
+
+	return nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {
@@ -6292,6 +6639,7 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 			newSecret := database.OAuth2ProviderAppSecret{
 				ID:            arg.ID,
 				CreatedAt:     secret.CreatedAt,
+				SecretPrefix:  secret.SecretPrefix,
 				HashedSecret:  secret.HashedSecret,
 				DisplaySecret: secret.DisplaySecret,
 				AppID:         secret.AppID,
@@ -6518,6 +6866,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Icon = arg.Icon
 		tpl.GroupACL = arg.GroupACL
 		tpl.AllowUserCancelWorkspaceJobs = arg.AllowUserCancelWorkspaceJobs
+		tpl.MaxPortSharingLevel = arg.MaxPortSharingLevel
 		q.templates[idx] = tpl
 		return nil
 	}
@@ -6541,6 +6890,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.ActivityBump = arg.ActivityBump
 		tpl.UseMaxTtl = arg.UseMaxTtl
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
@@ -6658,33 +7008,22 @@ func (q *FakeQuerier) UpdateUserAppearanceSettings(_ context.Context, arg databa
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
-	if err := validateDatabaseType(params); err != nil {
-		return err
-	}
-
+func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, u := range q.users {
-		if u.ID == params.ID {
-			u.Deleted = params.Deleted
+		if u.ID == id {
+			u.Deleted = true
 			q.users[i] = u
 			// NOTE: In the real world, this is done by a trigger.
-			i := 0
-			for {
-				if i >= len(q.apiKeys) {
-					break
-				}
-				k := q.apiKeys[i]
-				if k.UserID == u.ID {
-					q.apiKeys[i] = q.apiKeys[len(q.apiKeys)-1]
-					q.apiKeys = q.apiKeys[:len(q.apiKeys)-1]
-					// We removed an element, so decrement
-					i--
-				}
-				i++
-			}
+			q.apiKeys = slices.DeleteFunc(q.apiKeys, func(u database.APIKey) bool {
+				return id == u.UserID
+			})
+
+			q.userLinks = slices.DeleteFunc(q.userLinks, func(u database.UserLink) bool {
+				return id == u.UserID
+			})
 			return nil
 		}
 	}
@@ -6737,6 +7076,10 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	if u, err := q.getUserByIDNoLock(params.UserID); err == nil && u.Deleted {
+		return database.UserLink{}, deletedUserLinkError
+	}
 
 	for i, link := range q.userLinks {
 		if link.UserID == params.UserID && link.LoginType == params.LoginType {
@@ -7505,6 +7848,35 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	}
 
 	return database.TailnetTunnel{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentPortShare{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && share.AgentName == arg.AgentName {
+			share.ShareLevel = arg.ShareLevel
+			q.workspaceAgentPortShares[i] = share
+			return share, nil
+		}
+	}
+
+	//nolint:gosimple // casts are not a simplification
+	psl := database.WorkspaceAgentPortShare{
+		WorkspaceID: arg.WorkspaceID,
+		AgentName:   arg.AgentName,
+		Port:        arg.Port,
+		ShareLevel:  arg.ShareLevel,
+	}
+	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
+
+	return psl, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {

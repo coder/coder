@@ -25,6 +25,7 @@ type agentMetadata struct {
 	Script      string `mapstructure:"script"`
 	Interval    int64  `mapstructure:"interval"`
 	Timeout     int64  `mapstructure:"timeout"`
+	Order       int64  `mapstructure:"order"`
 }
 
 // A mapping of attributes on the "coder_agent" resource.
@@ -49,6 +50,7 @@ type agentAttributes struct {
 	MOTDFile                 string                       `mapstructure:"motd_file"`
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+	Order                    int64                        `mapstructure:"order"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -75,6 +77,7 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order       int64                      `mapstructure:"order"`
 }
 
 type agentEnvAttributes struct {
@@ -122,7 +125,7 @@ type resourceMetadataItem struct {
 type State struct {
 	Resources             []*proto.Resource
 	Parameters            []*proto.RichParameter
-	ExternalAuthProviders []string
+	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
@@ -209,6 +212,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 					Script:      item.Script,
 					Interval:    item.Interval,
 					Timeout:     item.Timeout,
+					Order:       item.Order,
 				})
 			}
 
@@ -238,6 +242,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				MotdFile:                 attrs.MOTDFile,
 				Metadata:                 metadata,
 				DisplayApps:              displayApps,
+				Order:                    attrs.Order,
 			}
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
@@ -435,6 +440,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
+						Order:        attrs.Order,
 					})
 				}
 			}
@@ -693,23 +699,33 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	// A map is used to ensure we don't have duplicates!
-	externalAuthProvidersMap := map[string]struct{}{}
+	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
 	for _, tfResources := range tfResourcesByLabel {
 		for _, resource := range tfResources {
 			// Checking for `coder_git_auth` is legacy!
 			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
 				continue
 			}
+
 			id, ok := resource.AttributeValues["id"].(string)
 			if !ok {
 				return nil, xerrors.Errorf("external auth id is not a string")
 			}
-			externalAuthProvidersMap[id] = struct{}{}
+			optional := false
+			optionalAttribute, ok := resource.AttributeValues["optional"].(bool)
+			if ok {
+				optional = optionalAttribute
+			}
+
+			externalAuthProvidersMap[id] = &proto.ExternalAuthProviderResource{
+				Id:       id,
+				Optional: optional,
+			}
 		}
 	}
-	externalAuthProviders := make([]string, 0, len(externalAuthProvidersMap))
-	for id := range externalAuthProvidersMap {
-		externalAuthProviders = append(externalAuthProviders, id)
+	externalAuthProviders := make([]*proto.ExternalAuthProviderResource, 0, len(externalAuthProvidersMap))
+	for _, it := range externalAuthProvidersMap {
+		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
 	return &State{

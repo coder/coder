@@ -94,6 +94,11 @@ export interface InstanceIdentityAuth {
   instanceId: string;
 }
 
+export interface ExternalAuthProviderResource {
+  id: string;
+  optional: boolean;
+}
+
 export interface ExternalAuthProvider {
   id: string;
   accessToken: string;
@@ -123,6 +128,7 @@ export interface Agent {
   displayApps: DisplayApps | undefined;
   scripts: Script[];
   extraEnvs: Env[];
+  order: number;
 }
 
 export interface Agent_Metadata {
@@ -131,6 +137,7 @@ export interface Agent_Metadata {
   script: string;
   interval: number;
   timeout: number;
+  order: number;
 }
 
 export interface Agent_EnvEntry {
@@ -179,6 +186,7 @@ export interface App {
   healthcheck: Healthcheck | undefined;
   sharingLevel: AppSharingLevel;
   external: boolean;
+  order: number;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -256,7 +264,7 @@ export interface PlanComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  externalAuthProviders: string[];
+  externalAuthProviders: ExternalAuthProviderResource[];
 }
 
 /**
@@ -273,7 +281,7 @@ export interface ApplyComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  externalAuthProviders: string[];
+  externalAuthProviders: ExternalAuthProviderResource[];
 }
 
 /** CancelRequest requests that the previous request be canceled gracefully. */
@@ -462,6 +470,21 @@ export const InstanceIdentityAuth = {
   },
 };
 
+export const ExternalAuthProviderResource = {
+  encode(
+    message: ExternalAuthProviderResource,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.optional === true) {
+      writer.uint32(16).bool(message.optional);
+    }
+    return writer;
+  },
+};
+
 export const ExternalAuthProvider = {
   encode(
     message: ExternalAuthProvider,
@@ -533,6 +556,9 @@ export const Agent = {
     for (const v of message.extraEnvs) {
       Env.encode(v!, writer.uint32(178).fork()).ldelim();
     }
+    if (message.order !== 0) {
+      writer.uint32(184).int64(message.order);
+    }
     return writer;
   },
 };
@@ -556,6 +582,9 @@ export const Agent_Metadata = {
     }
     if (message.timeout !== 0) {
       writer.uint32(40).int64(message.timeout);
+    }
+    if (message.order !== 0) {
+      writer.uint32(48).int64(message.order);
     }
     return writer;
   },
@@ -679,6 +708,9 @@ export const App = {
     }
     if (message.external === true) {
       writer.uint32(72).bool(message.external);
+    }
+    if (message.order !== 0) {
+      writer.uint32(80).int64(message.order);
     }
     return writer;
   },
@@ -885,7 +917,10 @@ export const PlanComplete = {
       RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.externalAuthProviders) {
-      writer.uint32(34).string(v!);
+      ExternalAuthProviderResource.encode(
+        v!,
+        writer.uint32(34).fork(),
+      ).ldelim();
     }
     return writer;
   },
@@ -921,7 +956,10 @@ export const ApplyComplete = {
       RichParameter.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     for (const v of message.externalAuthProviders) {
-      writer.uint32(42).string(v!);
+      ExternalAuthProviderResource.encode(
+        v!,
+        writer.uint32(42).fork(),
+      ).ldelim();
     }
     return writer;
   },

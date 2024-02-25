@@ -64,6 +64,11 @@ func (t TemplateACL) Value() (driver.Value, error) {
 	return json.Marshal(t)
 }
 
+type ExternalAuthProvider struct {
+	ID       string `json:"id"`
+	Optional bool   `json:"optional,omitempty"`
+}
+
 type StringMap map[string]string
 
 func (m *StringMap) Scan(src interface{}) error {

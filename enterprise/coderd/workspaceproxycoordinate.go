@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -57,7 +57,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, nc := websocketNetConn(ctx, conn, msgType)
+	ctx, nc := codersdk.WebsocketNetConn(ctx, conn, msgType)
 	defer nc.Close()
 
 	id := uuid.New()

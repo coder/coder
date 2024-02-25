@@ -81,6 +81,11 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
+message ExternalAuthProviderResource {
+    string id = 1;
+    bool optional = 2;
+}
+
 message ExternalAuthProvider {
     string id = 1;
     string access_token = 2;
@@ -94,6 +99,7 @@ message Agent {
         string script = 3;
         int64 interval = 4;
         int64 timeout = 5;
+        int64 order = 6;
     }
     reserved 14;
     reserved "login_before_ready";
@@ -120,6 +126,7 @@ message Agent {
     DisplayApps display_apps = 20;
 	repeated Script scripts = 21;
 	repeated Env extra_envs = 22;
+	int64 order = 23;
 }
 
 enum AppSharingLevel {
@@ -167,6 +174,7 @@ message App {
     Healthcheck healthcheck = 7;
     AppSharingLevel sharing_level = 8;
     bool external = 9;
+    int64 order = 10;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -252,7 +260,7 @@ message PlanComplete {
     string error = 1;
     repeated Resource resources = 2;
     repeated RichParameter parameters = 3;
-    repeated string external_auth_providers = 4;
+    repeated ExternalAuthProviderResource external_auth_providers = 4;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -267,7 +275,7 @@ message ApplyComplete {
     string error = 2;
     repeated Resource resources = 3;
     repeated RichParameter parameters = 4;
-    repeated string external_auth_providers = 5;
+    repeated ExternalAuthProviderResource external_auth_providers = 5;
 }
 
 // CancelRequest requests that the previous request be canceled gracefully.

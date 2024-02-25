@@ -2,11 +2,14 @@
   {
     "id": "[first user ID]",
     "username": "testuser",
+    "avatar_url": "",
     "name": "",
     "email": "testuser@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",
     "status": "active",
+    "login_type": "password",
+    "theme_preference": "",
     "organization_ids": [
       "[first org ID]"
     ],
@@ -15,25 +18,22 @@
         "name": "owner",
         "display_name": "Owner"
       }
-    ],
-    "avatar_url": "",
-    "login_type": "password",
-    "theme_preference": ""
+    ]
   },
   {
     "id": "[second user ID]",
     "username": "testuser2",
+    "avatar_url": "",
     "name": "",
     "email": "testuser2@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",
     "status": "dormant",
+    "login_type": "password",
+    "theme_preference": "",
     "organization_ids": [
       "[first org ID]"
     ],
-    "roles": [],
-    "avatar_url": "",
-    "login_type": "password",
-    "theme_preference": ""
+    "roles": []
   }
 ]

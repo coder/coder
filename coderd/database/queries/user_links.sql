@@ -1,10 +1,14 @@
 -- name: GetUserLinkByLinkedID :one
 SELECT
-	*
+	user_links.*
 FROM
 	user_links
+INNER JOIN
+	users ON user_links.user_id = users.id
 WHERE
-	linked_id = $1;
+	linked_id = $1
+	AND
+	deleted = false;
 
 -- name: GetUserLinkByUserIDLoginType :one
 SELECT
