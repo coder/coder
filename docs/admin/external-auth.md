@@ -115,6 +115,7 @@ GitLab self-managed requires the following environment variables:
 ```env
 CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
 CODER_EXTERNAL_AUTH_0_TYPE=gitlab
+# This value is the "Application ID"
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.company.org/oauth/token/info"
