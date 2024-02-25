@@ -11,8 +11,8 @@ import { Pill } from "components/Pill/Pill";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DormantDeletionText } from "./DormantDeletionText";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { useClassName } from "hooks/useClassName";
 import { formatDistanceToNow } from "date-fns";
+import { makeClassNames } from "hooks/useClassNames";
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace;
@@ -172,21 +172,22 @@ export const WorkspaceStatusText: FC<WorkspaceStatusBadgeProps> = ({
   );
 };
 
+const useClassNames = makeClassNames((css, theme) => ({
+  popper: css`
+    & .${tooltipClasses.tooltip} {
+      background-color: ${theme.palette.background.paper};
+      border: 1px solid ${theme.palette.divider};
+      font-size: 12px;
+      padding: 8px 10px;
+    }
+  `,
+}));
+
 const FailureTooltip: FC<TooltipProps> = ({ children, ...tooltipProps }) => {
-  const popper = useClassName(
-    (css, theme) => css`
-      & .${tooltipClasses.tooltip} {
-        background-color: ${theme.palette.background.paper};
-        border: 1px solid ${theme.palette.divider};
-        font-size: 12px;
-        padding: 8px 10px;
-      }
-    `,
-    [],
-  );
+  const classNames = useClassNames(null);
 
   return (
-    <Tooltip {...tooltipProps} classes={{ popper }}>
+    <Tooltip {...tooltipProps} classes={{ popper: classNames.popper }}>
       {children}
     </Tooltip>
   );

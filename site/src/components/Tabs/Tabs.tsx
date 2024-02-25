@@ -2,7 +2,7 @@ import { cx } from "@emotion/css";
 import { type FC, type PropsWithChildren } from "react";
 import { NavLink, NavLinkProps } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 
 export const Tabs: FC<PropsWithChildren> = ({ children }) => {
   return (
@@ -34,20 +34,16 @@ export const TabLink: FC<TabLinkProps> = ({
   children,
   ...linkProps
 }) => {
-  const tabLink = useClassName(
-    (css, theme) => classNames.tabLink(css, theme),
-    [],
-  );
-
-  const activeTabLink = useClassName(
-    (css, theme) => classNames.activeTabLink(css, theme),
-    [],
-  );
+  const classNames = useClassNames(null);
 
   return (
     <NavLink
       className={({ isActive }) =>
-        cx([tabLink, isActive && activeTabLink, className])
+        cx([
+          classNames.tabLink,
+          isActive && classNames.activeTabLink,
+          className,
+        ])
       }
       {...linkProps}
     >
@@ -56,8 +52,8 @@ export const TabLink: FC<TabLinkProps> = ({
   );
 };
 
-const classNames = {
-  tabLink: (css, theme) => css`
+const useClassNames = makeClassNames((css, theme) => ({
+  tabLink: css`
     text-decoration: none;
     color: ${theme.palette.text.secondary};
     font-size: 14px;
@@ -68,7 +64,7 @@ const classNames = {
       color: ${theme.palette.text.primary};
     }
   `,
-  activeTabLink: (css, theme) => css`
+  activeTabLink: css`
     color: ${theme.palette.text.primary};
     position: relative;
 
@@ -82,4 +78,4 @@ const classNames = {
       position: absolute;
     }
   `,
-} satisfies Record<string, ClassName>;
+}));

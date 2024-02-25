@@ -4,7 +4,7 @@ import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
-import { useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 
@@ -13,13 +13,20 @@ export interface BuildAvatarProps {
   size?: AvatarProps["size"];
 }
 
+type WorkspaceType = ReturnType<typeof getDisplayWorkspaceBuildStatus>["type"];
+
+const useClassNames = makeClassNames<"badgeType", { type: WorkspaceType }>(
+  (css, theme) => ({
+    badgeType: ({ type }) => {
+      return css({ backgroundColor: theme.palette[type].light });
+    },
+  }),
+);
+
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
   const theme = useTheme();
   const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
-  const badgeType = useClassName(
-    (css, theme) => css({ backgroundColor: theme.palette[type].light }),
-    [type],
-  );
+  const { badgeType } = useClassNames({ type });
 
   return (
     <Badge

@@ -5,7 +5,7 @@ import Snackbar, {
 import CloseIcon from "@mui/icons-material/Close";
 import { type FC } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
@@ -15,6 +15,21 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
   /** Variant of snackbar, for theming */
   variant?: EnterpriseSnackbarVariant;
 }
+
+type HookInput = Readonly<{ variant: EnterpriseSnackbarVariant }>;
+
+const useClassNames = makeClassNames<"content", HookInput>((css, theme) => ({
+  content: ({ variant }) => css`
+    border: 1px solid ${theme.palette.divider};
+    border-left: 4px solid ${variantColor(variant, theme)};
+    border-radius: 8px;
+    padding: 8px 24px 8px 16px;
+    box-shadow: ${theme.shadows[6]};
+    align-items: inherit;
+    background-color: ${theme.palette.background.paper};
+    color: ${theme.palette.text.secondary};
+  `,
+}));
 
 /**
  * Wrapper around Material UI's Snackbar component, provides pre-configured
@@ -35,19 +50,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
   action,
   ...snackbarProps
 }) => {
-  const content = useClassName(
-    (css, theme) => css`
-      border: 1px solid ${theme.palette.divider};
-      border-left: 4px solid ${variantColor(variant, theme)};
-      border-radius: 8px;
-      padding: 8px 24px 8px 16px;
-      box-shadow: ${theme.shadows[6]};
-      align-items: inherit;
-      background-color: ${theme.palette.background.paper};
-      color: ${theme.palette.text.secondary};
-    `,
-    [variant],
-  );
+  const classNames = useClassNames({ variant });
 
   return (
     <Snackbar
@@ -65,7 +68,7 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
       }
       ContentProps={{
         ...ContentProps,
-        className: content,
+        className: classNames.content,
       }}
       onClose={onClose}
       {...snackbarProps}

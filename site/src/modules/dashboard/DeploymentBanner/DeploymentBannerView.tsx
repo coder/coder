@@ -40,7 +40,7 @@ import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { Stack } from "components/Stack/Stack";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 
 export const bannerHeight = 36;
 
@@ -50,16 +50,27 @@ export interface DeploymentBannerViewProps {
   fetchStats?: () => void;
 }
 
+const useDeploymentBannerClassNames = makeClassNames((css, theme) => ({
+  summaryTooltip: css`
+    ${theme.typography.body2 as CSSObject}
+
+    margin: 0 0 4px 12px;
+    width: 400px;
+    padding: 16px;
+    color: ${theme.palette.text.primary};
+    background-color: ${theme.palette.background.paper};
+    border: 1px solid ${theme.palette.divider};
+    pointer-events: none;
+  `,
+}));
+
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   health,
   stats,
   fetchStats,
 }) => {
   const theme = useTheme();
-  const summaryTooltip = useClassName(
-    (css, theme) => classNames.summaryTooltip(css, theme),
-    [],
-  );
+  const classNames = useDeploymentBannerClassNames(null);
 
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
@@ -133,7 +144,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       }}
     >
       <Tooltip
-        classes={{ tooltip: summaryTooltip }}
+        classes={{ tooltip: classNames.summaryTooltip }}
         title={
           healthErrors.length > 0 ? (
             <>
@@ -414,20 +425,6 @@ const getHealthErrors = (health: HealthcheckReport) => {
 
   return warnings;
 };
-
-const classNames = {
-  summaryTooltip: (css, theme) => css`
-    ${theme.typography.body2 as CSSObject}
-
-    margin: 0 0 4px 12px;
-    width: 400px;
-    padding: 16px;
-    color: ${theme.palette.text.primary};
-    background-color: ${theme.palette.background.paper};
-    border: 1px solid ${theme.palette.divider};
-    pointer-events: none;
-  `,
-} satisfies Record<string, ClassName>;
 
 const styles = {
   statusBadge: (theme) => css`

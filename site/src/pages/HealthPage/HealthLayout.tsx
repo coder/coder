@@ -12,16 +12,17 @@ import { NavLink, Outlet } from "react-router-dom";
 import kebabCase from "lodash/fp/kebabCase";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import { pageTitle } from "utils/page";
 import { createDayString } from "utils/createDayString";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { Loader } from "components/Loader/Loader";
 import { HealthIcon } from "./Content";
+import { makeClassNames } from "hooks/useClassNames";
 
 export const HealthLayout: FC = () => {
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const classNames = useClassNames(null);
   const { data: healthStatus } = useQuery({
     ...health(),
     refetchInterval: 30_000,
@@ -38,12 +39,6 @@ export const HealthLayout: FC = () => {
     provisioner_daemons: "Provisioner Daemons",
   } as const;
   const visibleSections = filterVisibleSections(sections);
-
-  const link = useClassName((css, theme) => classNames.link(css, theme), []);
-  const activeLink = useClassName(
-    (css, theme) => classNames.activeLink(css, theme),
-    [],
-  );
 
   return (
     <>
@@ -169,7 +164,10 @@ export const HealthLayout: FC = () => {
                         key={key}
                         to={`/health/${kebabCase(key)}`}
                         className={({ isActive }) =>
-                          cx([link, isActive && activeLink])
+                          cx([
+                            classNames.link,
+                            isActive && classNames.activeLink,
+                          ])
                         }
                       >
                         <HealthIcon
@@ -224,34 +222,32 @@ const filterVisibleSections = <T extends object>(sections: T) => {
   );
 };
 
-const classNames = {
-  link: (css, theme) =>
-    css({
-      background: "none",
-      pointerEvents: "auto",
-      color: theme.palette.text.secondary,
-      border: "none",
-      fontSize: 14,
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      textAlign: "left",
-      height: 36,
-      padding: "0 24px",
-      cursor: "pointer",
-      textDecoration: "none",
+const useClassNames = makeClassNames((css, theme) => ({
+  link: css({
+    background: "none",
+    pointerEvents: "auto",
+    color: theme.palette.text.secondary,
+    border: "none",
+    fontSize: 14,
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    textAlign: "left",
+    height: 36,
+    padding: "0 24px",
+    cursor: "pointer",
+    textDecoration: "none",
 
-      "&:hover": {
-        background: theme.palette.action.hover,
-        color: theme.palette.text.primary,
-      },
-    }),
-
-  activeLink: (css, theme) =>
-    css({
+    "&:hover": {
       background: theme.palette.action.hover,
-      pointerEvents: "none",
       color: theme.palette.text.primary,
-    }),
-} satisfies Record<string, ClassName>;
+    },
+  }),
+
+  activeLink: css({
+    background: theme.palette.action.hover,
+    pointerEvents: "none",
+    color: theme.palette.text.primary,
+  }),
+}));

@@ -13,7 +13,6 @@ import type {
   WorkspaceAgentListeningPortsResponse,
 } from "api/typesGenerated";
 import { portForwardURL } from "utils/portForward";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
@@ -26,6 +25,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { makeClassNames } from "hooks/useClassNames";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -41,10 +41,18 @@ export interface PortForwardButtonProps {
   };
 }
 
+const useClassNames = makeClassNames((css, theme) => ({
+  paper: css`
+    padding: 0;
+    width: 304px;
+    color: ${theme.palette.text.secondary};
+    margin-top: 4px;
+  `,
+}));
+
 export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
   const { agent, storybook } = props;
-
-  const paper = useClassName((css, theme) => classNames.paper(css, theme), []);
+  const classNames = useClassNames(null);
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
@@ -77,7 +85,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
           Open ports
         </Button>
       </PopoverTrigger>
-      <PopoverContent horizontal="right" classes={{ paper }}>
+      <PopoverContent horizontal="right" classes={{ paper: classNames.paper }}>
         <PortForwardPopoverView {...props} ports={data?.ports} />
       </PopoverContent>
     </Popover>
@@ -202,15 +210,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     </>
   );
 };
-
-const classNames = {
-  paper: (css, theme) => css`
-    padding: 0;
-    width: 304px;
-    color: ${theme.palette.text.secondary};
-    margin-top: 4px;
-  `,
-} satisfies Record<string, ClassName>;
 
 const styles = {
   portCount: (theme) => ({

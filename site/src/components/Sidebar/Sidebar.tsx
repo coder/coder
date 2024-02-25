@@ -3,7 +3,7 @@ import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import { type ElementType, type FC, type ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { Stack } from "components/Stack/Stack";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 
 interface SidebarProps {
   children?: ReactNode;
@@ -60,17 +60,15 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
   href,
   icon: Icon,
 }) => {
-  const link = useClassName((css, theme) => classNames.link(css, theme), []);
-  const activeLink = useClassName(
-    (css, theme) => classNames.activeLink(css, theme),
-    [],
-  );
+  const classNames = useClassNames(null);
 
   return (
     <NavLink
       end
       to={href}
-      className={({ isActive }) => cx([link, isActive && activeLink])}
+      className={({ isActive }) =>
+        cx([classNames.link, isActive && classNames.activeLink])
+      }
     >
       <Stack alignItems="center" spacing={1.5} direction="row">
         <Icon css={{ width: 16, height: 16 }} />
@@ -106,8 +104,8 @@ const styles = {
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
-const classNames = {
-  link: (css, theme) => css`
+const useClassNames = makeClassNames((css, theme) => ({
+  link: css`
     color: inherit;
     display: block;
     font-size: 14px;
@@ -123,7 +121,7 @@ const classNames = {
     }
   `,
 
-  activeLink: (css, theme) => css`
+  activeLink: css`
     background-color: ${theme.palette.action.hover};
 
     &:before {
@@ -139,4 +137,4 @@ const classNames = {
       border-bottom-left-radius: 8px;
     }
   `,
-} satisfies Record<string, ClassName>;
+}));

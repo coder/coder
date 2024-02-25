@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { makeClassNames } from "hooks/useClassNames";
 
 const roleDescriptions: Record<string, string> = {
   owner:
@@ -86,7 +86,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   userLoginType,
   oidcRoleSync,
 }) => {
-  const paper = useClassName((css, theme) => classNames.paper(css, theme), []);
+  const classNames = useClassNames(null);
 
   const handleChange = (roleName: string) => {
     if (selectedRoleNames.has(roleName)) {
@@ -127,7 +127,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         </IconButton>
       </PopoverTrigger>
 
-      <PopoverContent classes={{ paper }}>
+      <PopoverContent classes={{ paper: classNames.paper }}>
         <fieldset
           css={styles.fieldset}
           disabled={isLoading}
@@ -162,13 +162,13 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   );
 };
 
-const classNames = {
-  paper: (css, theme) => css`
+const useClassNames = makeClassNames((css, theme) => ({
+  paper: css`
     width: 360px;
     margin-top: 8px;
     background: ${theme.palette.background.paper};
   `,
-} satisfies Record<string, ClassName>;
+}));
 
 const styles = {
   editButton: (theme) => ({
