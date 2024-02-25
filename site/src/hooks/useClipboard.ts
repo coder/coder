@@ -8,14 +8,19 @@ export type UseClipboardResult = Readonly<{
 
   /**
    * Indicates whether the UI should show a successfully-copied status to the
-   * user. This is _not_ the same as an `isCopied` property, because the hook
-   * does not ever look at the clipboard, and only makes a guess at whether the
-   * text has been copied.
+   * user. When flipped to true, this will eventually flip to false, with no
+   * action from the user.
    *
-   * It is possible for this value to be true, yet for the clipboard not to
-   * have the user's text in it. Trying to make this property accurate enough
-   * that it could safely be called `isCopied` led to browser compatibility
-   * issues in Safari
+   * ---
+   *
+   * This is _not_ the same as an `isCopied` property, because the hook never
+   * actually checks the clipboard to determine any state, so it is possible for
+   * there to be misleading state combos like:
+   * - User accidentally copies new text before showCopiedSuccess naturally
+   *   flips to false
+   *
+   * Trying to make this property accurate enough that it could safely be called
+   * `isCopied` led to browser compatibility issues in Safari.
    *
    * @see {@link https://github.com/coder/coder/pull/11863}
    */
