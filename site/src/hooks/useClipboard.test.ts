@@ -1,6 +1,3 @@
-import { type UseClipboardResult, useClipboard } from "./useClipboard";
-import { act, renderHook } from "@testing-library/react";
-
 /*
   Normally, you could call userEvent.setup to enable clipboard mocking, but
   userEvent doesn't expose a teardown function. It also modifies the global
@@ -14,18 +11,28 @@ import { act, renderHook } from "@testing-library/react";
   tests pass, even if they shouldn't. Have to avoid that by creating a custom
   clipboard mock.
 */
-type MockClipboard = Readonly<
-  Clipboard & {
-    getMockText: () => string;
-    setMockText: (newText: string) => void;
-    resetMockText: () => void;
-    setIsSecureContext: (newContext: boolean) => void;
-  }
->;
+import { type UseClipboardResult, useClipboard } from "./useClipboard";
+import { act, renderHook } from "@testing-library/react";
 
-function makeMockClipboard(): MockClipboard {
+const initialExecCommand = global.document.execCommand;
+beforeAll(() => {
+  jest.useFakeTimers();
+});
+
+afterAll(() => {
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+  global.document.execCommand = initialExecCommand;
+});
+
+type MockClipboardEscapeHatches = Readonly<{
+  getMockText: () => string;
+  setMockText: (newText: string) => void;
+}>;
+
+type MockClipboard = Readonly<Clipboard & MockClipboardEscapeHatches>;
+function makeMockClipboard(isSecureContext: boolean): MockClipboard {
   let mockClipboardValue = "";
-  let isSecureContext = true;
 
   return {
     readText: async () => {
@@ -49,12 +56,6 @@ function makeMockClipboard(): MockClipboard {
     setMockText: (newText) => {
       mockClipboardValue = newText;
     },
-    resetMockText: () => {
-      mockClipboardValue = "";
-    },
-    setIsSecureContext: (newContext) => {
-      isSecureContext = newContext;
-    },
 
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
@@ -64,44 +65,6 @@ function makeMockClipboard(): MockClipboard {
   };
 }
 
-const mockClipboard = makeMockClipboard();
-
-beforeAll(() => {
-  jest.useFakeTimers();
-
-  const originalNavigator = window.navigator;
-  jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
-    ...originalNavigator,
-    clipboard: mockClipboard,
-  }));
-
-  // Not the biggest fan of exposing implementation details like this, but
-  // making any kind of mock for execCommand is really gnarly in general
-  global.document.execCommand = jest.fn(() => {
-    const dummyInput = document.querySelector("input[data-testid=dummy]");
-    const inputIsFocused =
-      dummyInput instanceof HTMLInputElement &&
-      document.activeElement === dummyInput;
-
-    let copySuccessful = false;
-    if (inputIsFocused) {
-      mockClipboard.setMockText(dummyInput.value);
-      copySuccessful = true;
-    }
-
-    return copySuccessful;
-  });
-});
-
-afterEach(() => {
-  mockClipboard.resetMockText();
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-  jest.useRealTimers();
-});
-
 function renderUseClipboard(textToCopy: string) {
   type Props = Readonly<{ textToCopy: string }>;
   return renderHook<UseClipboardResult, Props>(
@@ -110,19 +73,60 @@ function renderUseClipboard(textToCopy: string) {
   );
 }
 
-async function assertClipboardTextUpdate(
-  result: ReturnType<typeof renderUseClipboard>["result"],
-  textToCheck: string,
-): Promise<void> {
-  await act(() => result.current.copyToClipboard());
-  expect(result.current.showCopiedSuccess).toBe(true);
-
-  const clipboardText = mockClipboard.getMockText();
-  expect(clipboardText).toEqual(textToCheck);
-}
-
+/**
+ * Unconventional test setup, but we need two separate instances of the
+ * MockClipboard (one for HTTP and one for HTTPS).
+ *
+ * All beforeAll and afterEach hooks must be tied to the specific instance, or
+ * else you get shared mutable state, and test cases interfering with each
+ * other. Test isolation is especially important for this test file
+ */
 function scheduleTests(isHttps: boolean) {
-  mockClipboard.setIsSecureContext(isHttps);
+  const mockClipboardInstance = makeMockClipboard(isHttps);
+
+  beforeAll(() => {
+    const originalNavigator = window.navigator;
+    jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
+      ...originalNavigator,
+      clipboard: mockClipboardInstance,
+    }));
+  });
+
+  if (!isHttps) {
+    beforeAll(() => {
+      // Not the biggest fan of exposing implementation details like this, but
+      // making any kind of mock for execCommand is really gnarly in general
+      global.document.execCommand = jest.fn(() => {
+        const dummyInput = document.querySelector("input[data-testid=dummy]");
+        const inputIsFocused =
+          dummyInput instanceof HTMLInputElement &&
+          document.activeElement === dummyInput;
+
+        let copySuccessful = false;
+        if (inputIsFocused) {
+          mockClipboardInstance.setMockText(dummyInput.value);
+          copySuccessful = true;
+        }
+
+        return copySuccessful;
+      });
+    });
+  }
+
+  afterEach(() => {
+    mockClipboardInstance.setMockText("");
+  });
+
+  const assertClipboardTextUpdate = async (
+    result: ReturnType<typeof renderUseClipboard>["result"],
+    textToCheck: string,
+  ): Promise<void> => {
+    await act(() => result.current.copyToClipboard());
+    expect(result.current.showCopiedSuccess).toBe(true);
+
+    const clipboardText = mockClipboardInstance.getMockText();
+    expect(clipboardText).toEqual(textToCheck);
+  };
 
   it("Copies the current text to the user's clipboard", async () => {
     const hookText = "dogs";
@@ -148,7 +152,7 @@ describe(useClipboard.name, () => {
     scheduleTests(false);
   });
 
-  // describe("HTTPS connections", () => {
-  //   scheduleTests(true);
-  // });
+  describe("HTTPS connections", () => {
+    scheduleTests(true);
+  });
 });
