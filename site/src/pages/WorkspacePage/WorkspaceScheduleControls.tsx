@@ -28,10 +28,7 @@ import {
 } from "api/queries/workspaces";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import {
-  getWorkspaceActivityStatus,
-  type WorkspaceActivityStatus,
-} from "modules/workspaces/activity";
+import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { Pill } from "components/Pill/Pill";
 
 export interface WorkspaceScheduleContainerProps {
