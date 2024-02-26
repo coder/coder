@@ -83,8 +83,8 @@ variables or flags.
           Suppress warning when client and server versions do not match.
 
   -z, --organization string, $CODER_ORGANIZATION
-          Select which organization (uuid or name) to use as default. This
-          overrides what is present in the config file.
+          Select which organization (uuid or name) to use This overrides what is
+          present in the config file.
 
       --token string, $CODER_SESSION_TOKEN
           Specify an authentication token. For security reasons setting
