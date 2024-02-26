@@ -80,6 +80,9 @@ function simulateClipboardWrite(textToCopy: string): boolean {
   const previousFocusTarget = document.activeElement;
   const dummyInput = document.createElement("input");
 
+  // Have to add test ID to dummy element for mocking purposes in tests
+  dummyInput.setAttribute("data-testid", "dummy");
+
   // Using visually-hidden styling to ensure that inserting the element doesn't
   // cause any content reflows on the page (removes any risk of UI flickers).
   // Can't use visibility:hidden or display:none, because then the elements
