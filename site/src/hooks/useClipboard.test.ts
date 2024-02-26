@@ -66,10 +66,9 @@ function makeMockClipboard(isSecureContext: boolean): MockClipboard {
 }
 
 function renderUseClipboard(textToCopy: string) {
-  type Props = Readonly<{ textToCopy: string }>;
-  return renderHook<UseClipboardResult, Props>(
-    ({ textToCopy }) => useClipboard(textToCopy),
-    { initialProps: { textToCopy } },
+  return renderHook<UseClipboardResult, { hookText: string }>(
+    ({ hookText }) => useClipboard(hookText),
+    { initialProps: { hookText: textToCopy } },
   );
 }
 
@@ -128,6 +127,9 @@ function scheduleTests(isHttps: boolean) {
     expect(clipboardText).toEqual(textToCheck);
   };
 
+  /**
+   * Start of test cases
+   */
   it("Copies the current text to the user's clipboard", async () => {
     const hookText = "dogs";
     const { result } = renderUseClipboard(hookText);
