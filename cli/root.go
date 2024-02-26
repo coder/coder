@@ -743,7 +743,7 @@ func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.C
 		return org.IsDefault
 	})
 	if index < 0 {
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder organizations switch <org>' to select an organization to use")
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
 	}
 
 	return orgs[index], nil
@@ -1202,8 +1202,12 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
-		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
-		_, _ = str.WriteString("\n")
+		// If all these fields are empty, then do not print this information.
+		// This can occur if the error is being used outside the api.
+		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+			_, _ = str.WriteString("\n")
+		}
 	}
 	// Always include this trace. Users can ignore this.
 	if from != "" {
