@@ -124,6 +124,17 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
 ```
 
+### Gitea
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="gitea"
+CODER_EXTERNAL_AUTH_0_TYPE=gitea
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+# If self managed, set the Auth URL to your Gitea instance
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
+```
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be used for self-managed Git
