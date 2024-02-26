@@ -2005,6 +2005,7 @@ export type EnhancedExternalAuthProvider =
   | "azure-devops"
   | "bitbucket-cloud"
   | "bitbucket-server"
+  | "gitea"
   | "github"
   | "gitlab"
   | "jfrog"
@@ -2013,6 +2014,7 @@ export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket-cloud",
   "bitbucket-server",
+  "gitea",
   "github",
   "gitlab",
   "jfrog",

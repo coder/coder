@@ -24,7 +24,8 @@ func (e EnhancedExternalAuthProvider) Git() bool {
 		EnhancedExternalAuthProviderGitLab,
 		EnhancedExternalAuthProviderBitBucketCloud,
 		EnhancedExternalAuthProviderBitBucketServer,
-		EnhancedExternalAuthProviderAzureDevops:
+		EnhancedExternalAuthProviderAzureDevops,
+		EnhancedExternalAuthProviderGitea:
 		return true
 	default:
 		return false
@@ -41,6 +42,7 @@ const (
 	EnhancedExternalAuthProviderBitBucketServer EnhancedExternalAuthProvider = "bitbucket-server"
 	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
 	EnhancedExternalAuthProviderJFrog           EnhancedExternalAuthProvider = "jfrog"
+	EnhancedExternalAuthProviderGitea           EnhancedExternalAuthProvider = "gitea"
 )
 
 type ExternalAuth struct {
