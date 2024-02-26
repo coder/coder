@@ -17,6 +17,8 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
+		// This action is currently irreversible, so it's hidden until we have a way to delete organizations.
+		Hidden: true,
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 			clibase.RequireNArgs(1),
@@ -37,7 +39,10 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 
 			// Confirm deletion of the template.
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Are you sure you want to create an organization with the name %q?", pretty.Sprint(cliui.DefaultStyles.Code, orgName)),
+				Text: fmt.Sprintf("Are you sure you want to create an organization with the name %s?\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Code, orgName),
+					pretty.Sprint(cliui.BoldFmt(), "This action is irreversible."),
+				),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -49,7 +54,7 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 				Name: orgName,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to create organization: %w")
+				return fmt.Errorf("failed to create organization: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Organization %s (%s) created.\n", organization.Name, organization.ID)
