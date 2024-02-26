@@ -5367,21 +5367,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value              |
-| ------------------ |
-| `template`         |
-| `template_version` |
-| `user`             |
-| `workspace`        |
-| `workspace_build`  |
-| `git_ssh_key`      |
-| `api_key`          |
-| `group`            |
-| `license`          |
-| `convert_login`    |
-| `health_settings`  |
-| `workspace_proxy`  |
-| `organization`     |
+| Value                        |
+| ---------------------------- |
+| `template`                   |
+| `template_version`           |
+| `user`                       |
+| `workspace`                  |
+| `workspace_build`            |
+| `git_ssh_key`                |
+| `api_key`                    |
+| `group`                      |
+| `license`                    |
+| `convert_login`              |
+| `health_settings`            |
+| `workspace_proxy`            |
+| `organization`               |
+| `oauth2_provider_app`        |
+| `oauth2_provider_app_secret` |
 
 ## codersdk.Response
 

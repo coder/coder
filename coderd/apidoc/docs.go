@@ -11504,7 +11504,9 @@ const docTemplate = `{
                 "convert_login",
                 "health_settings",
                 "workspace_proxy",
-                "organization"
+                "organization",
+                "oauth2_provider_app",
+                "oauth2_provider_app_secret"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -11519,7 +11521,9 @@ const docTemplate = `{
                 "ResourceTypeConvertLogin",
                 "ResourceTypeHealthSettings",
                 "ResourceTypeWorkspaceProxy",
-                "ResourceTypeOrganization"
+                "ResourceTypeOrganization",
+                "ResourceTypeOAuth2ProviderApp",
+                "ResourceTypeOAuth2ProviderAppSecret"
             ]
         },
         "codersdk.Response": {

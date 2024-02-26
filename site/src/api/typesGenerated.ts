@@ -2251,6 +2251,8 @@ export type ResourceType =
   | "group"
   | "health_settings"
   | "license"
+  | "oauth2_provider_app"
+  | "oauth2_provider_app_secret"
   | "organization"
   | "template"
   | "template_version"
@@ -2265,6 +2267,8 @@ export const ResourceTypes: ResourceType[] = [
   "group",
   "health_settings",
   "license",
+  "oauth2_provider_app",
+  "oauth2_provider_app_secret",
   "organization",
   "template",
   "template_version",

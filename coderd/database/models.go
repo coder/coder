@@ -1149,19 +1149,21 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization    ResourceType = "organization"
-	ResourceTypeTemplate        ResourceType = "template"
-	ResourceTypeTemplateVersion ResourceType = "template_version"
-	ResourceTypeUser            ResourceType = "user"
-	ResourceTypeWorkspace       ResourceType = "workspace"
-	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
-	ResourceTypeApiKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
-	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
-	ResourceTypeLicense         ResourceType = "license"
-	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin    ResourceType = "convert_login"
-	ResourceTypeHealthSettings  ResourceType = "health_settings"
+	ResourceTypeOrganization            ResourceType = "organization"
+	ResourceTypeTemplate                ResourceType = "template"
+	ResourceTypeTemplateVersion         ResourceType = "template_version"
+	ResourceTypeUser                    ResourceType = "user"
+	ResourceTypeWorkspace               ResourceType = "workspace"
+	ResourceTypeGitSshKey               ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                  ResourceType = "api_key"
+	ResourceTypeGroup                   ResourceType = "group"
+	ResourceTypeWorkspaceBuild          ResourceType = "workspace_build"
+	ResourceTypeLicense                 ResourceType = "license"
+	ResourceTypeWorkspaceProxy          ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin            ResourceType = "convert_login"
+	ResourceTypeHealthSettings          ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1213,7 +1215,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
-		ResourceTypeHealthSettings:
+		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret:
 		return true
 	}
 	return false
@@ -1234,6 +1238,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret,
 	}
 }
 
