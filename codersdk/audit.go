@@ -63,10 +63,9 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeHealthSettings:
 		return "health_settings"
 	case ResourceTypeOAuth2ProviderApp:
-		return "OAuth2 app"
+		return "oauth2 app"
 	case ResourceTypeOAuth2ProviderAppSecret:
-		// OAuth2 secrets have a unique friendly string.
-		return "OAuth2 app secret"
+		return "oauth2 app secret"
 	default:
 		return "unknown"
 	}
