@@ -63,7 +63,7 @@ func TestCurrentOrganization(t *testing.T) {
 			orgs[orgName] = org
 		}
 
-		inv, root := clitest.New(t, "organizations", "current", "--only-id", "-z=bar")
+		inv, root := clitest.New(t, "organizations", "show", "current", "--only-id", "-z=bar")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
