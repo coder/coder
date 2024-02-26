@@ -104,14 +104,6 @@ function renderUseClipboard(textToCopy: string) {
 
 type ScheduleConfig = Readonly<{ isHttps: boolean }>;
 
-/**
- * Unconventional test setup, but we need two separate instances of the
- * MockClipboard (one for HTTP and one for HTTPS).
- *
- * All beforeAll and afterEach hooks must be tied to the specific instance, or
- * else you get shared mutable state, and test cases interfering with each
- * other. Test isolation is especially important for this test file
- */
 export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
   const mockClipboardInstance = makeMockClipboard(isHttps);
 
@@ -121,10 +113,8 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
       ...originalNavigator,
       clipboard: mockClipboardInstance,
     }));
-  });
 
-  if (!isHttps) {
-    beforeAll(() => {
+    if (!isHttps) {
       // Not the biggest fan of exposing implementation details like this, but
       // making any kind of mock for execCommand is really gnarly in general
       global.document.execCommand = jest.fn(() => {
@@ -141,8 +131,8 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
         return copySuccessful;
       });
-    });
-  }
+    }
+  });
 
   afterEach(() => {
     mockClipboardInstance.setMockText("");
