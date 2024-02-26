@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/agent/proto"
@@ -175,4 +176,43 @@ func TestProtoFromLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, s, state)
 	}
+}
+
+func TestProtoFromMetadataResult(t *testing.T) {
+	t.Parallel()
+	now := dbtime.Now()
+	result := codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: now,
+		Age:         4,
+		Value:       "lemons",
+		Error:       "rats",
+	}
+	pr := agentsdk.ProtoFromMetadataResult(result)
+	require.NotNil(t, pr)
+	require.Equal(t, now, pr.CollectedAt.AsTime())
+	require.EqualValues(t, 4, pr.Age)
+	require.Equal(t, "lemons", pr.Value)
+	require.Equal(t, "rats", pr.Error)
+	result2 := agentsdk.MetadataResultFromProto(pr)
+	require.Equal(t, result, result2)
+}
+
+func TestMetadataFromProto(t *testing.T) {
+	t.Parallel()
+	now := dbtime.Now()
+	pmd := &proto.Metadata{
+		Key: "a flat",
+		Result: &proto.WorkspaceAgentMetadata_Result{
+			CollectedAt: timestamppb.New(now),
+			Age:         88,
+			Value:       "lemons",
+			Error:       "rats",
+		},
+	}
+	smd := agentsdk.MetadataFromProto(pmd)
+	require.Equal(t, "a flat", smd.Key)
+	require.Equal(t, now, smd.CollectedAt)
+	require.EqualValues(t, 88, smd.Age)
+	require.Equal(t, "lemons", smd.Value)
+	require.Equal(t, "rats", smd.Error)
 }

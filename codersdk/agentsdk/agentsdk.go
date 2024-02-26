@@ -85,6 +85,9 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
+// PostMetadata posts agent metadata to the Coder server.
+//
+// Deprecated: use BatchUpdateMetadata on the agent dRPC API instead
 func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
 	if err != nil {
