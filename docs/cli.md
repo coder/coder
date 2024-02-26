@@ -130,6 +130,16 @@ Suppress warnings about unlicensed features.
 
 Suppress warning when client and server versions do not match.
 
+### -z, --organization
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use This overrides what is present
+in the config file.
+
 ### --token
 
 |             |                                   |

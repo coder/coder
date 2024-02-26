@@ -51,20 +51,21 @@ var (
 )
 
 const (
-	varURL              = "url"
-	varToken            = "token"
-	varAgentToken       = "agent-token"
-	varAgentTokenFile   = "agent-token-file"
-	varAgentURL         = "agent-url"
-	varHeader           = "header"
-	varHeaderCommand    = "header-command"
-	varNoOpen           = "no-open"
-	varNoVersionCheck   = "no-version-warning"
-	varNoFeatureWarning = "no-feature-warning"
-	varForceTty         = "force-tty"
-	varVerbose          = "verbose"
-	varDisableDirect    = "disable-direct-connections"
-	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
+	varURL                = "url"
+	varToken              = "token"
+	varAgentToken         = "agent-token"
+	varAgentTokenFile     = "agent-token-file"
+	varAgentURL           = "agent-url"
+	varHeader             = "header"
+	varHeaderCommand      = "header-command"
+	varNoOpen             = "no-open"
+	varNoVersionCheck     = "no-version-warning"
+	varNoFeatureWarning   = "no-feature-warning"
+	varForceTty           = "force-tty"
+	varVerbose            = "verbose"
+	varOrganizationSelect = "organization"
+	varDisableDirect      = "disable-direct-connections"
+	notLoggedInMessage    = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -435,6 +436,14 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:          varOrganizationSelect,
+			FlagShorthand: "z",
+			Env:           "CODER_ORGANIZATION",
+			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
+			Value:         clibase.StringOf(&r.organizationSelect),
+			Group:         globalGroup,
+		},
+		{
 			Flag: "version",
 			// This was requested by a customer to assist with their migration.
 			// They have two Coder CLIs, and want to tell the difference by running
@@ -455,20 +464,21 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL      *url.URL
-	token          string
-	globalConfig   string
-	header         []string
-	headerCommand  string
-	agentToken     string
-	agentTokenFile string
-	agentURL       *url.URL
-	forceTTY       bool
-	noOpen         bool
-	verbose        bool
-	versionFlag    bool
-	disableDirect  bool
-	debugHTTP      bool
+	clientURL          *url.URL
+	token              string
+	globalConfig       string
+	header             []string
+	headerCommand      string
+	agentToken         string
+	agentTokenFile     string
+	agentURL           *url.URL
+	forceTTY           bool
+	noOpen             bool
+	verbose            bool
+	organizationSelect string
+	versionFlag        bool
+	disableDirect      bool
+	debugHTTP          bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -701,8 +711,8 @@ func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 // CurrentOrganization returns the currently active organization for the authenticated user.
 func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
 	conf := r.createConfig()
-	selected := ""
-	if conf.Organization().Exists() {
+	selected := r.organizationSelect
+	if selected == "" && conf.Organization().Exists() {
 		org, err := conf.Organization().Read()
 		if err != nil {
 			return codersdk.Organization{}, fmt.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
