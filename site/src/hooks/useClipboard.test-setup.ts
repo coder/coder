@@ -1,16 +1,46 @@
-/*
-  Normally, you could call userEvent.setup to enable clipboard mocking, but
-  userEvent doesn't expose a teardown function. It also modifies the global
-  scope for the whole test file, so enabling just one userEvent session will
-  make a mock clipboard exist for all other tests, even though you didn't tell
-  them to set up a session. The mock also assumes that the clipboard API will
-  always be available, which is not true on HTTP-only connections
-
-  Since these tests need to split hairs and differentiate between HTTP and HTTPS
-  connections, setting up a single userEvent is disastrous. It will make all the
-  tests pass, even if they shouldn't. Have to avoid that by creating a custom
-  clipboard mock.
-*/
+/**
+ * @file This is a very weird test setup.
+ *
+ * There are two main things that it's fighting against to insure that the
+ * clipboard functionality is working as expected:
+ * 1. userEvent.setup's default global behavior
+ * 2. The fact that we need to reuse the same set of test cases for two separate
+ *    contexts (secure and insecure), each with their own version of global
+ *    state.
+ *
+ * The goal of this file is to provide a shared set of test behavior that can
+ * be imported into two separate test files (one for HTTP, one for HTTPS),
+ * without any risk of global state conflicts.
+ *
+ * ---
+ * For (1), normally you could call userEvent.setup to enable clipboard mocking,
+ * but userEvent doesn't expose a teardown function. It also modifies the global
+ * scope for the whole test file, so enabling just one userEvent session will
+ * make a mock clipboard exist for all other tests, even though you didn't tell
+ * them to set up a session. The mock also assumes that the clipboard API will
+ * always be available, which is not true on HTTP-only connections
+ *
+ * Since these tests need to split hairs and differentiate between HTTP and
+ * HTTPS connections, setting up a single userEvent is disastrous. It will make
+ * all the tests pass, even if they shouldn't. Have to avoid that by creating a
+ * custom clipboard mock.
+ *
+ * ---
+ * For (2), we're fighting against Jest's default behavior, which is to treat
+ * the test file as the main boundary for test environments, with each test case
+ * able to run in parallel. That works if you have one single global state, but
+ * we need two separate versions of the global state, while repeating the exact
+ * same test cases for each one.
+ *
+ * If both tests were to be placed in the same file, Jest would not isolate them
+ * and would let their setup steps interfere with each other. This leads to one
+ * of two things:
+ * 1. One of the global mocks overrides the other, making it so that one
+ *    connection type always fails
+ * 2. The two just happen not to conflict each other, through some convoluted
+ *    order of operations involving closure, but you have no idea why the code
+ *    is working, and it's impossible to debug.
+ */
 import { type UseClipboardResult, useClipboard } from "./useClipboard";
 import { act, renderHook } from "@testing-library/react";
 
@@ -72,6 +102,8 @@ function renderUseClipboard(textToCopy: string) {
   );
 }
 
+type ScheduleConfig = Readonly<{ isHttps: boolean }>;
+
 /**
  * Unconventional test setup, but we need two separate instances of the
  * MockClipboard (one for HTTP and one for HTTPS).
@@ -80,7 +112,7 @@ function renderUseClipboard(textToCopy: string) {
  * else you get shared mutable state, and test cases interfering with each
  * other. Test isolation is especially important for this test file
  */
-function scheduleTests(isHttps: boolean) {
+export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
   const mockClipboardInstance = makeMockClipboard(isHttps);
 
   beforeAll(() => {
@@ -148,13 +180,3 @@ function scheduleTests(isHttps: boolean) {
     await jest.runAllTimersAsync();
   });
 }
-
-describe(useClipboard.name, () => {
-  describe("HTTP (non-secure) connections", () => {
-    scheduleTests(false);
-  });
-
-  describe("HTTPS connections", () => {
-    scheduleTests(true);
-  });
-});
