@@ -1,22 +1,86 @@
 import { type UseClipboardResult, useClipboard } from "./useClipboard";
 import { act, renderHook } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+
+/*
+  Normally, you could call userEvent.setup to enable clipboard mocking, but
+  userEvent doesn't expose a teardown function. It also modifies the global
+  clipboard, so enabling just one userEvent session will make a mock clipboard
+  exist for all other tests, even though you didn't tell them to set up a
+  session. The mock also assumes that the clipboard API will always be
+  available, which is not true on HTTP-only connections
+
+  Since these tests need to split hairs and differentiate between HTTP and HTTPS
+  connections, setting up a single userEvent is disastrous. It will make all the
+  tests pass, even if they shouldn't. Have to avoid that by creating a custom
+  clipboard mock.
+*/
+type MockClipboard = Readonly<
+  Clipboard & {
+    resetText: () => void;
+    setIsSecureContext: (newContext: boolean) => void;
+  }
+>;
+
+function makeMockClipboard(): MockClipboard {
+  let mockClipboardValue = "";
+  let isSecureContext = true;
+
+  return {
+    readText: async () => {
+      if (!isSecureContext) {
+        throw new Error(
+          "Trying to read from clipboard outside secure context!",
+        );
+      }
+
+      return mockClipboardValue;
+    },
+    writeText: async (newText) => {
+      if (!isSecureContext) {
+        throw new Error("Trying to write to clipboard outside secure context!");
+      }
+
+      mockClipboardValue = newText;
+    },
+    resetText: () => {
+      mockClipboardValue = "";
+    },
+    setIsSecureContext: (newContext) => {
+      isSecureContext = newContext;
+    },
+
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+    read: jest.fn(),
+    write: jest.fn(),
+  };
+}
+
+const mockClipboard = makeMockClipboard();
 
 beforeAll(() => {
+  const originalNavigator = window.navigator;
+  jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
+    ...originalNavigator,
+    clipboard: mockClipboard,
+  }));
+
+  jest.spyOn(document, "hasFocus").mockImplementation(() => true);
   jest.useFakeTimers();
-  userEvent.setup({
-    writeToClipboard: true,
-  });
+});
+
+afterEach(() => {
+  mockClipboard.resetText();
 });
 
 afterAll(() => {
-  jest.useRealTimers();
   jest.restoreAllMocks();
+  jest.useRealTimers();
 });
 
 function renderUseClipboard(textToCopy: string) {
   type Props = Readonly<{ textToCopy: string }>;
-
   return renderHook<UseClipboardResult, Props>(
     ({ textToCopy }) => useClipboard(textToCopy),
     { initialProps: { textToCopy } },
@@ -25,9 +89,6 @@ function renderUseClipboard(textToCopy: string) {
 
 type UseClipboardTestResult = ReturnType<typeof renderUseClipboard>["result"];
 
-// This can and should be cleaned up - trying to call the clipboard's readText
-// method caused an error around blob input, even though the method takes no
-// arguments whatsoever, so here's this workaround using the lower-level API
 async function assertClipboardTextUpdate(
   result: UseClipboardTestResult,
   textToCheck: string,
@@ -35,23 +96,13 @@ async function assertClipboardTextUpdate(
   await act(() => result.current.copyToClipboard());
   expect(result.current.showCopiedSuccess).toBe(true);
 
-  const clipboardTextType = "text/plain";
-  const clipboardItems = await window.navigator.clipboard.read();
-  const firstItem = clipboardItems[0];
-
-  const hasData =
-    firstItem !== undefined && firstItem.types.includes(clipboardTextType);
-
-  if (!hasData) {
-    throw new Error("No clipboard items to process");
-  }
-
-  const blob = await firstItem.getType(clipboardTextType);
-  const clipboardText = await blob.text();
+  const clipboardText = await window.navigator.clipboard.readText();
   expect(textToCheck).toEqual(clipboardText);
 }
 
-describe(useClipboard.name, () => {
+function scheduleTests(isHttps: boolean) {
+  mockClipboard.setIsSecureContext(isHttps);
+
   it("Copies the current text to the user's clipboard", async () => {
     const hookText = "dogs";
     const { result } = renderUseClipboard(hookText);
@@ -69,27 +120,14 @@ describe(useClipboard.name, () => {
 
     await jest.runAllTimersAsync();
   });
+}
 
-  it.skip("Should notify the user that a copy was not successful", () => {
-    expect.hasAssertions();
+describe(useClipboard.name, () => {
+  describe("HTTP (non-secure) connections", () => {
+    scheduleTests(false);
   });
 
-  it.skip("Should work on non-secure (HTTP-only) connections", async () => {
-    const prevClipboard = window.navigator.clipboard;
-
-    Object.assign(window.navigator, {
-      clipboard: {
-        ...prevClipboard,
-        writeText: async () => {
-          throw new Error(
-            "Trying to call clipboard API in non-secure context!",
-          );
-        },
-      },
-    });
-
-    const hookText = "birds";
-    const { result } = renderUseClipboard(hookText);
-    await assertClipboardTextUpdate(result, hookText);
+  describe("HTTPS connections", () => {
+    scheduleTests(true);
   });
 });
