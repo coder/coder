@@ -573,7 +573,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
 }
 
-func (c *Client) OrganizationByName(ctx context.Context, user string, name string) (Organization, error) {
+func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, name string) (Organization, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
 	if err != nil {
 		return Organization{}, err

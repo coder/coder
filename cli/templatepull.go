@@ -44,7 +44,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				return xerrors.Errorf("either tar or zip can be selected")
 			}
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

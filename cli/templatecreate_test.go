@@ -243,19 +243,7 @@ func TestTemplateCreate(t *testing.T) {
 			assert.Error(t, err)
 		}()
 
-		matches := []struct {
-			match string
-			write string
-		}{
-			{match: "Upload", write: "yes"},
-		}
-		for _, m := range matches {
-			pty.ExpectMatch(m.match)
-			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
-			}
-		}
-
+		pty.ExpectMatch("context canceled")
 		<-ctx.Done()
 	})
 

@@ -94,6 +94,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.tokens(),
 		r.users(),
 		r.version(defaultVersionInfo),
+		r.organizations(),
 
 		// Workspace Commands
 		r.autoupdate(),
@@ -698,14 +699,44 @@ func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(inv *clibase.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+	conf := r.createConfig()
+	selected := ""
+	if conf.Organization().Exists() {
+		org, err := conf.Organization().Read()
+		if err != nil {
+			return codersdk.Organization{}, fmt.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
+		}
+		selected = org
+	}
+
+	// Verify the org exists and the user is a member
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
-		return codersdk.Organization{}, nil
+		return codersdk.Organization{}, err
 	}
-	// For now, we won't use the config to set this.
-	// Eventually, we will support changing using "coder switch <org>"
-	return orgs[0], nil
+
+	// User manually selected an organization
+	if selected != "" {
+		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
+			return org.Name == selected || org.ID.String() == selected
+		})
+
+		if index < 0 {
+			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization?", selected)
+		}
+		return orgs[index], nil
+	}
+
+	// User did not select an organization, so use the default.
+	index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
+		return org.IsDefault
+	})
+	if index < 0 {
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder organizations switch <org>' to select an organization to use")
+	}
+
+	return orgs[index], nil
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
