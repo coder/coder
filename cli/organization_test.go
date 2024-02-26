@@ -63,7 +63,7 @@ func TestOrganizationSwitch(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		exp, err := client.OrganizationByName(ctx, codersdk.Me, "foo")
+		exp, err := client.OrganizationByName(ctx, "foo")
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "organizations", "set", "foo")
