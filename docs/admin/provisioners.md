@@ -126,7 +126,7 @@ The external provisioner in the above example can run build jobs with tags:
 - `environment=on_prem`
 - `data_center=chicago`
 - `environment=on_prem datacenter=chicago`
-- `envrironment=cloud datacenter=chicago`
+- `environment=cloud datacenter=chicago`
 - `environment=on_prem datacenter=new_york`
 
 However, it will not pick up any build jobs that do not have either of the
