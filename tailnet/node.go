@@ -36,6 +36,7 @@ type nodeUpdater struct {
 	addresses            []netip.Prefix
 	lastStatus           time.Time
 	blockEndpoints       bool
+	sentNode             bool // for PeerDiagnostics
 }
 
 // updateLoop waits until the config is dirty and then calls the callback with the newest node.
@@ -79,6 +80,7 @@ func (u *nodeUpdater) updateLoop() {
 		u.logger.Debug(context.Background(), "calling nodeUpdater callback", slog.F("node", node))
 		callback(node)
 		u.L.Lock()
+		u.sentNode = true
 	}
 }
 
@@ -212,6 +214,7 @@ func (u *nodeUpdater) setCallback(callback func(node *Node)) {
 	defer u.L.Unlock()
 	u.callback = callback
 	u.dirty = true
+	u.sentNode = false
 	u.Broadcast()
 }
 
@@ -227,4 +230,12 @@ func (u *nodeUpdater) setBlockEndpoints(blockEndpoints bool) {
 	u.dirty = true
 	u.blockEndpoints = blockEndpoints
 	u.Broadcast()
+}
+
+// fillPeerDiagnostics fills out the PeerDiagnostics with PreferredDERP and SentNode
+func (u *nodeUpdater) fillPeerDiagnostics(d *PeerDiagnostics) {
+	u.L.Lock()
+	defer u.L.Unlock()
+	d.PreferredDERP = u.preferredDERP
+	d.SentNode = u.sentNode
 }
