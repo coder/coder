@@ -116,7 +116,7 @@ Autostop requirement is disabled when the template is using the deprecated max
 lifetime feature. Templates can choose to use a max lifetime or an autostop
 requirement during the deprecation period, but only one can be used at a time.
 
-#### User quiet hours (enterprise)
+### User quiet hours (enterprise)
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
