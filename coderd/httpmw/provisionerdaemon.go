@@ -16,7 +16,7 @@ import (
 type provisionerDaemonContextKey struct{}
 
 func ProvisionerDaemonAuthenticated(r *http.Request) bool {
-	proxy, ok := r.Context().Value(workspaceProxyContextKey{}).(bool)
+	proxy, ok := r.Context().Value(provisionerDaemonContextKey{}).(bool)
 	return ok && proxy
 }
 
@@ -29,14 +29,19 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig, ps
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			if psk == "" {
+
+			handleOptional := func(code int, response codersdk.Response) {
 				if opts.Optional {
 					next.ServeHTTP(w, r)
 					return
 				}
+				httpapi.Write(ctx, w, code, response)
+			}
+
+			if psk == "" {
 				// No psk means external provisioner daemons are not allowed.
 				// So their auth is not valid.
-				httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+				handleOptional(http.StatusBadRequest, codersdk.Response{
 					Message: "External provisioner daemons not enabled",
 				})
 				return
@@ -44,18 +49,14 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig, ps
 
 			token := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 			if token == "" {
-				if opts.Optional {
-					next.ServeHTTP(w, r)
-					return
-				}
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
+				handleOptional(http.StatusUnauthorized, codersdk.Response{
 					Message: "provisioner daemon auth token required",
 				})
 				return
 			}
 
 			if subtle.ConstantTimeCompare([]byte(token), []byte(psk)) != 1 {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
+				handleOptional(http.StatusUnauthorized, codersdk.Response{
 					Message: "provisioner daemon auth token invalid",
 				})
 				return
