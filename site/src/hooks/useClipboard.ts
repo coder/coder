@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { displayError as dispatchError } from "components/GlobalSnackbar/utils";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
@@ -8,10 +8,10 @@ export type UseClipboardInput = Readonly<{
   textToCopy: string;
 
   /**
-   * Indicates whether the user should be notified of an error if the copy
-   * operation fails for whatever reason. Defaults to true.
+   * Callback to call when an error happens. By default, this will use the
+   * codebase's global displayError function.
    */
-  displayErrors?: boolean;
+  errorCallback?: (errorMessage: string) => void;
 }>;
 
 export type UseClipboardResult = Readonly<{
@@ -39,7 +39,7 @@ export type UseClipboardResult = Readonly<{
 }>;
 
 export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
-  const { textToCopy, displayErrors = true } = input;
+  const { textToCopy, errorCallback } = input;
   const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
   const timeoutIdRef = useRef<number | undefined>();
 
@@ -73,9 +73,9 @@ export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
       }
 
       console.error(wrappedErr);
-      if (displayErrors) {
-        dispatchError(COPY_FAILED_MESSAGE);
-      }
+
+      const dispatchError = errorCallback ?? displayError;
+      dispatchError(COPY_FAILED_MESSAGE);
     }
   };
 
