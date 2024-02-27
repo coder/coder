@@ -88,6 +88,16 @@ Deprecated and ignored.
 
 Deprecated and ignored.
 
+### --prometheus-address
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
+| Default     | <code>127.0.0.1:2112</code>            |
+
+The bind address to serve prometheus metrics.
+
 ### --psk
 
 |             |                                            |
