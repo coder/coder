@@ -37,7 +37,6 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 				return fmt.Errorf("organization %q already exists", orgName)
 			}
 
-			// Confirm deletion of the template.
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text: fmt.Sprintf("Are you sure you want to create an organization with the name %s?\n%s",
 					pretty.Sprint(cliui.DefaultStyles.Code, orgName),
