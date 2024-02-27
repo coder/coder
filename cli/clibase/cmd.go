@@ -562,7 +562,7 @@ func Chain(ms ...MiddlewareFunc) MiddlewareFunc {
 	return chain(reversed...)
 }
 
-func UsageErrorPrefix(next HandlerFunc) HandlerFunc {
+func ShowUsageOnError(next HandlerFunc) HandlerFunc {
 	return func(i *Invocation) error {
 		err := next(i)
 		if err != nil {
@@ -584,8 +584,8 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 		panic("start must be >= 0")
 	}
 	return func(next HandlerFunc) HandlerFunc {
-		// UsageErrorPrefix will add the command usage before the error message.
-		return UsageErrorPrefix(func(i *Invocation) error {
+		// ShowUsageOnError will add the command usage before the error message.
+		return ShowUsageOnError(func(i *Invocation) error {
 			got := len(i.Args)
 			switch {
 			case start == end && got != start:
