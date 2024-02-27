@@ -10,10 +10,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/cli"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -67,6 +71,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		pollJitter     time.Duration
 		preSharedKey   string
 		verbose        bool
+
+		prometheusEnable  bool
+		prometheusAddress string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -165,6 +172,23 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				}
 			}()
 
+			var metrics *provisionerd.Metrics
+			if prometheusEnable {
+				logger.Info(ctx, "starting Prometheus endpoint", slog.F("address", prometheusAddress))
+
+				prometheusRegistry := prometheus.NewRegistry()
+				prometheusRegistry.MustRegister(collectors.NewGoCollector())
+				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+				m := provisionerd.NewMetrics(prometheusRegistry)
+				metrics = &m
+
+				closeFunc := cli.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					prometheusRegistry, promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}),
+				), prometheusAddress, "prometheus")
+				defer closeFunc()
+			}
+
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags), slog.F("name", name))
 
 			connector := provisionerd.LocalProvisioners{
@@ -185,6 +209,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				Logger:         logger,
 				UpdateInterval: 500 * time.Millisecond,
 				Connector:      connector,
+				Metrics:        metrics,
 			})
 
 			var exitErr error
@@ -290,6 +315,20 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Description: "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
 			Value:       clibase.StringArrayOf(&logFilter),
 			Default:     "",
+		},
+		{
+			Flag:        "prometheus-enable",
+			Env:         "CODER_PROVISIONER_DAEMON_PROMETHEUS_ENABLE",
+			Description: "Serve prometheus metrics on the address defined by prometheus address.",
+			Value:       clibase.BoolOf(&prometheusEnable),
+			Default:     "false",
+		},
+		{
+			Flag:        "prometheus-address",
+			Env:         "CODER_PROVISIONER_DAEMON_PROMETHEUS_ADDRESS",
+			Description: "The bind address to serve prometheus metrics.",
+			Value:       clibase.StringOf(&prometheusAddress),
+			Default:     "127.0.0.1:2112",
 		},
 	}
 
