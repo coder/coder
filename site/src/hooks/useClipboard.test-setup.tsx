@@ -47,6 +47,7 @@ import {
   useClipboard,
 } from "./useClipboard";
 import { act, renderHook } from "@testing-library/react";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 
 const initialExecCommand = global.document.execCommand;
 beforeAll(() => {
@@ -62,14 +63,28 @@ afterAll(() => {
 type MockClipboardEscapeHatches = Readonly<{
   getMockText: () => string;
   setMockText: (newText: string) => void;
+  simulateFailure: boolean;
+  setSimulateFailure: (failureMode: boolean) => void;
 }>;
 
 type MockClipboard = Readonly<Clipboard & MockClipboardEscapeHatches>;
 function makeMockClipboard(isSecureContext: boolean): MockClipboard {
   let mockClipboardValue = "";
+  let shouldFail = false;
 
   return {
+    get simulateFailure() {
+      return shouldFail;
+    },
+    setSimulateFailure: (value) => {
+      shouldFail = value;
+    },
+
     readText: async () => {
+      if (shouldFail) {
+        throw new Error("Clipboard deliberately failed");
+      }
+
       if (!isSecureContext) {
         throw new Error(
           "Trying to read from clipboard outside secure context!",
@@ -79,6 +94,10 @@ function makeMockClipboard(isSecureContext: boolean): MockClipboard {
       return mockClipboardValue;
     },
     writeText: async (newText) => {
+      if (shouldFail) {
+        throw new Error("Clipboard deliberately failed");
+      }
+
       if (!isSecureContext) {
         throw new Error("Trying to write to clipboard outside secure context!");
       }
@@ -99,10 +118,18 @@ function makeMockClipboard(isSecureContext: boolean): MockClipboard {
   };
 }
 
-function renderUseClipboard(textToCopy: string, displayErrors: boolean) {
+function renderUseClipboard(inputs: UseClipboardInput) {
   return renderHook<UseClipboardResult, UseClipboardInput>(
     (props) => useClipboard(props),
-    { initialProps: { textToCopy, displayErrors } },
+    {
+      initialProps: inputs,
+      wrapper: ({ children }) => (
+        <>
+          <>{children}</>
+          <GlobalSnackbar />
+        </>
+      ),
+    },
   );
 }
 
@@ -111,8 +138,8 @@ type ScheduleConfig = Readonly<{ isHttps: boolean }>;
 export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
   const mockClipboardInstance = makeMockClipboard(isHttps);
 
+  const originalNavigator = window.navigator;
   beforeAll(() => {
-    const originalNavigator = window.navigator;
     jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
       ...originalNavigator,
       clipboard: mockClipboardInstance,
@@ -122,6 +149,10 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
       // Not the biggest fan of exposing implementation details like this, but
       // making any kind of mock for execCommand is really gnarly in general
       global.document.execCommand = jest.fn(() => {
+        if (mockClipboardInstance.simulateFailure) {
+          return false;
+        }
+
         const dummyInput = document.querySelector("input[data-testid=dummy]");
         const inputIsFocused =
           dummyInput instanceof HTMLInputElement &&
@@ -157,20 +188,35 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
    * Start of test cases
    */
   it("Copies the current text to the user's clipboard", async () => {
-    const hookText = "dogs";
-    const { result } = renderUseClipboard(hookText, false);
-    await assertClipboardTextUpdate(result, hookText);
+    const textToCopy = "dogs";
+    const { result } = renderUseClipboard({ textToCopy });
+    await assertClipboardTextUpdate(result, textToCopy);
   });
 
   it("Should indicate to components not to show successful copy after a set period of time", async () => {
-    const hookText = "cats";
-    const { result } = renderUseClipboard(hookText, false);
-    await assertClipboardTextUpdate(result, hookText);
+    const textToCopy = "cats";
+    const { result } = renderUseClipboard({ textToCopy });
+    await assertClipboardTextUpdate(result, textToCopy);
 
     setTimeout(() => {
       expect(result.current.showCopiedSuccess).toBe(false);
     }, 10_000);
 
     await jest.runAllTimersAsync();
+  });
+
+  it("Should notify the user of an error using the provided callback", async () => {
+    const textToCopy = "birds";
+    const errorCallback = jest.fn();
+    const { result } = renderUseClipboard({
+      textToCopy,
+      onError: errorCallback,
+    });
+
+    mockClipboardInstance.setSimulateFailure(true);
+    await act(() => result.current.copyToClipboard());
+    mockClipboardInstance.setSimulateFailure(false);
+
+    expect(errorCallback).toBeCalled();
   });
 }

@@ -8,14 +8,15 @@ export type UseClipboardInput = Readonly<{
   textToCopy: string;
 
   /**
-   * Callback to call when an error happens. By default, this will use the
-   * codebase's global displayError function.
+   * Optional callback to call when an error happens. If not specified, the hook
+   * will dispatch an error message to the GlobalSnackbar
    */
-  errorCallback?: (errorMessage: string) => void;
+  onError?: (errorMessage: string) => void;
 }>;
 
 export type UseClipboardResult = Readonly<{
   copyToClipboard: () => Promise<void>;
+  error: Error | undefined;
 
   /**
    * Indicates whether the UI should show a successfully-copied status to the
@@ -39,13 +40,14 @@ export type UseClipboardResult = Readonly<{
 }>;
 
 export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
-  const { textToCopy, errorCallback } = input;
+  const { textToCopy, onError: errorCallback } = input;
   const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
+  const [error, setError] = useState<Error>();
   const timeoutIdRef = useRef<number | undefined>();
 
   useEffect(() => {
-    const clearIdsOnUnmount = () => window.clearTimeout(timeoutIdRef.current);
-    return clearIdsOnUnmount;
+    const clearIdOnUnmount = () => window.clearTimeout(timeoutIdRef.current);
+    return clearIdOnUnmount;
   }, []);
 
   const handleSuccessfulCopy = () => {
@@ -61,7 +63,6 @@ export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
       handleSuccessfulCopy();
     } catch (err) {
       const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
-
       if (fallbackCopySuccessful) {
         handleSuccessfulCopy();
         return;
@@ -73,13 +74,14 @@ export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
       }
 
       console.error(wrappedErr);
+      setError(wrappedErr);
 
-      const dispatchError = errorCallback ?? displayError;
-      dispatchError(COPY_FAILED_MESSAGE);
+      const notifyUser = errorCallback ?? displayError;
+      notifyUser(COPY_FAILED_MESSAGE);
     }
   };
 
-  return { showCopiedSuccess, copyToClipboard };
+  return { showCopiedSuccess, error, copyToClipboard };
 };
 
 /**
