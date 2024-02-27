@@ -162,6 +162,9 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
 					// TODO: Add ProvisionerJob resource type.
+					// Might want to reduce the org read scope to a specific org
+					// in the future.
+					rbac.ResourceOrganization.Type:   {rbac.ActionRead},
 					rbac.ResourceFile.Type:           {rbac.ActionRead},
 					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
 					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
