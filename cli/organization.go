@@ -27,6 +27,7 @@ func (r *RootCmd) organizations() *clibase.Cmd {
 		Children: []*clibase.Cmd{
 			r.currentOrganization(),
 			r.switchOrganization(),
+			r.createOrganization(),
 		},
 	}
 
