@@ -1,7 +1,6 @@
 package agentapi_test
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"sync"
@@ -172,11 +171,10 @@ func TestUpdateStates(t *testing.T) {
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// Ensure that pubsub notifications are sent.
-		publishStats := make(chan bool)
+		notifyDescription := make(chan []byte)
 		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
 			go func() {
-				publishStats <- bytes.Equal(description, []byte{})
-				close(publishStats)
+				notifyDescription <- description
 			}()
 		})
 
@@ -199,8 +197,8 @@ func TestUpdateStates(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out while waiting for pubsub notification")
-		case publishStatsReceived := <-publishStats:
-			require.Equal(t, publishStatsReceived, true)
+		case description := <-notifyDescription:
+			require.Equal(t, description, []byte{})
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
