@@ -414,3 +414,7 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 		},
 	}
 }
+
+func (c *WorkspaceAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
+	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
+}
