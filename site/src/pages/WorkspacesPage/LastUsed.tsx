@@ -1,8 +1,9 @@
+import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { useTheme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
+import { useTime } from "hooks/useTime";
 
 dayjs.extend(relativeTime);
 
@@ -32,27 +33,32 @@ interface LastUsedProps {
 
 export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   const theme = useTheme();
-  const t = dayjs(lastUsedAt);
-  const now = dayjs();
-  let message = t.fromNow();
-  let circle = (
-    <Circle color={theme.palette.text.secondary} variant="outlined" />
-  );
 
-  if (t.isAfter(now.subtract(1, "hour"))) {
-    circle = <Circle color={theme.roles.success.fill.solid} />;
-    // Since the agent reports on a 10m interval,
-    // the last_used_at can be inaccurate when recent.
-    message = "Now";
-  } else if (t.isAfter(now.subtract(3, "day"))) {
-    circle = <Circle color={theme.palette.text.secondary} />;
-  } else if (t.isAfter(now.subtract(1, "month"))) {
-    circle = <Circle color={theme.roles.warning.fill.solid} />;
-  } else if (t.isAfter(now.subtract(100, "year"))) {
-    circle = <Circle color={theme.roles.error.fill.solid} />;
-  } else {
-    message = "Never";
-  }
+  const [circle, message] = useTime(() => {
+    const t = dayjs(lastUsedAt);
+    const now = dayjs();
+    let message = t.fromNow();
+    let circle = (
+      <Circle color={theme.palette.text.secondary} variant="outlined" />
+    );
+
+    if (t.isAfter(now.subtract(1, "hour"))) {
+      circle = <Circle color={theme.roles.success.fill.solid} />;
+      // Since the agent reports on a 10m interval,
+      // the last_used_at can be inaccurate when recent.
+      message = "Now";
+    } else if (t.isAfter(now.subtract(3, "day"))) {
+      circle = <Circle color={theme.palette.text.secondary} />;
+    } else if (t.isAfter(now.subtract(1, "month"))) {
+      circle = <Circle color={theme.roles.warning.fill.solid} />;
+    } else if (t.isAfter(now.subtract(100, "year"))) {
+      circle = <Circle color={theme.roles.error.fill.solid} />;
+    } else {
+      message = "Never";
+    }
+
+    return [circle, message];
+  });
 
   return (
     <Stack
