@@ -32,6 +32,9 @@ OPTIONS:
       --poll-jitter duration, $CODER_PROVISIONERD_POLL_JITTER (default: 100ms)
           Deprecated and ignored.
 
+      --prometheus-address string, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
+          The bind address to serve prometheus metrics.
+
       --psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate with Coder server.
 
