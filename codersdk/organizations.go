@@ -11,6 +11,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// DefaultOrganization is used as a replacement for the default organization.
+var DefaultOrganization = "default"
+
 type ProvisionerStorageMethod string
 
 const (
