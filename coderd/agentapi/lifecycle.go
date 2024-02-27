@@ -112,7 +112,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		ReadyAt:        readyAt,
 	})
 	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
+		if !database.IsQueryCanceledError(err) {
 			// not an error if we are canceled
 			logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
 		}
