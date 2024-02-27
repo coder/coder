@@ -1408,7 +1408,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonPSK",
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// RateLimit settings
 		{

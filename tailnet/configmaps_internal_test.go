@@ -773,6 +773,78 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
 
+func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+
+	// Given: DERP Map and peer already set
+	derpMap := &tailcfg.DERPMap{
+		HomeParams: &tailcfg.DERPHomeParams{RegionScore: map[int]float64{
+			1:    0.025,
+			1001: 0.111,
+		}},
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionCode: "AUH",
+				RegionName: "AUH",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "AUH0"},
+				},
+			},
+			1001: {
+				RegionCode: "DXB",
+				RegionName: "DXB",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "DXB0"},
+				},
+			},
+		},
+	}
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	p1tcn, err := uut.protoNodeToTailcfg(p1n)
+	p1tcn.KeepAlive = true
+	require.NoError(t, err)
+
+	hst := time.Date(2024, 1, 7, 12, 0, 10, 0, time.UTC)
+	uut.L.Lock()
+	uut.derpMap = derpMap
+	uut.peers[p1ID] = &peerLifecycle{
+		peerID:        p1ID,
+		node:          p1tcn,
+		lastHandshake: hst,
+	}
+	uut.L.Unlock()
+
+	s0 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, hst)
+
+	// When: call fillPeerDiagnostics
+	d := PeerDiagnostics{DERPRegionNames: make(map[int]string)}
+	uut.fillPeerDiagnostics(&d, p1ID)
+	testutil.RequireRecvCtx(ctx, t, s0)
+
+	// Then:
+	require.Equal(t, map[int]string{1: "AUH", 1001: "DXB"}, d.DERPRegionNames)
+	require.Equal(t, p1tcn, d.ReceivedNode)
+	require.Equal(t, hst, d.LastWireguardHandshake)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func expectStatusWithHandshake(
 	ctx context.Context, t testing.TB, fEng *fakeEngineConfigurable, k key.NodePublic, lastHandshake time.Time,
 ) <-chan struct{} {

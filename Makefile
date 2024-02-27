@@ -361,6 +361,8 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 
 site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site
+	# prevents this directory from getting to big, and causing "too much data" errors
+	rm -rf out/assets/
 	../scripts/pnpm_install.sh
 	pnpm build
 
