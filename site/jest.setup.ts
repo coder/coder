@@ -49,7 +49,7 @@ global.TextDecoder = TextDecoder as any;
 global.Blob = Blob as any;
 global.scrollTo = jest.fn();
 
-window.HTMLElement.prototype.scrollIntoView = function () {};
+window.HTMLElement.prototype.scrollIntoView = jest.fn();
 
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {

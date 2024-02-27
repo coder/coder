@@ -87,7 +87,9 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
   );
 };
 
-const MissingVariablesBanner: FC<{ onFillVariables: () => void }> = ({
+type MissingVariablesBannerProps = { onFillVariables: () => void };
+
+const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
   onFillVariables,
 }) => {
   return (
