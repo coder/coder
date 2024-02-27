@@ -179,6 +179,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 				m := provisionerd.NewMetrics(prometheusRegistry)
+				m.Runner.NumDaemons.Set(float64(1)) // Set numDaemons to 1 as this is standalone mode.
 				metrics = &m
 
 				closeFunc := agpl.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
