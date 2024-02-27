@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { displayError as dispatchError } from "components/GlobalSnackbar/utils";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
-const COPY_FAILED_MESSAGE = "copyToClipboard: failed to copy text to clipboard";
+const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+
+export type UseClipboardInput = Readonly<{
+  textToCopy: string;
+
+  /**
+   * Indicates whether the user should be notified of an error if the copy
+   * operation fails for whatever reason. Defaults to true.
+   */
+  displayErrors?: boolean;
+}>;
 
 export type UseClipboardResult = Readonly<{
   copyToClipboard: () => Promise<void>;
@@ -27,7 +38,8 @@ export type UseClipboardResult = Readonly<{
   showCopiedSuccess: boolean;
 }>;
 
-export const useClipboard = (textToCopy: string): UseClipboardResult => {
+export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
+  const { textToCopy, displayErrors = true } = input;
   const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
   const timeoutIdRef = useRef<number | undefined>();
 
@@ -43,27 +55,31 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
     }, CLIPBOARD_TIMEOUT_MS);
   };
 
-  return {
-    showCopiedSuccess,
-    copyToClipboard: async () => {
-      try {
-        await window.navigator.clipboard.writeText(textToCopy);
-        handleSuccessfulCopy();
-      } catch (err) {
-        const copySuccessful = simulateClipboardWrite(textToCopy);
-        if (copySuccessful) {
-          handleSuccessfulCopy();
-        } else {
-          const wrappedErr = new Error(COPY_FAILED_MESSAGE);
-          if (err instanceof Error) {
-            wrappedErr.stack = err.stack;
-          }
+  const copyToClipboard = async () => {
+    try {
+      await window.navigator.clipboard.writeText(textToCopy);
+      handleSuccessfulCopy();
+    } catch (err) {
+      const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
 
-          console.error(wrappedErr);
-        }
+      if (fallbackCopySuccessful) {
+        handleSuccessfulCopy();
+        return;
       }
-    },
+
+      const wrappedErr = new Error(COPY_FAILED_MESSAGE);
+      if (err instanceof Error) {
+        wrappedErr.stack = err.stack;
+      }
+
+      console.error(wrappedErr);
+      if (displayErrors) {
+        dispatchError(COPY_FAILED_MESSAGE);
+      }
+    }
   };
+
+  return { showCopiedSuccess, copyToClipboard };
 };
 
 /**
@@ -112,11 +128,11 @@ function simulateClipboardWrite(textToCopy: string): boolean {
    *
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Clipboard}
    */
-  let isCopied: boolean;
+  let copySuccessful: boolean;
   try {
-    isCopied = document?.execCommand("copy") ?? false;
+    copySuccessful = document?.execCommand("copy") ?? false;
   } catch {
-    isCopied = false;
+    copySuccessful = false;
   }
 
   dummyInput.remove();
@@ -124,5 +140,5 @@ function simulateClipboardWrite(textToCopy: string): boolean {
     previousFocusTarget.focus();
   }
 
-  return isCopied;
+  return copySuccessful;
 }

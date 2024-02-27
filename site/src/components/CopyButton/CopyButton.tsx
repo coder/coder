@@ -32,7 +32,9 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
       buttonStyles,
       tooltipTitle = Language.tooltipTitle,
     } = props;
-    const { showCopiedSuccess, copyToClipboard } = useClipboard(text);
+    const { showCopiedSuccess, copyToClipboard } = useClipboard({
+      textToCopy: text,
+    });
 
     return (
       <Tooltip title={tooltipTitle} placement="top">

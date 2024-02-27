@@ -41,7 +41,11 @@
  *    order of operations involving closure, but you have no idea why the code
  *    is working, and it's impossible to debug.
  */
-import { type UseClipboardResult, useClipboard } from "./useClipboard";
+import {
+  type UseClipboardInput,
+  type UseClipboardResult,
+  useClipboard,
+} from "./useClipboard";
 import { act, renderHook } from "@testing-library/react";
 
 const initialExecCommand = global.document.execCommand;
@@ -95,10 +99,10 @@ function makeMockClipboard(isSecureContext: boolean): MockClipboard {
   };
 }
 
-function renderUseClipboard(textToCopy: string) {
-  return renderHook<UseClipboardResult, { hookText: string }>(
-    ({ hookText }) => useClipboard(hookText),
-    { initialProps: { hookText: textToCopy } },
+function renderUseClipboard(textToCopy: string, displayErrors: boolean) {
+  return renderHook<UseClipboardResult, UseClipboardInput>(
+    (props) => useClipboard(props),
+    { initialProps: { textToCopy, displayErrors } },
   );
 }
 
@@ -154,13 +158,13 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
    */
   it("Copies the current text to the user's clipboard", async () => {
     const hookText = "dogs";
-    const { result } = renderUseClipboard(hookText);
+    const { result } = renderUseClipboard(hookText, false);
     await assertClipboardTextUpdate(result, hookText);
   });
 
   it("Should indicate to components not to show successful copy after a set period of time", async () => {
     const hookText = "cats";
-    const { result } = renderUseClipboard(hookText);
+    const { result } = renderUseClipboard(hookText, false);
     await assertClipboardTextUpdate(result, hookText);
 
     setTimeout(() => {
