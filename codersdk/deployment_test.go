@@ -71,6 +71,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			flag: true,
 			env:  true,
 		},
+		"Provisioner Daemon Pre-shared Key (PSK)": {
+			yaml: true,
+		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()
