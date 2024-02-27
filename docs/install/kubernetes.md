@@ -144,39 +144,61 @@ helm upgrade coder coder-v2/coder \
 
 ## Kubernetes Security Reference
 
-Below are common requirements we see from our enterprise customers when deploying an application in Kubernetes. This is intended to serve as a reference, and not all security requirements may apply to your business.
+Below are common requirements we see from our enterprise customers when
+deploying an application in Kubernetes. This is intended to serve as a
+reference, and not all security requirements may apply to your business.
 
 1. **All container images must be sourced from an internal container registry.**
 
-    - Control plane - To pull the control plane image from the appropriate registry, [update this Helm chart value](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L43-L50).
-    - Workspaces - To pull the workspace image from your registry, [update the Terraform template code here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L271). This assumes your cluster nodes are authenticated to pull from the internal registry.
+   - Control plane - To pull the control plane image from the appropriate
+     registry,
+     [update this Helm chart value](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L43-L50).
+   - Workspaces - To pull the workspace image from your registry,
+     [update the Terraform template code here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L271).
+     This assumes your cluster nodes are authenticated to pull from the internal
+     registry.
 
 2. **All containers must run as non-root user**
 
-    - Control plane - Our control plane pod [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
-    - Workspaces - Workspace pod UID is [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276), and are not required to run as `root`.
+   - Control plane - Our control plane pod
+     [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
+   - Workspaces - Workspace pod UID is
+     [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276),
+     and are not required to run as `root`.
 
 3. **Containers cannot run privileged**
 
-    - Coder's control plane does not run as privileged. [We disable](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141) `allowPrivilegeEscalation` [by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141).
-    - Workspace pods do not require any elevated privileges, with the exception of our `envbox` workspace template (used for docker-in-docker workspaces, not required).
+   - Coder's control plane does not run as privileged.
+     [We disable](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141)
+     `allowPrivilegeEscalation`
+     [by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141).
+   - Workspace pods do not require any elevated privileges, with the exception
+     of our `envbox` workspace template (used for docker-in-docker workspaces,
+     not required).
 
 4. **Containers cannot mount host filesystems**
 
-    - Both the control plane and workspace containers do not require any host filesystem mounts.
+   - Both the control plane and workspace containers do not require any host
+     filesystem mounts.
 
 5. **Containers cannot attach to host network**
 
-    - Both the control plane and workspaces use the Kubernetes networking layer by default, and do not require host network access.
+   - Both the control plane and workspaces use the Kubernetes networking layer
+     by default, and do not require host network access.
 
 6. **All Kubernetes objects must define resource requests/limits**
 
-    - Both the control plane and workspaces set resource request/limits by default.
+   - Both the control plane and workspaces set resource request/limits by
+     default.
 
 7. **All Kubernetes objects must define liveness and readiness probes**
 
-    - Control plane - The control plane Deployment has liveness and readiness probes [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
-    - Workspaces - the Kubernetes Deployment template does not configure liveness/readiness probes for the workspace, but this can be added to the Terraform template, and is supported.
+   - Control plane - The control plane Deployment has liveness and readiness
+     probes
+     [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
+   - Workspaces - the Kubernetes Deployment template does not configure
+     liveness/readiness probes for the workspace, but this can be added to the
+     Terraform template, and is supported.
 
 ## Load balancing considerations
 
