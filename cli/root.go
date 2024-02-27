@@ -123,6 +123,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 		r.expCmd(),
+		r.support(),
 	}
 }
 
