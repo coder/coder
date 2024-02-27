@@ -72,7 +72,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		preSharedKey   string
 		verbose        bool
 
-		prometheusEnable  bool
 		prometheusAddress string
 	)
 	client := new(codersdk.Client)
@@ -173,7 +172,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			}()
 
 			var metrics *provisionerd.Metrics
-			if prometheusEnable {
+			if prometheusAddress != "" {
 				logger.Info(ctx, "starting Prometheus endpoint", slog.F("address", prometheusAddress))
 
 				prometheusRegistry := prometheus.NewRegistry()
@@ -317,15 +316,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Default:     "",
 		},
 		{
-			Flag:        "prometheus-enable",
-			Env:         "CODER_PROVISIONER_DAEMON_PROMETHEUS_ENABLE",
-			Description: "Serve prometheus metrics on the address defined by prometheus address.",
-			Value:       clibase.BoolOf(&prometheusEnable),
-			Default:     "false",
-		},
-		{
 			Flag:        "prometheus-address",
-			Env:         "CODER_PROVISIONER_DAEMON_PROMETHEUS_ADDRESS",
+			Env:         "CODER_PROMETHEUS_ADDRESS",
 			Description: "The bind address to serve prometheus metrics.",
 			Value:       clibase.StringOf(&prometheusAddress),
 			Default:     "127.0.0.1:2112",
