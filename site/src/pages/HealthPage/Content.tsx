@@ -212,7 +212,6 @@ type LogsProps = { lines: string[] } & HTMLAttributes<HTMLDivElement>;
 export const Logs = (props: LogsProps) => {
   const theme = useTheme();
   const { lines, ...divProps } = props;
-  console.log("->", lines);
 
   return (
     <div
