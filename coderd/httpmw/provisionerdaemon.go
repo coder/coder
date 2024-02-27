@@ -65,6 +65,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig, ps
 			// store a boolean so the caller can check if the request is from an
 			// authenticated provisioner daemon.
 			ctx = context.WithValue(ctx, provisionerDaemonContextKey{}, true)
+			// nolint:gocritic // Authenticating as a provisioner daemon.
 			ctx = dbauthz.AsProvisionerd(ctx)
 			subj, ok := dbauthz.ActorFromContext(ctx)
 			if !ok {
