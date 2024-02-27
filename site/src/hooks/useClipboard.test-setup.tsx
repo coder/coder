@@ -207,16 +207,13 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
   it("Should notify the user of an error using the provided callback", async () => {
     const textToCopy = "birds";
-    const errorCallback = jest.fn();
-    const { result } = renderUseClipboard({
-      textToCopy,
-      onError: errorCallback,
-    });
+    const onError = jest.fn();
+    const { result } = renderUseClipboard({ textToCopy, onError });
 
     mockClipboardInstance.setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
     mockClipboardInstance.setSimulateFailure(false);
 
-    expect(errorCallback).toBeCalled();
+    expect(onError).toBeCalled();
   });
 }
