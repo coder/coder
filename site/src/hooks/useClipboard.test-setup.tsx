@@ -171,6 +171,7 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
   afterEach(() => {
     mockClipboardInstance.setMockText("");
+    mockClipboardInstance.setSimulateFailure(false);
   });
 
   const assertClipboardTextUpdate = async (
@@ -212,8 +213,6 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
     mockClipboardInstance.setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
-    mockClipboardInstance.setSimulateFailure(false);
-
     expect(onError).toBeCalled();
   });
 }
