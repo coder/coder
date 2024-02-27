@@ -170,6 +170,9 @@ var (
 					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:       {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceAPIKey.Type:         {rbac.WildcardSymbol},
+					// Might want to reduce the org read scope to a specific org
+					// in the future.
+					rbac.ResourceOrganization.Type: {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
