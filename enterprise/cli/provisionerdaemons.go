@@ -17,7 +17,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -182,7 +181,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				m := provisionerd.NewMetrics(prometheusRegistry)
 				metrics = &m
 
-				closeFunc := cli.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+				closeFunc := agpl.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					prometheusRegistry, promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}),
 				), prometheusAddress, "prometheus")
 				defer closeFunc()
