@@ -47,50 +47,91 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 ## Types of provisioners
 
-- **Generic provisioners** can pick up any build job from templates without
-  provisioner tags.
+> Provisioners have two important tags: `scope` and `owner`. Coder sets these
+> tags automatically.
 
-  ```shell
-  coder provisionerd start
-  ```
+### Organization-Scoped Provisioners
 
-- **Tagged provisioners** can be used to pick up build jobs from templates (and
-  corresponding workspaces) with matching tags.
+**Organization-scoped Provisioners** can pick up build jobs created by any user.
+These provisioners always have tags `scope=organization owner=""`.
 
-  ```shell
-  coder provisionerd start \
-    --tag environment=on_prem \
-    --tag data_center=chicago
+```shell
+coder provisionerd start
+```
 
-  # In another terminal, create/push
-  # a template that requires this provisioner
-  coder templates push on-prem \
-    --provisioner-tag environment=on_prem
+### User-scoped Provisioners
 
-  # Or, match the provisioner exactly
-  coder templates push on-prem-chicago \
-    --provisioner-tag environment=on_prem \
-    --provisioner-tag data_center=chicago
-  ```
+**User-scoped Provisioners** can only pick up build jobs created from
+user-tagged templates. User-scoped provisioners always have tags
+`scope=owner owner=<uuid>`. Unlike the other provisioner types, any Coder user
+can run user provisioners, but they have no impact unless there is at least one
+template with the `scope=user` provisioner tag.
 
-  > At this time, tagged provisioners can also pick jobs from untagged
-  > templates. This behavior is
-  > [subject to change](https://github.com/coder/coder/issues/6442).
+```shell
+coder provisionerd start \
+  --tag scope=user
 
-- **User provisioners** can only pick up jobs from user-tagged templates. Unlike
-  the other provisioner types, any Coder user can run user provisioners, but
-  they have no impact unless there is at least one template with the
-  `scope=user` provisioner tag.
+# In another terminal, create/push
+# a template that requires user provisioners
+coder templates push on-prem \
+  --provisioner-tag scope=user
+```
 
-  ```shell
-  coder provisionerd start \
-    --tag scope=user
+### Provisioner Tags
 
-  # In another terminal, create/push
-  # a template that requires user provisioners
-  coder templates push on-prem \
-    --provisioner-tag scope=user
-  ```
+You can use **provisioner tags** to control which provisioners can pick up build
+jobs from templates (and corresponding workspaces) with matching tags.
+
+```shell
+coder provisionerd start \
+  --tag environment=on_prem \
+  --tag data_center=chicago
+
+# In another terminal, create/push
+# a template that requires this provisioner
+coder templates push on-prem \
+  --provisioner-tag environment=on_prem
+
+# Or, match the provisioner exactly
+coder templates push on-prem-chicago \
+  --provisioner-tag environment=on_prem \
+  --provisioner-tag data_center=chicago
+```
+
+A provisioner can run a given build job if one of the below is true:
+
+1. The provisioner and job tags are both organization-scoped and both have no
+   additional tags set,
+1. The set of tags of the build job is a subset of the set of tags of the
+   provisioner.
+
+This is illustrated in the below table:
+
+| Provisioner Tags                                                                      | Job Tags                                                                  | Can run job? |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------ |
+| `{"owner":"","scope":"organization"}`                                                 | `{"owner":"","scope":"organization"}`                                     | true         |
+| `{"owner":"","scope":"organization"}`                                                 | `{"environment":"on_prem","owner":"","scope":"organization"}`             | false        |
+| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"owner":"","scope":"organization"}`                                     | false        |
+| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"foo":"bar","owner":"","scope":"organization"}`                         | true         |
+| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"data_center":"chicago","foo":"bar","owner":"","scope":"organization"}` | false        |
+| `{"data_center":"chicago","environment":"on_prem","owner":"","scope":"organization"}` | `{"foo":"bar","owner":"","scope":"organization"}`                         | true         |
+| `{"data_center":"chicago","environment":"on_prem","owner":"","scope":"organization"}` | `{"data_center":"chicago","foo":"bar","owner":"","scope":"organization"}` | true         |
+| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"","scope":"organization"}`                                     | false        |
+| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"aaa","scope":"owner"}`                                         | true         |
+| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"bbb","scope":"owner"}`                                         | false        |
+| `{"owner":"","scope":"organization"}`                                                 | `{"owner":"aaa","scope":"owner"}`                                         | false        |
+
+The external provisioner in the above example can run build jobs with tags:
+
+- `environment=on_prem`
+- `data_center=chicago`
+- `environment=on_prem datacenter=chicago`
+- `environment=cloud datacenter=chicago`
+- `environment=on_prem datacenter=new_york`
+
+However, it will not pick up any build jobs that do not have either of the
+`environment` or `datacenter` tags set. It will also not pick up any build jobs
+from templates with the `user` tag set.
 
 ## Example: Running an external provisioner with Helm
 
