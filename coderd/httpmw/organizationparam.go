@@ -53,7 +53,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 
 			var organization database.Organization
-			var err error
+			var dbErr error
 
 			// If the name is exactly "default", then we fetch the default
 			// organization. This is a special case to make it easier
@@ -65,17 +65,17 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			// TODO: This change was added March 2024, this should be removed
 			//		some number of months after that date.
 			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
-				organization, err = db.GetDefaultOrganization(ctx)
+				organization, dbErr = db.GetDefaultOrganization(ctx)
 			} else {
 				// Try by name or uuid.
 				id, err := uuid.Parse(arg)
 				if err == nil {
-					organization, err = db.GetOrganizationByID(ctx, id)
+					organization, dbErr = db.GetOrganizationByID(ctx, id)
 				} else {
-					organization, err = db.GetOrganizationByName(ctx, arg)
+					organization, dbErr = db.GetOrganizationByName(ctx, arg)
 				}
 			}
-			if httpapi.Is404Error(err) {
+			if httpapi.Is404Error(dbErr) {
 				httpapi.ResourceNotFound(rw)
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 					Message: fmt.Sprintf("Organization %q not found.", arg),
@@ -83,10 +83,10 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
-			if err != nil {
+			if dbErr != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
-					Detail:  err.Error(),
+					Detail:  dbErr.Error(),
 				})
 				return
 			}
