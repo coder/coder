@@ -48,9 +48,9 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
     queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),
   });
-  const ephemeralParameters = parameters?.templateVersionRichParameters.filter(
-    (p) => p.ephemeral,
-  );
+  const ephemeralParameters = parameters
+    ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
+    : undefined;
 
   return (
     <Popover>
@@ -70,6 +70,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
       >
         <BuildParametersPopoverContent
           ephemeralParameters={ephemeralParameters}
+          buildParameters={parameters?.buildParameters}
           onSubmit={onSubmit}
         />
       </PopoverContent>
@@ -79,11 +80,13 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 
 interface BuildParametersPopoverContentProps {
   ephemeralParameters?: TemplateVersionParameter[];
+  buildParameters?: WorkspaceBuildParameter[];
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
   ephemeralParameters,
+  buildParameters,
   onSubmit,
 }) => {
   const theme = useTheme();
@@ -91,7 +94,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 
   return (
     <>
-      {ephemeralParameters ? (
+      {buildParameters && ephemeralParameters ? (
         ephemeralParameters.length > 0 ? (
           <>
             <div
@@ -113,6 +116,12 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
                   popover.setIsOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
+                buildParameters={buildParameters.map(
+                  (p): AutofillBuildParameter => ({
+                    ...p,
+                    source: "active_build",
+                  }),
+                )}
               />
             </div>
           </>
@@ -146,13 +155,21 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 
 interface FormProps {
   ephemeralParameters: TemplateVersionParameter[];
+  buildParameters: AutofillBuildParameter[];
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 
-const Form: FC<FormProps> = ({ ephemeralParameters, onSubmit }) => {
+const Form: FC<FormProps> = ({
+  ephemeralParameters,
+  buildParameters,
+  onSubmit,
+}) => {
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: getInitialRichParameterValues(ephemeralParameters),
+      rich_parameter_values: getInitialRichParameterValues(
+        ephemeralParameters,
+        buildParameters,
+      ),
     },
     onSubmit: (values) => {
       onSubmit(values.rich_parameter_values);
