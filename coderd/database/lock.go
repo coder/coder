@@ -9,6 +9,7 @@ const (
 	// Keep the unused iota here so we don't need + 1 every time
 	lockIDUnused = iota
 	LockIDDeploymentSetup
+	LockIDEnterpriseDeploymentSetup
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.
