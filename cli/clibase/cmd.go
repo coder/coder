@@ -562,6 +562,16 @@ func Chain(ms ...MiddlewareFunc) MiddlewareFunc {
 	return chain(reversed...)
 }
 
+func ShowUsageOnError(next HandlerFunc) HandlerFunc {
+	return func(i *Invocation) error {
+		err := next(i)
+		if err != nil {
+			return xerrors.Errorf("Usage: %s\nError: %w", i.Command.FullUsage(), err)
+		}
+		return nil
+	}
+}
+
 func RequireNArgs(want int) MiddlewareFunc {
 	return RequireRangeArgs(want, want)
 }
@@ -574,7 +584,8 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 		panic("start must be >= 0")
 	}
 	return func(next HandlerFunc) HandlerFunc {
-		return func(i *Invocation) error {
+		// ShowUsageOnError will add the command usage before the error message.
+		return ShowUsageOnError(func(i *Invocation) error {
 			got := len(i.Args)
 			switch {
 			case start == end && got != start:
@@ -614,7 +625,7 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 			default:
 				return next(i)
 			}
-		}
+		})
 	}
 }
 
