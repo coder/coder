@@ -406,6 +406,33 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
+
+	t.Run("FailDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		// Given: a workspace exists
+		seed := database.Workspace{OrganizationID: user.OrganizationID, OwnerID: user.UserID}
+		wsb := dbfake.WorkspaceBuild(t, db, seed).WithAgent().Do()
+		// When: the workspace is marked as soft-deleted
+		// nolint:gocritic // this is a test
+		err := db.UpdateWorkspaceDeletedByID(
+			dbauthz.AsProvisionerd(ctx),
+			database.UpdateWorkspaceDeletedByIDParams{ID: wsb.Workspace.ID, Deleted: true},
+		)
+		require.NoError(t, err)
+		// Then: the agent token should no longer be valid
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(wsb.AgentToken)
+		_, err = agentClient.ConnectRPC(ctx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		// Then: we should get a 401 Unauthorized response
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
 }
 
 func TestWorkspaceAgentTailnet(t *testing.T) {

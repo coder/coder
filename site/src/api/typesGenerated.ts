@@ -2005,6 +2005,7 @@ export type EnhancedExternalAuthProvider =
   | "azure-devops"
   | "bitbucket-cloud"
   | "bitbucket-server"
+  | "gitea"
   | "github"
   | "gitlab"
   | "jfrog"
@@ -2013,6 +2014,7 @@ export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket-cloud",
   "bitbucket-server",
+  "gitea",
   "github",
   "gitlab",
   "jfrog",
@@ -2249,6 +2251,8 @@ export type ResourceType =
   | "group"
   | "health_settings"
   | "license"
+  | "oauth2_provider_app"
+  | "oauth2_provider_app_secret"
   | "organization"
   | "template"
   | "template_version"
@@ -2263,6 +2267,8 @@ export const ResourceTypes: ResourceType[] = [
   "group",
   "health_settings",
   "license",
+  "oauth2_provider_app",
+  "oauth2_provider_app_secret",
   "organization",
   "template",
   "template_version",

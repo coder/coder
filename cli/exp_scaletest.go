@@ -1214,6 +1214,11 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				// This could be useful for debugging, but it will blow up the disk.
 				if r.verbose {
 					config.Screenshot = dashboard.Screenshot
+				} else {
+					// Disable screenshots otherwise.
+					config.Screenshot = func(context.Context, string) (string, error) {
+						return "/dev/null", nil
+					}
 				}
 				//nolint:gocritic
 				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))

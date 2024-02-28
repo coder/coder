@@ -1,18 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { ThemeProvider } from "contexts/ThemeProvider";
-import { QueryClient, QueryClientProvider, useQuery } from "react-query";
-import { MockWorkspace } from "testHelpers/entities";
-import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
-import { server } from "testHelpers/server";
-import { rest } from "msw";
+import { type FC } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "react-query";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import dayjs from "dayjs";
+import { rest } from "msw";
 import * as API from "api/api";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import { ThemeProvider } from "contexts/ThemeProvider";
+import { MockTemplate, MockWorkspace } from "testHelpers/entities";
+import { server } from "testHelpers/server";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-const Wrapper = () => {
+const Wrapper: FC = () => {
   const { data: workspace } = useQuery(
     workspaceByOwnerAndName(MockWorkspace.owner_name, MockWorkspace.name),
   );
@@ -21,7 +22,13 @@ const Wrapper = () => {
     return null;
   }
 
-  return <WorkspaceScheduleControls workspace={workspace} canUpdateSchedule />;
+  return (
+    <WorkspaceScheduleControls
+      workspace={workspace}
+      template={MockTemplate}
+      canUpdateSchedule
+    />
+  );
 };
 
 const BASE_DEADLINE = dayjs().add(3, "hour");
@@ -75,7 +82,7 @@ test("add 3 hours to deadline", async () => {
   await screen.findByText(
     "Workspace shutdown time has been successfully updated.",
   );
-  expect(screen.getByText("Stop in 6 hours")).toBeInTheDocument();
+  expect(await screen.findByText("Stop in 6 hours")).toBeInTheDocument();
 
   // Mocks are used here because the 'usedDeadline' is a dayjs object, which
   // can't be directly compared.
@@ -87,7 +94,7 @@ test("add 3 hours to deadline", async () => {
   );
 });
 
-test("remove 3 hours to deadline", async () => {
+test("remove 2 hours to deadline", async () => {
   const user = userEvent.setup();
   const updateDeadlineSpy = jest
     .spyOn(API, "putWorkspaceExtension")
@@ -103,7 +110,7 @@ test("remove 3 hours to deadline", async () => {
   await screen.findByText(
     "Workspace shutdown time has been successfully updated.",
   );
-  expect(screen.getByText("Stop in an hour")).toBeInTheDocument();
+  expect(await screen.findByText("Stop in an hour")).toBeInTheDocument();
 
   // Mocks are used here because the 'usedDeadline' is a dayjs object, which
   // can't be directly compared.

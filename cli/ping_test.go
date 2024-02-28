@@ -42,4 +42,32 @@ func TestPing(t *testing.T) {
 		cancel()
 		<-cmdDone
 	})
+
+	t.Run("1Ping", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ping", "-n", "1", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		pty.ExpectMatch("pong from " + workspace.Name)
+		pty.ExpectMatch("✔ received remote agent data from Coder networking coordinator")
+		cancel()
+		<-cmdDone
+	})
 }

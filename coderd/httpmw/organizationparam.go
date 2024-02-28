@@ -2,7 +2,11 @@ package httpmw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -40,19 +44,34 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			orgID, ok := ParseUUIDParam(rw, r, "organization")
-			if !ok {
+			arg := chi.URLParam(r, "organization")
+			if arg == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "\"organization\" must be provided.",
+				})
 				return
 			}
 
-			organization, err := db.GetOrganizationByID(ctx, orgID)
+			var organization database.Organization
+			var err error
+			// Try by name or uuid.
+			id, err := uuid.Parse(arg)
+			if err == nil {
+				organization, err = db.GetOrganizationByID(ctx, id)
+			} else {
+				organization, err = db.GetOrganizationByName(ctx, arg)
+			}
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("Organization %q not found.", arg),
+					Detail:  "Provide either the organization id or name.",
+				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching organization.",
+					Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
 					Detail:  err.Error(),
 				})
 				return

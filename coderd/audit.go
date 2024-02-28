@@ -333,6 +333,22 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
+	case database.ResourceTypeOauth2ProviderApp:
+		_, err := api.Database.GetOAuth2ProviderAppByID(ctx, alog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		} else if err != nil {
+			api.Logger.Error(ctx, "unable to fetch oauth2 app", slog.Error(err))
+		}
+		return false
+	case database.ResourceTypeOauth2ProviderAppSecret:
+		_, err := api.Database.GetOAuth2ProviderAppSecretByID(ctx, alog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		} else if err != nil {
+			api.Logger.Error(ctx, "unable to fetch oauth2 app secret", slog.Error(err))
+		}
+		return false
 	default:
 		return false
 	}
@@ -378,6 +394,16 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			workspaceOwner.Username, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+
+	case database.ResourceTypeOauth2ProviderApp:
+		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", alog.ResourceID)
+
+	case database.ResourceTypeOauth2ProviderAppSecret:
+		secret, err := api.Database.GetOAuth2ProviderAppSecretByID(ctx, alog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", secret.AppID)
 
 	default:
 		return ""

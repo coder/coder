@@ -142,6 +142,64 @@ helm upgrade coder coder-v2/coder \
   -f values.yaml
 ```
 
+## Kubernetes Security Reference
+
+Below are common requirements we see from our enterprise customers when
+deploying an application in Kubernetes. This is intended to serve as a
+reference, and not all security requirements may apply to your business.
+
+1. **All container images must be sourced from an internal container registry.**
+
+   - Control plane - To pull the control plane image from the appropriate
+     registry,
+     [update this Helm chart value](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L43-L50).
+   - Workspaces - To pull the workspace image from your registry,
+     [update the Terraform template code here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L271).
+     This assumes your cluster nodes are authenticated to pull from the internal
+     registry.
+
+2. **All containers must run as non-root user**
+
+   - Control plane - Our control plane pod
+     [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
+   - Workspaces - Workspace pod UID is
+     [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276),
+     and are not required to run as `root`.
+
+3. **Containers cannot run privileged**
+
+   - Coder's control plane does not run as privileged.
+     [We disable](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141)
+     `allowPrivilegeEscalation`
+     [by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141).
+   - Workspace pods do not require any elevated privileges, with the exception
+     of our `envbox` workspace template (used for docker-in-docker workspaces,
+     not required).
+
+4. **Containers cannot mount host filesystems**
+
+   - Both the control plane and workspace containers do not require any host
+     filesystem mounts.
+
+5. **Containers cannot attach to host network**
+
+   - Both the control plane and workspaces use the Kubernetes networking layer
+     by default, and do not require host network access.
+
+6. **All Kubernetes objects must define resource requests/limits**
+
+   - Both the control plane and workspaces set resource request/limits by
+     default.
+
+7. **All Kubernetes objects must define liveness and readiness probes**
+
+   - Control plane - The control plane Deployment has liveness and readiness
+     probes
+     [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
+   - Workspaces - the Kubernetes Deployment template does not configure
+     liveness/readiness probes for the workspace, but this can be added to the
+     Terraform template, and is supported.
+
 ## Load balancing considerations
 
 ### AWS
@@ -191,74 +249,6 @@ was needed. The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
-
-## PostgreSQL Certificates
-
-Your organization may require connecting to the database instance over SSL. To
-supply Coder with the appropriate certificates, and have it connect over SSL,
-follow the steps below:
-
-### Client verification (server verifies the client)
-
-1. Create the certificate as a secret in your Kubernetes cluster, if not already
-   present:
-
-```shell
-kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
-```
-
-1. Define the secret volume and volumeMounts in the Helm chart:
-
-```yaml
-coder:
-  volumes:
-    - name: "pg-certs-mount"
-      secret:
-        secretName: "postgres-certs"
-  volumeMounts:
-    - name: "pg-certs-mount"
-      mountPath: "$HOME/.postgresql"
-      readOnly: true
-```
-
-1. Lastly, your PG connection URL will look like:
-
-```shell
-postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert="$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
-```
-
-### Server verification (client verifies the server)
-
-1. Download the CA certificate chain for your database instance, and create it
-   as a secret in your Kubernetes cluster, if not already present:
-
-```shell
-kubectl create secret tls postgres-certs -n coder --key="postgres-root.key" --cert="postgres-root.crt"
-```
-
-1. Define the secret volume and volumeMounts in the Helm chart:
-
-```yaml
-coder:
-  volumes:
-    - name: "pg-certs-mount"
-      secret:
-        secretName: "postgres-certs"
-  volumeMounts:
-    - name: "pg-certs-mount"
-      mountPath: "$HOME/.postgresql/postgres-root.crt"
-      readOnly: true
-```
-
-1. Lastly, your PG connection URL will look like:
-
-```shell
-postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=verify-full&sslrootcert="/home/coder/.postgresql/postgres-root.crt"
-```
-
-> More information on connecting to PostgreSQL databases using certificates can
-> be found
-> [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
 
 ## Troubleshooting
 

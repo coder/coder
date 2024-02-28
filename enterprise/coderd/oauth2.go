@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -108,7 +109,17 @@ func (api *API) oAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps [post]
 func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
 	var req codersdk.PostOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -128,6 +139,7 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = app
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.OAuth2ProviderApp(api.AccessURL, app))
 }
 
@@ -142,8 +154,19 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps/{app} [put]
 func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	aReq.Old = app
+	defer commitAudit()
 	var req codersdk.PutOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -162,6 +185,7 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = app
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApp(api.AccessURL, app))
 }
 
@@ -173,8 +197,19 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /oauth2-provider/apps/{app} [delete]
 func (api *API) deleteOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	aReq.Old = app
+	defer commitAudit()
 	err := api.Database.DeleteOAuth2ProviderAppByID(ctx, app.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -225,8 +260,18 @@ func (api *API) oAuth2ProviderAppSecrets(rw http.ResponseWriter, r *http.Request
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
 // @Router /oauth2-provider/apps/{app}/secrets [post]
 func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
 	secret, err := identityprovider.GenerateSecret()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -253,7 +298,8 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppSecretFull{
+	aReq.New = dbSecret
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuth2ProviderAppSecretFull{
 		ID:               dbSecret.ID,
 		ClientSecretFull: secret.Formatted,
 	})
@@ -268,8 +314,19 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 // @Success 204
 // @Router /oauth2-provider/apps/{app}/secrets/{secretID} [delete]
 func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	secret := httpmw.OAuth2ProviderAppSecret(r)
+	var (
+		ctx               = r.Context()
+		secret            = httpmw.OAuth2ProviderAppSecret(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	aReq.Old = secret
+	defer commitAudit()
 	err := api.Database.DeleteOAuth2ProviderAppSecretByID(ctx, secret.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

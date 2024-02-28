@@ -779,7 +779,6 @@ Serve prometheus metrics on the address defined by prometheus address.
 | ----------- | ------------------------------------------ |
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
-| YAML        | <code>provisioning.daemonPSK</code>        |
 
 Pre-shared key to authenticate external provisioner daemons to Coder server.
 

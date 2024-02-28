@@ -69,7 +69,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				}
 			}
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}

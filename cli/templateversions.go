@@ -93,7 +93,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

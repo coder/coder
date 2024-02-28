@@ -645,6 +645,30 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
+// PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted
+// tunnel to a peer via a Conn
+type PeerDiagnostics struct {
+	// PreferredDERP is 0 if we are not connected to a DERP region. If non-zero, we are connected to
+	// the given region as our home or "preferred" DERP.
+	PreferredDERP   int
+	DERPRegionNames map[int]string
+	// SentNode is true if we have successfully transmitted our local Node via the most recently set
+	// NodeCallback.
+	SentNode bool
+	// ReceivedNode is the last Node we received for the peer, or nil if we haven't received the node.
+	ReceivedNode *tailcfg.Node
+	// LastWireguardHandshake is the last time we completed a wireguard handshake
+	LastWireguardHandshake time.Time
+	// TODO: surface Discovery (disco) protocol problems
+}
+
+func (c *Conn) GetPeerDiagnostics(peerID uuid.UUID) PeerDiagnostics {
+	d := PeerDiagnostics{DERPRegionNames: make(map[int]string)}
+	c.nodeUpdater.fillPeerDiagnostics(&d)
+	c.configMaps.fillPeerDiagnostics(&d, peerID)
+	return d
+}
+
 type listenKey struct {
 	network string
 	host    string

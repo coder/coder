@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,12 +16,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -475,4 +478,192 @@ func TestAgent(t *testing.T) {
 		}
 		require.NoError(t, cmd.Invoke().Run())
 	})
+}
+
+func TestPeerDiagnostics(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name  string
+		diags tailnet.PeerDiagnostics
+		want  []*regexp.Regexp // must be ordered, can omit lines
+	}{
+		{
+			name: "noPreferredDERP",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        make(map[int]string),
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Now(),
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile("^✘ not connected to DERP$"),
+			},
+		},
+		{
+			name: "preferredDERP",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP: 23,
+				DERPRegionNames: map[int]string{
+					23: "testo",
+				},
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Now(),
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ preferred DERP region: 23 \(testo\)$`),
+			},
+		},
+		{
+			name: "sentNode",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ sent local data to Coder networking coodinator$`),
+			},
+		},
+		{
+			name: "didntSendNode",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               false,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✘ have not sent local data to Coder networking coordinator$`),
+			},
+		},
+		{
+			name: "receivedNodeDERPOKNoEndpoints",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{999: "Embedded"},
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ received remote agent data from Coder networking coordinator$`),
+				regexp.MustCompile(`preferred DERP region: 999 \(Embedded\)$`),
+				regexp.MustCompile(`endpoints: $`),
+			},
+		},
+		{
+			name: "receivedNodeDERPUnknownNoEndpoints",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{DERP: "127.3.3.40:999"},
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ received remote agent data from Coder networking coordinator$`),
+				regexp.MustCompile(`preferred DERP region: 999 \(unknown\)$`),
+				regexp.MustCompile(`endpoints: $`),
+			},
+		},
+		{
+			name: "receivedNodeEndpointsNoDERP",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{999: "Embedded"},
+				SentNode:               true,
+				ReceivedNode:           &tailcfg.Node{Endpoints: []string{"99.88.77.66:4555", "33.22.11.0:3444"}},
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ received remote agent data from Coder networking coordinator$`),
+				regexp.MustCompile(`preferred DERP region:\s*$`),
+				regexp.MustCompile(`endpoints: 99\.88\.77\.66:4555, 33\.22\.11\.0:3444$`),
+			},
+		},
+		{
+			name: "didntReceiveNode",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               false,
+				ReceivedNode:           nil,
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✘ have not received remote agent data from Coder networking coordinator$`),
+			},
+		},
+		{
+			name: "noWireguardHandshake",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               false,
+				ReceivedNode:           nil,
+				LastWireguardHandshake: time.Time{},
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✘ Wireguard is not connected$`),
+			},
+		},
+		{
+			name: "wireguardHandshakeRecent",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               false,
+				ReceivedNode:           nil,
+				LastWireguardHandshake: time.Now().Add(-5 * time.Second),
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^✔ Wireguard handshake \d+s ago$`),
+			},
+		},
+		{
+			name: "wireguardHandshakeOld",
+			diags: tailnet.PeerDiagnostics{
+				PreferredDERP:          0,
+				DERPRegionNames:        map[int]string{},
+				SentNode:               false,
+				ReceivedNode:           nil,
+				LastWireguardHandshake: time.Now().Add(-450 * time.Second), // 7m30s
+			},
+			want: []*regexp.Regexp{
+				regexp.MustCompile(`^⚠ Wireguard handshake 7m\d+s ago$`),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, w := io.Pipe()
+			go func() {
+				defer w.Close()
+				cliui.PeerDiagnostics(w, tc.diags)
+			}()
+			s := bufio.NewScanner(r)
+			i := 0
+			got := make([]string, 0)
+			for s.Scan() {
+				got = append(got, s.Text())
+				if i < len(tc.want) {
+					reg := tc.want[i]
+					if reg.Match(s.Bytes()) {
+						i++
+					}
+				}
+			}
+			if i < len(tc.want) {
+				t.Logf("failed to match regexp: %s\ngot:\n%s", tc.want[i].String(), strings.Join(got, "\n"))
+				t.FailNow()
+			}
+		})
+	}
 }

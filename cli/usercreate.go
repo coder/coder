@@ -31,7 +31,7 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}
