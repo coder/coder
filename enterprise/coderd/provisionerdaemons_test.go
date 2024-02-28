@@ -480,7 +480,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
@@ -514,7 +514,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
@@ -548,7 +548,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
