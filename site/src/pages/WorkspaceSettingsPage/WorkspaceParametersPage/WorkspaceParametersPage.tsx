@@ -1,5 +1,8 @@
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import Button from "@mui/material/Button";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { Helmet } from "react-helmet-async";
+import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { pageTitle } from "utils/page";
 import {
   WorkspacePermissions,
@@ -11,7 +14,7 @@ import { templateByName } from "api/queries/templates";
 import { useMutation, useQuery } from "react-query";
 import { Loader } from "components/Loader/Loader";
 import {
-  WorkspaceParametersFormValues,
+  type WorkspaceParametersFormValues,
   WorkspaceParametersForm,
 } from "./WorkspaceParametersForm";
 import { useNavigate } from "react-router-dom";
@@ -19,12 +22,8 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { type FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import Button from "@mui/material/Button";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { docs } from "utils/docs";
-import { AutofillBuildParameter } from "utils/richParameters";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();

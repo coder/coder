@@ -104,7 +104,11 @@ export const Parameters: Story = {
         value: "Cool suggestion",
         source: "user_history",
       },
-      { name: "third_parameter", value: "aaaa", source: "url" },
+      {
+        name: "third_parameter",
+        value: "aaaa",
+        source: "url",
+      },
     ],
   },
 };
