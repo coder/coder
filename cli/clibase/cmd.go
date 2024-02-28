@@ -566,7 +566,7 @@ func ShowUsageOnError(next HandlerFunc) HandlerFunc {
 	return func(i *Invocation) error {
 		err := next(i)
 		if err != nil {
-			return fmt.Errorf("Usage: %s\nError: %w", i.Command.FullUsage(), err)
+			return xerrors.Errorf("Usage: %s\nError: %w", i.Command.FullUsage(), err)
 		}
 		return nil
 	}
