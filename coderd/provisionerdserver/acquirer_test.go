@@ -726,9 +726,3 @@ func (a *testAcquiree) requireCanceled(ctx context.Context) {
 		a.t.Fatal("timed out waiting for AcquireJob")
 	}
 }
-
-func jsonify(t *testing.T, m map[string]string) string {
-	bs, err := json.Marshal(m)
-	require.NoError(t, err)
-	return string(bs)
-}
