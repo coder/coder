@@ -14,7 +14,7 @@ export type AutofillBuildParameter = {
 
 export const getInitialRichParameterValues = (
   templateParams: TemplateVersionParameter[],
-  autofillParams: AutofillBuildParameter[],
+  autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
   return templateParams.map((parameter) => {
     // Short-circuit for ephemeral parameters, which are always reset to
@@ -33,7 +33,9 @@ export const getInitialRichParameterValues = (
     return {
       name: parameter.name,
       value:
-        autofillParam && isValidValue(parameter, autofillParam)
+        autofillParam &&
+        isValidValue(parameter, autofillParam) &&
+        autofillParam.source !== "user_history"
           ? autofillParam.value
           : parameter.default_value,
     };

@@ -106,7 +106,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       initialValues: {
         name: defaultName ?? "",
         template_id: template.id,
-        rich_parameter_values: getInitialRichParameterValues(parameters),
+        rich_parameter_values: getInitialRichParameterValues(
+          parameters,
+          autofillParameters,
+        ),
       },
       validationSchema: Yup.object({
         name: nameValidator("Workspace Name"),
