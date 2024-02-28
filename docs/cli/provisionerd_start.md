@@ -98,6 +98,16 @@ Deprecated and ignored.
 
 The bind address to serve prometheus metrics.
 
+### --prometheus-enable
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
+| Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
+| Default     | <code>false</code>                    |
+
+Serve prometheus metrics on the address defined by prometheus address.
+
 ### --psk
 
 |             |                                            |

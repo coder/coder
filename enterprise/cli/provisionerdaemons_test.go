@@ -170,15 +170,6 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Run("PrometheusEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		// Helper function to find a free random port
-		randomPort := func(t *testing.T) int {
-			random, err := net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_ = random.Close()
-			tcpAddr, valid := random.Addr().(*net.TCPAddr)
-			require.True(t, valid)
-			return tcpAddr.Port
-		}
 		prometheusPort := randomPort(t)
 
 		// Configure CLI client
@@ -191,7 +182,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 			},
 		})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-		inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
+		inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-enable", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
 		clitest.SetupConfig(t, anotherClient, conf)
 		pty := ptytest.New(t).Attach(inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
@@ -250,4 +241,14 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		require.True(t, hasGoStats, "Go stats are missing")
 		require.True(t, hasPromHTTP, "Prometheus HTTP metrics are missing")
 	})
+}
+
+// randomPort is a helper function to find a free random port, for instance to spawn Prometheus endpoint.
+func randomPort(t *testing.T) int {
+	random, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	_ = random.Close()
+	tcpAddr, valid := random.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	return tcpAddr.Port
 }

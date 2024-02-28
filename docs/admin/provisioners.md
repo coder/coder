@@ -229,3 +229,17 @@ This can be disabled with a server-wide
 ```shell
 coder server --provisioner-daemons=0
 ```
+
+## Prometheus metrics
+
+Coder provisioner daemon exports metrics via the HTTP endpoint, which can be
+enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the
+flag `--prometheus-enable`.
+
+The Prometheus endpoint address is `http://localhost:2112/` by default. You can
+use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
+`--prometheus-address <network-interface>:<port>` to select a different listen
+address.
+
+If you have provisioners daemons deployed as pods, it is advised to monitor them
+separately.

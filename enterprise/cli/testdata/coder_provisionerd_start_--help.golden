@@ -35,6 +35,9 @@ OPTIONS:
       --prometheus-address string, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
+      --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE (default: false)
+          Serve prometheus metrics on the address defined by prometheus address.
+
       --psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate with Coder server.
 

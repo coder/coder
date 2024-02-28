@@ -141,6 +141,10 @@ func extractTar(t *testing.T, data []byte, directory string) {
 // Start runs the command in a goroutine and cleans it up when the test
 // completed.
 func Start(t *testing.T, inv *clibase.Invocation) {
+	StartWithAssert(t, inv, nil)
+}
+
+func StartWithAssert(t *testing.T, inv *clibase.Invocation, assertCallback func(t *testing.T, err error)) { //nolint:revive
 	t.Helper()
 
 	closeCh := make(chan struct{})
@@ -155,6 +159,12 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	go func() {
 		defer close(closeCh)
 		err := waiter.Wait()
+
+		if assertCallback != nil {
+			assertCallback(t, err)
+			return
+		}
+
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
