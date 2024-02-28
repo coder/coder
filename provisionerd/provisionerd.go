@@ -474,15 +474,18 @@ func (p *Server) isClosed() bool {
 	}
 }
 
-// Shutdown triggers a graceful exit of each registered provisioner.
-func (p *Server) Shutdown(ctx context.Context) error {
+// Shutdown gracefully exists with the option to cancel the active job.
+// If false, it will wait for the job to complete.
+//
+//nolint:revive
+func (p *Server) Shutdown(ctx context.Context, cancelActiveJob bool) error {
 	p.mutex.Lock()
 	p.opts.Logger.Info(ctx, "attempting graceful shutdown")
 	if !p.shuttingDownB {
 		close(p.shuttingDownCh)
 		p.shuttingDownB = true
 	}
-	if p.activeJob != nil {
+	if cancelActiveJob && p.activeJob != nil {
 		p.activeJob.Cancel()
 	}
 	p.mutex.Unlock()

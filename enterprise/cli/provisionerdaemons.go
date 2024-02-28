@@ -225,7 +225,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			err = srv.Shutdown(ctx)
+			err = srv.Shutdown(ctx, false)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
 			}
