@@ -95,8 +95,10 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://foobar:3001",
+		"--http-address", fmt.Sprintf("127.0.0.1:%d", randomPort(t)),
 		"--prometheus-enable",
-		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
+		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort),
+	)
 	pty := ptytest.New(t).Attach(inv)
 
 	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
