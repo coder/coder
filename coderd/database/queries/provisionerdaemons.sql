@@ -24,6 +24,7 @@ INSERT INTO
 		tags,
 		last_seen_at,
 		"version",
+		organization_id,
 		api_version
 	)
 VALUES (
@@ -34,6 +35,7 @@ VALUES (
 	@tags,
 	@last_seen_at,
 	@version,
+	@organization_id,
 	@api_version
 ) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = @provisioners,

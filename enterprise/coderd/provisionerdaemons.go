@@ -134,6 +134,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 // @Router /organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
 
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
@@ -246,13 +247,14 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
-		Name:         name,
-		Provisioners: provisioners,
-		Tags:         tags,
-		CreatedAt:    now,
-		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
-		Version:      versionHdrVal,
-		APIVersion:   apiVersion,
+		Name:           name,
+		Provisioners:   provisioners,
+		Tags:           tags,
+		CreatedAt:      now,
+		LastSeenAt:     sql.NullTime{Time: now, Valid: true},
+		Version:        versionHdrVal,
+		APIVersion:     apiVersion,
+		OrganizationID: organization.ID,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
