@@ -191,7 +191,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 			},
 		})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-		inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
+		inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-enable", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
 		clitest.SetupConfig(t, anotherClient, conf)
 		pty := ptytest.New(t).Attach(inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
