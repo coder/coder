@@ -350,6 +350,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("PSK_daily_cost", func(t *testing.T) {
 		t.Parallel()
+		const provPSK = `provisionersftw`
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			UserWorkspaceQuota: 10,
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -358,7 +359,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					codersdk.FeatureTemplateRBAC:               1,
 				},
 			},
-			ProvisionerDaemonPSK: "provisionersftw",
+			ProvisionerDaemonPSK: provPSK,
 		})
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -397,10 +398,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				Tags: map[string]string{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				},
-				PreSharedKey: "provisionersftw",
+				PreSharedKey: provPSK,
 			})
 		}, &provisionerd.Options{
-			Logger:    logger.Named("provisionerd"),
+			Logger:    logger.Named(provPSK),
 			Connector: connector,
 		})
 		defer pd.Close()

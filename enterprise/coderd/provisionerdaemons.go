@@ -117,6 +117,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
 	if provAuth {
 		// If using PSK auth, the daemon is, by definition, scoped to the organization.
+		tags = provisionersdk.MutateTags(uuid.Nil, tags)
 		return tags, true
 	}
 	return nil, false
