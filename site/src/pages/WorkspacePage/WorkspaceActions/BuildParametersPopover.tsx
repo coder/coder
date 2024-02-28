@@ -166,10 +166,7 @@ const Form: FC<FormProps> = ({
 }) => {
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: getInitialRichParameterValues(
-        ephemeralParameters,
-        buildParameters,
-      ),
+      rich_parameter_values: getInitialRichParameterValues(ephemeralParameters),
     },
     onSubmit: (values) => {
       onSubmit(values.rich_parameter_values);

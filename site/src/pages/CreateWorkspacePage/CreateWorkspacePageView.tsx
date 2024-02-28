@@ -107,10 +107,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       initialValues: {
         name: defaultName ?? "",
         template_id: template.id,
-        rich_parameter_values: getInitialRichParameterValues(
-          parameters,
-          autofillParameters,
-        ),
+        rich_parameter_values: getInitialRichParameterValues(parameters),
       },
       validationSchema: Yup.object({
         name: nameValidator("Workspace Name"),
@@ -137,15 +134,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     error,
   );
 
-  const autofillSources = useMemo(() => {
-    return autofillParameters.reduce(
-      (acc, param) => {
-        acc[param.name] = param.source;
-        return acc;
-      },
-      {} as Record<string, AutofillSource>,
-    );
-  }, [autofillParameters]);
+  const autofillByName = useMemo(
+    () =>
+      Object.fromEntries(
+        autofillParameters.map((param) => [param.name, param]),
+      ),
+    [autofillParameters],
+  );
 
   const hasAllRequiredExternalAuth = externalAuth.every(
     (auth) => auth.optional || auth.authenticated,
@@ -301,9 +296,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                         value,
                       });
                     }}
-                    autofillSource={autofillSources[parameter.name]}
                     key={parameter.name}
                     parameter={parameter}
+                    parameterAutofill={autofillByName[parameter.name]}
                     disabled={isDisabled}
                   />
                 );
@@ -330,6 +325,7 @@ const styles = {
     lineHeight: "inherit",
     fontSize: "inherit",
     height: "unset",
+    minWidth: "unset",
   }),
   hasDescription: {
     paddingBottom: 16,
