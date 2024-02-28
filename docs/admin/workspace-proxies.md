@@ -184,3 +184,14 @@ goes offline, the session will fall back to the primary proxy. This could take
 up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
+
+## Step 3: Observability
+
+Coder workspace proxy exports metrics via the HTTP endpoint, which can be
+enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the
+flag `--prometheus-enable`.
+
+The Prometheus endpoint address is `http://localhost:2112/` by default. You can
+use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
+`--prometheus-address <network-interface>:<port>` to select a different listen
+address.
