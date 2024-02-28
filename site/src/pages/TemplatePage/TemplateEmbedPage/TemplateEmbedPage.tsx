@@ -47,19 +47,26 @@ interface TemplateEmbedPageViewProps {
   templateParameters?: TemplateVersionParameter[];
 }
 
+function getClipboardCopyContent(
+  templateName: string,
+  buttonValues: ButtonValues | undefined,
+): string {
+  const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+  const createWorkspaceUrl = `${deploymentUrl}/templates/${templateName}/workspace`;
+  const createWorkspaceParams = new URLSearchParams(buttonValues);
+  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
+
+  return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
+}
+
 export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   template,
   templateParameters,
 }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
-    undefined,
-  );
-  const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
-  const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`;
-  const createWorkspaceParams = new URLSearchParams(buttonValues);
-  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
-  const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
-  const clipboard = useClipboard(buttonMkdCode);
+  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
+  const clipboard = useClipboard({
+    textToCopy: getClipboardCopyContent(template.name, buttonValues),
+  });
 
   // template parameters is async so we need to initialize the values after it
   // is loaded
@@ -173,11 +180,15 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
               <Button
                 css={{ borderRadius: 999 }}
                 startIcon={
-                  clipboard.isCopied ? <CheckOutlined /> : <FileCopyOutlined />
+                  clipboard.showCopiedSuccess ? (
+                    <CheckOutlined />
+                  ) : (
+                    <FileCopyOutlined />
+                  )
                 }
                 variant="contained"
                 onClick={clipboard.copyToClipboard}
-                disabled={clipboard.isCopied}
+                disabled={clipboard.showCopiedSuccess}
               >
                 Copy button code
               </Button>

@@ -23,7 +23,11 @@ export const CodeExample: FC<CodeExampleProps> = ({
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const triggerButton = (event: KeyboardEvent | MouseEvent) => {
-    if (event.target !== buttonRef.current) {
+    const clickTriggeredOutsideButton =
+      event.target instanceof HTMLElement &&
+      !buttonRef.current?.contains(event.target);
+
+    if (clickTriggeredOutsideButton) {
       buttonRef.current?.click();
     }
   };

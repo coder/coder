@@ -24,37 +24,37 @@ const variantFromMsgType = (type: MsgType) => {
 };
 
 export const GlobalSnackbar: FC = () => {
-  const [open, setOpen] = useState<boolean>(false);
-  const [notification, setNotification] = useState<NotificationMsg>();
-
+  const [notificationMsg, setNotificationMsg] = useState<NotificationMsg>();
   useCustomEvent<NotificationMsg>(SnackbarEventType, (event) => {
-    setNotification(event.detail);
-    setOpen(true);
+    setNotificationMsg(event.detail);
   });
 
-  if (!notification) {
+  const hasNotification = notificationMsg !== undefined;
+  if (!hasNotification) {
     return null;
   }
 
   return (
     <EnterpriseSnackbar
-      key={notification.msg}
-      open={open}
-      variant={variantFromMsgType(notification.msgType)}
-      onClose={() => setOpen(false)}
-      autoHideDuration={notification.msgType === MsgType.Error ? 22000 : 6000}
+      key={notificationMsg.msg}
+      open={hasNotification}
+      variant={variantFromMsgType(notificationMsg.msgType)}
+      onClose={() => setNotificationMsg(undefined)}
+      autoHideDuration={
+        notificationMsg.msgType === MsgType.Error ? 22000 : 6000
+      }
       anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       message={
         <div css={{ display: "flex" }}>
-          {notification.msgType === MsgType.Error && (
+          {notificationMsg.msgType === MsgType.Error && (
             <ErrorIcon css={styles.errorIcon} />
           )}
 
           <div css={{ maxWidth: 670 }}>
-            <span css={styles.messageTitle}>{notification.msg}</span>
+            <span css={styles.messageTitle}>{notificationMsg.msg}</span>
 
-            {notification.additionalMsgs &&
-              notification.additionalMsgs.map((msg, index) => (
+            {notificationMsg.additionalMsgs &&
+              notificationMsg.additionalMsgs.map((msg, index) => (
                 <AdditionalMessageDisplay key={index} message={msg} />
               ))}
           </div>
