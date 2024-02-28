@@ -57,7 +57,7 @@ export const DERPRegionPage: FC = () => {
                 color: theme.palette.text.primary,
               },
               marginBottom: 8,
-              lineHeight: "120%",
+              lineHeight: "1.2",
             }}
             to="/health/derp"
           >
@@ -202,7 +202,7 @@ const reportStyles = {
     gap: 8,
     color: theme.palette.text.secondary,
     fontSize: 12,
-    lineHeight: "120%",
+    lineHeight: "1.2",
     marginTop: 8,
   }),
   divider: (theme) => ({
