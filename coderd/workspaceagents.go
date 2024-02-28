@@ -1601,6 +1601,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 	result := make([]codersdk.WorkspaceAgentMetadata, len(db))
 	for i, datum := range db {
 		result[i] = codersdk.WorkspaceAgentMetadata{
+			Order: datum.DisplayOrder,
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,

@@ -32,6 +32,7 @@ const Example: Story = {
   args: {
     metadata: [
       {
+        order: 6,
         result: {
           ...resultDefaults,
           value: "110%",
@@ -43,6 +44,7 @@ const Example: Story = {
         },
       },
       {
+        order: 5,
         result: {
           ...resultDefaults,
           value: "50GB",
@@ -54,6 +56,7 @@ const Example: Story = {
         },
       },
       {
+        order: 4,
         result: {
           ...resultDefaults,
           value: "stale value",
@@ -67,6 +70,7 @@ const Example: Story = {
         },
       },
       {
+        order: 3,
         result: {
           ...resultDefaults,
           value: "oops",
@@ -79,6 +83,7 @@ const Example: Story = {
         },
       },
       {
+        order: 2,
         result: {
           ...resultDefaults,
           value: "",
@@ -92,6 +97,7 @@ const Example: Story = {
         },
       },
       {
+        order: 1,
         result: {
           ...resultDefaults,
           value: "r".repeat(1000),

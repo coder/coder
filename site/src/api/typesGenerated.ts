@@ -1737,6 +1737,7 @@ export interface WorkspaceAgentLogSource {
 export interface WorkspaceAgentMetadata {
   readonly result: WorkspaceAgentMetadataResult;
   readonly description: WorkspaceAgentMetadataDescription;
+  readonly order: number;
 }
 
 // From codersdk/workspaceagents.go

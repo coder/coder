@@ -134,6 +134,7 @@ type WorkspaceAgentMetadataDescription struct {
 type WorkspaceAgentMetadata struct {
 	Result      WorkspaceAgentMetadataResult      `json:"result"`
 	Description WorkspaceAgentMetadataDescription `json:"description"`
+	Order       int32                             `json:"order"`
 }
 
 type DisplayApp string

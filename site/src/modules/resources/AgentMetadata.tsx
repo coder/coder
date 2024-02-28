@@ -34,9 +34,11 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   }
   return (
     <section css={styles.root}>
-      {metadata.map((m) => (
-        <MetadataItem key={m.description.key} item={m} />
-      ))}
+      {[...metadata]
+        .sort((a, b) => a.order - b.order)
+        .map((m) => (
+          <MetadataItem key={m.description.key} item={m} />
+        ))}
     </section>
   );
 };
