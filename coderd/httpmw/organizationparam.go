@@ -62,8 +62,9 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			// arg == uuid.Nil.String() should be a temporary workaround for
 			// legacy provisioners that don't provide an organization ID.
 			// This prevents a breaking change.
-			// TODO: This change was added March 2024, this should be removed
-			//		some number of months after that date.
+			// TODO: This change was added March 2024. Nil uuid returning the
+			// 		default org should be removed some number of months after
+			//		that date.
 			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
 				organization, dbErr = db.GetDefaultOrganization(ctx)
 			} else {
