@@ -1874,6 +1874,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(u.ID).Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 	s.Run("GetDERPMeshKey", s.Subtest(func(db database.Store, check *expects) {
+		db.InsertDERPMeshKey(context.Background(), "testing")
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
 	s.Run("InsertDERPMeshKey", s.Subtest(func(db database.Store, check *expects) {

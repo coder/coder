@@ -15,6 +15,7 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -37,21 +38,41 @@ func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 		}
 
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
-		meshKey, err := options.Database.GetDERPMeshKey(ctx)
-		if err != nil {
+
+		var meshKey string
+		err := options.Database.InTx(func(tx database.Store) error {
+			// This will block until the lock is acquired, and will be
+			// automatically released when the transaction ends.
+			err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
+			if err != nil {
+				return xerrors.Errorf("acquire lock: %w", err)
+			}
+
+			meshKey, err = tx.GetDERPMeshKey(ctx)
+			if err == nil {
+				return nil
+			}
 			if !errors.Is(err, sql.ErrNoRows) {
-				return nil, nil, xerrors.Errorf("get mesh key: %w", err)
+				return xerrors.Errorf("get DERP mesh key: %w", err)
 			}
 			meshKey, err = cryptorand.String(32)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("generate mesh key: %w", err)
+				return xerrors.Errorf("generate DERP mesh key: %w", err)
 			}
-			err = options.Database.InsertDERPMeshKey(ctx, meshKey)
+			err = tx.InsertDERPMeshKey(ctx, meshKey)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("insert mesh key: %w", err)
+				return xerrors.Errorf("insert DERP mesh key: %w", err)
 			}
+			return nil
+		}, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		if meshKey == "" {
+			return nil, nil, xerrors.New("mesh key is empty")
 		}
 		options.DERPServer.SetMeshKey(meshKey)
+
 		options.Auditor = audit.NewAuditor(
 			options.Database,
 			audit.DefaultFilter,

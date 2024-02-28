@@ -1761,6 +1761,9 @@ func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if q.derpMeshKey == "" {
+		return "", sql.ErrNoRows
+	}
 	return q.derpMeshKey, nil
 }
 
