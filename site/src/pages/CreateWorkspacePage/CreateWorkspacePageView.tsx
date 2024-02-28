@@ -20,8 +20,7 @@ import {
 } from "components/Form/Form";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import {
-  AutofillBuildParameter,
-  AutofillSource,
+  type AutofillBuildParameter,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
@@ -39,11 +38,11 @@ import {
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
+import type {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { CreateWSPermissions } from "./permissions";
+import type { CreateWSPermissions } from "./permissions";
 
 export const Language = {
   duplicationWarning:
@@ -137,15 +136,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     error,
   );
 
-  const autofillSources = useMemo(() => {
-    return autofillParameters.reduce(
-      (acc, param) => {
-        acc[param.name] = param.source;
-        return acc;
-      },
-      {} as Record<string, AutofillSource>,
-    );
-  }, [autofillParameters]);
+  const autofillByName = useMemo(
+    () =>
+      Object.fromEntries(
+        autofillParameters.map((param) => [param.name, param]),
+      ),
+    [autofillParameters],
+  );
 
   const hasAllRequiredExternalAuth = externalAuth.every(
     (auth) => auth.optional || auth.authenticated,
@@ -301,9 +298,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                         value,
                       });
                     }}
-                    autofillSource={autofillSources[parameter.name]}
                     key={parameter.name}
                     parameter={parameter}
+                    parameterAutofill={autofillByName[parameter.name]}
                     disabled={isDisabled}
                   />
                 );
@@ -330,6 +327,7 @@ const styles = {
     lineHeight: "inherit",
     fontSize: "inherit",
     height: "unset",
+    minWidth: "unset",
   }),
   hasDescription: {
     paddingBottom: 16,

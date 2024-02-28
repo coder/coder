@@ -101,8 +101,13 @@ export const Parameters: Story = {
     autofillParameters: [
       {
         name: "first_parameter",
-        value: "It works!",
+        value: "Cool suggestion",
         source: "user_history",
+      },
+      {
+        name: "third_parameter",
+        value: "aaaa",
+        source: "url",
       },
     ],
   },
