@@ -2591,7 +2591,17 @@ export const MockHealth: TypesGen.HealthcheckReport = {
                 "derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
               ],
             ],
-            client_errs: [[], []],
+            client_errs: [
+              ["recv derp message: derphttp.Client closed"],
+              [
+                "connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.dev.coder.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "couldn't connect after 5 tries, last error: couldn't connect after 5 tries, last error: derphttp.Client closed",
+              ],
+            ],
             stun: {
               Enabled: false,
               CanSTUN: false,

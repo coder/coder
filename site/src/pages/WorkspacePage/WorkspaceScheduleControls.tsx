@@ -1,9 +1,18 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Link, { LinkProps } from "@mui/material/Link";
-import { forwardRef, type FC, useRef } from "react";
+import Link, { type LinkProps } from "@mui/material/Link";
+import IconButton from "@mui/material/IconButton";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import RemoveIcon from "@mui/icons-material/RemoveOutlined";
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import { visuallyHidden } from "@mui/utils";
+import dayjs, { type Dayjs } from "dayjs";
+import { forwardRef, type FC, useRef, useState, ReactNode } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { useTime } from "hooks/useTime";
 import { isWorkspaceOn } from "utils/workspace";
-import type { Workspace } from "api/typesGenerated";
+import type { Template, Workspace } from "api/typesGenerated";
 import {
   autostartDisplay,
   autostopDisplay,
@@ -12,27 +21,93 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import IconButton from "@mui/material/IconButton";
-import RemoveIcon from "@mui/icons-material/RemoveOutlined";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import Tooltip from "@mui/material/Tooltip";
 import { getErrorMessage } from "api/errors";
 import {
   updateDeadline,
   workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
+import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useMutation, useQueryClient } from "react-query";
-import { Dayjs } from "dayjs";
-import { visuallyHidden } from "@mui/utils";
+import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
+import { Pill } from "components/Pill/Pill";
 
-export interface WorkspaceScheduleControlsProps {
+export interface WorkspaceScheduleContainerProps {
+  children?: ReactNode;
+  onClickIcon?: () => void;
+}
+
+export const WorkspaceScheduleContainer: FC<
+  WorkspaceScheduleContainerProps
+> = ({ children, onClickIcon }) => {
+  const icon = (
+    <TopbarIcon>
+      <ScheduleOutlined aria-label="Schedule" />
+    </TopbarIcon>
+  );
+
+  return (
+    <TopbarData>
+      <Tooltip title="Schedule">
+        {onClickIcon ? (
+          <button
+            data-testid="schedule-icon-button"
+            onClick={onClickIcon}
+            css={styles.scheduleIconButton}
+          >
+            {icon}
+          </button>
+        ) : (
+          icon
+        )}
+      </Tooltip>
+      {children}
+    </TopbarData>
+  );
+};
+
+interface WorkspaceScheduleControlsProps {
   workspace: Workspace;
+  template: Template;
   canUpdateSchedule: boolean;
 }
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
   workspace,
+  template,
+  canUpdateSchedule,
+}) => {
+  if (!shouldDisplayScheduleControls(workspace)) {
+    return null;
+  }
+
+  return (
+    <div css={styles.scheduleValue} data-testid="schedule-controls">
+      {isWorkspaceOn(workspace) ? (
+        <AutostopDisplay
+          workspace={workspace}
+          template={template}
+          canUpdateSchedule={canUpdateSchedule}
+        />
+      ) : (
+        <WorkspaceScheduleContainer>
+          <ScheduleSettingsLink>
+            Starts at {autostartDisplay(workspace.autostart_schedule)}
+          </ScheduleSettingsLink>
+        </WorkspaceScheduleContainer>
+      )}
+    </div>
+  );
+};
+
+interface AutostopDisplayProps {
+  workspace: Workspace;
+  template: Template;
+  canUpdateSchedule: boolean;
+}
+
+const AutostopDisplay: FC<AutostopDisplayProps> = ({
+  workspace,
+  template,
   canUpdateSchedule,
 }) => {
   const queryClient = useQueryClient();
@@ -86,74 +161,103 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
     }, 500);
   };
 
-  return (
-    <div css={styles.scheduleValue} data-testid="schedule-controls">
-      {isWorkspaceOn(workspace) ? (
-        <AutoStopDisplay workspace={workspace} />
-      ) : (
-        <ScheduleSettingsLink>
-          Starts at {autostartDisplay(workspace.autostart_schedule)}
-        </ScheduleSettingsLink>
-      )}
+  const activityStatus = useTime(() => getWorkspaceActivityStatus(workspace));
+  const { message, tooltip, danger } = autostopDisplay(
+    workspace,
+    activityStatus,
+    template,
+  );
 
-      {canUpdateSchedule && canEditDeadline(workspace) && (
-        <div css={styles.scheduleControls}>
-          <Tooltip title="Subtract 1 hour from deadline">
-            <IconButton
-              disabled={!deadlineMinusEnabled}
-              size="small"
-              css={styles.scheduleButton}
-              onClick={() => {
-                handleDeadlineChange(deadline.subtract(1, "h"));
-              }}
-            >
-              <RemoveIcon />
-              <span style={visuallyHidden}>Subtract 1 hour</span>
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Add 1 hour to deadline">
-            <IconButton
-              disabled={!deadlinePlusEnabled}
-              size="small"
-              css={styles.scheduleButton}
-              onClick={() => {
-                handleDeadlineChange(deadline.add(1, "h"));
-              }}
-            >
-              <AddIcon />
-              <span style={visuallyHidden}>Add 1 hour</span>
-            </IconButton>
-          </Tooltip>
-        </div>
-      )}
+  const [showControlsAnyway, setShowControlsAnyway] = useState(false);
+  let onClickScheduleIcon: (() => void) | undefined;
+  let activity: ReactNode = null;
+
+  if (activityStatus === "connected") {
+    onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
+    activity = <Pill type="active">Connected</Pill>;
+
+    const now = dayjs();
+    const noRequiredStopSoon =
+      !workspace.latest_build.max_deadline ||
+      dayjs(workspace.latest_build.max_deadline).isAfter(now.add(2, "hour"));
+
+    // User has shown controls manually, or we should warn about a nearby required stop
+    if (!showControlsAnyway && noRequiredStopSoon) {
+      return (
+        <>
+          {activity}
+          <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />
+        </>
+      );
+    }
+  }
+
+  const display = (
+    <ScheduleSettingsLink
+      data-testid="schedule-controls-autostop"
+      css={
+        danger &&
+        ((theme) => ({
+          color: `${theme.roles.danger.fill.outline} !important`,
+        }))
+      }
+    >
+      {message}
+    </ScheduleSettingsLink>
+  );
+
+  const controls = canUpdateSchedule && canEditDeadline(workspace) && (
+    <div css={styles.scheduleControls}>
+      <Tooltip title="Subtract 1 hour from deadline">
+        <IconButton
+          disabled={!deadlineMinusEnabled}
+          size="small"
+          css={styles.scheduleButton}
+          onClick={() => {
+            handleDeadlineChange(deadline.subtract(1, "h"));
+          }}
+        >
+          <RemoveIcon />
+          <span style={visuallyHidden}>Subtract 1 hour</span>
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Add 1 hour to deadline">
+        <IconButton
+          disabled={!deadlinePlusEnabled}
+          size="small"
+          css={styles.scheduleButton}
+          onClick={() => {
+            handleDeadlineChange(deadline.add(1, "h"));
+          }}
+        >
+          <AddIcon />
+          <span style={visuallyHidden}>Add 1 hour</span>
+        </IconButton>
+      </Tooltip>
     </div>
   );
-};
 
-interface AutoStopDisplayProps {
-  workspace: Workspace;
-}
-
-const AutoStopDisplay: FC<AutoStopDisplayProps> = ({ workspace }) => {
-  const display = autostopDisplay(workspace);
-
-  if (display.tooltip) {
+  if (tooltip) {
     return (
-      <Tooltip title={display.tooltip}>
-        <ScheduleSettingsLink
-          css={(theme) => ({
-            color: isShutdownSoon(workspace)
-              ? `${theme.palette.warning.light} !important`
-              : undefined,
-          })}
-        >
-          Stop {display.message}
-        </ScheduleSettingsLink>
-      </Tooltip>
+      <>
+        {activity}
+        <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+          <Tooltip title={tooltip}>{display}</Tooltip>
+          {controls}
+        </WorkspaceScheduleContainer>
+      </>
     );
   }
 
-  return <ScheduleSettingsLink>{display.message}</ScheduleSettingsLink>;
+  return (
+    <>
+      {activity}
+      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+        {display}
+        {controls}
+      </WorkspaceScheduleContainer>
+    </>
+  );
 };
 
 const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
@@ -195,19 +299,17 @@ export const shouldDisplayScheduleControls = (
   return willAutoStop || willAutoStart;
 };
 
-const isShutdownSoon = (workspace: Workspace): boolean => {
-  const deadline = workspace.latest_build.deadline;
-  if (!deadline) {
-    return false;
-  }
-  const deadlineDate = new Date(deadline);
-  const now = new Date();
-  const diff = deadlineDate.getTime() - now.getTime();
-  const oneHour = 1000 * 60 * 60;
-  return diff < oneHour;
-};
-
 const styles = {
+  scheduleIconButton: {
+    display: "flex",
+    alignItems: "center",
+    background: "transparent",
+    border: 0,
+    padding: 0,
+    fontSize: "inherit",
+    lineHeight: "inherit",
+  },
+
   scheduleValue: {
     display: "flex",
     alignItems: "center",
