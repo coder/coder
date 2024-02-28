@@ -21,18 +21,6 @@ export const getInitialRichParameterValues = (
   }));
 };
 
-const isValidValue = (
-  templateParam: TemplateVersionParameter,
-  buildParam: WorkspaceBuildParameter,
-) => {
-  if (templateParam.options.length > 0) {
-    const validValues = templateParam.options.map((option) => option.value);
-    return validValues.includes(buildParam.value);
-  }
-
-  return true;
-};
-
 export const useValidationSchemaForRichParameters = (
   templateParameters?: TemplateVersionParameter[],
   lastBuildParameters?: WorkspaceBuildParameter[],

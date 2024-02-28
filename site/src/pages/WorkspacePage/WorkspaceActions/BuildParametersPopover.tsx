@@ -159,11 +159,7 @@ interface FormProps {
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
 }
 
-const Form: FC<FormProps> = ({
-  ephemeralParameters,
-  buildParameters,
-  onSubmit,
-}) => {
+const Form: FC<FormProps> = ({ ephemeralParameters, onSubmit }) => {
   const form = useFormik({
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(ephemeralParameters),

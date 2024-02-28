@@ -20,8 +20,7 @@ import {
 } from "components/Form/Form";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import {
-  AutofillBuildParameter,
-  AutofillSource,
+  type AutofillBuildParameter,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
@@ -39,11 +38,11 @@ import {
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import {
+import type {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { CreateWSPermissions } from "./permissions";
+import type { CreateWSPermissions } from "./permissions";
 
 export const Language = {
   duplicationWarning:

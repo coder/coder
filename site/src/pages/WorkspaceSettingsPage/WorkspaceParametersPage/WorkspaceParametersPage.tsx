@@ -1,30 +1,29 @@
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import Button from "@mui/material/Button";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
+import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { pageTitle } from "utils/page";
 import {
   WorkspacePermissions,
   workspaceChecks,
 } from "../../WorkspacePage/permissions";
 import { checkAuthorization } from "api/queries/authCheck";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { templateByName } from "api/queries/templates";
-import { useMutation, useQuery } from "react-query";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { Loader } from "components/Loader/Loader";
 import {
-  WorkspaceParametersFormValues,
+  type WorkspaceParametersFormValues,
   WorkspaceParametersForm,
 } from "./WorkspaceParametersForm";
-import { useNavigate } from "react-router-dom";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { type FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import Button from "@mui/material/Button";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { docs } from "utils/docs";
-import { AutofillBuildParameter } from "utils/richParameters";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
@@ -127,12 +126,6 @@ export const WorkspaceParametersPageView: FC<
           <WorkspaceParametersForm
             workspace={workspace}
             canChangeVersions={canChangeVersions}
-            autofillParams={data.buildParameters.map(
-              (p): AutofillBuildParameter => ({
-                ...p,
-                source: "active_build",
-              }),
-            )}
             templateVersionRichParameters={data.templateVersionRichParameters}
             error={submitError}
             isSubmitting={isSubmitting}
