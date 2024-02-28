@@ -226,6 +226,6 @@ func TestOrganizationParam(t *testing.T) {
 		rtr.ServeHTTP(rw, r)
 		res = rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode, "by default keyword")
+		require.Equal(t, http.StatusOK, res.StatusCode, "by nil uuid (legacy)")
 	})
 }

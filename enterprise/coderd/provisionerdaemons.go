@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -115,13 +114,10 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	}
 
 	// Check for PSK
-	if p.psk != "" {
-		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
-		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
-			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-			return tags, true
-		}
+	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
+	if provAuth {
+		// If using PSK auth, the daemon is, by definition, scoped to the organization.
+		return tags, true
 	}
 	return nil, false
 }
