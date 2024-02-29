@@ -68,7 +68,7 @@ func TestCreate(t *testing.T) {
 
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
-			assert.Equal(t, ws.TemplateName, template.Name)
+			assert.Equal(t, ws.Template.Name, template.Name)
 			if assert.NotNil(t, ws.AutostartSchedule) {
 				assert.Equal(t, *ws.AutostartSchedule, "CRON_TZ=US/Central 30 9 * * Mon-Fri")
 			}
@@ -123,7 +123,7 @@ func TestCreate(t *testing.T) {
 
 		ws, err := client.WorkspaceByOwnerAndName(context.Background(), user.Username, "their-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
-			assert.Equal(t, ws.TemplateName, template.Name)
+			assert.Equal(t, ws.Template.Name, template.Name)
 			if assert.NotNil(t, ws.AutostartSchedule) {
 				assert.Equal(t, *ws.AutostartSchedule, "CRON_TZ=US/Central 30 9 * * Mon-Fri")
 			}
@@ -171,7 +171,7 @@ func TestCreate(t *testing.T) {
 
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
 		require.NoError(t, err, "expected workspace to be created")
-		assert.Equal(t, ws.TemplateName, template.Name)
+		assert.Equal(t, ws.Template.Name, template.Name)
 		assert.Equal(t, *ws.TTLMillis, template.DefaultTTLMillis)
 	})
 
@@ -228,7 +228,7 @@ func TestCreate(t *testing.T) {
 
 		ws, err := member.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
-			assert.Equal(t, ws.TemplateName, template.Name)
+			assert.Equal(t, ws.Template.Name, template.Name)
 			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
 		}
 	})

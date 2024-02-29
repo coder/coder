@@ -200,8 +200,8 @@ func TestSSH(t *testing.T) {
 		// Double-check if workspace's template version is up-to-date
 		workspace, err = client.Workspace(context.Background(), workspace.ID)
 		require.NoError(t, err)
-		assert.Equal(t, version.ID, workspace.TemplateActiveVersionID)
-		assert.Equal(t, workspace.TemplateActiveVersionID, workspace.LatestBuild.TemplateVersionID)
+		assert.Equal(t, version.ID, workspace.Template.ActiveVersionID)
+		assert.Equal(t, workspace.Template.ActiveVersionID, workspace.LatestBuild.TemplateVersionID)
 		assert.False(t, workspace.Outdated)
 	})
 
