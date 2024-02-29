@@ -937,22 +937,13 @@ func TestServer(t *testing.T) {
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
 
-		randomPort := func(t *testing.T) int {
-			random, err := net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			_ = random.Close()
-			tcpAddr, valid := random.Addr().(*net.TCPAddr)
-			require.True(t, valid)
-			return tcpAddr.Port
-		}
-
 		t.Run("DBMetricsDisabled", func(t *testing.T) {
 			t.Parallel()
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 
-			randPort := randomPort(t)
+			randPort := testutil.RandomPort(t)
 			inv, cfg := clitest.New(t,
 				"server",
 				"--in-memory",
@@ -1008,7 +999,7 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 
-			randPort := randomPort(t)
+			randPort := testutil.RandomPort(t)
 			inv, cfg := clitest.New(t,
 				"server",
 				"--in-memory",
