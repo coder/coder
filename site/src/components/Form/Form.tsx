@@ -144,7 +144,7 @@ const styles = {
     flexDirection: "column",
     gap: 24,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("lg")]: {
       flexDirection: "column",
       gap: 16,
     },
