@@ -63,7 +63,7 @@ func Test_Headers(t *testing.T) {
 func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 	t.Parallel()
 
-	prometheusPort := randomPort(t)
+	prometheusPort := testutil.RandomPort(t)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -96,7 +96,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://foobar:3001",
-		"--http-address", fmt.Sprintf("127.0.0.1:%d", randomPort(t)),
+		"--http-address", fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t)),
 		"--prometheus-enable",
 		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort),
 	)

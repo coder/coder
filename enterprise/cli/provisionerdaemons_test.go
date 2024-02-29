@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -170,7 +169,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Run("PrometheusEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		prometheusPort := randomPort(t)
+		prometheusPort := testutil.RandomPort(t)
 
 		// Configure CLI client
 		client, admin := coderdenttest.New(t, &coderdenttest.Options{
@@ -241,14 +240,4 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		require.True(t, hasGoStats, "Go stats are missing")
 		require.True(t, hasPromHTTP, "Prometheus HTTP metrics are missing")
 	})
-}
-
-// randomPort is a helper function to find a free random port, for instance to spawn Prometheus endpoint.
-func randomPort(t *testing.T) int {
-	random, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	_ = random.Close()
-	tcpAddr, valid := random.Addr().(*net.TCPAddr)
-	require.True(t, valid)
-	return tcpAddr.Port
 }

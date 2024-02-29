@@ -22,7 +22,7 @@ func TestServer(t *testing.T) {
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
-	port := randomPort(t)
+	port := testutil.RandomPort(t)
 	inv, _ := clitest.NewWithCommand(t, cmd,
 		"server",
 		"--in-memory",

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -838,7 +837,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	var ll net.Listener
 	var err error
 	for {
-		randomPort = pickRandomPort()
+		randomPort = testutil.RandomPortNoListen(t)
 		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
 		ll, err = sshClient.ListenTCP(addr)
 		if err != nil {
@@ -2664,20 +2663,6 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.Write(p)
-}
-
-// pickRandomPort picks a random port number for the ephemeral range. We do this entirely randomly
-// instead of opening a listener and closing it to find a port that is likely to be free, since
-// sometimes the OS reallocates the port very quickly.
-func pickRandomPort() uint16 {
-	const (
-		// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-		min = 49152
-		max = 60999
-	)
-	n := max - min
-	x := rand.Intn(n) //nolint: gosec
-	return uint16(min + x)
 }
 
 // echoOnce accepts a single connection, reads 4 bytes and echos them back
