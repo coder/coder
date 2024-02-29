@@ -24,26 +24,26 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                                   uuid.UUID      `json:"id" format:"uuid"`
-	CreatedAt                            time.Time      `json:"created_at" format:"date-time"`
-	UpdatedAt                            time.Time      `json:"updated_at" format:"date-time"`
-	OwnerID                              uuid.UUID      `json:"owner_id" format:"uuid"`
-	OwnerName                            string         `json:"owner_name"`
-	OwnerAvatarURL                       string         `json:"owner_avatar_url"`
-	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
-	TemplateID                           uuid.UUID      `json:"template_id" format:"uuid"`
-	TemplateName                         string         `json:"template_name"`
-	TemplateDisplayName                  string         `json:"template_display_name"`
-	TemplateIcon                         string         `json:"template_icon"`
-	TemplateAllowUserCancelWorkspaceJobs bool           `json:"template_allow_user_cancel_workspace_jobs"`
-	TemplateActiveVersionID              uuid.UUID      `json:"template_active_version_id" format:"uuid"`
-	TemplateRequireActiveVersion         bool           `json:"template_require_active_version"`
-	LatestBuild                          WorkspaceBuild `json:"latest_build"`
-	Outdated                             bool           `json:"outdated"`
-	Name                                 string         `json:"name"`
-	AutostartSchedule                    *string        `json:"autostart_schedule,omitempty"`
-	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
-	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
+	ID                uuid.UUID      `json:"id" format:"uuid"`
+	CreatedAt         time.Time      `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time      `json:"updated_at" format:"date-time"`
+	OwnerID           uuid.UUID      `json:"owner_id" format:"uuid"`
+	OwnerName         string         `json:"owner_name"`
+	OwnerAvatarURL    string         `json:"owner_avatar_url"`
+	OrganizationID    uuid.UUID      `json:"organization_id" format:"uuid"`
+	LatestBuild       WorkspaceBuild `json:"latest_build"`
+	Outdated          bool           `json:"outdated"`
+	Name              string         `json:"name"`
+	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
+	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time      `json:"last_used_at" format:"date-time"`
+
+	// TemplateID is the ID of the template that this workspace is based on.
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	// `Template` can only be returned if the caller has read access to the template.
+	// It is possible to have those perms revoked, and the workspace owner can
+	// no longer see the template fields.
+	Template *WorkspaceTemplateInfo `json:"template_info,omitempty"`
 
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
@@ -60,6 +60,16 @@ type Workspace struct {
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
+}
+
+// WorkspaceTemplateInfo is a subset of Template fields for a workspace.
+type WorkspaceTemplateInfo struct {
+	TemplateName                         string    `json:"template_name"`
+	TemplateDisplayName                  string    `json:"template_display_name"`
+	TemplateIcon                         string    `json:"template_icon"`
+	TemplateAllowUserCancelWorkspaceJobs bool      `json:"template_allow_user_cancel_workspace_jobs"`
+	TemplateActiveVersionID              uuid.UUID `json:"template_active_version_id" format:"uuid"`
+	TemplateRequireActiveVersion         bool      `json:"template_require_active_version"`
 }
 
 func (w Workspace) FullName() string {

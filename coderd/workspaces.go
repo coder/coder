@@ -90,8 +90,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(data.templates) == 0 {
-		httpapi.Forbidden(rw)
+	var workspaceTemplate *database.Template
+	if len(data.templates) > 0 {
+		workspaceTemplate = &data.templates[0]
 		return
 	}
 	owner, ok := userByID(workspace.OwnerID, data.users)
@@ -107,7 +108,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		apiKey.UserID,
 		workspace,
 		data.builds[0],
-		data.templates[0],
+		workspaceTemplate,
 		owner.Username,
 		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
@@ -1546,6 +1547,7 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
+		var workspaceTemplate *database.Template
 		// If any data is missing from the workspace, just skip returning
 		// this workspace. This is not ideal, but the user cannot read
 		// all the workspace's data, so do not show them.
@@ -1556,8 +1558,8 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 			continue
 		}
 		template, exists := templateByID[workspace.TemplateID]
-		if !exists {
-			continue
+		if exists {
+			workspaceTemplate = &template
 		}
 		owner, exists := userByID[workspace.OwnerID]
 		if !exists {
@@ -1568,7 +1570,7 @@ func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, d
 			requesterID,
 			workspace,
 			build,
-			template,
+			workspaceTemplate,
 			owner.Username,
 			owner.AvatarURL,
 			data.allowRenames,
@@ -1586,7 +1588,7 @@ func convertWorkspace(
 	requesterID uuid.UUID,
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
-	template database.Template,
+	template *database.Template,
 	username string,
 	avatarURL string,
 	allowRenames bool,
@@ -1618,34 +1620,41 @@ func convertWorkspace(
 		}
 	}
 
+	outdated := false
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	var templateInfo *codersdk.WorkspaceTemplateInfo
+	if template != nil {
+		outdated = workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String()
+		templateInfo = &codersdk.WorkspaceTemplateInfo{
+			TemplateName:                         template.Name,
+			TemplateDisplayName:                  template.DisplayName,
+			TemplateIcon:                         template.Icon,
+			TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			TemplateActiveVersionID:              template.ActiveVersionID,
+			TemplateRequireActiveVersion:         template.RequireActiveVersion,
+		}
+	}
 
 	// Only show favorite status if you own the workspace.
 	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite
 
 	return codersdk.Workspace{
-		ID:                                   workspace.ID,
-		CreatedAt:                            workspace.CreatedAt,
-		UpdatedAt:                            workspace.UpdatedAt,
-		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            username,
-		OwnerAvatarURL:                       avatarURL,
-		OrganizationID:                       workspace.OrganizationID,
-		TemplateID:                           workspace.TemplateID,
-		LatestBuild:                          workspaceBuild,
-		TemplateName:                         template.Name,
-		TemplateIcon:                         template.Icon,
-		TemplateDisplayName:                  template.DisplayName,
-		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-		TemplateActiveVersionID:              template.ActiveVersionID,
-		TemplateRequireActiveVersion:         template.RequireActiveVersion,
-		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:                                 workspace.Name,
-		AutostartSchedule:                    autostartSchedule,
-		TTLMillis:                            ttlMillis,
-		LastUsedAt:                           workspace.LastUsedAt,
-		DeletingAt:                           deletingAt,
-		DormantAt:                            dormantAt,
+		ID:                workspace.ID,
+		CreatedAt:         workspace.CreatedAt,
+		UpdatedAt:         workspace.UpdatedAt,
+		OwnerID:           workspace.OwnerID,
+		OwnerName:         username,
+		OwnerAvatarURL:    avatarURL,
+		OrganizationID:    workspace.OrganizationID,
+		TemplateID:        workspace.TemplateID,
+		LatestBuild:       workspaceBuild,
+		Outdated:          outdated,
+		Name:              workspace.Name,
+		AutostartSchedule: autostartSchedule,
+		TTLMillis:         ttlMillis,
+		LastUsedAt:        workspace.LastUsedAt,
+		DeletingAt:        deletingAt,
+		DormantAt:         dormantAt,
 		Health: codersdk.WorkspaceHealth{
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,
@@ -1653,6 +1662,8 @@ func convertWorkspace(
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
+		// Template might be nil
+		Template: templateInfo,
 	}, nil
 }
 
