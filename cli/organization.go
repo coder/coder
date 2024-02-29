@@ -60,7 +60,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 			conf := r.createConfig()
 			orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 			if err != nil {
-				return fmt.Errorf("failed to get organizations: %w", err)
+				return xerrors.Errorf("failed to get organizations: %w", err)
 			}
 			// Keep the list of orgs sorted
 			slices.SortFunc(orgs, func(a, b codersdk.Organization) int {
@@ -84,7 +84,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 			if switchToOrg == "" {
 				err := conf.Organization().Delete()
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf("failed to unset organization: %w", err)
+					return xerrors.Errorf("failed to unset organization: %w", err)
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "Organization unset\n")
 			} else {
@@ -107,7 +107,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 				// Always write the uuid to the config file. Names can change.
 				err := conf.Organization().Write(orgs[index].ID.String())
 				if err != nil {
-					return fmt.Errorf("failed to write organization to config file: %w", err)
+					return xerrors.Errorf("failed to write organization to config file: %w", err)
 				}
 			}
 
@@ -123,7 +123,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 					}
 					return sdkError
 				}
-				return fmt.Errorf("failed to get current organization: %w", err)
+				return xerrors.Errorf("failed to get current organization: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Current organization context set to %s (%s)\n", current.Name, current.ID.String())
@@ -213,7 +213,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 				typed, ok := data.([]codersdk.Organization)
 				if !ok {
 					// This should never happen
-					return "", fmt.Errorf("expected []Organization, got %T", data)
+					return "", xerrors.Errorf("expected []Organization, got %T", data)
 				}
 				return stringFormat(typed)
 			}),
@@ -250,7 +250,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 			case "current":
 				stringFormat = func(orgs []codersdk.Organization) (string, error) {
 					if len(orgs) != 1 {
-						return "", fmt.Errorf("expected 1 organization, got %d", len(orgs))
+						return "", xerrors.Errorf("expected 1 organization, got %d", len(orgs))
 					}
 					return fmt.Sprintf("Current CLI Organization: %s (%s)\n", orgs[0].Name, orgs[0].ID.String()), nil
 				}
@@ -275,7 +275,7 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 			default:
 				stringFormat = func(orgs []codersdk.Organization) (string, error) {
 					if len(orgs) != 1 {
-						return "", fmt.Errorf("expected 1 organization, got %d", len(orgs))
+						return "", xerrors.Errorf("expected 1 organization, got %d", len(orgs))
 					}
 					return fmt.Sprintf("Organization: %s (%s)\n", orgs[0].Name, orgs[0].ID.String()), nil
 				}
