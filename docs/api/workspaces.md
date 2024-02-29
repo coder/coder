@@ -214,13 +214,15 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-  "template_allow_user_cancel_workspace_jobs": true,
-  "template_display_name": "string",
-  "template_icon": "string",
+  "template": {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_cancel_workspace_jobs": true,
+    "display_name": "string",
+    "equire_active_version": true,
+    "icon": "string",
+    "name": "string"
+  },
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -428,13 +430,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-  "template_allow_user_cancel_workspace_jobs": true,
-  "template_display_name": "string",
-  "template_icon": "string",
+  "template": {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_cancel_workspace_jobs": true,
+    "display_name": "string",
+    "equire_active_version": true,
+    "icon": "string",
+    "name": "string"
+  },
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -641,13 +645,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
-      "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-      "template_allow_user_cancel_workspace_jobs": true,
-      "template_display_name": "string",
-      "template_icon": "string",
+      "template": {
+        "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+        "allow_user_cancel_workspace_jobs": true,
+        "display_name": "string",
+        "equire_active_version": true,
+        "icon": "string",
+        "name": "string"
+      },
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-      "template_name": "string",
-      "template_require_active_version": true,
       "ttl_ms": 0,
       "updated_at": "2019-08-24T14:15:22Z"
     }
@@ -856,13 +862,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-  "template_allow_user_cancel_workspace_jobs": true,
-  "template_display_name": "string",
-  "template_icon": "string",
+  "template": {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_cancel_workspace_jobs": true,
+    "display_name": "string",
+    "equire_active_version": true,
+    "icon": "string",
+    "name": "string"
+  },
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1186,13 +1194,15 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
-  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-  "template_allow_user_cancel_workspace_jobs": true,
-  "template_display_name": "string",
-  "template_icon": "string",
+  "template": {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_cancel_workspace_jobs": true,
+    "display_name": "string",
+    "equire_active_version": true,
+    "icon": "string",
+    "name": "string"
+  },
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_require_active_version": true,
   "ttl_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }

@@ -62,6 +62,22 @@ type Workspace struct {
 	Favorite         bool             `json:"favorite"`
 }
 
+// SafeTemplate returns some sane value if the template is nil.
+// This can happen if the caller cannot read the template.
+func (w Workspace) SafeTemplate() WorkspaceTemplateInfo {
+	if w.Template != nil {
+		return *w.Template
+	}
+	return WorkspaceTemplateInfo{
+		Name:                         "<forbidden>",
+		DisplayName:                  "<forbidden>",
+		Icon:                         "",
+		AllowUserCancelWorkspaceJobs: false,
+		ActiveVersionID:              uuid.Nil,
+		RequireActiveVersion:         false,
+	}
+}
+
 // WorkspaceTemplateInfo is a subset of Template fields for a workspace.
 type WorkspaceTemplateInfo struct {
 	Name                         string    `json:"name"`

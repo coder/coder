@@ -11834,28 +11834,18 @@
         "owner_name": {
           "type": "string"
         },
-        "template_active_version_id": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "template_allow_user_cancel_workspace_jobs": {
-          "type": "boolean"
-        },
-        "template_display_name": {
-          "type": "string"
-        },
-        "template_icon": {
-          "type": "string"
+        "template": {
+          "description": "`Template` can only be returned if the caller has read access to the template.\nIt is possible to have those perms revoked, and the workspace owner can\nno longer see the template fields.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.WorkspaceTemplateInfo"
+            }
+          ]
         },
         "template_id": {
+          "description": "TemplateID is the ID of the template that this workspace is based on.",
           "type": "string",
           "format": "uuid"
-        },
-        "template_name": {
-          "type": "string"
-        },
-        "template_require_active_version": {
-          "type": "boolean"
         },
         "ttl_ms": {
           "type": "integer"
@@ -12700,6 +12690,30 @@
         "WorkspaceStatusDeleting",
         "WorkspaceStatusDeleted"
       ]
+    },
+    "codersdk.WorkspaceTemplateInfo": {
+      "type": "object",
+      "properties": {
+        "active_version_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "allow_user_cancel_workspace_jobs": {
+          "type": "boolean"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "equire_active_version": {
+          "type": "boolean"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
     },
     "codersdk.WorkspaceTransition": {
       "type": "string",

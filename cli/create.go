@@ -89,8 +89,8 @@ func (r *RootCmd) create() *clibase.Cmd {
 					return xerrors.Errorf("get source workspace: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.TemplateName)
-				templateName = sourceWorkspace.TemplateName
+				_, _ = fmt.Fprintf(inv.Stdout, "Coder will use the same template %q as the source workspace.\n", sourceWorkspace.SafeTemplate().Name)
+				templateName = sourceWorkspace.SafeTemplate().Name
 			}
 
 			var template codersdk.Template

@@ -1640,19 +1640,14 @@ export interface Workspace {
   readonly owner_name: string;
   readonly owner_avatar_url: string;
   readonly organization_id: string;
-  readonly template_id: string;
-  readonly template_name: string;
-  readonly template_display_name: string;
-  readonly template_icon: string;
-  readonly template_allow_user_cancel_workspace_jobs: boolean;
-  readonly template_active_version_id: string;
-  readonly template_require_active_version: boolean;
   readonly latest_build: WorkspaceBuild;
   readonly outdated: boolean;
   readonly name: string;
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
   readonly last_used_at: string;
+  readonly template_id: string;
+  readonly template?: WorkspaceTemplateInfo;
   readonly deleting_at?: string;
   readonly dormant_at?: string;
   readonly health: WorkspaceHealth;
@@ -1927,6 +1922,16 @@ export interface WorkspaceResourceMetadata {
   readonly key: string;
   readonly value: string;
   readonly sensitive: boolean;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceTemplateInfo {
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
+  readonly allow_user_cancel_workspace_jobs: boolean;
+  readonly active_version_id: string;
+  readonly equire_active_version: boolean;
 }
 
 // From codersdk/workspaces.go

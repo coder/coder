@@ -80,8 +80,8 @@ func (r *RootCmd) start() *clibase.Cmd {
 func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
-	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
-		version = workspace.TemplateActiveVersionID
+	if (workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate) && workspace.Template != nil {
+		version = workspace.Template.ActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
 			action = WorkspaceUpdate
 		}

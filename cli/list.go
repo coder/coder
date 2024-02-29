@@ -52,11 +52,12 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 		favIco = "★"
 	}
 	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
+
 	return workspaceListRow{
 		Favorite:       workspace.Favorite,
 		Workspace:      workspace,
 		WorkspaceName:  workspaceName,
-		Template:       workspace.TemplateName,
+		Template:       workspace.SafeTemplate().Name,
 		Status:         status,
 		Healthy:        healthy,
 		LastBuilt:      durationDisplay(lastBuilt),
