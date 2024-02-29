@@ -52,7 +52,7 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 		sub := coord.ServeMultiAgent(id)
 		return ServeWorkspaceProxy(ctx, conn, sub)
 	case 2:
-		auth := agpl.SingleTailnetTunnelAuth{}
+		auth := agpl.SingleTailnetCoordinateeAuth{}
 		streamID := agpl.StreamID{
 			Name: id.String(),
 			ID:   id,

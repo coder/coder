@@ -108,11 +108,10 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	c.t.Cleanup(c.LastWorkspaceAgent)
 	serveCtx, cancel := context.WithCancel(ctx)
 	c.t.Cleanup(cancel)
-	auth := tailnet.AgentTunnelAuth{}
 	streamID := tailnet.StreamID{
 		Name: "agenttest",
 		ID:   c.agentID,
-		Auth: auth,
+		Auth: tailnet.AgentCoordinateeAuth{ID: c.agentID},
 	}
 	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {

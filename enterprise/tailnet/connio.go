@@ -31,7 +31,7 @@ type connIO struct {
 	responses    chan<- *proto.CoordinateResponse
 	bindings     chan<- binding
 	tunnels      chan<- tunnel
-	auth         agpl.TunnelAuth
+	auth         agpl.CoordinateeAuth
 	mu           sync.Mutex
 	closed       bool
 	disconnected bool
@@ -51,7 +51,7 @@ func newConnIO(coordContext context.Context,
 	responses chan<- *proto.CoordinateResponse,
 	id uuid.UUID,
 	name string,
-	auth agpl.TunnelAuth,
+	auth agpl.CoordinateeAuth,
 ) *connIO {
 	peerCtx, cancel := context.WithCancel(peerCtx)
 	now := time.Now().Unix()
@@ -135,7 +135,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 				return xerrors.Errorf("parse address: %w", err)
 			}
 
-			if !c.auth.AuthorizeIP(c.id, pre) {
+			if !c.auth.AuthorizeIP(pre) {
 				return xerrors.Errorf("unauthorized address sent %q", pre.String())
 			}
 		}

@@ -29,7 +29,7 @@ type streamIDContextKey struct{}
 type StreamID struct {
 	Name string
 	ID   uuid.UUID
-	Auth TunnelAuth
+	Auth CoordinateeAuth
 }
 
 func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
@@ -91,7 +91,7 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		coord := *(s.CoordPtr.Load())
 		return coord.ServeClient(conn, id, agent)
 	case 2:
-		auth := ClientTunnelAuth{AgentID: agent}
+		auth := ClientCoordinateeAuth{AgentID: agent}
 		streamID := StreamID{
 			Name: "client",
 			ID:   id,
