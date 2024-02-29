@@ -837,7 +837,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	var ll net.Listener
 	var err error
 	for {
-		randomPort = testutil.RandomPortNoListen()
+		randomPort = testutil.RandomPortNoListen(t)
 		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
 		ll, err = sshClient.ListenTCP(addr)
 		if err != nil {
