@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -61,84 +62,141 @@ type Deps struct {
 }
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
-	var d Deployment
+	var (
+		d  Deployment
+		m  sync.Mutex
+		wg sync.WaitGroup
+	)
 
-	bi, err := client.BuildInfo(ctx)
-	if err != nil {
-		log.Error(ctx, "fetch build info", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		bi, err := client.BuildInfo(ctx)
+		if err != nil {
+			log.Error(ctx, "fetch build info", slog.Error(err))
+			return
+		}
+		m.Lock()
 		d.BuildInfo = &bi
-	}
+		m.Unlock()
+	}()
 
-	dc, err := client.DeploymentConfig(ctx)
-	if err != nil {
-		log.Error(ctx, "fetch deployment config", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		dc, err := client.DeploymentConfig(ctx)
+		if err != nil {
+			log.Error(ctx, "fetch deployment config", slog.Error(err))
+			return
+		}
+		m.Lock()
 		d.Config = dc
-	}
+		m.Unlock()
+	}()
 
-	hr, err := client.DebugHealth(ctx)
-	if err != nil {
-		log.Error(ctx, "fetch health report", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		hr, err := client.DebugHealth(ctx)
+		if err != nil {
+			log.Error(ctx, "fetch health report", slog.Error(err))
+			return
+		}
+		m.Lock()
 		d.HealthReport = &hr
-	}
+		m.Unlock()
+	}()
 
-	exp, err := client.Experiments(ctx)
-	if err != nil {
-		log.Error(ctx, "fetch experiments", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		exp, err := client.Experiments(ctx)
+		if err != nil {
+			log.Error(ctx, "fetch experiments", slog.Error(err))
+			return
+		}
+		m.Lock()
 		d.Experiments = exp
-	}
+		m.Unlock()
+	}()
 
+	wg.Wait()
 	return d
 }
 
 func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Network {
-	var n Network
+	var (
+		n  Network
+		m  sync.Mutex
+		wg sync.WaitGroup
+	)
 
-	coordResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/coordinator", nil)
-	if err != nil {
-		log.Error(ctx, "fetch coordinator debug page", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		coordResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/coordinator", nil)
+		if err != nil {
+			log.Error(ctx, "fetch coordinator debug page", slog.Error(err))
+			return
+		}
 		defer coordResp.Body.Close()
 		bs, err := io.ReadAll(coordResp.Body)
 		if err != nil {
 			log.Error(ctx, "read coordinator debug page", slog.Error(err))
-		} else {
-			n.CoordinatorDebug = string(bs)
+			return
 		}
-	}
+		m.Lock()
+		n.CoordinatorDebug = string(bs)
+		m.Unlock()
+	}()
 
-	tailResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/tailnet", nil)
-	if err != nil {
-		log.Error(ctx, "fetch tailnet debug page", slog.Error(err))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tailResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/tailnet", nil)
+		if err != nil {
+			log.Error(ctx, "fetch tailnet debug page", slog.Error(err))
+			return
+		}
 		defer tailResp.Body.Close()
 		bs, err := io.ReadAll(tailResp.Body)
 		if err != nil {
 			log.Error(ctx, "read tailnet debug page", slog.Error(err))
-		} else {
-			n.TailnetDebug = string(bs)
+			return
 		}
-	}
+		m.Lock()
+		n.TailnetDebug = string(bs)
+		m.Unlock()
+	}()
 
-	if agentID != uuid.Nil {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if agentID == uuid.Nil {
+			log.Warn(ctx, "agent id required for agent connection info")
+			return
+		}
 		connInfo, err := client.WorkspaceAgentConnectionInfo(ctx, agentID)
 		if err != nil {
 			log.Error(ctx, "fetch agent conn info", slog.Error(err), slog.F("agent_id", agentID.String()))
-		} else {
-			n.NetcheckLocal = &connInfo
+			return
 		}
-	} else {
-		log.Warn(ctx, "agent id required for agent connection info")
-	}
+		m.Lock()
+		n.NetcheckLocal = &connInfo
+		m.Unlock()
+	}()
+
+	wg.Wait()
 
 	return n
 }
 
 func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID, agentID uuid.UUID) Workspace {
-	var w Workspace
+	var (
+		w  Workspace
+		m  sync.Mutex
+		wg sync.WaitGroup
+	)
 
 	if workspaceID == uuid.Nil {
 		log.Error(ctx, "no workspace id specified")
@@ -149,44 +207,66 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		log.Error(ctx, "no agent id specified")
 	}
 
+	// dependency, cannot fetch concurrently
 	ws, err := client.Workspace(ctx, workspaceID)
 	if err != nil {
 		log.Error(ctx, "fetch workspace", slog.Error(err), slog.F("workspace_id", workspaceID))
 		return w
 	}
-
-	agt, err := client.WorkspaceAgent(ctx, agentID)
-	if err != nil {
-		log.Error(ctx, "fetch workspace agent", slog.Error(err), slog.F("agent_id", agentID))
-	}
-
 	w.Workspace = ws
-	w.Agent = agt
 
-	buildLogCh, closer, err := client.WorkspaceBuildLogsAfter(ctx, ws.LatestBuild.ID, 0)
-	if err != nil {
-		log.Error(ctx, "fetch provisioner job logs", slog.Error(err), slog.F("job_id", ws.LatestBuild.Job.ID.String()))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		agt, err := client.WorkspaceAgent(ctx, agentID)
+		if err != nil {
+			log.Error(ctx, "fetch workspace agent", slog.Error(err), slog.F("agent_id", agentID))
+		}
+		m.Lock()
+		w.Agent = agt
+		m.Unlock()
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		buildLogCh, closer, err := client.WorkspaceBuildLogsAfter(ctx, ws.LatestBuild.ID, 0)
+		if err != nil {
+			log.Error(ctx, "fetch provisioner job logs", slog.Error(err), slog.F("job_id", ws.LatestBuild.Job.ID.String()))
+			return
+		}
 		defer closer.Close()
+		var logs []codersdk.ProvisionerJobLog
 		for log := range buildLogCh {
-			w.BuildLogs = append(w.BuildLogs, log)
+			logs = append(w.BuildLogs, log)
 		}
-	}
+		m.Lock()
+		w.BuildLogs = logs
+		m.Unlock()
+	}()
 
-	if len(w.Workspace.LatestBuild.Resources) == 0 {
-		log.Warn(ctx, "workspace build has no resources")
-		return w
-	}
-
-	agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
-	if err != nil {
-		log.Error(ctx, "fetch agent startup logs", slog.Error(err), slog.F("agent_id", agentID.String()))
-	} else {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(w.Workspace.LatestBuild.Resources) == 0 {
+			log.Warn(ctx, "workspace build has no resources")
+			return
+		}
+		agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
+		if err != nil {
+			log.Error(ctx, "fetch agent startup logs", slog.Error(err), slog.F("agent_id", agentID.String()))
+		}
 		defer closer.Close()
+		var logs []codersdk.WorkspaceAgentLog
 		for logChunk := range agentLogCh {
-			w.AgentStartupLogs = append(w.AgentStartupLogs, logChunk...)
+			logs = append(w.AgentStartupLogs, logChunk...)
 		}
-	}
+		m.Lock()
+		w.AgentStartupLogs = logs
+		m.Unlock()
+	}()
+
+	wg.Wait()
 
 	return w
 }
@@ -225,9 +305,35 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		}
 	}
 
-	b.Deployment = DeploymentInfo(ctx, d.Client, d.Log)
-	b.Workspace = WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)
-	b.Network = NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
+	var (
+		wg sync.WaitGroup
+		m  sync.Mutex
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		di := DeploymentInfo(ctx, d.Client, d.Log)
+		m.Lock()
+		b.Deployment = di
+		m.Unlock()
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)
+		m.Lock()
+		b.Workspace = wi
+		m.Unlock()
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
+		m.Lock()
+		b.Network = ni
+		m.Unlock()
+	}()
+	wg.Wait()
 
 	return &b, nil
 }
