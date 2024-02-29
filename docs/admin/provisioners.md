@@ -47,7 +47,20 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 ## Types of provisioners
 
-Provisioners can broadly be categorized by scope: `organization` or `user`.
+Provisioners can broadly be categorized by scope: `organization` or `user`. The
+scope of a provisioner can be specified with
+[`-tag=scope=<scope>`](../cli/provisionerd_start.md#t---tag) when starting the
+provisioner daemon. Only users with at least the
+[Template Admin](../admin/users.md#roles) role or higher may create
+organization-scoped provisioner daemons.
+
+There are two exceptions:
+
+- [Built-in provisioners](../cli/server.md#provisioner-daemons) are always
+  organization-scoped.
+- External provisioners started using a
+  [pre-shared key (PSK)](../cli/provisionerd_start.md#psk) are always
+  organization-scoped.
 
 ### Organization-Scoped Provisioners
 
@@ -62,8 +75,8 @@ coder provisionerd start
 
 **User-scoped Provisioners** can only pick up build jobs created from
 user-tagged templates. Unlike the other provisioner types, any Coder user can
-run user provisioners, but they have no impact unless there is at least one
-other template with the `scope=user` provisioner tag.
+run user provisioners, but they have no impact unless there exists at least one
+template with the `scope=user` provisioner tag.
 
 ```shell
 coder provisionerd start \
@@ -86,7 +99,7 @@ automatically.
 - Organization-scoped provisioners always have the implicit tags
   `scope=organization owner=""`
 - User-scoped provisioners always have the implicit tags
-  `scope=owner owner=<uuid>`
+  `scope=user owner=<uuid>`
 
 For example:
 
@@ -125,31 +138,39 @@ The external provisioner in the above example can run build jobs with tags:
 
 However, it will not pick up any build jobs that do not have either of the
 `environment` or `datacenter` tags set. It will also not pick up any build jobs
-from templates with the `user` tag set.
+from templates with the tag `scope=user` set.
 
 This is illustrated in the below table:
 
-| Provisioner Tags                                                 | Job Tags                                                         | Can Run Job? |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------- | ------------ |
-| scope=organization owner=                                        | scope=organization owner=                                        | ✅           |
-| scope=organization owner=                                        | scope=organization owner= environment=on-prem                    | ❌           |
-| scope=organization owner= environment=on-prem                    | scope=organization owner=                                        | ❌           |
-| scope=organization owner= environment=on-prem                    | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem                    | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
-| scope=organization owner= environment=on-prem datacenter=chicago | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago | scope=organization owner= environment=on-prem datacenter=chicago | ✅           |
-| scope=owner owner=aaa                                            | scope=organization owner=                                        | ❌           |
-| scope=owner owner=aaa                                            | scope=owner owner=aaa                                            | ✅           |
-| scope=owner owner=aaa                                            | scope=owner owner=bbb                                            | ❌           |
-| scope=organization owner=                                        | scope=owner owner=aaa                                            | ❌           |
-| scope=organization owner=                                        | scope=owner owner=aaa environment=on-prem                        | ❌           |
-| scope=owner owner=aaa environment=on-prem                        | scope=owner owner=aaa                                            | ✅           |
-| scope=owner owner=aaa                                            | scope=owner owner=aaa environment=on-prem                        | ❌           |
-| scope=owner owner=aaa environment=on-prem                        | scope=owner owner=aaa environment=on-prem                        | ✅           |
-| scope=owner owner=aaa environment=on-prem datacenter=chicago     | scope=owner owner=aaa environment=on-prem                        | ✅           |
-| scope=owner owner=aaa environment=on-prem                        | scope=owner owner=aaa environment=on-prem datacenter=chicago     | ❌           |
-| scope=owner owner=aaa environment=on-prem datacenter=chicago     | scope=owner owner=aaa environment=on-prem datacenter=chicago     | ✅           |
-| scope=owner owner=aaa environment=on-prem datacenter=chicago     | scope=owner owner=aaa environment=on-prem datacenter=new_york    | ❌           |
+| Provisioner Tags                                                  | Job Tags                                                         | Can Run Job? |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- | ------------ |
+| scope=organization owner=                                         | scope=organization owner=                                        | ✅           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅           |
+| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅           |
+| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
+| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
+| scope=user owner=aaa                                              | scope=organization owner=                                        | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa                                             | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ❌           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ❌           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ❌           |
+
+> **Note to maintainers:** to generate this table, run the following command and
+> copy the output:
+>
+> ```
+> go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
+> ```
 
 ## Example: Running an external provisioner with Helm
 
