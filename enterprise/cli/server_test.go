@@ -3,7 +3,6 @@ package cli_test
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"testing"
 
@@ -19,15 +18,6 @@ import (
 // and waits for /healthz to return "OK".
 func TestServer(t *testing.T) {
 	t.Parallel()
-
-	randomPort := func(t *testing.T) int {
-		random, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		_ = random.Close()
-		tcpAddr, valid := random.Addr().(*net.TCPAddr)
-		require.True(t, valid)
-		return tcpAddr.Port
-	}
 
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
