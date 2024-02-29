@@ -32,8 +32,13 @@ export const Example: Story = {};
 export const WithImageAndCta: Story = {
   name: "With Image and CTA",
   args: {
-    description: "Actually, it's the BBC controlling us from London",
-    cta: <CodeExample secret={false} code="radio eject /dev/brain" />,
+    description: "A gruff voice crackles to life on the intercom.",
+    cta: (
+      <CodeExample
+        secret={false}
+        code="say &ldquo;Actually, it's the BBC controlling us from London&rdquo;"
+      />
+    ),
     image: (
       <img
         src="/featured/templates.webp"
