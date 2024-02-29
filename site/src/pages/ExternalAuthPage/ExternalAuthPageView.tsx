@@ -181,19 +181,14 @@ const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
     }
   }
 
-  if (!externalAuthDevice && !deviceExchangeError) {
-    return <CircularProgress />;
+  // If the error comes from the `externalAuthDevice` query,
+  // we cannot even display the user_code.
+  if (deviceExchangeError && !externalAuthDevice) {
+    return <div>{status}</div>;
   }
 
-  // This is a terrible fix. If `externalAuthDevice` fails, then we have an error and no code.
   if (!externalAuthDevice) {
-    externalAuthDevice = {
-      user_code: "",
-      verification_uri: "",
-      device_code: "",
-      expires_in: 0,
-      interval: 0,
-    };
+    return <CircularProgress />;
   }
 
   return (
