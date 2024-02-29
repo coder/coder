@@ -401,7 +401,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				PreSharedKey: provPSK,
 			})
 		}, &provisionerd.Options{
-			Logger:    logger.Named(provPSK),
+			Logger:    logger.Named("provisionerd"),
 			Connector: connector,
 		})
 		defer pd.Close()
