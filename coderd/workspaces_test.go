@@ -188,10 +188,10 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		assert.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
-		assert.Equal(t, template.Name, ws.TemplateName)
-		assert.Equal(t, templateIcon, ws.TemplateIcon)
-		assert.Equal(t, templateDisplayName, ws.TemplateDisplayName)
-		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.TemplateAllowUserCancelWorkspaceJobs)
+		assert.Equal(t, template.Name, ws.Template.Name)
+		assert.Equal(t, templateIcon, ws.Template.Icon)
+		assert.Equal(t, templateDisplayName, ws.Template.DisplayName)
+		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.Template.AllowUserCancelWorkspaceJobs)
 	})
 
 	t.Run("Health", func(t *testing.T) {

@@ -55,7 +55,6 @@ var (
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-	apiKey := httpmw.APIKey(r)
 
 	var (
 		deletedStr  = r.URL.Query().Get("include_deleted")
@@ -81,7 +80,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	w, err := api.convertWorkspace(r, workspace)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -90,36 +89,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var workspaceTemplate *database.Template
-	if len(data.templates) > 0 {
-		workspaceTemplate = &data.templates[0]
-		return
-	}
-	owner, ok := userByID(workspace.OwnerID, data.users)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  "unable to find workspace owner's username",
-		})
-		return
-	}
-
-	w, err := convertWorkspace(
-		apiKey.UserID,
-		workspace,
-		data.builds[0],
-		workspaceTemplate,
-		owner.Username,
-		owner.AvatarURL,
-		api.Options.AllowWorkspaceRenames,
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
@@ -191,20 +160,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaces := database.ConvertWorkspaceRows(workspaceRows)
-
-	data, err := api.workspaceData(ctx, workspaces)
+	wss, err := api.convertWorkspaces(r, workspaces)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	wss, err := convertWorkspaces(apiKey.UserID, workspaces, data)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspaces.",
 			Detail:  err.Error(),
 		})
 		return
@@ -230,7 +189,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
 	workspaceName := chi.URLParam(r, "workspacename")
-	apiKey := httpmw.APIKey(r)
 
 	includeDeleted := false
 	if s := r.URL.Query().Get("include_deleted"); s != "" {
@@ -270,7 +228,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	w, err := api.convertWorkspace(r, workspace)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -279,34 +237,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if len(data.builds) == 0 || len(data.templates) == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	owner, ok := userByID(workspace.OwnerID, data.users)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  "unable to find workspace owner's username",
-		})
-		return
-	}
-	w, err := convertWorkspace(
-		apiKey.UserID,
-		workspace,
-		data.builds[0],
-		data.templates[0],
-		owner.Username,
-		owner.AvatarURL,
-		api.Options.AllowWorkspaceRenames,
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
@@ -616,7 +546,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		apiKey.UserID,
 		workspace,
 		apiBuild,
-		template,
+		&template,
 		member.Username,
 		member.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
@@ -897,7 +827,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		workspace         = httpmw.WorkspaceParam(r)
-		apiKey            = httpmw.APIKey(r)
 		oldWorkspace      = workspace
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
@@ -943,7 +872,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	w, err := api.convertWorkspace(r, workspace)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -951,38 +880,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	owner, ok := userByID(workspace.OwnerID, data.users)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  "unable to find workspace owner's username",
-		})
-		return
-	}
 
-	if len(data.templates) == 0 {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	aReq.New = workspace
-
-	w, err := convertWorkspace(
-		apiKey.UserID,
-		workspace,
-		data.builds[0],
-		data.templates[0],
-		owner.Username,
-		owner.AvatarURL,
-		api.Options.AllowWorkspaceRenames,
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
@@ -1337,7 +1235,6 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-	apiKey := httpmw.APIKey(r)
 
 	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
@@ -1365,7 +1262,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+		w, err := api.convertWorkspace(r, workspace)
 		if err != nil {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -1376,46 +1273,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if len(data.templates) == 0 {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeError,
-				Data: codersdk.Response{
-					Message: "Forbidden reading template of selected workspace.",
-				},
-			})
-			return
-		}
 
-		owner, ok := userByID(workspace.OwnerID, data.users)
-		if !ok {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeError,
-				Data: codersdk.Response{
-					Message: "Internal error fetching workspace resources.",
-					Detail:  "unable to find workspace owner's username",
-				},
-			})
-			return
-		}
-
-		w, err := convertWorkspace(
-			apiKey.UserID,
-			workspace,
-			data.builds[0],
-			data.templates[0],
-			owner.Username,
-			owner.AvatarURL,
-			api.Options.AllowWorkspaceRenames,
-		)
-		if err != nil {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeError,
-				Data: codersdk.Response{
-					Message: "Internal error converting workspace.",
-					Detail:  err.Error(),
-				},
-			})
-		}
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: w,
@@ -1475,11 +1333,22 @@ type workspaceData struct {
 	allowRenames bool
 }
 
-// workspacesData only returns the data the caller can access. If the caller
-// does not have the correct perms to read a given template, the template will
-// not be returned.
-// So the caller must check the templates & users exist before using them.
-func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace) (workspaceData, error) {
+func (api *API) convertWorkspace(r *http.Request, workspaces database.Workspace) (codersdk.Workspace, error) {
+	ret, err := api.convertWorkspaces(r, []database.Workspace{workspaces})
+	if err != nil {
+		return codersdk.Workspace{}, err
+	}
+	if len(ret) == 0 {
+		return codersdk.Workspace{}, xerrors.Errorf("no workspace found")
+	}
+	return ret[0], nil
+}
+
+// convertWorkspaces will convert a database workspace into a codersdk.Workspace.
+// The populated fields depend on the caller's permissions.
+func (api *API) convertWorkspaces(r *http.Request, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
+	ctx := r.Context()
+
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -1491,19 +1360,24 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		IDs: templateIDs,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get templates: %w", err)
+		return nil, xerrors.Errorf("get templates: %w", err)
 	}
 
 	// This query must be run as system restricted to be efficient.
+	// This is ok because the caller has already been checked for access to
+	// the workspaces.
 	// nolint:gocritic
 	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
+		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
 
+	// convertWorkspaceBuilds cheats with systemctx for template version
+	// data. This is probably not ok? We should not query things we don't
+	// have access to.
 	data, err := api.workspaceBuildsData(ctx, workspaces, builds)
 	if err != nil {
-		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+		return nil, xerrors.Errorf("get workspace builds data: %w", err)
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
@@ -1520,15 +1394,19 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.templateVersions,
 	)
 	if err != nil {
-		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
+		return nil, xerrors.Errorf("convert workspace builds: %w", err)
 	}
 
-	return workspaceData{
+	requester := uuid.Nil
+	if key, ok := httpmw.APIKeyOptional(r); ok {
+		requester = key.UserID
+	}
+	return convertWorkspaces(requester, workspaces, workspaceData{
 		templates:    templates,
 		builds:       apiBuilds,
 		users:        data.users,
 		allowRenames: api.Options.AllowWorkspaceRenames,
-	}, nil
+	})
 }
 
 func convertWorkspaces(requesterID uuid.UUID, workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
@@ -1626,12 +1504,12 @@ func convertWorkspace(
 	if template != nil {
 		outdated = workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String()
 		templateInfo = &codersdk.WorkspaceTemplateInfo{
-			TemplateName:                         template.Name,
-			TemplateDisplayName:                  template.DisplayName,
-			TemplateIcon:                         template.Icon,
-			TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			TemplateActiveVersionID:              template.ActiveVersionID,
-			TemplateRequireActiveVersion:         template.RequireActiveVersion,
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			ActiveVersionID:              template.ActiveVersionID,
+			RequireActiveVersion:         template.RequireActiveVersion,
 		}
 	}
 

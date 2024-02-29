@@ -43,7 +43,7 @@ type Workspace struct {
 	// `Template` can only be returned if the caller has read access to the template.
 	// It is possible to have those perms revoked, and the workspace owner can
 	// no longer see the template fields.
-	Template *WorkspaceTemplateInfo `json:"template_info,omitempty"`
+	Template *WorkspaceTemplateInfo `json:"template,omitempty"`
 
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
@@ -64,12 +64,12 @@ type Workspace struct {
 
 // WorkspaceTemplateInfo is a subset of Template fields for a workspace.
 type WorkspaceTemplateInfo struct {
-	TemplateName                         string    `json:"template_name"`
-	TemplateDisplayName                  string    `json:"template_display_name"`
-	TemplateIcon                         string    `json:"template_icon"`
-	TemplateAllowUserCancelWorkspaceJobs bool      `json:"template_allow_user_cancel_workspace_jobs"`
-	TemplateActiveVersionID              uuid.UUID `json:"template_active_version_id" format:"uuid"`
-	TemplateRequireActiveVersion         bool      `json:"template_require_active_version"`
+	Name                         string    `json:"name"`
+	DisplayName                  string    `json:"display_name"`
+	Icon                         string    `json:"icon"`
+	AllowUserCancelWorkspaceJobs bool      `json:"allow_user_cancel_workspace_jobs"`
+	ActiveVersionID              uuid.UUID `json:"active_version_id" format:"uuid"`
+	RequireActiveVersion         bool      `json:"equire_active_version"`
 }
 
 func (w Workspace) FullName() string {
