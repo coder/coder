@@ -244,6 +244,56 @@ func WithIssuer(issuer string) func(*FakeIDP) {
 	}
 }
 
+type With429Arguments struct {
+	AllPaths      bool
+	TokenPath     bool
+	AuthorizePath bool
+	KeysPath      bool
+	UserInfoPath  bool
+	DeviceAuth    bool
+	DeviceVerify  bool
+}
+
+// With429 will emulate a 429 response for the selected paths.
+func With429(params With429Arguments) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.middlewares = append(f.middlewares, func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if params.AllPaths {
+					http.Error(rw, "429, being manually blocked (all)", http.StatusTooManyRequests)
+					return
+				}
+				if params.TokenPath && strings.Contains(r.URL.Path, tokenPath) {
+					http.Error(rw, "429, being manually blocked (token)", http.StatusTooManyRequests)
+					return
+				}
+				if params.AuthorizePath && strings.Contains(r.URL.Path, authorizePath) {
+					http.Error(rw, "429, being manually blocked (authorize)", http.StatusTooManyRequests)
+					return
+				}
+				if params.KeysPath && strings.Contains(r.URL.Path, keysPath) {
+					http.Error(rw, "429, being manually blocked (keys)", http.StatusTooManyRequests)
+					return
+				}
+				if params.UserInfoPath && strings.Contains(r.URL.Path, userInfoPath) {
+					http.Error(rw, "429, being manually blocked (userinfo)", http.StatusTooManyRequests)
+					return
+				}
+				if params.DeviceAuth && strings.Contains(r.URL.Path, deviceAuth) {
+					http.Error(rw, "429, being manually blocked (device-auth)", http.StatusTooManyRequests)
+					return
+				}
+				if params.DeviceVerify && strings.Contains(r.URL.Path, deviceVerify) {
+					http.Error(rw, "429, being manually blocked (device-verify)", http.StatusTooManyRequests)
+					return
+				}
+
+				next.ServeHTTP(rw, r)
+			})
+		})
+	}
+}
+
 const (
 	// nolint:gosec // It thinks this is a secret lol
 	tokenPath     = "/oauth2/token"
