@@ -62,6 +62,7 @@ type Deps struct {
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
 	var d Deployment
+
 	bi, err := client.BuildInfo(ctx)
 	if err != nil {
 		log.Error(ctx, "fetch build info", slog.Error(err))
@@ -76,7 +77,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 		d.Config = dc
 	}
 
-	hr, err := client.GetDebugHealth(ctx)
+	hr, err := client.DebugHealth(ctx)
 	if err != nil {
 		log.Error(ctx, "fetch health report", slog.Error(err))
 	} else {
@@ -96,7 +97,6 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Network {
 	var n Network
 
-	// Get /api/v2/debug/coordinator
 	coordResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/coordinator", nil)
 	if err != nil {
 		log.Error(ctx, "fetch coordinator debug page", slog.Error(err))
@@ -110,7 +110,6 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 		}
 	}
 
-	// Get /api/v2/debug/tailnet
 	tailResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/tailnet", nil)
 	if err != nil {
 		log.Error(ctx, "fetch tailnet debug page", slog.Error(err))
@@ -202,6 +201,14 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		},
 	}
 
+	// Ensure we capture logs from the client.
+	var logw strings.Builder
+	d.Log.AppendSinks(sloghuman.Sink(&logw))
+	d.Client.SetLogger(d.Log)
+	defer func() {
+		b.Logs = strings.Split(logw.String(), "\n")
+	}()
+
 	authResp, err := d.Client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
 	if err != nil {
 		return &b, xerrors.Errorf("check authorization: %w", err)
@@ -211,13 +218,6 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 			return &b, xerrors.Errorf("failed authorization check: cannot %s", k)
 		}
 	}
-
-	// Ensure we capture logs from the client.
-	var logw strings.Builder
-	d.Log.AppendSinks(sloghuman.Sink(&logw))
-	defer func() {
-		b.Logs = strings.Split(logw.String(), "\n")
-	}()
 
 	b.Deployment = DeploymentInfo(ctx, d.Client, d.Log)
 	b.Workspace = WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)

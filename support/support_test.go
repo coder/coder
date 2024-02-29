@@ -2,6 +2,7 @@ package support_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -9,11 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
@@ -29,13 +33,14 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: cfg,
+			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
 
 		bun, err := support.Run(ctx, &support.Deps{
 			Client:      client,
-			Log:         slogtest.Make(t, nil),
+			Log:         slogtest.Make(t, nil).Named("bundle").Leveled(slog.LevelDebug),
 			WorkspaceID: ws.ID,
 			AgentID:     agt.ID,
 		})
@@ -64,12 +69,12 @@ func TestRun(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
+			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
-			Log:    log, // error due to missing workspace/agent
+			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, bun)
@@ -88,28 +93,36 @@ func TestRun(t *testing.T) {
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+		})
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
+			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		var sdkErr *codersdk.Error
 		require.NotNil(t, bun)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-		require.Empty(t, bun)
+		require.NotEmpty(t, bun)
+		require.NotEmpty(t, bun.Logs)
 	})
 
 	t.Run("MissingPrivilege", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: memberClient,
+			Log:    slogtest.Make(t, nil).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		require.ErrorContains(t, err, "failed authorization check")
-		require.Empty(t, bun)
+		require.NotEmpty(t, bun)
+		require.NotEmpty(t, bun.Logs)
 	})
 }
 

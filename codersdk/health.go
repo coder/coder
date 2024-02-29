@@ -44,7 +44,7 @@ type UpdateHealthSettings struct {
 	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
-func (c *Client) GetDebugHealth(ctx context.Context) (HealthcheckReport, error) {
+func (c *Client) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/debug/health", nil)
 	if err != nil {
 		return HealthcheckReport{}, err
