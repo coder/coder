@@ -53,6 +53,8 @@ const ExternalAuthPage: FC = () => {
   if (isAxiosError(exchangeExternalAuthDeviceQuery.failureReason)) {
     deviceExchangeError =
       exchangeExternalAuthDeviceQuery.failureReason.response?.data;
+  } else if (isAxiosError(externalAuthDeviceQuery.failureReason)) {
+    deviceExchangeError = externalAuthDeviceQuery.failureReason.response?.data;
   }
 
   if (

@@ -1,12 +1,13 @@
 import { type Interpolation, type Theme } from "@emotion/react";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import AlertTitle from "@mui/material/AlertTitle";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
+import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
@@ -173,12 +174,20 @@ const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
       default:
         status = (
           <Alert severity="error">
-            An unknown error occurred. Please try again:{" "}
-            {deviceExchangeError.message}
+            <AlertTitle>{deviceExchangeError.message}</AlertTitle>
+            {deviceExchangeError.detail && (
+              <AlertDetail>{deviceExchangeError.detail}</AlertDetail>
+            )}
           </Alert>
         );
         break;
     }
+  }
+
+  // If the error comes from the `externalAuthDevice` query,
+  // we cannot even display the user_code.
+  if (deviceExchangeError && !externalAuthDevice) {
+    return <div>{status}</div>;
   }
 
   if (!externalAuthDevice) {
