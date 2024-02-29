@@ -175,6 +175,12 @@ const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
           <Alert severity="error">
             An unknown error occurred. Please try again:{" "}
             {deviceExchangeError.message}
+            {deviceExchangeError.detail && (
+              <span>
+                <br />
+                Details: {deviceExchangeError.detail ?? ""}
+              </span>
+            )}
           </Alert>
         );
         break;
