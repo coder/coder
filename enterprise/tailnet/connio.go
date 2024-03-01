@@ -2,7 +2,6 @@ package tailnet
 
 import (
 	"context"
-	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -127,18 +126,13 @@ var errDisconnect = xerrors.New("graceful disconnect")
 
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
+	err := c.auth.Authorize(req)
+	if err != nil {
+		return xerrors.Errorf("authorize request: %w", err)
+	}
+
 	if req.UpdateSelf != nil {
 		c.logger.Debug(c.peerCtx, "got node update", slog.F("node", req.UpdateSelf))
-		for _, addrStr := range req.UpdateSelf.Node.Addresses {
-			pre, err := netip.ParsePrefix(addrStr)
-			if err != nil {
-				return xerrors.Errorf("parse address: %w", err)
-			}
-
-			if !c.auth.AuthorizeIP(pre) {
-				return xerrors.Errorf("unauthorized address sent %q", pre.String())
-			}
-		}
 		b := binding{
 			bKey: bKey(c.UniqueID()),
 			node: req.UpdateSelf.Node,
@@ -157,9 +151,6 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
 			return err
-		}
-		if !c.auth.Authorize(dst) {
-			return xerrors.New("unauthorized tunnel")
 		}
 		t := tunnel{
 			tKey: tKey{

@@ -611,6 +611,11 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 	if !ok || pr != p {
 		return ErrAlreadyRemoved
 	}
+
+	if err := pr.auth.Authorize(req); err != nil {
+		return xerrors.Errorf("authorize request: %w", err)
+	}
+
 	if req.UpdateSelf != nil {
 		err := c.nodeUpdateLocked(p, req.UpdateSelf.Node)
 		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
@@ -661,17 +666,6 @@ func (c *core) nodeUpdateLocked(p *peer, node *proto.Node) error {
 		slog.F("peer_id", p.id),
 		slog.F("node", node.String()))
 
-	for _, addrStr := range node.Addresses {
-		pre, err := netip.ParsePrefix(addrStr)
-		if err != nil {
-			return xerrors.Errorf("parse address: %w", err)
-		}
-
-		if !p.auth.AuthorizeIP(pre) {
-			return xerrors.Errorf("unauthorized address sent %q", pre.String())
-		}
-	}
-
 	p.node = node
 	c.updateTunnelPeersLocked(p.id, node, proto.CoordinateResponse_PeerUpdate_NODE, "node update")
 	return nil
@@ -694,9 +688,6 @@ func (c *core) updateTunnelPeersLocked(id uuid.UUID, n *proto.Node, k proto.Coor
 }
 
 func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
-	if !src.auth.Authorize(dstID) {
-		return xerrors.Errorf("src %s is not allowed to tunnel to %s", src.id, dstID)
-	}
 	c.tunnels.add(src.id, dstID)
 	c.logger.Debug(context.Background(), "adding tunnel",
 		slog.F("src_id", src.id),
