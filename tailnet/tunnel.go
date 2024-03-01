@@ -29,8 +29,7 @@ type ClientCoordinateeAuth struct {
 
 func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 	if tun := req.GetAddTunnel(); tun != nil {
-		var uid uuid.UUID
-		err := uid.UnmarshalBinary(tun.Id)
+		uid, err := uuid.FromBytes(tun.Id)
 		if err != nil {
 			return xerrors.Errorf("parse add tunnel id: %w", err)
 		}
