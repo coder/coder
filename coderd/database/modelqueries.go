@@ -197,8 +197,10 @@ type workspaceQuerier interface {
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 }
 
-type GetWorkspacesParams GetWorkspacesWithSummaryParams
-type GetWorkspacesRow GetWorkspacesWithSummaryRow
+type (
+	GetWorkspacesParams GetWorkspacesWithSummaryParams
+	GetWorkspacesRow    GetWorkspacesWithSummaryRow
+)
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE

@@ -773,6 +773,260 @@ func tagsSubset(m1, m2 map[string]string) bool {
 // default tags when no tag is specified for a provisioner or job
 var tagsUntagged = provisionersdk.MutateTags(uuid.Nil, nil)
 
+func (q *FakeQuerier) getAuthorizedWorkspacesWithSummary(ctx context.Context, arg database.GetWorkspacesWithSummaryParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesWithSummaryRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+
+		if arg.OwnerUsername != "" {
+			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
+			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
+				continue
+			}
+		}
+
+		if arg.TemplateName != "" {
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
+				continue
+			}
+		}
+
+		if arg.UsingActive.Valid {
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template: %w", err)
+			}
+
+			updated := build.TemplateVersionID == template.ActiveVersionID
+			if arg.UsingActive.Bool != updated {
+				continue
+			}
+		}
+
+		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+
+		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
+			continue
+		}
+
+		if !arg.LastUsedBefore.IsZero() {
+			if workspace.LastUsedAt.After(arg.LastUsedBefore) {
+				continue
+			}
+		}
+
+		if !arg.LastUsedAfter.IsZero() {
+			if workspace.LastUsedAt.Before(arg.LastUsedAfter) {
+				continue
+			}
+		}
+
+		if arg.Status != "" {
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			// This logic should match the logic in the workspace.sql file.
+			var statusMatch bool
+			switch database.WorkspaceStatus(arg.Status) {
+			case database.WorkspaceStatusStarting:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
+					build.Transition == database.WorkspaceTransitionStart
+			case database.WorkspaceStatusStopping:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
+					build.Transition == database.WorkspaceTransitionStop
+			case database.WorkspaceStatusDeleting:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
+					build.Transition == database.WorkspaceTransitionDelete
+
+			case "started":
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStart
+			case database.WorkspaceStatusDeleted:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionDelete
+			case database.WorkspaceStatusStopped:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStop
+			case database.WorkspaceStatusRunning:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStart
+			default:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatus(arg.Status)
+			}
+			if !statusMatch {
+				continue
+			}
+		}
+
+		if arg.HasAgent != "" {
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			workspaceResources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace resources: %w", err)
+			}
+
+			var workspaceResourceIDs []uuid.UUID
+			for _, wr := range workspaceResources {
+				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
+			}
+
+			workspaceAgents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, workspaceResourceIDs)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+
+			var hasAgentMatched bool
+			for _, wa := range workspaceAgents {
+				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
+					hasAgentMatched = true
+				}
+			}
+
+			if !hasAgentMatched {
+				continue
+			}
+		}
+
+		if arg.Dormant && !workspace.DormantAt.Valid {
+			continue
+		}
+
+		if len(arg.TemplateIDs) > 0 {
+			match := false
+			for _, id := range arg.TemplateIDs {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	// Sort workspaces (ORDER BY)
+	isRunning := func(build database.WorkspaceBuild, job database.ProvisionerJob) bool {
+		return job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid && build.Transition == database.WorkspaceTransitionStart
+	}
+
+	preloadedWorkspaceBuilds := map[uuid.UUID]database.WorkspaceBuild{}
+	preloadedProvisionerJobs := map[uuid.UUID]database.ProvisionerJob{}
+	preloadedUsers := map[uuid.UUID]database.User{}
+
+	for _, w := range workspaces {
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID)
+		if err == nil {
+			preloadedWorkspaceBuilds[w.ID] = build
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get latest build: %w", err)
+		}
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err == nil {
+			preloadedProvisionerJobs[w.ID] = job
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get provisioner job: %w", err)
+		}
+
+		user, err := q.getUserByIDNoLock(w.OwnerID)
+		if err == nil {
+			preloadedUsers[w.ID] = user
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get user: %w", err)
+		}
+	}
+
+	sort.Slice(workspaces, func(i, j int) bool {
+		w1 := workspaces[i]
+		w2 := workspaces[j]
+
+		// Order by: favorite first
+		if arg.RequesterID == w1.OwnerID && w1.Favorite {
+			return true
+		}
+		if arg.RequesterID == w2.OwnerID && w2.Favorite {
+			return false
+		}
+
+		// Order by: running
+		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
+		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
+
+		if w1IsRunning && !w2IsRunning {
+			return true
+		}
+
+		if !w1IsRunning && w2IsRunning {
+			return false
+		}
+
+		// Order by: usernames
+		if strings.Compare(preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username) < 0 {
+			return true
+		}
+
+		// Order by: workspace names
+		return strings.Compare(w1.Name, w2.Name) < 0
+	})
+
+	beforePageCount := len(workspaces)
+
+	if arg.Offset > 0 {
+		if int(arg.Offset) > len(workspaces) {
+			return []database.GetWorkspacesWithSummaryRow{}, nil
+		}
+		workspaces = workspaces[arg.Offset:]
+	}
+	if arg.Limit > 0 {
+		if int(arg.Limit) > len(workspaces) {
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+		}
+		workspaces = workspaces[:arg.Limit]
+	}
+
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -5134,260 +5388,6 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 
 func (q *FakeQuerier) GetWorkspacesWithSummary(ctx context.Context, arg database.GetWorkspacesWithSummaryParams) ([]database.GetWorkspacesWithSummaryRow, error) {
 	return q.getAuthorizedWorkspacesWithSummary(ctx, arg, nil)
-}
-
-func (q *FakeQuerier) getAuthorizedWorkspacesWithSummary(ctx context.Context, arg database.GetWorkspacesWithSummaryParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesWithSummaryRow, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
-			continue
-		}
-
-		if arg.OwnerUsername != "" {
-			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
-			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
-				continue
-			}
-		}
-
-		if arg.TemplateName != "" {
-			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
-			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
-				continue
-			}
-		}
-
-		if arg.UsingActive.Valid {
-			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get latest build: %w", err)
-			}
-
-			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
-			if err != nil {
-				return nil, xerrors.Errorf("get template: %w", err)
-			}
-
-			updated := build.TemplateVersionID == template.ActiveVersionID
-			if arg.UsingActive.Bool != updated {
-				continue
-			}
-		}
-
-		if !arg.Deleted && workspace.Deleted {
-			continue
-		}
-
-		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
-			continue
-		}
-
-		if !arg.LastUsedBefore.IsZero() {
-			if workspace.LastUsedAt.After(arg.LastUsedBefore) {
-				continue
-			}
-		}
-
-		if !arg.LastUsedAfter.IsZero() {
-			if workspace.LastUsedAt.Before(arg.LastUsedAfter) {
-				continue
-			}
-		}
-
-		if arg.Status != "" {
-			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get latest build: %w", err)
-			}
-
-			job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
-			if err != nil {
-				return nil, xerrors.Errorf("get provisioner job: %w", err)
-			}
-
-			// This logic should match the logic in the workspace.sql file.
-			var statusMatch bool
-			switch database.WorkspaceStatus(arg.Status) {
-			case database.WorkspaceStatusStarting:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
-					build.Transition == database.WorkspaceTransitionStart
-			case database.WorkspaceStatusStopping:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
-					build.Transition == database.WorkspaceTransitionStop
-			case database.WorkspaceStatusDeleting:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
-					build.Transition == database.WorkspaceTransitionDelete
-
-			case "started":
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
-					build.Transition == database.WorkspaceTransitionStart
-			case database.WorkspaceStatusDeleted:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
-					build.Transition == database.WorkspaceTransitionDelete
-			case database.WorkspaceStatusStopped:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
-					build.Transition == database.WorkspaceTransitionStop
-			case database.WorkspaceStatusRunning:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
-					build.Transition == database.WorkspaceTransitionStart
-			default:
-				statusMatch = job.JobStatus == database.ProvisionerJobStatus(arg.Status)
-			}
-			if !statusMatch {
-				continue
-			}
-		}
-
-		if arg.HasAgent != "" {
-			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get latest build: %w", err)
-			}
-
-			job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
-			if err != nil {
-				return nil, xerrors.Errorf("get provisioner job: %w", err)
-			}
-
-			workspaceResources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, job.ID)
-			if err != nil {
-				return nil, xerrors.Errorf("get workspace resources: %w", err)
-			}
-
-			var workspaceResourceIDs []uuid.UUID
-			for _, wr := range workspaceResources {
-				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
-			}
-
-			workspaceAgents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, workspaceResourceIDs)
-			if err != nil {
-				return nil, xerrors.Errorf("get workspace agents: %w", err)
-			}
-
-			var hasAgentMatched bool
-			for _, wa := range workspaceAgents {
-				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
-					hasAgentMatched = true
-				}
-			}
-
-			if !hasAgentMatched {
-				continue
-			}
-		}
-
-		if arg.Dormant && !workspace.DormantAt.Valid {
-			continue
-		}
-
-		if len(arg.TemplateIDs) > 0 {
-			match := false
-			for _, id := range arg.TemplateIDs {
-				if workspace.TemplateID == id {
-					match = true
-					break
-				}
-			}
-			if !match {
-				continue
-			}
-		}
-
-		// If the filter exists, ensure the object is authorized.
-		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
-			continue
-		}
-		workspaces = append(workspaces, workspace)
-	}
-
-	// Sort workspaces (ORDER BY)
-	isRunning := func(build database.WorkspaceBuild, job database.ProvisionerJob) bool {
-		return job.CompletedAt.Valid && !job.CanceledAt.Valid && !job.Error.Valid && build.Transition == database.WorkspaceTransitionStart
-	}
-
-	preloadedWorkspaceBuilds := map[uuid.UUID]database.WorkspaceBuild{}
-	preloadedProvisionerJobs := map[uuid.UUID]database.ProvisionerJob{}
-	preloadedUsers := map[uuid.UUID]database.User{}
-
-	for _, w := range workspaces {
-		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID)
-		if err == nil {
-			preloadedWorkspaceBuilds[w.ID] = build
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get latest build: %w", err)
-		}
-
-		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
-		if err == nil {
-			preloadedProvisionerJobs[w.ID] = job
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get provisioner job: %w", err)
-		}
-
-		user, err := q.getUserByIDNoLock(w.OwnerID)
-		if err == nil {
-			preloadedUsers[w.ID] = user
-		} else if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get user: %w", err)
-		}
-	}
-
-	sort.Slice(workspaces, func(i, j int) bool {
-		w1 := workspaces[i]
-		w2 := workspaces[j]
-
-		// Order by: favorite first
-		if arg.RequesterID == w1.OwnerID && w1.Favorite {
-			return true
-		}
-		if arg.RequesterID == w2.OwnerID && w2.Favorite {
-			return false
-		}
-
-		// Order by: running
-		w1IsRunning := isRunning(preloadedWorkspaceBuilds[w1.ID], preloadedProvisionerJobs[w1.ID])
-		w2IsRunning := isRunning(preloadedWorkspaceBuilds[w2.ID], preloadedProvisionerJobs[w2.ID])
-
-		if w1IsRunning && !w2IsRunning {
-			return true
-		}
-
-		if !w1IsRunning && w2IsRunning {
-			return false
-		}
-
-		// Order by: usernames
-		if strings.Compare(preloadedUsers[w1.ID].Username, preloadedUsers[w2.ID].Username) < 0 {
-			return true
-		}
-
-		// Order by: workspace names
-		return strings.Compare(w1.Name, w2.Name) < 0
-	})
-
-	beforePageCount := len(workspaces)
-
-	if arg.Offset > 0 {
-		if int(arg.Offset) > len(workspaces) {
-			return []database.GetWorkspacesWithSummaryRow{}, nil
-		}
-		workspaces = workspaces[arg.Offset:]
-	}
-	if arg.Limit > 0 {
-		if int(arg.Limit) > len(workspaces) {
-			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
-		}
-		workspaces = workspaces[:arg.Limit]
-	}
-
-	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
 }
 
 func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
