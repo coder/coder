@@ -17,7 +17,7 @@ import { usePermissions } from "contexts/auth/usePermissions";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { Latency } from "components/Latency/Latency";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -276,7 +276,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               />
             </div>
 
-            <ProxyStatusLatency
+            <Latency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
               isLoading={proxyLatencyLoading(selectedProxy)}
             />
@@ -385,7 +385,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
                 {proxy.display_name}
 
-                <ProxyStatusLatency
+                <Latency
                   latency={latencies?.[proxy.id]?.latencyMS}
                   isLoading={proxyLatencyLoading(proxy)}
                 />
