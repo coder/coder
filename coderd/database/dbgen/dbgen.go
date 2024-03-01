@@ -140,6 +140,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
 		Port:        takeFirst(orig.Port, 8080),
 		ShareLevel:  takeFirst(orig.ShareLevel, database.AppSharingLevelPublic),
+		Protocol:    takeFirst(orig.Protocol, database.PortShareProtocolHttp),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return ps
