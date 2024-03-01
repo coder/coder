@@ -389,6 +389,11 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 		rows = append(rows, wr)
 	}
+
+	// Append a technical row with summary
+	rows = append(rows, database.GetWorkspacesRow{
+		Count: count,
+	})
 	return rows
 }
 

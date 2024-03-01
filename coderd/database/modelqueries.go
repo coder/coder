@@ -215,9 +215,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
-		arg.RequesterID,
-		arg.Offset,
-		arg.Limit,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
@@ -231,6 +228,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.UsingActive,
+		arg.RequesterID,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err

@@ -11986,6 +11986,39 @@ WHERE
 		END
 	OFFSET
 		$15
+), filtered_workspaces_order_with_summary AS (
+	SELECT
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
+	FROM
+		filtered_workspaces_order fwo
+	-- Always return a technical summary row with total count of workspaces.
+	-- It is used to present the correct count if pagination goes beyond the offset.
+	UNION ALL
+	SELECT
+		'00000000-0000-0000-0000-000000000000'::uuid, -- id
+		'0001-01-01 00:00:00+00'::timestamp, -- created_at
+		'0001-01-01 00:00:00+00'::timestamp, -- updated_at
+		'00000000-0000-0000-0000-000000000000'::uuid, -- owner_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- organization_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_id
+		false, -- deleted
+		'**TECHNICAL_ROW**', -- name
+		'', -- autostart_schedule
+		0, -- ttl
+		'0001-01-01 00:00:00+00'::timestamp, -- last_used_at
+		'0001-01-01 00:00:00+00'::timestamp, -- dormant_at
+		'0001-01-01 00:00:00+00'::timestamp, -- deleting_at
+		'never'::automatic_updates, -- automatic_updates
+		false, -- favorite
+		-- Extra columns added to ` + "`" + `filtered_workspaces` + "`" + `
+		'', -- template_name
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
+		'', -- template_version_name
+		'', -- username
+		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_completed_at,
+		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_canceled_at,
+		'', -- latest_build_error
+		'start'::workspace_transition -- latest_build_transition
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -11993,14 +12026,12 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	tc.count,
-	fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.template_name, fwos.template_version_id, fwos.template_version_name, fwos.username, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition,
+	tc.count
 FROM
+	filtered_workspaces_order_with_summary fwos
+CROSS JOIN
 	total_count tc
-LEFT JOIN
-	filtered_workspaces_order fwo
-ON
-	true
 `
 
 type GetWorkspacesParams struct {
@@ -12023,30 +12054,30 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	Count                  int64                   `db:"count" json:"count"`
-	ID                     uuid.NullUUID           `db:"id" json:"id"`
-	CreatedAt              sql.NullTime            `db:"created_at" json:"created_at"`
-	UpdatedAt              sql.NullTime            `db:"updated_at" json:"updated_at"`
-	OwnerID                uuid.NullUUID           `db:"owner_id" json:"owner_id"`
-	OrganizationID         uuid.NullUUID           `db:"organization_id" json:"organization_id"`
-	TemplateID             uuid.NullUUID           `db:"template_id" json:"template_id"`
-	Deleted                sql.NullBool            `db:"deleted" json:"deleted"`
-	Name                   sql.NullString          `db:"name" json:"name"`
-	AutostartSchedule      sql.NullString          `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                    sql.NullInt64           `db:"ttl" json:"ttl"`
-	LastUsedAt             sql.NullTime            `db:"last_used_at" json:"last_used_at"`
-	DormantAt              sql.NullTime            `db:"dormant_at" json:"dormant_at"`
-	DeletingAt             sql.NullTime            `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates       NullAutomaticUpdates    `db:"automatic_updates" json:"automatic_updates"`
-	Favorite               sql.NullBool            `db:"favorite" json:"favorite"`
-	TemplateName           sql.NullString          `db:"template_name" json:"template_name"`
-	TemplateVersionID      uuid.NullUUID           `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName    sql.NullString          `db:"template_version_name" json:"template_version_name"`
-	Username               sql.NullString          `db:"username" json:"username"`
-	LatestBuildCompletedAt sql.NullTime            `db:"latest_build_completed_at" json:"latest_build_completed_at"`
-	LatestBuildCanceledAt  sql.NullTime            `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
-	LatestBuildError       sql.NullString          `db:"latest_build_error" json:"latest_build_error"`
-	LatestBuildTransition  NullWorkspaceTransition `db:"latest_build_transition" json:"latest_build_transition"`
+	ID                     uuid.UUID           `db:"id" json:"id"`
+	CreatedAt              time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time           `db:"updated_at" json:"updated_at"`
+	OwnerID                uuid.UUID           `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID           `db:"organization_id" json:"organization_id"`
+	TemplateID             uuid.UUID           `db:"template_id" json:"template_id"`
+	Deleted                bool                `db:"deleted" json:"deleted"`
+	Name                   string              `db:"name" json:"name"`
+	AutostartSchedule      sql.NullString      `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                    sql.NullInt64       `db:"ttl" json:"ttl"`
+	LastUsedAt             time.Time           `db:"last_used_at" json:"last_used_at"`
+	DormantAt              sql.NullTime        `db:"dormant_at" json:"dormant_at"`
+	DeletingAt             sql.NullTime        `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates       AutomaticUpdates    `db:"automatic_updates" json:"automatic_updates"`
+	Favorite               bool                `db:"favorite" json:"favorite"`
+	TemplateName           string              `db:"template_name" json:"template_name"`
+	TemplateVersionID      uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName    sql.NullString      `db:"template_version_name" json:"template_version_name"`
+	Username               string              `db:"username" json:"username"`
+	LatestBuildCompletedAt sql.NullTime        `db:"latest_build_completed_at" json:"latest_build_completed_at"`
+	LatestBuildCanceledAt  sql.NullTime        `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
+	LatestBuildError       sql.NullString      `db:"latest_build_error" json:"latest_build_error"`
+	LatestBuildTransition  WorkspaceTransition `db:"latest_build_transition" json:"latest_build_transition"`
+	Count                  int64               `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
@@ -12076,7 +12107,6 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	for rows.Next() {
 		var i GetWorkspacesRow
 		if err := rows.Scan(
-			&i.Count,
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -12100,6 +12130,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildCanceledAt,
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
