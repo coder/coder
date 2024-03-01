@@ -29,7 +29,8 @@ type ClientCoordinateeAuth struct {
 
 func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 	if tun := req.GetAddTunnel(); tun != nil {
-		uid, err := uuid.ParseBytes(tun.Id)
+		var uid uuid.UUID
+		err := uid.UnmarshalBinary(tun.Id)
 		if err != nil {
 			return xerrors.Errorf("parse add tunnel id: %w", err)
 		}
@@ -84,14 +85,6 @@ func (a AgentCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 	}
 
 	return nil
-}
-
-func (a AgentCoordinateeAuth) AuthorizeIP(ip netip.Prefix) bool {
-	// Ensure the CIDR is /128
-	return ip.Bits() == 128 &&
-		// Allow both the legacy ip and the new ip derived from the agent ip.
-		(IPFromUUID(a.ID).Compare(ip.Addr()) == 0 ||
-			legacyWorkspaceAgentIP.Compare(ip.Addr()) == 0)
 }
 
 // tunnelStore contains tunnel information and allows querying it.  It is not threadsafe and all
