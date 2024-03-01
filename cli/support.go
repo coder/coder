@@ -169,7 +169,7 @@ func humanizeAgentLogs(ls []codersdk.WorkspaceAgentLog) string {
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)
 	for _, l := range ls {
 		_, _ = fmt.Fprintf(tw, "%s\t[%s]\t%s\n",
-			l.CreatedAt.Format(time.RFC3339),
+			l.CreatedAt.Format("2006-01-02 15:04:05.000"), // for consistency with slog
 			string(l.Level),
 			l.Output,
 		)
@@ -183,7 +183,7 @@ func humanizeBuildLogs(ls []codersdk.ProvisionerJobLog) string {
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)
 	for _, l := range ls {
 		_, _ = fmt.Fprintf(tw, "%s\t[%s]\t%s\t%s\t%s\n",
-			l.CreatedAt.Format(time.RFC3339),
+			l.CreatedAt.Format("2006-01-02 15:04:05.000"), // for consistency with slog
 			string(l.Level),
 			string(l.Source),
 			l.Stage,
