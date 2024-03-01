@@ -82,6 +82,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
         {loading ? <>Starting&hellip;</> : "Start"}
       </TopbarButton>
       <BuildParametersPopover
+        label="Start with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}
@@ -139,6 +140,7 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </TopbarButton>
       <BuildParametersPopover
+        label="Restart with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}

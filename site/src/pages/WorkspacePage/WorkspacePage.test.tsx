@@ -1,4 +1,4 @@
-import { type Workspace } from "api/typesGenerated";
+import { TemplateVersionParameter, type Workspace } from "api/typesGenerated";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventSourceMock from "eventsourcemock";
@@ -21,6 +21,7 @@ import * as api from "api/api";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
+import { satisfies } from "semver";
 
 // Renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (workspace: Workspace) => {
@@ -436,6 +437,55 @@ describe("WorkspacePage", () => {
           logLevel: "debug",
         });
       });
+    });
+  });
+
+  it.only("retry with build parameters", async () => {
+    const user = userEvent.setup();
+    const workspace = {
+      ...MockFailedWorkspace,
+      latest_build: {
+        ...MockFailedWorkspace.latest_build,
+        transition: "start",
+      },
+    } satisfies Workspace;
+    const parameter = {
+      ...MockTemplateVersionParameter1,
+      display_name: "Parameter 1",
+      ephemeral: true,
+    } satisfies TemplateVersionParameter;
+
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:versionId/rich-parameters",
+        (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([parameter]));
+        },
+      ),
+    );
+    const startWorkspaceSpy = jest.spyOn(api, "startWorkspace");
+
+    await renderWorkspacePage(workspace);
+    const retryWithBuildParametersButton = await screen.findByRole("button", {
+      name: "Retry with build parameters",
+    });
+    await user.click(retryWithBuildParametersButton);
+    await screen.findByText("Build Options");
+    const parameterField = screen.getByLabelText(parameter.display_name, {
+      exact: false,
+    });
+    await user.clear(parameterField);
+    await user.type(parameterField, "some-value");
+    const submitButton = screen.getByText("Build workspace");
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(startWorkspaceSpy).toBeCalledWith(
+        workspace.id,
+        workspace.latest_build.template_version_id,
+        undefined,
+        [{ name: parameter.name, value: "some-value" }],
+      );
     });
   });
 });

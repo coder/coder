@@ -37,7 +37,11 @@ export const RetryButton: FC<RetryButtonProps> = ({
       }}
     >
       {mainAction}
-      <BuildParametersPopover workspace={workspace} onSubmit={handleAction} />
+      <BuildParametersPopover
+        label="Retry with build parameters"
+        workspace={workspace}
+        onSubmit={handleAction}
+      />
     </ButtonGroup>
   );
 };

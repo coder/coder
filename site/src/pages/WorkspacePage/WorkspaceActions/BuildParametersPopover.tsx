@@ -32,16 +32,19 @@ import {
   usePopover,
 } from "components/Popover/Popover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 
 interface BuildParametersPopoverProps {
   workspace: Workspace;
   disabled?: boolean;
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  label: string;
 }
 
 export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
   workspace,
   disabled,
+  label,
   onSubmit,
 }) => {
   const { data: parameters } = useQuery({
@@ -62,6 +65,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
           css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
         >
           <ExpandMoreOutlined css={{ fontSize: 14 }} />
+          <span css={{ ...visuallyHidden }}>{label}</span>
         </TopbarButton>
       </PopoverTrigger>
       <PopoverContent
