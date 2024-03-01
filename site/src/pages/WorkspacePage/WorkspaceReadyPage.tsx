@@ -227,7 +227,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         handleSettings={() => navigate("settings")}
         handleRetry={handleRetry}
         handleDebug={handleDebug}
-        canRetryDebugMode={
+        canDebugMode={
           deploymentValues?.config.enable_terraform_debug_mode ?? false
         }
         handleChangeVersion={() => {

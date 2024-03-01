@@ -11,7 +11,6 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
-  RetryButton,
   FavoriteButton,
   DebugButton,
 } from "./Buttons";
@@ -29,6 +28,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -48,7 +48,7 @@ export interface WorkspaceActionsProps {
   isRestarting: boolean;
   children?: ReactNode;
   canChangeVersions: boolean;
-  canRetryDebug: boolean;
+  canDebug: boolean;
   isOwner: boolean;
 }
 
@@ -69,7 +69,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isUpdating,
   isRestarting,
   canChangeVersions,
-  canRetryDebug,
+  canDebug,
   isOwner,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
@@ -77,7 +77,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
     workspace,
-    canRetryDebug,
+    canDebug,
   );
   const showCancel =
     canCancel &&

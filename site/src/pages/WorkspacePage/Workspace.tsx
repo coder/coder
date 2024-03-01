@@ -42,7 +42,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template: TypesGen.Template;
-  canRetryDebugMode: boolean;
+  canDebugMode: boolean;
   handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   buildLogs?: React.ReactNode;
@@ -74,7 +74,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   buildInfo,
   sshPrefix,
   template,
-  canRetryDebugMode,
+  canDebugMode,
   handleRetry,
   handleDebug,
   buildLogs,
@@ -133,7 +133,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         handleChangeVersion={handleChangeVersion}
         handleDormantActivate={handleDormantActivate}
         handleToggleFavorite={handleToggleFavorite}
-        canRetryDebugMode={canRetryDebugMode}
+        canDebugMode={canDebugMode}
         canChangeVersions={canChangeVersions}
         isUpdating={isUpdating}
         isRestarting={isRestarting}
