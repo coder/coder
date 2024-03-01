@@ -46,7 +46,7 @@ func (r *RootCmd) support() *clibase.Cmd {
 			}
 			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
-				return err
+				return xerrors.Errorf("invalid workspace: %w", err)
 			}
 
 			deps.WorkspaceID = ws.ID
