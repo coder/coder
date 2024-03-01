@@ -2881,21 +2881,6 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaces", reflect.TypeOf((*MockStore)(nil).GetWorkspaces), arg0, arg1)
 }
 
-// GetWorkspaces mocks base method.
-func (m *MockStore) GetWorkspacesWithoutSummary(arg0 context.Context, arg1 database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesWithoutSummary", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetWorkspacesRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspaces indicates an expected call of GetWorkspaces.
-func (mr *MockStoreMockRecorder) GetWorkspacesWithoutSummary(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesWithoutSummary", reflect.TypeOf((*MockStore)(nil).GetWorkspacesWithoutSummary), arg0, arg1)
-}
-
 // GetWorkspacesEligibleForTransition mocks base method.
 func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
 	m.ctrl.T.Helper()
@@ -2909,6 +2894,21 @@ func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg
 func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), arg0, arg1)
+}
+
+// GetWorkspacesWithoutSummary mocks base method.
+func (m *MockStore) GetWorkspacesWithoutSummary(arg0 context.Context, arg1 database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspacesWithoutSummary", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspacesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspacesWithoutSummary indicates an expected call of GetWorkspacesWithoutSummary.
+func (mr *MockStoreMockRecorder) GetWorkspacesWithoutSummary(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesWithoutSummary", reflect.TypeOf((*MockStore)(nil).GetWorkspacesWithoutSummary), arg0, arg1)
 }
 
 // InTx mocks base method.
