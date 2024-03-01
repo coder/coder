@@ -22,7 +22,7 @@ import (
 
 func (r *RootCmd) support() *clibase.Cmd {
 	supportCmd := &clibase.Cmd{
-		Use:   "support { dump }",
+		Use:   "support",
 		Short: "Commands for troubleshooting issues with a Coder deployment.",
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
