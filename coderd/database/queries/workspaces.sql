@@ -77,12 +77,17 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
+WITH filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	COUNT(*) OVER () as count
+	users.username as username,
+	latest_build.completed_at as latest_build_completed_at,
+	latest_build.canceled_at as latest_build_canceled_at,
+	latest_build.error as latest_build_error,
+	latest_build.transition as latest_build_transition
 FROM
     workspaces
 JOIN
@@ -266,22 +271,42 @@ WHERE
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
-ORDER BY
-	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-	CASE WHEN workspaces.owner_id = @requester_id AND workspaces.favorite THEN 0 ELSE 1 END ASC,
-	(latest_build.completed_at IS NOT NULL AND
-		latest_build.canceled_at IS NULL AND
-		latest_build.error IS NULL AND
-		latest_build.transition = 'start'::workspace_transition) DESC,
-	LOWER(users.username) ASC,
-	LOWER(workspaces.name) ASC
-LIMIT
-	CASE
-		WHEN @limit_ :: integer > 0 THEN
-			@limit_
-	END
-OFFSET
-	@offset_
+), filtered_workspaces_order AS (
+	SELECT
+		fw.*
+	FROM
+		filtered_workspaces fw
+	ORDER BY
+		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		CASE WHEN owner_id = @requester_id AND favorite THEN 0 ELSE 1 END ASC,
+		(latest_build_completed_at IS NOT NULL AND
+			latest_build_canceled_at IS NULL AND
+			latest_build_error IS NULL AND
+			latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(username) ASC,
+		LOWER(name) ASC
+	LIMIT
+		CASE
+			WHEN @limit_ :: integer > 0 THEN
+				@limit_
+		END
+	OFFSET
+		@offset_
+), total_count AS (
+	SELECT
+		count(*) AS count
+    FROM
+		filtered_workspaces
+)
+SELECT
+	tc.count,
+	fwo.*
+FROM
+	total_count tc
+LEFT JOIN
+	filtered_workspaces_order fwo
+ON
+	true
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one

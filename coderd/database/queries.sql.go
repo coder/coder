@@ -11771,12 +11771,17 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
+WITH filtered_workspaces AS (
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite,
 	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	COUNT(*) OVER () as count
+	users.username as username,
+	latest_build.completed_at as latest_build_completed_at,
+	latest_build.canceled_at as latest_build_canceled_at,
+	latest_build.error as latest_build_error,
+	latest_build.transition as latest_build_transition
 FROM
     workspaces
 JOIN
@@ -11960,22 +11965,42 @@ WHERE
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
-ORDER BY
-	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-	CASE WHEN workspaces.owner_id = $14 AND workspaces.favorite THEN 0 ELSE 1 END ASC,
-	(latest_build.completed_at IS NOT NULL AND
-		latest_build.canceled_at IS NULL AND
-		latest_build.error IS NULL AND
-		latest_build.transition = 'start'::workspace_transition) DESC,
-	LOWER(users.username) ASC,
-	LOWER(workspaces.name) ASC
-LIMIT
-	CASE
-		WHEN $16 :: integer > 0 THEN
-			$16
-	END
-OFFSET
-	$15
+), filtered_workspaces_order AS (
+	SELECT
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.template_name, fw.template_version_id, fw.template_version_name, fw.username, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition
+	FROM
+		filtered_workspaces fw
+	ORDER BY
+		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		CASE WHEN owner_id = $14 AND favorite THEN 0 ELSE 1 END ASC,
+		(latest_build_completed_at IS NOT NULL AND
+			latest_build_canceled_at IS NULL AND
+			latest_build_error IS NULL AND
+			latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(username) ASC,
+		LOWER(name) ASC
+	LIMIT
+		CASE
+			WHEN $16 :: integer > 0 THEN
+				$16
+		END
+	OFFSET
+		$15
+), total_count AS (
+	SELECT
+		count(*) AS count
+    FROM
+		filtered_workspaces
+)
+SELECT
+	tc.count,
+	fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
+FROM
+	total_count tc
+LEFT JOIN
+	filtered_workspaces_order fwo
+ON
+	true
 `
 
 type GetWorkspacesParams struct {
@@ -11998,25 +12023,30 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                  uuid.UUID        `db:"id" json:"id"`
-	CreatedAt           time.Time        `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time        `db:"updated_at" json:"updated_at"`
-	OwnerID             uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OrganizationID      uuid.UUID        `db:"organization_id" json:"organization_id"`
-	TemplateID          uuid.UUID        `db:"template_id" json:"template_id"`
-	Deleted             bool             `db:"deleted" json:"deleted"`
-	Name                string           `db:"name" json:"name"`
-	AutostartSchedule   sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                 sql.NullInt64    `db:"ttl" json:"ttl"`
-	LastUsedAt          time.Time        `db:"last_used_at" json:"last_used_at"`
-	DormantAt           sql.NullTime     `db:"dormant_at" json:"dormant_at"`
-	DeletingAt          sql.NullTime     `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates    AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	Favorite            bool             `db:"favorite" json:"favorite"`
-	TemplateName        string           `db:"template_name" json:"template_name"`
-	TemplateVersionID   uuid.UUID        `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName sql.NullString   `db:"template_version_name" json:"template_version_name"`
-	Count               int64            `db:"count" json:"count"`
+	Count                  int64                   `db:"count" json:"count"`
+	ID                     uuid.NullUUID           `db:"id" json:"id"`
+	CreatedAt              sql.NullTime            `db:"created_at" json:"created_at"`
+	UpdatedAt              sql.NullTime            `db:"updated_at" json:"updated_at"`
+	OwnerID                uuid.NullUUID           `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.NullUUID           `db:"organization_id" json:"organization_id"`
+	TemplateID             uuid.NullUUID           `db:"template_id" json:"template_id"`
+	Deleted                sql.NullBool            `db:"deleted" json:"deleted"`
+	Name                   sql.NullString          `db:"name" json:"name"`
+	AutostartSchedule      sql.NullString          `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                    sql.NullInt64           `db:"ttl" json:"ttl"`
+	LastUsedAt             sql.NullTime            `db:"last_used_at" json:"last_used_at"`
+	DormantAt              sql.NullTime            `db:"dormant_at" json:"dormant_at"`
+	DeletingAt             sql.NullTime            `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates       NullAutomaticUpdates    `db:"automatic_updates" json:"automatic_updates"`
+	Favorite               sql.NullBool            `db:"favorite" json:"favorite"`
+	TemplateName           sql.NullString          `db:"template_name" json:"template_name"`
+	TemplateVersionID      uuid.NullUUID           `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName    sql.NullString          `db:"template_version_name" json:"template_version_name"`
+	Username               sql.NullString          `db:"username" json:"username"`
+	LatestBuildCompletedAt sql.NullTime            `db:"latest_build_completed_at" json:"latest_build_completed_at"`
+	LatestBuildCanceledAt  sql.NullTime            `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
+	LatestBuildError       sql.NullString          `db:"latest_build_error" json:"latest_build_error"`
+	LatestBuildTransition  NullWorkspaceTransition `db:"latest_build_transition" json:"latest_build_transition"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
@@ -12046,6 +12076,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	for rows.Next() {
 		var i GetWorkspacesRow
 		if err := rows.Scan(
+			&i.Count,
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -12064,7 +12095,11 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
-			&i.Count,
+			&i.Username,
+			&i.LatestBuildCompletedAt,
+			&i.LatestBuildCanceledAt,
+			&i.LatestBuildError,
+			&i.LatestBuildTransition,
 		); err != nil {
 			return nil, err
 		}
