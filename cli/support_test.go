@@ -114,6 +114,7 @@ func assertBundleContents(t *testing.T, path string) {
 	require.NoError(t, err, "open zip file")
 	defer r.Close()
 	for _, f := range r.File {
+		require.NotZero(t, f.UncompressedSize64, "file %q should not be empty", f.Name)
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
