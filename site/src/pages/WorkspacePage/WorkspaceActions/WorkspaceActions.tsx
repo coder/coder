@@ -13,6 +13,7 @@ import {
   ActivateButton,
   RetryButton,
   FavoriteButton,
+  DebugButton,
 } from "./Buttons";
 
 import Divider from "@mui/material/Divider";
@@ -41,7 +42,7 @@ export interface WorkspaceActionsProps {
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleRetry: () => void;
-  handleRetryDebug: () => void;
+  handleDebug: () => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
@@ -62,7 +63,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleRetry,
-  handleRetryDebug,
+  handleDebug,
   handleChangeVersion,
   handleDormantActivate,
   isUpdating,
@@ -133,7 +134,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
     retry: <RetryButton handleAction={handleRetry} />,
-    retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
+    retryDebug: <DebugButton handleAction={handleDebug} />,
     toggleFavorite: (
       <FavoriteButton
         workspaceID={workspace.id}

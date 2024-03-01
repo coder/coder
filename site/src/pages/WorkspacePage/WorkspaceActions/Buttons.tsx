@@ -7,8 +7,8 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import BlockIcon from "@mui/icons-material/Block";
 import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import RetryIcon from "@mui/icons-material/BuildOutlined";
-import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
+import RetryIcon from "@mui/icons-material/CachedOutlined";
+import DebugIcon from "@mui/icons-material/BugReportOutlined";
 import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
 import { type FC } from "react";
@@ -175,20 +175,22 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   );
 };
 
-type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
-  debug?: boolean;
+type RetryButtonProps = Omit<ActionButtonProps, "loading">;
+
+export const RetryButton: FC<RetryButtonProps> = ({ handleAction }) => {
+  return (
+    <TopbarButton startIcon={<RetryIcon />} onClick={() => handleAction()}>
+      Retry
+    </TopbarButton>
+  );
 };
 
-export const RetryButton: FC<RetryButtonProps> = ({
-  handleAction,
-  debug = false,
-}) => {
+type DebugButtonProps = Omit<ActionButtonProps, "loading">;
+
+export const DebugButton: FC<DebugButtonProps> = ({ handleAction }) => {
   return (
-    <TopbarButton
-      startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
-      onClick={() => handleAction()}
-    >
-      Retry{debug && " (Debug)"}
+    <TopbarButton startIcon={<DebugIcon />} onClick={() => handleAction()}>
+      Debug
     </TopbarButton>
   );
 };
