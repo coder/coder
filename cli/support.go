@@ -91,7 +91,7 @@ func (r *RootCmd) support() *clibase.Cmd {
 			}
 			return nil
 		},
-		Hidden: true, // TODO: un-hide
+		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
 	}
 	cmd.Options = clibase.OptionSet{
 		{
