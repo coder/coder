@@ -21,11 +21,26 @@ import (
 )
 
 func (r *RootCmd) support() *clibase.Cmd {
+	supportCmd := &clibase.Cmd{
+		Use:   "support { dump }",
+		Short: "Commands for troubleshooting issues with a Coder deployment.",
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
+		Children: []*clibase.Cmd{
+			r.supportBundle(),
+		},
+	}
+	return supportCmd
+}
+
+func (r *RootCmd) supportBundle() *clibase.Cmd {
 	var outputPath string
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "support <workspace> [<agent>]",
-		Short: "Generate a support bundle to troubleshoot issues.",
+		Use:   "bundle <workspace> [<agent>]",
+		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 2),
@@ -91,7 +106,6 @@ func (r *RootCmd) support() *clibase.Cmd {
 			}
 			return nil
 		},
-		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
 	}
 	cmd.Options = clibase.OptionSet{
 		{
