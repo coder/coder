@@ -155,7 +155,13 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		return w
 	}
 
+	agt, err := client.WorkspaceAgent(ctx, agentID)
+	if err != nil {
+		log.Error(ctx, "fetch workspace agent", slog.Error(err), slog.F("agent_id", agentID))
+	}
+
 	w.Workspace = ws
+	w.Agent = agt
 
 	buildLogCh, closer, err := client.WorkspaceBuildLogsAfter(ctx, ws.LatestBuild.ID, 0)
 	if err != nil {
@@ -203,7 +209,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 
 	// Ensure we capture logs from the client.
 	var logw strings.Builder
-	d.Log.AppendSinks(sloghuman.Sink(&logw))
+	d.Log = d.Log.AppendSinks(sloghuman.Sink(&logw))
 	d.Client.SetLogger(d.Log)
 	defer func() {
 		b.Logs = strings.Split(logw.String(), "\n")
