@@ -63,11 +63,6 @@ func (r *RootCmd) support() *clibase.Cmd {
 
 			deps.AgentID = agt.ID
 
-			bun, err := support.Run(inv.Context(), &deps)
-			if err != nil {
-				return err
-			}
-
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
 				if err != nil {
@@ -83,6 +78,13 @@ func (r *RootCmd) support() *clibase.Cmd {
 			}
 			zwr := zip.NewWriter(w)
 			defer zwr.Close()
+
+			bun, err := support.Run(inv.Context(), &deps)
+			if err != nil {
+				_ = os.Remove(outputPath) // best effort
+				return xerrors.Errorf("create support bundle: %w", err)
+			}
+
 			if err := writeBundle(bun, zwr); err != nil {
 				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
