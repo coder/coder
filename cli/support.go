@@ -140,8 +140,9 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		if err != nil {
 			return xerrors.Errorf("create file %q in archive: %w", k, err)
 		}
-		err = json.NewEncoder(f).Encode(v)
-		if err != nil {
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "    ")
+		if err := enc.Encode(v); err != nil {
 			return xerrors.Errorf("write json to %q: %w", k, err)
 		}
 	}
