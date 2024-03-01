@@ -1369,18 +1369,18 @@ func (m metricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Cont
 	return r0, r1
 }
 
-func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	start := time.Now()
-	workspaces, err := m.s.GetWorkspaces(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaces").Observe(time.Since(start).Seconds())
-	return workspaces, err
-}
-
 func (m metricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
 	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForAutoStartStop").Observe(time.Since(start).Seconds())
 	return workspaces, err
+}
+
+func (m metricsStore) GetWorkspacesWithSummary(ctx context.Context, arg database.GetWorkspacesWithSummaryParams) ([]database.GetWorkspacesWithSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesWithSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspacesWithSummary").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -2255,10 +2255,10 @@ func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	return workspaces, err
 }
 
-func (m metricsStore) GetWorkspacesWithoutSummary(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	start := time.Now()
-	workspaces, err := m.s.GetWorkspacesWithoutSummary(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspacesWithoutSummary").Observe(time.Since(start).Seconds())
+	workspaces, err := m.s.GetWorkspaces(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaces").Observe(time.Since(start).Seconds())
 	return workspaces, err
 }
 

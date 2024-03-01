@@ -275,8 +275,8 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error)
-	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error)
+	GetWorkspacesWithSummary(ctx context.Context, arg GetWorkspacesWithSummaryParams) ([]GetWorkspacesWithSummaryRow, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is

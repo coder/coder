@@ -76,7 +76,7 @@ WHERE
 			)
 	);
 
--- name: GetWorkspaces :many
+-- name: GetWorkspacesWithSummary :many
 WITH filtered_workspaces AS (
 SELECT
 	workspaces.*,

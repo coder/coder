@@ -517,7 +517,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspacesWithoutSummary(ctx, database.GetWorkspacesParams{
+	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
 	if err != nil {

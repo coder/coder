@@ -11770,7 +11770,112 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 	return items, nil
 }
 
-const getWorkspaces = `-- name: GetWorkspaces :many
+const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
+SELECT
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite
+FROM
+	workspaces
+LEFT JOIN
+	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
+WHERE
+	workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	) AND
+
+	(
+		-- If the workspace build was a start transition, the workspace is
+		-- potentially eligible for autostop if it's past the deadline. The
+		-- deadline is computed at build time upon success and is bumped based
+		-- on activity (up the max deadline if set). We don't need to check
+		-- license here since that's done when the values are written to the build.
+		(
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspace_builds.deadline IS NOT NULL AND
+			workspace_builds.deadline < $1 :: timestamptz
+		) OR
+
+		-- If the workspace build was a stop transition, the workspace is
+		-- potentially eligible for autostart if it has a schedule set. The
+		-- caller must check if the template allows autostart in a license-aware
+		-- fashion as we cannot check it here.
+		(
+			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.autostart_schedule IS NOT NULL
+		) OR
+
+		-- If the workspace's most recent job resulted in an error
+		-- it may be eligible for failed stop.
+		(
+			provisioner_jobs.error IS NOT NULL AND
+			provisioner_jobs.error != '' AND
+			workspace_builds.transition = 'start'::workspace_transition
+		) OR
+
+		-- If the workspace's template has an inactivity_ttl set
+		-- it may be eligible for dormancy.
+		(
+			templates.time_til_dormant > 0 AND
+			workspaces.dormant_at IS NULL
+		) OR
+
+		-- If the workspace's template has a time_til_dormant_autodelete set
+		-- and the workspace is already dormant.
+		(
+			templates.time_til_dormant_autodelete > 0 AND
+			workspaces.dormant_at IS NOT NULL
+		)
+	) AND workspaces.deleted = 'false'
+`
+
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.Ttl,
+			&i.LastUsedAt,
+			&i.DormantAt,
+			&i.DeletingAt,
+			&i.AutomaticUpdates,
+			&i.Favorite,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesWithSummary = `-- name: GetWorkspacesWithSummary :many
 WITH filtered_workspaces AS (
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite,
@@ -12034,7 +12139,7 @@ CROSS JOIN
 	total_count tc
 `
 
-type GetWorkspacesParams struct {
+type GetWorkspacesWithSummaryParams struct {
 	Deleted                               bool         `db:"deleted" json:"deleted"`
 	Status                                string       `db:"status" json:"status"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
@@ -12053,7 +12158,7 @@ type GetWorkspacesParams struct {
 	Limit                                 int32        `db:"limit_" json:"limit_"`
 }
 
-type GetWorkspacesRow struct {
+type GetWorkspacesWithSummaryRow struct {
 	ID                     uuid.UUID           `db:"id" json:"id"`
 	CreatedAt              time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt              time.Time           `db:"updated_at" json:"updated_at"`
@@ -12080,8 +12185,8 @@ type GetWorkspacesRow struct {
 	Count                  int64               `db:"count" json:"count"`
 }
 
-func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaces,
+func (q *sqlQuerier) GetWorkspacesWithSummary(ctx context.Context, arg GetWorkspacesWithSummaryParams) ([]GetWorkspacesWithSummaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesWithSummary,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
@@ -12103,9 +12208,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetWorkspacesRow
+	var items []GetWorkspacesWithSummaryRow
 	for rows.Next() {
-		var i GetWorkspacesRow
+		var i GetWorkspacesWithSummaryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -12131,111 +12236,6 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
 			&i.Count,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
-SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite
-FROM
-	workspaces
-LEFT JOIN
-	workspace_builds ON workspace_builds.workspace_id = workspaces.id
-INNER JOIN
-	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
-INNER JOIN
-	templates ON workspaces.template_id = templates.id
-WHERE
-	workspace_builds.build_number = (
-		SELECT
-			MAX(build_number)
-		FROM
-			workspace_builds
-		WHERE
-			workspace_builds.workspace_id = workspaces.id
-	) AND
-
-	(
-		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
-		(
-			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < $1 :: timestamptz
-		) OR
-
-		-- If the workspace build was a stop transition, the workspace is
-		-- potentially eligible for autostart if it has a schedule set. The
-		-- caller must check if the template allows autostart in a license-aware
-		-- fashion as we cannot check it here.
-		(
-			workspace_builds.transition = 'stop'::workspace_transition AND
-			workspaces.autostart_schedule IS NOT NULL
-		) OR
-
-		-- If the workspace's most recent job resulted in an error
-		-- it may be eligible for failed stop.
-		(
-			provisioner_jobs.error IS NOT NULL AND
-			provisioner_jobs.error != '' AND
-			workspace_builds.transition = 'start'::workspace_transition
-		) OR
-
-		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for dormancy.
-		(
-			templates.time_til_dormant > 0 AND
-			workspaces.dormant_at IS NULL
-		) OR
-
-		-- If the workspace's template has a time_til_dormant_autodelete set
-		-- and the workspace is already dormant.
-		(
-			templates.time_til_dormant_autodelete > 0 AND
-			workspaces.dormant_at IS NOT NULL
-		)
-	) AND workspaces.deleted = 'false'
-`
-
-func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-			&i.LastUsedAt,
-			&i.DormantAt,
-			&i.DeletingAt,
-			&i.AutomaticUpdates,
-			&i.Favorite,
 		); err != nil {
 			return nil, err
 		}

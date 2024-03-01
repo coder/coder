@@ -2214,16 +2214,12 @@ func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context,
 	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
 }
 
-func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
-}
-
 func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
+}
+
+func (q *querier) GetWorkspacesWithSummary(ctx context.Context, arg database.GetWorkspacesWithSummaryParams) ([]database.GetWorkspacesWithSummaryRow, error) {
+	return q.db.GetWorkspacesWithSummary(ctx, arg)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -3432,8 +3428,12 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 	return q.GetWorkspaces(ctx, arg)
 }
 
-func (q *querier) GetWorkspacesWithoutSummary(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	return q.db.GetWorkspacesWithoutSummary(ctx, arg)
+func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already

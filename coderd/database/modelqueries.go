@@ -194,8 +194,11 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
-	GetWorkspacesWithoutSummary(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
+	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 }
+
+type GetWorkspacesParams GetWorkspacesWithSummaryParams
+type GetWorkspacesRow GetWorkspacesWithSummaryRow
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
@@ -208,7 +211,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filtered, err := insertAuthorizedFilter(getWorkspaces, fmt.Sprintf(" AND %s", authorizedFilter))
+	filtered, err := insertAuthorizedFilter(getWorkspacesWithSummary, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
@@ -276,15 +279,22 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	items = items[:len(items)-1] // Remove summary row
 	return items, nil
 }
 
-func (q *sqlQuerier) GetWorkspacesWithoutSummary(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
-	rows, err := q.GetWorkspaces(ctx, arg)
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
+	rows, err := q.GetWorkspacesWithSummary(ctx, GetWorkspacesWithSummaryParams(arg))
 	if err != nil {
 		return nil, err
 	}
-	return rows[:len(rows)-1], nil
+	rows = rows[:len(rows)-1]
+	translated := make([]GetWorkspacesRow, 0, len(rows))
+	for _, r := range rows {
+		translated = append(translated, GetWorkspacesRow(r))
+	}
+	return translated, nil
 }
 
 type userQuerier interface {

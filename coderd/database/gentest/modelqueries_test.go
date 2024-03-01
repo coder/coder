@@ -23,9 +23,9 @@ func TestCustomQueriesSyncedRowScan(t *testing.T) {
 	t.Parallel()
 
 	funcsToTrack := map[string]string{
-		"GetTemplatesWithFilter": "GetAuthorizedTemplates",
-		"GetWorkspaces":          "GetAuthorizedWorkspaces",
-		"GetUsers":               "GetAuthorizedUsers",
+		"GetTemplatesWithFilter":   "GetAuthorizedTemplates",
+		"GetWorkspacesWithSummary": "GetAuthorizedWorkspaces",
+		"GetUsers":                 "GetAuthorizedUsers",
 	}
 
 	// Scan custom

@@ -375,7 +375,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		workspaceRows, err := r.options.Database.GetWorkspacesWithoutSummary(ctx, database.GetWorkspacesParams{})
+		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
 			return xerrors.Errorf("get workspaces: %w", err)
 		}
