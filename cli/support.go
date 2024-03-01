@@ -16,7 +16,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
 )
@@ -74,12 +73,7 @@ func (r *RootCmd) support() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("could not determine current working directory: %w", err)
 				}
-				loc, err := tz.TimezoneIANA()
-				if err != nil {
-					loc = time.UTC
-				}
-				tsStr := time.Now().In(loc).Format("2006-01-02-150405")
-				fname := "coder-support-" + tsStr + ".zip"
+				fname := fmt.Sprintf("coder-support-%d.zip", time.Now().Unix())
 				outputPath = filepath.Join(cwd, fname)
 			}
 
@@ -101,7 +95,7 @@ func (r *RootCmd) support() *clibase.Cmd {
 			Flag:          "output",
 			FlagShorthand: "o",
 			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT",
-			Description:   "Path to which to output the generated support bundle. Defaults to coder-support-YYYYmmdd-HHMMSS.zip.",
+			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
 			Value:         clibase.StringOf(&outputPath),
 		},
 	}
