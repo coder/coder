@@ -3438,3 +3438,7 @@ func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersP
 	// GetUsers is authenticated.
 	return q.GetUsers(ctx, arg)
 }
+
+func (q *querier) GetWorkspacesWithoutSummary(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	return q.db.GetWorkspacesWithoutSummary(ctx, arg)
+}

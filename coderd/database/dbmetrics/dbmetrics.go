@@ -2261,3 +2261,10 @@ func (m metricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 	m.queryLatencies.WithLabelValues("GetAuthorizedUsers").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
+
+func (m metricsStore) GetWorkspacesWithoutSummary(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	start := time.Now()
+	workspaces, err := m.s.GetWorkspacesWithoutSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspacesWithoutSummary").Observe(time.Since(start).Seconds())
+	return workspaces, err
+}

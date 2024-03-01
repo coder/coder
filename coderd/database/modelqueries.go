@@ -194,6 +194,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
+	GetWorkspacesWithoutSummary(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -276,6 +277,14 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) GetWorkspacesWithoutSummary(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
+	rows, err := q.GetWorkspaces(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	return rows[:len(rows)-1], nil
 }
 
 type userQuerier interface {

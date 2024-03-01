@@ -229,7 +229,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+			workspaceRows, err := db.GetWorkspacesWithoutSummary(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 			})
 			if err != nil {

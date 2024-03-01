@@ -70,7 +70,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	// This is just to get the workspace count, so we use a system context to
 	// return ALL workspaces. Not just workspaces the user can view.
 	// nolint:gocritic
-	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
+	workspaces, err := api.Database.GetWorkspacesWithoutSummary(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		TemplateIDs: []uuid.UUID{template.ID},
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
