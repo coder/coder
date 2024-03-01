@@ -391,21 +391,9 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			}
 
 			// If we were triggered by RegisterNow(), send the response back.
-			// Use a blocking send with 1s timeout in case the caller somehow
-			// exited.
-			//
-			// If this does block then the interval will be off by 1s, but since
-			// we only call RegisterNow() in tests it's fine.
 			if respCh != nil {
-				timeout := time.NewTimer(time.Second)
-				select {
-				case respCh <- resp:
-					close(respCh)
-				case <-timeout.C:
-					l.opts.Logger.Warn(ctx, "timeout sending response to RegisterNow from registration loop")
-					close(respCh)
-				}
-				timeout.Stop()
+				respCh <- resp
+				close(respCh)
 			}
 
 			ticker.Reset(l.opts.Interval)
@@ -418,15 +406,8 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 // RegisterNow asks the registration loop to register immediately. A timeout of
 // 2x the attempt timeout is used to wait for the response.
 func (l *RegisterWorkspaceProxyLoop) RegisterNow() (RegisterWorkspaceProxyResponse, error) {
-	// Pre-check before we do anything.
-	select {
-	case <-l.done:
-		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
-	default:
-	}
-
 	// The channel is closed by the loop after sending the response.
-	respCh := make(chan RegisterWorkspaceProxyResponse)
+	respCh := make(chan RegisterWorkspaceProxyResponse, 1)
 	select {
 	case <-l.done:
 		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
