@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,10 +168,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 }
 
 func humanizeAgentLogs(ls []codersdk.WorkspaceAgentLog) string {
-	var l log.Logger
-
 	var buf bytes.Buffer
-	l.SetOutput(&buf)
 	tw := tabwriter.NewWriter(&buf, 0, 2, 1, ' ', 0)
 	for _, l := range ls {
 		_, _ = fmt.Fprintf(tw, "%s\t[%s]\t%s\n",
