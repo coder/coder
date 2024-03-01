@@ -41,8 +41,8 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
-  handleRetry: () => void;
-  handleDebug: () => void;
+  handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
@@ -133,8 +133,20 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     pending: <DisabledButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
-    retry: <RetryButton handleAction={handleRetry} />,
-    retryDebug: <DebugButton handleAction={handleDebug} />,
+    retry: (
+      <RetryButton
+        handleAction={handleRetry}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
+    debug: (
+      <DebugButton
+        handleAction={handleDebug}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
     toggleFavorite: (
       <FavoriteButton
         workspaceID={workspace.id}

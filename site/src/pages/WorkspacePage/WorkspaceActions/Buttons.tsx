@@ -175,23 +175,75 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   );
 };
 
-type RetryButtonProps = Omit<ActionButtonProps, "loading">;
+type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
+  enableBuildParameters: boolean;
+  workspace: Workspace;
+};
 
-export const RetryButton: FC<RetryButtonProps> = ({ handleAction }) => {
-  return (
+export const RetryButton: FC<RetryButtonProps> = ({
+  handleAction,
+  workspace,
+  enableBuildParameters,
+}) => {
+  const mainAction = (
     <TopbarButton startIcon={<RetryIcon />} onClick={() => handleAction()}>
       Retry
     </TopbarButton>
   );
+
+  if (!enableBuildParameters) {
+    return mainAction;
+  }
+
+  return (
+    <ButtonGroup
+      variant="outlined"
+      css={{
+        // Workaround to make the border transitions smoothly on button groups
+        "& > button:hover + button": {
+          borderLeft: "1px solid #FFF",
+        },
+      }}
+    >
+      {mainAction}
+      <BuildParametersPopover workspace={workspace} onSubmit={handleAction} />
+    </ButtonGroup>
+  );
 };
 
-type DebugButtonProps = Omit<ActionButtonProps, "loading">;
+type DebugButtonProps = Omit<ActionButtonProps, "loading"> & {
+  workspace: Workspace;
+  enableBuildParameters: boolean;
+};
 
-export const DebugButton: FC<DebugButtonProps> = ({ handleAction }) => {
-  return (
+export const DebugButton: FC<DebugButtonProps> = ({
+  handleAction,
+  workspace,
+  enableBuildParameters,
+}) => {
+  const mainAction = (
     <TopbarButton startIcon={<DebugIcon />} onClick={() => handleAction()}>
       Debug
     </TopbarButton>
+  );
+
+  if (!enableBuildParameters) {
+    return mainAction;
+  }
+
+  return (
+    <ButtonGroup
+      variant="outlined"
+      css={{
+        // Workaround to make the border transitions smoothly on button groups
+        "& > button:hover + button": {
+          borderLeft: "1px solid #FFF",
+        },
+      }}
+    >
+      {mainAction}
+      <BuildParametersPopover workspace={workspace} onSubmit={handleAction} />
+    </ButtonGroup>
   );
 };
 

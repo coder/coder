@@ -53,8 +53,8 @@ export interface WorkspaceProps {
   canUpdateWorkspace: boolean;
   canChangeVersions: boolean;
   canRetryDebugMode: boolean;
-  handleBuildRetry: () => void;
-  handleBuildRetryDebug: () => void;
+  handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   isOwner: boolean;
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
@@ -79,8 +79,8 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   canUpdateWorkspace,
   canChangeVersions,
   canRetryDebugMode,
-  handleBuildRetry,
-  handleBuildRetryDebug,
+  handleRetry,
+  handleDebug,
   isOwner,
   template,
   latestVersion,
@@ -266,8 +266,8 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           handleUpdate={handleUpdate}
           handleCancel={handleCancel}
           handleSettings={handleSettings}
-          handleRetry={handleBuildRetry}
-          handleDebug={handleBuildRetryDebug}
+          handleRetry={handleRetry}
+          handleDebug={handleDebug}
           handleChangeVersion={handleChangeVersion}
           handleDormantActivate={handleDormantActivate}
           handleToggleFavorite={handleToggleFavorite}
