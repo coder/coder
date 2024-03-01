@@ -16,9 +16,9 @@ export const Jon: Story = {
   },
 };
 
-export const JonButJapanese: Story = {
+export const Jonjon: Story = {
   args: {
-    username: "ジョン",
+    username: "ジョンジョン",
     avatarURL: "https://github.com/sreya.png",
   },
 };
