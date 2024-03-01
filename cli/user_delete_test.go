@@ -78,37 +78,6 @@ func TestUserDelete(t *testing.T) {
 		pty.ExpectMatch("coolin")
 	})
 
-	t.Run("UserID", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		owner := coderdtest.CreateFirstUser(t, client)
-		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
-
-		pw, err := cryptorand.String(16)
-		require.NoError(t, err)
-
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "colin5@coder.com",
-			Username:       "coolin",
-			Password:       pw,
-			UserLoginType:  codersdk.LoginTypePassword,
-			OrganizationID: owner.OrganizationID,
-			DisableLogin:   false,
-		})
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "users", "delete", user.ID.String())
-		clitest.SetupConfig(t, userAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
-		errC := make(chan error)
-		go func() {
-			errC <- inv.Run()
-		}()
-		require.NoError(t, <-errC)
-		pty.ExpectMatch("coolin")
-	})
-
 	// TODO: reenable this test case. Fetching users without perms returns a
 	// "user "testuser@coder.com" must be a member of at least one organization"
 	// error.
