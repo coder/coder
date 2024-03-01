@@ -73,6 +73,13 @@ export const Failed: Story = {
   },
 };
 
+export const FailedWithDebug: Story = {
+  args: {
+    workspace: Mocks.MockFailedWorkspace,
+    canDebug: true,
+  },
+};
+
 export const Updating: Story = {
   args: {
     isUpdating: true,
