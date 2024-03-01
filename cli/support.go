@@ -86,6 +86,7 @@ func (r *RootCmd) support() *clibase.Cmd {
 			}
 
 			if err := writeBundle(bun, zwr); err != nil {
+				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
 			return nil
