@@ -17,7 +17,6 @@ export interface UserDropdownProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: TypesGen.LinkConfig[];
   onSignOut: () => void;
-  isDefaultOpen?: boolean;
   children?: ReactNode;
 }
 
@@ -26,12 +25,11 @@ export const UserDropdown: FC<UserDropdownProps> = ({
   user,
   supportLinks,
   onSignOut,
-  isDefaultOpen,
 }) => {
   const theme = useTheme();
 
   return (
-    <Popover isDefaultOpen={isDefaultOpen}>
+    <Popover>
       {(popover) => (
         <>
           <PopoverTrigger>
