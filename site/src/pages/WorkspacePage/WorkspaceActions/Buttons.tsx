@@ -7,7 +7,6 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import BlockIcon from "@mui/icons-material/Block";
 import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import DebugIcon from "@mui/icons-material/BugReportOutlined";
 import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
 import { type FC } from "react";
@@ -171,42 +170,6 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
     <TopbarButton startIcon={<OutlinedBlockIcon />} disabled>
       {label}
     </TopbarButton>
-  );
-};
-
-type DebugButtonProps = Omit<ActionButtonProps, "loading"> & {
-  workspace: Workspace;
-  enableBuildParameters: boolean;
-};
-
-export const DebugButton: FC<DebugButtonProps> = ({
-  handleAction,
-  workspace,
-  enableBuildParameters,
-}) => {
-  const mainAction = (
-    <TopbarButton startIcon={<DebugIcon />} onClick={() => handleAction()}>
-      Debug
-    </TopbarButton>
-  );
-
-  if (!enableBuildParameters) {
-    return mainAction;
-  }
-
-  return (
-    <ButtonGroup
-      variant="outlined"
-      css={{
-        // Workaround to make the border transitions smoothly on button groups
-        "& > button:hover + button": {
-          borderLeft: "1px solid #FFF",
-        },
-      }}
-    >
-      {mainAction}
-      <BuildParametersPopover workspace={workspace} onSubmit={handleAction} />
-    </ButtonGroup>
   );
 };
 

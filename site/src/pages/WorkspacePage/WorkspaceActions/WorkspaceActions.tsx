@@ -12,7 +12,6 @@ import {
   UpdateButton,
   ActivateButton,
   FavoriteButton,
-  DebugButton,
 } from "./Buttons";
 
 import Divider from "@mui/material/Divider";
@@ -29,6 +28,7 @@ import {
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import { RetryButton } from "./RetryButton";
+import { DebugButton } from "./DebugButton";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
