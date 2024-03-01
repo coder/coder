@@ -10,6 +10,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
+import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -104,25 +105,28 @@ export const WorkspacePage: FC = () => {
   const isLoading = !workspace || !template || !permissions;
 
   return (
-    <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Navbar />
-      {pageError ? (
-        <Margins>
-          <ErrorAlert
-            error={pageError}
-            css={{ marginTop: 16, marginBottom: 16 }}
+    <>
+      <ServiceBanner />
+      <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        {pageError ? (
+          <Margins>
+            <ErrorAlert
+              error={pageError}
+              css={{ marginTop: 16, marginBottom: 16 }}
+            />
+          </Margins>
+        ) : isLoading ? (
+          <Loader />
+        ) : (
+          <WorkspaceReadyPage
+            workspace={workspace}
+            template={template}
+            permissions={permissions}
           />
-        </Margins>
-      ) : isLoading ? (
-        <Loader />
-      ) : (
-        <WorkspaceReadyPage
-          workspace={workspace}
-          template={template}
-          permissions={permissions}
-        />
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 };
 
