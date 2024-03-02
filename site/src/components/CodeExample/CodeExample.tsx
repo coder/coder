@@ -1,8 +1,9 @@
-import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
+import { type FC, type KeyboardEvent, type MouseEvent, useRef, useState } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
 import { visuallyHidden } from "@mui/utils";
+import { EyeButton } from "components/EyeButton/EyeButton";
 
 export interface CodeExampleProps {
   code: string;
@@ -21,6 +22,9 @@ export const CodeExample: FC<CodeExampleProps> = ({
   // the secure option, not remember to opt in
   secret = true,
 }) => {
+  const [toShow, setToShow] = useState<boolean>(true)
+  secret = toShow;
+
   const buttonRef = useRef<HTMLButtonElement>(null);
   const triggerButton = (event: KeyboardEvent | MouseEvent) => {
     const clickTriggeredOutsideButton =
@@ -31,6 +35,10 @@ export const CodeExample: FC<CodeExampleProps> = ({
       buttonRef.current?.click();
     }
   };
+
+  const toggleHide = () =>  {
+    setToShow(!toShow);
+  }
 
   return (
     /* eslint-disable-next-line jsx-a11y/no-static-element-interactions --
@@ -74,6 +82,7 @@ export const CodeExample: FC<CodeExampleProps> = ({
       </code>
 
       <CopyButton ref={buttonRef} text={code} />
+      <EyeButton ref={buttonRef} toggleHide={toggleHide} toShow={toShow}/>
     </div>
   );
 };
