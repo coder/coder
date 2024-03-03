@@ -75,6 +75,24 @@ describe(useSearchParamsKey.name, () => {
     expect(search.get(key)).toEqual(null);
   });
 
+  it("Will dispatch state changes through custom URLSearchParams value if provided", async () => {
+    const key = "love";
+    const initialValue = "dogs";
+    const customParams = new URLSearchParams({ [key]: initialValue });
+
+    const { result } = await renderHookWithAuth(
+      ({ key }) => useSearchParamsKey({ key, searchParams: customParams }),
+      {
+        routingOptions: { route: `/?=${key}=${initialValue}` },
+        renderOptions: { initialProps: { key } },
+      },
+    );
+
+    const newValue = "all animals";
+    void act(() => result.current.setValue(newValue));
+    await waitFor(() => expect(customParams.get(key)).toEqual(newValue));
+  });
+
   it("Does not have methods change previous values if 'key' argument changes during re-renders", async () => {
     const readonlyKey = "readonlyKey";
     const mutableKey = "mutableKey";
@@ -99,23 +117,5 @@ describe(useSearchParamsKey.name, () => {
     const { search } = getLocationSnapshot();
     expect(search.get(readonlyKey)).toEqual(initialReadonlyValue);
     expect(search.get(mutableKey)).toEqual(swapValue);
-  });
-
-  it("Will dispatch state changes through custom URLSearchParams value if provided", async () => {
-    const key = "love";
-    const initialValue = "dogs";
-    const customParams = new URLSearchParams({ [key]: initialValue });
-
-    const { result } = await renderHookWithAuth(
-      ({ key }) => useSearchParamsKey({ key, searchParams: customParams }),
-      {
-        routingOptions: { route: `/?=${key}=${initialValue}` },
-        renderOptions: { initialProps: { key } },
-      },
-    );
-
-    const newValue = "all animals";
-    void act(() => result.current.setValue(newValue));
-    await waitFor(() => expect(customParams.get(key)).toEqual(newValue));
   });
 });
