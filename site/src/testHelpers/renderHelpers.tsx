@@ -177,17 +177,16 @@ export async function renderHookWithAuth<Result, Props>(
   } = routingOptions;
 
   /**
-   * Have to do some incredibly, incredibly cursed things here. Scoured the
-   * tests for the React Router source code, and from their examples, there
-   * didn't appear to be any examples of them letting you expose the router
-   * directly. (One of the tests created a dummy paragraph, and injected the
-   * values into that...)
+   * Have to do some cursed things here. Scoured the tests for the React Router
+   * source code, and from their examples, there didn't appear to be any
+   * examples of them letting you expose the router directly. (One of the tests
+   * created a dummy paragraph, and injected the values into that...)
    *
-   * This breaks some rules, but it makes sure that the code is resilient to
-   * re-renders, and hopefully removes the need to make every test file that
-   * uses this function support JSX.
+   * This breaks some React rules, but it makes sure that the code is resilient
+   * to re-renders, and hopefully removes the need to make every test file that
+   * uses renderHookWithAuth be defined as a .tsx file just to add dummy JSX.
    */
-  // Easy to miss - evil definite assignment
+  // Easy to miss - evil definite assignment with !
   let escapedLocation!: ReturnType<typeof useLocation>;
   const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
     const location = useLocation();
@@ -252,7 +251,9 @@ export async function renderHookWithAuth<Result, Props>(
   await waitFor(() => expect(result.current).not.toBe(null));
 
   if (escapedLocation === undefined) {
-    throw new Error("Failed definite initialization for location during setup");
+    throw new Error(
+      "Location is unavailable even after custom hook value is ready",
+    );
   }
 
   return {
