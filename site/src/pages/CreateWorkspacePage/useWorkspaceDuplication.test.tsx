@@ -7,7 +7,7 @@ import CreateWorkspacePage from "./CreateWorkspacePage";
 import {
   type GetLocationSnapshot,
   renderHookWithAuth,
-} from "testHelpers/renderHelpers";
+} from "testHelpers/hooks";
 
 function render(workspace?: Workspace) {
   return renderHookWithAuth(
@@ -49,7 +49,7 @@ describe(`${useWorkspaceDuplication.name}`, () => {
     expect(result.current.isDuplicationReady).toBe(false);
 
     for (let i = 0; i < 10; i++) {
-      rerender({ workspace: undefined });
+      void rerender({ workspace: undefined });
       expect(result.current.isDuplicationReady).toBe(false);
     }
   });

@@ -1,5 +1,5 @@
 import { useSearchParamsKey } from "./useSearchParamsKey";
-import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import { renderHookWithAuth } from "testHelpers/hooks";
 import { act, waitFor } from "@testing-library/react";
 
 /**
@@ -52,7 +52,7 @@ describe(useSearchParamsKey.name, () => {
     );
 
     const newValue = "dogs";
-    void act(() => result.current.setValue(newValue));
+    act(() => result.current.setValue(newValue));
     await waitFor(() => expect(result.current.value).toEqual(newValue));
 
     const { search } = getLocationSnapshot();
@@ -68,7 +68,7 @@ describe(useSearchParamsKey.name, () => {
       { routingOptions: { route: `/?${key}=${initialValue}` } },
     );
 
-    void act(() => result.current.deleteValue());
+    act(() => result.current.deleteValue());
     await waitFor(() => expect(result.current.value).toEqual(""));
 
     const { search } = getLocationSnapshot();
@@ -89,7 +89,7 @@ describe(useSearchParamsKey.name, () => {
     );
 
     const newValue = "all animals";
-    void act(() => result.current.setValue(newValue));
+    act(() => result.current.setValue(newValue));
     await waitFor(() => expect(customParams.get(key)).toEqual(newValue));
   });
 
@@ -110,8 +110,8 @@ describe(useSearchParamsKey.name, () => {
     );
 
     const swapValue = "dogs";
-    rerender({ key: mutableKey });
-    void act(() => result.current.setValue(swapValue));
+    await rerender({ key: mutableKey });
+    act(() => result.current.setValue(swapValue));
     await waitFor(() => expect(result.current.value).toEqual(swapValue));
 
     const { search } = getLocationSnapshot();

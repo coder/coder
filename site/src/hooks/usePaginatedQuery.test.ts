@@ -1,4 +1,4 @@
-import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import { renderHookWithAuth } from "testHelpers/hooks";
 import { waitFor } from "@testing-library/react";
 
 import {
