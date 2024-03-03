@@ -11,39 +11,21 @@ afterAll(() => {
   jest.clearAllMocks();
 });
 
-// Most UI tests should be structure from the user's experience, but just
-// because these are more abstract, general-purpose hooks, it seemed harder to
-// do that. Had to bring in some mocks
-function renderDebouncedValue<T = unknown>(value: T, time: number) {
-  return renderHook(
-    ({ value, time }: { value: T; time: number }) => {
-      return useDebouncedValue(value, time);
-    },
-    {
-      initialProps: { value, time },
-    },
-  );
-}
-
-function renderDebouncedFunction<Args extends unknown[]>(
-  callbackArg: (...args: Args) => void | Promise<void>,
-  time: number,
-) {
-  return renderHook(
-    ({ callback, time }: { callback: typeof callbackArg; time: number }) => {
-      return useDebouncedFunction<Args>(callback, time);
-    },
-    {
-      initialProps: { callback: callbackArg, time },
-    },
-  );
-}
-
 describe(`${useDebouncedValue.name}`, () => {
+  function renderDebouncedValue<T = unknown>(value: T, time: number) {
+    return renderHook(
+      ({ value, time }: { value: T; time: number }) => {
+        return useDebouncedValue(value, time);
+      },
+      {
+        initialProps: { value, time },
+      },
+    );
+  }
+
   it("Should immediately return out the exact same value (by reference) on mount", () => {
     const value = {};
     const { result } = renderDebouncedValue(value, 2000);
-
     expect(result.current).toBe(value);
   });
 
@@ -79,6 +61,20 @@ describe(`${useDebouncedValue.name}`, () => {
 });
 
 describe(`${useDebouncedFunction.name}`, () => {
+  function renderDebouncedFunction<Args extends unknown[]>(
+    callbackArg: (...args: Args) => void | Promise<void>,
+    time: number,
+  ) {
+    return renderHook(
+      ({ callback, time }: { callback: typeof callbackArg; time: number }) => {
+        return useDebouncedFunction<Args>(callback, time);
+      },
+      {
+        initialProps: { callback: callbackArg, time },
+      },
+    );
+  }
+
   describe("hook", () => {
     it("Should provide stable function references across re-renders", () => {
       const time = 5000;
@@ -97,62 +93,44 @@ describe(`${useDebouncedFunction.name}`, () => {
 
     it("Resets any pending debounces if the timer argument changes", async () => {
       const time = 5000;
-      let count = 0;
-      const incrementCount = () => {
-        count++;
-      };
-
-      const { result, rerender } = renderDebouncedFunction(
-        incrementCount,
-        time,
-      );
+      const mockCallback = jest.fn();
+      const { result, rerender } = renderDebouncedFunction(mockCallback, time);
 
       result.current.debounced();
-      rerender({ callback: incrementCount, time: time + 1 });
+      rerender({ callback: mockCallback, time: time + 1 });
 
       await jest.runAllTimersAsync();
-      expect(count).toEqual(0);
+      expect(mockCallback).not.toBeCalled();
     });
   });
 
   describe("debounced function", () => {
     it("Resolve the debounce after specified milliseconds pass with no other calls", async () => {
-      let value = false;
-      const { result } = renderDebouncedFunction(() => {
-        value = !value;
-      }, 100);
-
+      const mockCallback = jest.fn();
+      const { result } = renderDebouncedFunction(mockCallback, 100);
       result.current.debounced();
 
       await jest.runOnlyPendingTimersAsync();
-      expect(value).toBe(true);
+      expect(mockCallback).toBeCalledTimes(1);
     });
 
     it("Always uses the most recent callback argument passed in (even if it switches while a debounce is queued)", async () => {
-      let count = 0;
+      const mockCallback1 = jest.fn();
+      const mockCallback2 = jest.fn();
       const time = 500;
 
-      const { result, rerender } = renderDebouncedFunction(() => {
-        count = 1;
-      }, time);
-
+      const { result, rerender } = renderDebouncedFunction(mockCallback1, time);
       result.current.debounced();
-      rerender({
-        callback: () => {
-          count = 9999;
-        },
-        time,
-      });
+      rerender({ callback: mockCallback2, time });
 
       await jest.runAllTimersAsync();
-      expect(count).toEqual(9999);
+      expect(mockCallback1).not.toBeCalled();
+      expect(mockCallback2).toBeCalledTimes(1);
     });
 
     it("Should reset the debounce timer with repeated calls to the method", async () => {
-      let count = 0;
-      const { result } = renderDebouncedFunction(() => {
-        count++;
-      }, 2000);
+      const mockCallback = jest.fn();
+      const { result } = renderDebouncedFunction(mockCallback, 2000);
 
       for (let i = 0; i < 10; i++) {
         setTimeout(() => {
@@ -161,23 +139,20 @@ describe(`${useDebouncedFunction.name}`, () => {
       }
 
       await jest.runAllTimersAsync();
-      expect(count).toBe(1);
+      expect(mockCallback).toBeCalledTimes(1);
     });
   });
 
   describe("cancelDebounce function", () => {
     it("Should be able to cancel a pending debounce", async () => {
-      let count = 0;
-      const { result } = renderDebouncedFunction(() => {
-        count++;
-      }, 2000);
+      const mockCallback = jest.fn();
+      const { result } = renderDebouncedFunction(mockCallback, 2000);
 
-      const { debounced, cancelDebounce } = result.current;
-      debounced();
-      cancelDebounce();
+      result.current.debounced();
+      result.current.cancelDebounce();
 
       await jest.runAllTimersAsync();
-      expect(count).toEqual(0);
+      expect(mockCallback).not.toBeCalled();
     });
   });
 });

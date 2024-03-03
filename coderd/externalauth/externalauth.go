@@ -566,6 +566,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	case codersdk.EnhancedExternalAuthProviderJFrog:
 		copyDefaultSettings(config, jfrogArtifactoryDefaults(config))
 		return
+	case codersdk.EnhancedExternalAuthProviderGitea:
+		copyDefaultSettings(config, giteaDefaults(config))
+		return
 	default:
 		// No defaults for this type. We still want to run this apply with
 		// an empty set of defaults.
@@ -692,6 +695,37 @@ func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exte
 	// Some options omitted:
 	// - Regex: Artifactory can span pretty much all domains (git, docker, etc).
 	//          I do not think we can intelligently guess this as a default.
+
+	return defaults
+}
+
+func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "Gitea",
+		Scopes:      []string{"read:repository", " write:repository", "read:user"},
+		DisplayIcon: "/icon/gitea.svg",
+	}
+	// Gitea's servers will have some base url, e.g: https://gitea.coder.com.
+	// If an auth url is not set, we will assume they are using the default
+	// public Gitea.
+	if config.AuthURL == "" {
+		config.AuthURL = "https://gitea.com/login/oauth/authorize"
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	// Default regex should be anything using the same host as the auth url.
+	defaults.Regex = fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(auth.Host, ".", `\.`))
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: "/login/oauth/access_token"})
+	defaults.TokenURL = tokenURL.String()
+
+	validate := auth.ResolveReference(&url.URL{Path: "/login/oauth/userinfo"})
+	defaults.ValidateURL = validate.String()
 
 	return defaults
 }

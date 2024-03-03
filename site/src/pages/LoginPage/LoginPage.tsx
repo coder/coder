@@ -25,7 +25,8 @@ export const LoginPage: FC = () => {
     // If the redirect is going to a workspace application, and we
     // are missing authentication, then we need to change the href location
     // to trigger a HTTP request. This allows the BE to generate the auth
-    // cookie required.
+    // cookie required.  Similarly for the OAuth2 exchange as the authorization
+    // page is served by the backend.
     // If no redirect is present, then ignore this branched logic.
     if (redirectTo !== "" && redirectTo !== "/") {
       try {
@@ -39,8 +40,8 @@ export const LoginPage: FC = () => {
       } catch {
         // Do nothing
       }
-      // Path based apps.
-      if (redirectTo.includes("/apps/")) {
+      // Path based apps and OAuth2.
+      if (redirectTo.includes("/apps/") || redirectTo.includes("/oauth2/")) {
         window.location.href = redirectTo;
         return null;
       }

@@ -33,7 +33,7 @@ const renderWorkspacePage = async (workspace: Workspace) => {
   jest
     .spyOn(api, "watchWorkspaceAgentLogs")
     .mockImplementation((_, options) => {
-      options.onDone && options.onDone();
+      options.onDone?.();
       return new WebSocket("");
     });
 

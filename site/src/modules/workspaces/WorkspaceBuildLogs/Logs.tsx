@@ -5,6 +5,8 @@ import { type FC, type ReactNode, useMemo } from "react";
 import AnsiToHTML from "ansi-to-html";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
+export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
+
 const convert = new AnsiToHTML();
 
 export interface Line {
@@ -127,7 +129,7 @@ const styles = {
     height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
-    padding: "0 32px",
+    padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
 
     "&.error": {
       backgroundColor: theme.roles.error.background,

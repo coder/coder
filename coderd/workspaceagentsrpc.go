@@ -155,7 +155,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
 		ID:   workspaceAgent.ID,
-		Auth: tailnet.AgentTunnelAuth{},
+		Auth: tailnet.AgentCoordinateeAuth{ID: workspaceAgent.ID},
 	}
 	ctx = tailnet.WithStreamID(ctx, streamID)
 	ctx = agentapi.WithAPIVersion(ctx, version)

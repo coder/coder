@@ -8,22 +8,10 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 )
 
-// @typescript-generate AccessURLReport
-type AccessURLReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool             `json:"healthy"`
-	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings  []health.Message `json:"warnings"`
-	Dismissed bool             `json:"dismissed"`
-
-	AccessURL       string  `json:"access_url"`
-	Reachable       bool    `json:"reachable"`
-	StatusCode      int     `json:"status_code"`
-	HealthzResponse string  `json:"healthz_response"`
-	Error           *string `json:"error"`
-}
+type AccessURLReport codersdk.AccessURLReport
 
 type AccessURLReportOptions struct {
 	AccessURL *url.URL

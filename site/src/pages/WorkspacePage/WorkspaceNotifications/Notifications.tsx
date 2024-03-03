@@ -22,21 +22,22 @@ type NotificationsProps = {
   items: NotificationItem[];
   severity: ThemeRole;
   icon: ReactNode;
-  isDefaultOpen?: boolean;
 };
 
 export const Notifications: FC<NotificationsProps> = ({
   items,
   severity,
   icon,
-  isDefaultOpen,
 }) => {
   const theme = useTheme();
 
   return (
-    <Popover mode="hover" isDefaultOpen={isDefaultOpen}>
+    <Popover mode="hover">
       <PopoverTrigger>
-        <div css={styles.pillContainer}>
+        <div
+          css={styles.pillContainer}
+          data-testid={`${severity}-notifications`}
+        >
           <NotificationPill items={items} severity={severity} icon={icon} />
         </div>
       </PopoverTrigger>

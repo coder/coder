@@ -2,7 +2,7 @@ import Tooltip from "@mui/material/Tooltip";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import { useTheme } from "@emotion/react";
+import { Interpolation, Theme, useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
@@ -57,7 +57,7 @@ export const DERPRegionPage: FC = () => {
                 color: theme.palette.text.primary,
               },
               marginBottom: 8,
-              lineHeight: "120%",
+              lineHeight: "1.2",
             }}
             to="/health/derp"
           >
@@ -115,62 +115,20 @@ export const DERPRegionPage: FC = () => {
                 fontSize: 14,
               }}
             >
-              <header
-                css={{
-                  padding: 24,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
+              <header css={reportStyles.header}>
                 <div>
-                  <h4
-                    css={{
-                      fontWeight: 500,
-                      margin: 0,
-                      lineHeight: "120%",
-                    }}
-                  >
-                    {node.HostName}
-                  </h4>
-                  <div
-                    css={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      color: theme.palette.text.secondary,
-                      fontSize: 12,
-                      lineHeight: "120%",
-                      marginTop: 8,
-                    }}
-                  >
+                  <h4 css={reportStyles.title}>{node.HostName}</h4>
+                  <div css={reportStyles.ports}>
                     <span>DERP Port: {node.DERPPort ?? "None"}</span>
                     <span>STUN Port: {node.STUNPort ?? "None"}</span>
                   </div>
                 </div>
 
-                <div css={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div css={reportStyles.pills}>
                   <Tooltip title="Round trip ping">
                     <Pill
                       css={{ color: latencyColor }}
-                      icon={
-                        <div
-                          css={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <div
-                            css={{
-                              width: 8,
-                              height: 8,
-                              backgroundColor: latencyColor,
-                              borderRadius: 9999,
-                            }}
-                          />
-                        </div>
-                      }
+                      icon={<StatusCircle color={latencyColor} />}
                     >
                       {report.round_trip_ping_ms}ms
                     </Pill>
@@ -183,14 +141,13 @@ export const DERPRegionPage: FC = () => {
                   </BooleanPill>
                 </div>
               </header>
-              <Logs
-                lines={logs?.[0] ?? []}
-                css={{
-                  borderBottomLeftRadius: 8,
-                  borderBottomRightRadius: 8,
-                  borderTop: `1px solid ${theme.palette.divider}`,
-                }}
-              />
+              <Logs lines={logs?.flat() ?? []} css={reportStyles.logs} />
+              {report.client_errs.length > 0 && (
+                <Logs
+                  lines={report.client_errs.flat()}
+                  css={[reportStyles.logs, reportStyles.clientErrors]}
+                />
+              )}
             </section>
           );
         })}
@@ -198,5 +155,69 @@ export const DERPRegionPage: FC = () => {
     </>
   );
 };
+
+type StatusCircleProps = { color: string };
+
+const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
+  return (
+    <div
+      css={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        css={{
+          width: 8,
+          height: 8,
+          backgroundColor: color,
+          borderRadius: 9999,
+        }}
+      />
+    </div>
+  );
+};
+
+const reportStyles = {
+  header: {
+    padding: 24,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  title: {
+    fontWeight: 500,
+    margin: 0,
+    lineHeight: "1",
+  },
+  pills: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+  ports: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    lineHeight: "1.2",
+    marginTop: 8,
+  }),
+  divider: (theme) => ({
+    height: 1,
+    backgroundColor: theme.palette.divider,
+  }),
+  logs: (theme) => ({
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    borderTop: `1px solid ${theme.palette.divider}`,
+  }),
+  clientErrors: (theme) => ({
+    background: theme.roles.error.background,
+    color: theme.roles.error.text,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default DERPRegionPage;

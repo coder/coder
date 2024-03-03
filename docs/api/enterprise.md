@@ -189,13 +189,6 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -253,13 +246,6 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -332,13 +318,6 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -546,6 +525,12 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 ```
 
 `GET /oauth2-provider/apps`
+
+### Parameters
+
+| Name      | In    | Type   | Required | Description                                  |
+| --------- | ----- | ------ | -------- | -------------------------------------------- |
+| `user_id` | query | string | false    | Filter by applications authorized for a user |
 
 ### Example responses
 
@@ -904,6 +889,127 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## OAuth2 authorization request.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&state=string&response_type=code \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2/authorize`
+
+### Parameters
+
+| Name            | In    | Type   | Required | Description                       |
+| --------------- | ----- | ------ | -------- | --------------------------------- |
+| `client_id`     | query | string | true     | Client ID                         |
+| `state`         | query | string | true     | A random unguessable string       |
+| `response_type` | query | string | true     | Response type                     |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization |
+| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+
+#### Enumerated Values
+
+| Parameter       | Value  |
+| --------------- | ------ |
+| `response_type` | `code` |
+
+### Responses
+
+| Status | Meaning                                                    | Description | Schema |
+| ------ | ---------------------------------------------------------- | ----------- | ------ |
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Found       |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## OAuth2 token exchange.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/tokens \
+  -H 'Accept: application/json'
+```
+
+`POST /oauth2/tokens`
+
+> Body parameter
+
+```yaml
+client_id: string
+client_secret: string
+code: string
+refresh_token: string
+grant_type: authorization_code
+```
+
+### Parameters
+
+| Name              | In   | Type   | Required | Description                                                   |
+| ----------------- | ---- | ------ | -------- | ------------------------------------------------------------- |
+| `body`            | body | object | false    |                                                               |
+| `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code          |
+| `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code      |
+| `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code |
+| `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token           |
+| `» grant_type`    | body | string | true     | Grant type                                                    |
+
+#### Enumerated Values
+
+| Parameter      | Value                |
+| -------------- | -------------------- |
+| `» grant_type` | `authorization_code` |
+| `» grant_type` | `refresh_token`      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "access_token": "string",
+  "expiry": "string",
+  "refresh_token": "string",
+  "token_type": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                 |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
+
+## Delete OAuth2 application tokens.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/oauth2/tokens?client_id=string \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /oauth2/tokens`
+
+### Parameters
+
+| Name        | In    | Type   | Required | Description |
+| ----------- | ----- | ------ | -------- | ----------- |
+| `client_id` | query | string | true     | Client ID   |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples
@@ -942,13 +1048,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
-        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "roles": [
-          {
-            "display_name": "string",
-            "name": "string"
-          }
-        ],
         "status": "active",
         "theme_preference": "string",
         "username": "string"
@@ -986,10 +1085,6 @@ Status Code **200**
 | `»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
 | `»» name`             | string                                                 | false    |              |             |
-| `»» organization_ids` | array                                                  | false    |              |             |
-| `»» roles`            | array                                                  | false    |              |             |
-| `»»» display_name`    | string                                                 | false    |              |             |
-| `»»» name`            | string                                                 | false    |              |             |
 | `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»» theme_preference` | string                                                 | false    |              |             |
 | `»» username`         | string                                                 | true     |              |             |
@@ -1065,13 +1160,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -1130,13 +1218,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -1710,13 +1791,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
             "name": "string",
-            "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-            "roles": [
-              {
-                "display_name": "string",
-                "name": "string"
-              }
-            ],
             "status": "active",
             "theme_preference": "string",
             "username": "string"
@@ -1737,13 +1811,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
-        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "roles": [
-          {
-            "display_name": "string",
-            "name": "string"
-          }
-        ],
         "status": "active",
         "theme_preference": "string",
         "username": "string"
@@ -1778,10 +1845,6 @@ Status Code **200**
 | `»»» last_seen_at`     | string(date-time)                                      | false    |              |             |
 | `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
 | `»»» name`             | string                                                 | false    |              |             |
-| `»»» organization_ids` | array                                                  | false    |              |             |
-| `»»» roles`            | array                                                  | false    |              |             |
-| `»»»» display_name`    | string                                                 | false    |              |             |
-| `»»»» name`            | string                                                 | false    |              |             |
 | `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»»» theme_preference` | string                                                 | false    |              |             |
 | `»»» username`         | string                                                 | true     |              |             |

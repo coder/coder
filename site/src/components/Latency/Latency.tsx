@@ -7,15 +7,12 @@ import { type FC } from "react";
 import { getLatencyColor } from "utils/latency";
 import { Abbr } from "components/Abbr/Abbr";
 
-interface ProxyStatusLatencyProps {
+interface LatencyProps {
   latency?: number;
   isLoading?: boolean;
 }
 
-export const ProxyStatusLatency: FC<ProxyStatusLatencyProps> = ({
-  latency,
-  isLoading,
-}) => {
+export const Latency: FC<LatencyProps> = ({ latency, isLoading }) => {
   const theme = useTheme();
   // Always use the no latency color for loading.
   const color = getLatencyColor(theme, isLoading ? undefined : latency);

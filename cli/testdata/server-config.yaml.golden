@@ -383,9 +383,6 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
-  # Pre-shared key to authenticate external provisioner daemons to Coder server.
-  # (default: <unset>, type: string)
-  daemonPSK: ""
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

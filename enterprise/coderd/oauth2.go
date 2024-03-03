@@ -1,19 +1,20 @@
 package coderd
 
 import (
-	"crypto/sha256"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 )
 
 func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
@@ -45,16 +46,43 @@ func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
+// @Param user_id query string false "Filter by applications authorized for a user"
 // @Success 200 {array} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps [get]
 func (api *API) oAuth2ProviderApps(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	dbApps, err := api.Database.GetOAuth2ProviderApps(ctx)
+
+	rawUserID := r.URL.Query().Get("user_id")
+	if rawUserID == "" {
+		dbApps, err := api.Database.GetOAuth2ProviderApps(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(api.AccessURL, dbApps))
+		return
+	}
+
+	userID, err := uuid.Parse(rawUserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid user UUID",
+			Detail:  fmt.Sprintf("queried user_id=%q", userID),
+		})
+		return
+	}
+
+	userApps, err := api.Database.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(api.AccessURL, dbApps))
+
+	var sdkApps []codersdk.OAuth2ProviderApp
+	for _, app := range userApps {
+		sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(api.AccessURL, app.OAuth2ProviderApp))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, sdkApps)
 }
 
 // @Summary Get OAuth2 application.
@@ -81,7 +109,17 @@ func (api *API) oAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps [post]
 func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
 	var req codersdk.PostOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -101,6 +139,7 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = app
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.OAuth2ProviderApp(api.AccessURL, app))
 }
 
@@ -115,8 +154,19 @@ func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps/{app} [put]
 func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	aReq.Old = app
+	defer commitAudit()
 	var req codersdk.PutOAuth2ProviderAppRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -130,11 +180,12 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating OAuth2 application.",
+			Message: "Internal error updating OAuth2 application.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	aReq.New = app
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApp(api.AccessURL, app))
 }
 
@@ -146,8 +197,19 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /oauth2-provider/apps/{app} [delete]
 func (api *API) deleteOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	aReq.Old = app
+	defer commitAudit()
 	err := api.Database.DeleteOAuth2ProviderAppByID(ctx, app.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -198,25 +260,35 @@ func (api *API) oAuth2ProviderAppSecrets(rw http.ResponseWriter, r *http.Request
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
 // @Router /oauth2-provider/apps/{app}/secrets [post]
 func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	app := httpmw.OAuth2ProviderApp(r)
-	// 40 characters matches the length of GitHub's client secrets.
-	rawSecret, err := cryptorand.String(40)
+	var (
+		ctx               = r.Context()
+		app               = httpmw.OAuth2ProviderApp(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+	secret, err := identityprovider.GenerateSecret()
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to generate OAuth2 client secret.",
+			Detail:  err.Error(),
 		})
 		return
 	}
-	hashed := sha256.Sum256([]byte(rawSecret))
-	secret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
+	dbSecret, err := api.Database.InsertOAuth2ProviderAppSecret(ctx, database.InsertOAuth2ProviderAppSecretParams{
 		ID:           uuid.New(),
 		CreatedAt:    dbtime.Now(),
-		HashedSecret: hashed[:],
+		SecretPrefix: []byte(secret.Prefix),
+		HashedSecret: []byte(secret.Hashed),
 		// DisplaySecret is the last six characters of the original unhashed secret.
 		// This is done so they can be differentiated and it matches how GitHub
 		// displays their client secrets.
-		DisplaySecret: rawSecret[len(rawSecret)-6:],
+		DisplaySecret: secret.Formatted[len(secret.Formatted)-6:],
 		AppID:         app.ID,
 	})
 	if err != nil {
@@ -226,9 +298,10 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppSecretFull{
-		ID:               secret.ID,
-		ClientSecretFull: rawSecret,
+	aReq.New = dbSecret
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuth2ProviderAppSecretFull{
+		ID:               dbSecret.ID,
+		ClientSecretFull: secret.Formatted,
 	})
 }
 
@@ -241,8 +314,19 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 // @Success 204
 // @Router /oauth2-provider/apps/{app}/secrets/{secretID} [delete]
 func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	secret := httpmw.OAuth2ProviderAppSecret(r)
+	var (
+		ctx               = r.Context()
+		secret            = httpmw.OAuth2ProviderAppSecret(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	aReq.Old = secret
+	defer commitAudit()
 	err := api.Database.DeleteOAuth2ProviderAppSecretByID(ctx, secret.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -252,4 +336,45 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary OAuth2 authorization request.
+// @ID oauth2-authorization-request
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param client_id query string true "Client ID"
+// @Param state query string true "A random unguessable string"
+// @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
+// @Param redirect_uri query string false "Redirect here after authorization"
+// @Param scope query string false "Token scopes (currently ignored)"
+// @Success 302
+// @Router /oauth2/authorize [post]
+func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
+	return identityprovider.Authorize(api.Database, api.AccessURL)
+}
+
+// @Summary OAuth2 token exchange.
+// @ID oauth2-token-exchange
+// @Produce json
+// @Tags Enterprise
+// @Param client_id formData string false "Client ID, required if grant_type=authorization_code"
+// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code"
+// @Param code formData string false "Authorization code, required if grant_type=authorization_code"
+// @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
+// @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
+// @Success 200 {object} oauth2.Token
+// @Router /oauth2/tokens [post]
+func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
+	return identityprovider.Tokens(api.Database, api.DeploymentValues.SessionDuration.Value())
+}
+
+// @Summary Delete OAuth2 application tokens.
+// @ID delete-oauth2-application-tokens
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param client_id query string true "Client ID"
+// @Success 204
+// @Router /oauth2/tokens [delete]
+func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
+	return identityprovider.RevokeApp(api.Database)
 }

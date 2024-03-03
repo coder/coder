@@ -1,13 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { expect, screen, userEvent, within, waitFor } from "@storybook/test";
 import { MockBuildInfo, MockUser } from "testHelpers/entities";
 import { UserDropdown } from "./UserDropdown";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof UserDropdown> = {
   title: "modules/dashboard/UserDropdown",
   component: UserDropdown,
   args: {
     user: MockUser,
-    isDefaultOpen: true,
     buildInfo: MockBuildInfo,
     supportLinks: [
       { icon: "docs", name: "Documentation", target: "" },
@@ -21,6 +21,17 @@ const meta: Meta<typeof UserDropdown> = {
 export default meta;
 type Story = StoryObj<typeof UserDropdown>;
 
-const Example: Story = {};
+const Example: Story = {
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step("click to open", async () => {
+      await userEvent.click(canvas.getByRole("button"));
+      await waitFor(() =>
+        expect(screen.getByText(/v99\.999\.9999/i)).toBeInTheDocument(),
+      );
+    });
+  },
+};
 
 export { Example as UserDropdown };

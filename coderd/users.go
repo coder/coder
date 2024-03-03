@@ -191,6 +191,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.RefreshEntitlements != nil {
+		err = api.RefreshEntitlements(ctx)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to refresh entitlements after generating trial license")
+			return
+		}
+	} else {
+		api.Logger.Debug(ctx, "entitlements will not be refreshed")
+	}
+
 	telemetryUser := telemetry.ConvertUser(user)
 	// Send the initial users email address!
 	telemetryUser.Email = &user.Email
@@ -524,10 +534,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
-		ID:      user.ID,
-		Deleted: true,
-	})
+	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -586,7 +593,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) userAutofillParameters(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	p := httpapi.NewQueryParamParser().Required("template_id")
+	p := httpapi.NewQueryParamParser().RequiredNotEmpty("template_id")
 	templateID := p.UUID(r.URL.Query(), uuid.UUID{}, "template_id")
 	p.ErrorExcessParams(r.URL.Query())
 	if len(p.Errors) > 0 {

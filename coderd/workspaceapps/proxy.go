@@ -636,7 +636,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	values := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()
-	reconnect := parser.Required("reconnect").UUID(values, uuid.New(), "reconnect")
+	reconnect := parser.RequiredNotEmpty("reconnect").UUID(values, uuid.New(), "reconnect")
 	height := parser.UInt(values, 80, "height")
 	width := parser.UInt(values, 80, "width")
 	if len(parser.Errors) > 0 {

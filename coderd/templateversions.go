@@ -289,19 +289,28 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	rawProviders := templateVersion.ExternalAuthProviders
+	var rawProviders []database.ExternalAuthProvider
+	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &rawProviders)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading auth config from database",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *externalauth.Config
 		for _, provider := range api.ExternalAuthConfigs {
-			if provider.ID == rawProvider {
+			if provider.ID == rawProvider.ID {
 				config = provider
 				break
 			}
 		}
 		if config == nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider),
+				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider.ID),
 				Detail:  "You'll need to update the template version to use a different provider.",
 			})
 			return
@@ -323,6 +332,7 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			AuthenticateURL: redirectURL.String(),
 			DisplayName:     config.DisplayName,
 			DisplayIcon:     config.DisplayIcon,
+			Optional:        rawProvider.Optional,
 		}
 
 		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
@@ -1030,10 +1040,11 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: template.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -1112,10 +1123,11 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 			templateVersion   = httpmw.TemplateVersionParam(r)
 			auditor           = *api.Auditor.Load()
 			aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-				Audit:   auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionWrite,
+				Audit:          auditor,
+				Log:            api.Logger,
+				Request:        r,
+				Action:         database.AuditActionWrite,
+				OrganizationID: templateVersion.OrganizationID,
 			})
 		)
 		defer commitAudit()
@@ -1197,10 +1209,11 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: template.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -1300,10 +1313,11 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		organization      = httpmw.OrganizationParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionCreate,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
+			OrganizationID: organization.ID,
 		})
 
 		req codersdk.CreateTemplateVersionRequest

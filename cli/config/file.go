@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kirsle/configdir"
 	"golang.org/x/xerrors"
@@ -69,6 +70,14 @@ func (r Root) PostgresPort() File {
 // File provides convenience methods for interacting with *os.File.
 type File string
 
+func (f File) Exists() bool {
+	if f == "" {
+		return false
+	}
+	_, err := os.Stat(string(f))
+	return err == nil
+}
+
 // Delete deletes the file.
 func (f File) Delete() error {
 	if f == "" {
@@ -85,13 +94,14 @@ func (f File) Write(s string) error {
 	return write(string(f), 0o600, []byte(s))
 }
 
-// Read reads the file to a string.
+// Read reads the file to a string. All leading and trailing whitespace
+// is removed.
 func (f File) Read() (string, error) {
 	if f == "" {
 		return "", xerrors.Errorf("empty file path")
 	}
 	byt, err := read(string(f))
-	return string(byt), err
+	return strings.TrimSpace(string(byt)), err
 }
 
 // open opens a file in the configuration directory,

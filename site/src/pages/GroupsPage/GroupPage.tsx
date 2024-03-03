@@ -8,7 +8,7 @@ import TableRow from "@mui/material/TableRow";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import type { Group, User } from "api/typesGenerated";
+import type { Group, ReducedUser, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -257,7 +257,7 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
 };
 
 interface GroupMemberRowProps {
-  member: User;
+  member: ReducedUser;
   group: Group;
   canUpdate: boolean;
 }

@@ -26,6 +26,7 @@ import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -40,6 +41,7 @@ const CreateWorkspacePage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
+  const { experiments } = useDashboard();
 
   const defaultName = searchParams.get("name");
 
@@ -50,12 +52,6 @@ const CreateWorkspacePage: FC = () => {
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
   const templateQuery = useQuery(templateByName(organizationId, templateName));
-
-  const userParametersQuery = useQuery({
-    queryKey: ["userParameters"],
-    queryFn: () => getUserParameters(templateQuery.data!.id),
-    enabled: templateQuery.isSuccess,
-  });
 
   const permissionsQuery = useQuery(
     checkAuthorization({
@@ -97,6 +93,13 @@ const CreateWorkspacePage: FC = () => {
     [navigate],
   );
 
+  // Auto fill parameters
+  const userParametersQuery = useQuery({
+    queryKey: ["userParameters"],
+    queryFn: () => getUserParameters(templateQuery.data!.id),
+    enabled:
+      experiments.includes("auto-fill-parameters") && templateQuery.isSuccess,
+  });
   const autofillParameters = getAutofillParameters(
     searchParams,
     userParametersQuery.data ? userParametersQuery.data : [],

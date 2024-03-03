@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -18,6 +21,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -51,7 +56,7 @@ func TestAcquirer_Single(t *testing.T) {
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
@@ -79,7 +84,7 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	workerIDs := make(map[uuid.UUID]bool)
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	for i := 0; i < 10; i++ {
 		wID := uuid.New()
@@ -122,7 +127,7 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
@@ -144,10 +149,10 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 		"strong": "bad",
 	})
 	postJob(t, ps, database.ProvisionerTypeEcho, provisionerdserver.Tags{
-		"foo": "fighters",
+		"environment": "fighters",
 	})
 	postJob(t, ps, database.ProvisionerTypeTerraform, provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	})
 	acquiree.requireBlocked()
 
@@ -173,7 +178,7 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
@@ -265,7 +270,7 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
@@ -291,7 +296,7 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	worker0 := uuid.New()
 	tags := provisionerdserver.Tags{
-		"foo": "bar",
+		"environment": "on-prem",
 	}
 	acquiree0 := newTestAcquiree(t, worker0, pt, tags)
 	worker1 := uuid.New()
@@ -313,6 +318,215 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	acquiree1.startAcquire(ctx, uut)
 	job := acquiree1.success(ctx)
 	require.Equal(t, jobID, job.ID)
+}
+
+func TestAcquirer_MatchTags(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping this test due to -short")
+	}
+
+	testCases := []struct {
+		name               string
+		provisionerJobTags map[string]string
+		acquireJobTags     map[string]string
+		expectAcquire      bool
+	}{
+		{
+			name:               "untagged provisioner and untagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": ""},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      true,
+		},
+		{
+			name:               "tagged provisioner and tagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "double-tagged provisioner and tagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "double-tagged provisioner and double-tagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "user-scoped provisioner and user-scoped job",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "user-scoped provisioner with tags and user-scoped job",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "user-scoped provisioner with tags and user-scoped job with tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "user-scoped provisioner with multiple tags and user-scoped job with tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "user-scoped provisioner with multiple tags and user-scoped job with multiple tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+			expectAcquire:      true,
+		},
+		{
+			name:               "untagged provisioner and tagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      false,
+		},
+		{
+			name:               "tagged provisioner and untagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": ""},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "tagged provisioner and double-tagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "double-tagged provisioner and double-tagged job with differing tags",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "new_york"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner and untagged job",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": ""},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner and different user-scoped job",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "bbb"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "org-scoped provisioner and user-scoped job",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner and org-scoped job with tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": ""},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner and user-scoped job with tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner with tags and user-scoped job with multiple tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+			expectAcquire:      false,
+		},
+		{
+			name:               "user-scoped provisioner with tags and user-scoped job with differing tags",
+			provisionerJobTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "new_york"},
+			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+			expectAcquire:      false,
+		},
+	}
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// NOTE: explicitly not using fake store for this test.
+			db, ps := dbtestutil.NewDB(t)
+			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+				ID:          uuid.New(),
+				Name:        "test org",
+				Description: "the organization of testing",
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+			})
+			require.NoError(t, err)
+			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             uuid.New(),
+				CreatedAt:      dbtime.Now(),
+				UpdatedAt:      dbtime.Now(),
+				OrganizationID: org.ID,
+				InitiatorID:    uuid.New(),
+				Provisioner:    database.ProvisionerTypeEcho,
+				StorageMethod:  database.ProvisionerStorageMethodFile,
+				FileID:         uuid.New(),
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Input:          []byte("{}"),
+				Tags:           tt.provisionerJobTags,
+				TraceMetadata:  pqtype.NullRawMessage{},
+			})
+			require.NoError(t, err)
+			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
+			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps)
+			aj, err := acq.AcquireJob(ctx, uuid.New(), ptypes, tt.acquireJobTags)
+			if tt.expectAcquire {
+				assert.NoError(t, err)
+				assert.Equal(t, pj.ID, aj.ID)
+			} else {
+				assert.Empty(t, aj, "should not have acquired job")
+				assert.ErrorIs(t, err, context.DeadlineExceeded, "should have timed out")
+			}
+		})
+	}
+
+	t.Run("GenTable", func(t *testing.T) {
+		t.Parallel()
+		// Generate a table that can be copy-pasted into docs/admin/provisioners.md
+		lines := []string{
+			"\n",
+			"| Provisioner Tags | Job Tags | Can Run Job? |",
+			"|------------------|----------|--------------|",
+		}
+		// turn the JSON map into k=v for readability
+		kvs := func(m map[string]string) string {
+			ss := make([]string, 0, len(m))
+			// ensure consistent ordering of tags
+			for _, k := range []string{"scope", "owner", "environment", "datacenter"} {
+				if v, found := m[k]; found {
+					ss = append(ss, k+"="+v)
+				}
+			}
+			return strings.Join(ss, " ")
+		}
+		for _, tt := range testCases {
+			acquire := "✅"
+			if !tt.expectAcquire {
+				acquire = "❌"
+			}
+			s := fmt.Sprintf("| %s | %s | %s |", kvs(tt.acquireJobTags), kvs(tt.provisionerJobTags), acquire)
+			lines = append(lines, s)
+		}
+		t.Logf("You can paste this into docs/admin/provisioners.md")
+		t.Logf(strings.Join(lines, "\n"))
+	})
 }
 
 func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags provisionerdserver.Tags) {

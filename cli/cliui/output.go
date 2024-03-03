@@ -106,7 +106,7 @@ func TableFormat(out any, defaultColumns []string) OutputFormat {
 	}
 
 	// Get the list of table column headers.
-	headers, defaultSort, err := typeToTableHeaders(v.Type().Elem())
+	headers, defaultSort, err := typeToTableHeaders(v.Type().Elem(), true)
 	if err != nil {
 		panic("parse table headers: " + err.Error())
 	}

@@ -1,78 +1,95 @@
-import { cx } from "@emotion/css";
-import { type FC, type PropsWithChildren } from "react";
-import { NavLink, NavLinkProps } from "react-router-dom";
-import { Margins } from "components/Margins/Margins";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { HTMLAttributes, type FC, createContext, useContext } from "react";
+import { Link, LinkProps } from "react-router-dom";
+import { Interpolation, Theme, useTheme } from "@emotion/react";
 
-export const Tabs: FC<PropsWithChildren> = ({ children }) => {
+export const TAB_PADDING_Y = 12;
+export const TAB_PADDING_X = 16;
+
+type TabsContextValue = {
+  active: string;
+};
+
+const TabsContext = createContext<TabsContextValue | undefined>(undefined);
+
+type TabsProps = HTMLAttributes<HTMLDivElement> & TabsContextValue;
+
+export const Tabs: FC<TabsProps> = ({ active, ...htmlProps }) => {
+  const theme = useTheme();
+
+  return (
+    <TabsContext.Provider value={{ active }}>
+      <div
+        css={{
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+        {...htmlProps}
+      />
+    </TabsContext.Provider>
+  );
+};
+
+type TabsListProps = HTMLAttributes<HTMLDivElement>;
+
+export const TabsList: FC<TabsListProps> = (props) => {
   return (
     <div
-      css={(theme) => ({
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        marginBottom: 40,
-      })}
-    >
-      <Margins
-        css={{
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-        }}
-      >
-        {children}
-      </Margins>
-    </div>
+      role="tablist"
+      css={{
+        display: "flex",
+        alignItems: "baseline",
+      }}
+      {...props}
+    />
   );
 };
 
-interface TabLinkProps extends NavLinkProps {
-  className?: string;
-}
+type TabLinkProps = LinkProps & {
+  value: string;
+};
 
-export const TabLink: FC<TabLinkProps> = ({
-  className,
-  children,
-  ...linkProps
-}) => {
-  const tabLink = useClassName(classNames.tabLink, []);
-  const activeTabLink = useClassName(classNames.activeTabLink, []);
+export const TabLink: FC<TabLinkProps> = ({ value, ...linkProps }) => {
+  const tabsContext = useContext(TabsContext);
+
+  if (!tabsContext) {
+    throw new Error("Tab only can be used inside of Tabs");
+  }
+
+  const isActive = tabsContext.active === value;
 
   return (
-    <NavLink
-      className={({ isActive }) =>
-        cx([tabLink, isActive && activeTabLink, className])
-      }
+    <Link
       {...linkProps}
-    >
-      {children}
-    </NavLink>
+      css={[styles.tabLink, isActive ? styles.activeTabLink : ""]}
+    />
   );
 };
 
-const classNames = {
-  tabLink: (css, theme) => css`
-    text-decoration: none;
-    color: ${theme.palette.text.secondary};
-    font-size: 14px;
-    display: block;
-    padding: 0 16px 16px;
+const styles = {
+  tabLink: (theme) => ({
+    textDecoration: "none",
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+    display: "block",
+    padding: `${TAB_PADDING_Y}px ${TAB_PADDING_X}px`,
+    fontWeight: 500,
+    lineHeight: "1",
 
-    &:hover {
-      color: ${theme.palette.text.primary};
-    }
-  `,
-  activeTabLink: (css, theme) => css`
-    color: ${theme.palette.text.primary};
-    position: relative;
+    "&:hover": {
+      color: theme.palette.text.primary,
+    },
+  }),
+  activeTabLink: (theme) => ({
+    color: theme.palette.text.primary,
+    position: "relative",
 
-    &:before {
-      content: "";
-      left: 0;
-      bottom: 0;
-      height: 2px;
-      width: 100%;
-      background: ${theme.palette.primary.main};
-      position: absolute;
-    }
-  `,
-} satisfies Record<string, ClassName>;
+    "&:before": {
+      content: '""',
+      left: 0,
+      bottom: -1,
+      height: 1,
+      width: "100%",
+      background: theme.palette.primary.main,
+      position: "absolute",
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

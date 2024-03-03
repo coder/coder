@@ -521,6 +521,27 @@ func (c *configMaps) nodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bo
 	return nil, false
 }
 
+func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
+	status := c.status()
+	c.L.Lock()
+	defer c.L.Unlock()
+	if c.derpMap != nil {
+		for j, r := range c.derpMap.Regions {
+			d.DERPRegionNames[j] = r.RegionName
+		}
+	}
+	lc, ok := c.peers[peerID]
+	if !ok {
+		return
+	}
+	d.ReceivedNode = lc.node
+	ps, ok := status.Peer[lc.node.Key]
+	if !ok {
+		return
+	}
+	d.LastWireguardHandshake = ps.LastHandshake
+}
+
 type peerLifecycle struct {
 	peerID        uuid.UUID
 	node          *tailcfg.Node

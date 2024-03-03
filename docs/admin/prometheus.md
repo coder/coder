@@ -35,8 +35,28 @@ The Prometheus endpoint can be enabled in the
 [Helm chart's](https://github.com/coder/coder/tree/main/helm) `values.yml` by
 setting the environment variable `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`.
 The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled
-automatically. A Service Endpoint will also be exposed allowing Prometheus
-Service Monitors to be used.
+automatically. A Service Endpoint will not be exposed; if you need to expose the
+Prometheus port on a Service, (for example, to use a `ServiceMonitor`), create a
+separate headless service instead:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder-prom
+  namespace: coder
+spec:
+  clusterIP: None
+  ports:
+    - name: prom-http
+      port: 2112
+      protocol: TCP
+      targetPort: 2112
+  selector:
+    app.kubernetes.io/instance: coder
+    app.kubernetes.io/name: coder
+  type: ClusterIP
+```
 
 ### Prometheus configuration
 

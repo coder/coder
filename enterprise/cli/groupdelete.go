@@ -27,7 +27,7 @@ func (r *RootCmd) groupDelete() *clibase.Cmd {
 				groupName = inv.Args[0]
 			)
 
-			org, err := agpl.CurrentOrganization(inv, client)
+			org, err := agpl.CurrentOrganization(&r.RootCmd, inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

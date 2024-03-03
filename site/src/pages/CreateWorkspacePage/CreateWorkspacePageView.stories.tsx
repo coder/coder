@@ -101,14 +101,19 @@ export const Parameters: Story = {
     autofillParameters: [
       {
         name: "first_parameter",
-        value: "It works!",
+        value: "Cool suggestion",
         source: "user_history",
+      },
+      {
+        name: "third_parameter",
+        value: "aaaa",
+        source: "url",
       },
     ],
   },
 };
 
-export const RequiresExternalAuth: Story = {
+export const ExternalAuth: Story = {
   args: {
     externalAuth: [
       {
@@ -126,6 +131,80 @@ export const RequiresExternalAuth: Story = {
         authenticate_url: "",
         display_icon: "/icon/gitlab.svg",
         display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthError: Story = {
+  args: {
+    error: true,
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthAllRequiredConnected: Story = {
+  args: {
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: false,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
+      },
+    ],
+  },
+};
+
+export const ExternalAuthAllConnected: Story = {
+  args: {
+    externalAuth: [
+      {
+        id: "github",
+        type: "github",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
+      },
+      {
+        id: "gitlab",
+        type: "gitlab",
+        authenticated: true,
+        authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
+        optional: true,
       },
     ],
   },

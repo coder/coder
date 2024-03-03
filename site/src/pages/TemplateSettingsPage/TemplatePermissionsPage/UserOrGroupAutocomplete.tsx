@@ -3,7 +3,7 @@ import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
 import { type ChangeEvent, type FC, useState } from "react";
 import { css } from "@emotion/react";
-import type { Group, User } from "api/typesGenerated";
+import type { Group, ReducedUser } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { getGroupSubtitle } from "utils/groups";
 import { useDebouncedFunction } from "hooks/debounce";
@@ -11,7 +11,7 @@ import { useQuery } from "react-query";
 import { templaceACLAvailable } from "api/queries/templates";
 import { prepareQuery } from "utils/filters";
 
-export type UserOrGroupAutocompleteValue = User | Group | null;
+export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 
 export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue;

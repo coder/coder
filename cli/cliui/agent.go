@@ -2,13 +2,17 @@ package cliui
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 var errAgentShuttingDown = xerrors.New("agent is shutting down")
@@ -280,4 +284,56 @@ type closeFunc func() error
 
 func (c closeFunc) Close() error {
 	return c()
+}
+
+func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
+	if d.PreferredDERP > 0 {
+		rn, ok := d.DERPRegionNames[d.PreferredDERP]
+		if !ok {
+			rn = "unknown"
+		}
+		_, _ = fmt.Fprintf(w, "✔ preferred DERP region: %d (%s)\n", d.PreferredDERP, rn)
+	} else {
+		_, _ = fmt.Fprint(w, "✘ not connected to DERP\n")
+	}
+	if d.SentNode {
+		_, _ = fmt.Fprint(w, "✔ sent local data to Coder networking coodinator\n")
+	} else {
+		_, _ = fmt.Fprint(w, "✘ have not sent local data to Coder networking coordinator\n")
+	}
+	if d.ReceivedNode != nil {
+		dp := d.ReceivedNode.DERP
+		dn := ""
+		// should be 127.3.3.40:N where N is the DERP region
+		ap := strings.Split(dp, ":")
+		if len(ap) == 2 {
+			dp = ap[1]
+			di, err := strconv.Atoi(dp)
+			if err == nil {
+				var ok bool
+				dn, ok = d.DERPRegionNames[di]
+				if ok {
+					dn = fmt.Sprintf("(%s)", dn)
+				} else {
+					dn = "(unknown)"
+				}
+			}
+		}
+		_, _ = fmt.Fprintf(w,
+			"✔ received remote agent data from Coder networking coordinator\n    preferred DERP region: %s %s\n    endpoints: %s\n",
+			dp, dn, strings.Join(d.ReceivedNode.Endpoints, ", "))
+	} else {
+		_, _ = fmt.Fprint(w, "✘ have not received remote agent data from Coder networking coordinator\n")
+	}
+	if !d.LastWireguardHandshake.IsZero() {
+		ago := time.Since(d.LastWireguardHandshake)
+		symbol := "✔"
+		// wireguard is supposed to refresh handshake on 5 minute intervals
+		if ago > 5*time.Minute {
+			symbol = "⚠"
+		}
+		_, _ = fmt.Fprintf(w, "%s Wireguard handshake %s ago\n", symbol, ago.Round(time.Second))
+	} else {
+		_, _ = fmt.Fprint(w, "✘ Wireguard is not connected\n")
+	}
 }

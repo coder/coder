@@ -317,7 +317,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     ]
   },
   "severity": "ok",
-  "time": "string",
+  "time": "2019-08-24T14:15:22Z",
   "websocket": {
     "body": "string",
     "code": 0,
@@ -371,9 +371,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                             |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthcheck.Report](schemas.md#healthcheckreport) |
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.HealthcheckReport](schemas.md#codersdkhealthcheckreport) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

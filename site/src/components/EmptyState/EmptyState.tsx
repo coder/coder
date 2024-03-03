@@ -1,12 +1,11 @@
-import type { FC, ReactNode } from "react";
+import type { FC, HTMLAttributes, ReactNode } from "react";
 
-export interface EmptyStateProps {
+export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
   /** Text Message to display, placed inside Typography component */
   message: string;
   /** Longer optional description to display below the message */
   description?: string | ReactNode;
   cta?: ReactNode;
-  className?: string;
   image?: ReactNode;
 }
 

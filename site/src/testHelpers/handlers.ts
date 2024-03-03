@@ -373,6 +373,15 @@ export const handlers = [
     },
   ),
 
+  rest.post("/api/v2/files", (_, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        hash: "some-file-hash",
+      }),
+    );
+  }),
+
   rest.get("/api/v2/files/:fileId", (_, res, ctx) => {
     const fileBuffer = fs.readFileSync(
       path.resolve(__dirname, "./templateFiles.tar"),

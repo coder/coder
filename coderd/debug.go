@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -51,7 +50,7 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Debug
-// @Success 200 {object} healthcheck.Report
+// @Success 200 {object} codersdk.HealthcheckReport
 // @Router /debug/health [get]
 // @Param force query boolean false "Force a healthcheck to run"
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
@@ -77,7 +76,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resChan := api.healthCheckGroup.DoChan("", func() (*healthcheck.Report, error) {
+	resChan := api.healthCheckGroup.DoChan("", func() (*codersdk.HealthcheckReport, error) {
 		// Create a new context not tied to the request.
 		ctx, cancel := context.WithTimeout(context.Background(), api.Options.HealthcheckTimeout)
 		defer cancel()
@@ -107,7 +106,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc healthcheck.Report, dismissed ...codersdk.HealthSection) {
+func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc codersdk.HealthcheckReport, dismissed ...codersdk.HealthSection) {
 	// Mark any sections previously marked as dismissed.
 	for _, d := range dismissed {
 		switch d {

@@ -4,7 +4,7 @@ import {
 } from "testHelpers/renderHelpers";
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { UserEvent } from "@testing-library/user-event";
 import * as api from "api/api";
 import {
   MockTemplate,
@@ -21,6 +21,7 @@ import { RequireAuth } from "contexts/auth/RequireAuth";
 import { server } from "testHelpers/server";
 import { rest } from "msw";
 import { AppProviders } from "App";
+import { TemplateVersion } from "api/typesGenerated";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -50,35 +51,50 @@ const renderTemplateEditorPage = () => {
   });
 };
 
-test("Use custom name, message and set it as active when publishing", async () => {
-  const user = userEvent.setup();
-  renderTemplateEditorPage();
-  const topbar = await screen.findByTestId("topbar");
-
-  // Build Template
+const buildTemplateVersion = async (
+  templateVersion: TemplateVersion,
+  user: UserEvent,
+  topbar: HTMLElement,
+) => {
   jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
-  const newTemplateVersion = {
-    ...MockTemplateVersion,
-    id: "new-version-id",
-    name: "new-version",
-  };
-  jest
-    .spyOn(api, "createTemplateVersion")
-    .mockResolvedValue(newTemplateVersion);
+  jest.spyOn(api, "createTemplateVersion").mockResolvedValue({
+    ...templateVersion,
+    job: {
+      ...templateVersion.job,
+      status: "running",
+    },
+  });
   jest
     .spyOn(api, "getTemplateVersionByName")
-    .mockResolvedValue(newTemplateVersion);
+    .mockResolvedValue(templateVersion);
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
-      return jest.fn() as never;
+      options.onDone?.();
+      const wsMock = {
+        close: jest.fn(),
+      } as unknown;
+      return wsMock as WebSocket;
     });
   const buildButton = within(topbar).getByRole("button", {
     name: "Build",
   });
   await user.click(buildButton);
+  await within(topbar).findByText("Success");
+};
+
+test("Use custom name, message and set it as active when publishing", async () => {
+  const user = userEvent.setup();
+  renderTemplateEditorPage();
+  const topbar = await screen.findByTestId("topbar");
+
+  const newTemplateVersion: TemplateVersion = {
+    ...MockTemplateVersion,
+    id: "new-version-id",
+    name: "new-version",
+  };
+  await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
   const patchTemplateVersion = jest
@@ -87,7 +103,6 @@ test("Use custom name, message and set it as active when publishing", async () =
   const updateActiveTemplateVersion = jest
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
-  await within(topbar).findByText("Success");
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",
   });
@@ -118,30 +133,12 @@ test("Do not mark as active if promote is not checked", async () => {
   renderTemplateEditorPage();
   const topbar = await screen.findByTestId("topbar");
 
-  // Build Template
-  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
   const newTemplateVersion = {
     ...MockTemplateVersion,
     id: "new-version-id",
     name: "new-version",
   };
-  jest
-    .spyOn(api, "createTemplateVersion")
-    .mockResolvedValue(newTemplateVersion);
-  jest
-    .spyOn(api, "getTemplateVersionByName")
-    .mockResolvedValue(newTemplateVersion);
-  jest
-    .spyOn(api, "watchBuildLogsByTemplateVersionId")
-    .mockImplementation((_, options) => {
-      options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
-      return jest.fn() as never;
-    });
-  const buildButton = within(topbar).getByRole("button", {
-    name: "Build",
-  });
-  await user.click(buildButton);
+  await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
   const patchTemplateVersion = jest
@@ -150,7 +147,6 @@ test("Do not mark as active if promote is not checked", async () => {
   const updateActiveTemplateVersion = jest
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
-  await within(topbar).findByText("Success");
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",
   });
@@ -175,44 +171,22 @@ test("Do not mark as active if promote is not checked", async () => {
 });
 
 test("Patch request is not send when there are no changes", async () => {
-  const newTemplateVersion = {
-    ...MockTemplateVersion,
-    id: "new-version-id",
-    name: "new-version",
-  };
-  const MockTemplateVersionWithEmptyMessage = {
-    ...newTemplateVersion,
-    message: "",
-  };
   const user = userEvent.setup();
   renderTemplateEditorPage();
   const topbar = await screen.findByTestId("topbar");
 
-  // Build Template
-  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
-  jest
-    .spyOn(api, "createTemplateVersion")
-    .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
-  jest
-    .spyOn(api, "getTemplateVersionByName")
-    .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
-  jest
-    .spyOn(api, "watchBuildLogsByTemplateVersionId")
-    .mockImplementation((_, options) => {
-      options.onMessage(MockWorkspaceBuildLogs[0]);
-      options.onDone();
-      return jest.fn() as never;
-    });
-  const buildButton = within(topbar).getByRole("button", {
-    name: "Build",
-  });
-  await user.click(buildButton);
+  const newTemplateVersion = {
+    ...MockTemplateVersion,
+    id: "new-version-id",
+    name: "new-version",
+    message: "",
+  };
+  await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
   const patchTemplateVersion = jest
     .spyOn(api, "patchTemplateVersion")
-    .mockResolvedValue(MockTemplateVersionWithEmptyMessage);
-  await within(topbar).findByText("Success");
+    .mockResolvedValue(newTemplateVersion);
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",
   });
@@ -220,7 +194,7 @@ test("Patch request is not send when there are no changes", async () => {
   const publishDialog = await screen.findByTestId("dialog");
   // It is using the name from the template
   const nameField = within(publishDialog).getByLabelText("Version name");
-  expect(nameField).toHaveValue(MockTemplateVersionWithEmptyMessage.name);
+  expect(nameField).toHaveValue(newTemplateVersion.name);
   // Publish
   await user.click(
     within(publishDialog).getByRole("button", { name: "Publish" }),

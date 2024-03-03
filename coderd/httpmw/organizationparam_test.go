@@ -103,7 +103,7 @@ func TestOrganizationParam(t *testing.T) {
 		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("NotInOrganization", func(t *testing.T) {
@@ -160,8 +160,6 @@ func TestOrganizationParam(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
-		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
@@ -194,9 +192,21 @@ func TestOrganizationParam(t *testing.T) {
 			assert.NotEmpty(t, orgMem.OrganizationMember.UserID)
 			assert.NotEmpty(t, orgMem.OrganizationMember.Roles)
 		})
+
+		// Try by ID
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode, "by id")
+
+		// Try by name
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
+		rtr.ServeHTTP(rw, r)
+		res = rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode, "by name")
 	})
 }

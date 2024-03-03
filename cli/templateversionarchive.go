@@ -47,7 +47,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 				versions []codersdk.TemplateVersion
 			)
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}
@@ -121,7 +121,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 				templates     = []codersdk.Template{}
 			)
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}
