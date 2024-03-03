@@ -14,7 +14,7 @@ export const resourceOptionValue = (resource: WorkspaceResource) => {
 // refactoring. Consider revisiting this solution in the future for a more
 // robust implementation.
 export const useResourcesNav = (resources: WorkspaceResource[]) => {
-  const resourcesNav = useSearchParamsKey("resources");
+  const resourcesNav = useSearchParamsKey({ key: "resources" });
   const isSelected = useCallback(
     (resource: WorkspaceResource) => {
       return resourceOptionValue(resource) === resourcesNav.value;

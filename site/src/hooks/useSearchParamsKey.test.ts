@@ -13,7 +13,7 @@ import { act, waitFor } from "@testing-library/react";
 describe(useSearchParamsKey.name, () => {
   it("Returns out a default value of an empty string if the key does not exist in URL", async () => {
     const { result } = await renderHookWithAuth(
-      () => useSearchParamsKey("blah"),
+      () => useSearchParamsKey({ key: "blah" }),
       { routingOptions: { route: `/` } },
     );
 
@@ -23,7 +23,7 @@ describe(useSearchParamsKey.name, () => {
   it("Uses the 'defaultValue' config override if provided", async () => {
     const defaultValue = "dogs";
     const { result } = await renderHookWithAuth(
-      () => useSearchParamsKey("blah", { defaultValue }),
+      () => useSearchParamsKey({ key: "blah", defaultValue }),
       { routingOptions: { route: `/` } },
     );
 
@@ -34,11 +34,12 @@ describe(useSearchParamsKey.name, () => {
     const key = "blah";
     const value = "cats";
 
-    const { result } = await renderHookWithAuth(() => useSearchParamsKey(key), {
-      routingOptions: {
-        route: `/?${key}=${value}`,
+    const { result } = await renderHookWithAuth(
+      () => useSearchParamsKey({ key }),
+      {
+        routingOptions: { route: `/?${key}=${value}` },
       },
-    });
+    );
 
     expect(result.current.value).toEqual(value);
   });
@@ -48,7 +49,7 @@ describe(useSearchParamsKey.name, () => {
     const initialValue = "cats";
 
     const { result, getLocationSnapshot } = await renderHookWithAuth(
-      () => useSearchParamsKey(key),
+      () => useSearchParamsKey({ key }),
       {
         routingOptions: {
           route: `/?${key}=${initialValue}`,
@@ -69,7 +70,7 @@ describe(useSearchParamsKey.name, () => {
     const initialValue = "cats";
 
     const { result, getLocationSnapshot } = await renderHookWithAuth(
-      () => useSearchParamsKey(key),
+      () => useSearchParamsKey({ key }),
       {
         routingOptions: {
           route: `/?${key}=${initialValue}`,
@@ -91,7 +92,7 @@ describe(useSearchParamsKey.name, () => {
     const initialMutableValue = "mutable";
 
     const { result, rerender, getLocationSnapshot } = await renderHookWithAuth(
-      ({ key }) => useSearchParamsKey(key),
+      ({ key }) => useSearchParamsKey({ key }),
       {
         routingOptions: {
           route: `/?${readonlyKey}=${initialReadonlyValue}&${mutableKey}=${initialMutableValue}`,
@@ -105,7 +106,7 @@ describe(useSearchParamsKey.name, () => {
 
     const swapValue = "dogs";
     rerender({ key: mutableKey });
-    act(() => result.current.onValueChange(swapValue));
+    void act(() => result.current.onValueChange(swapValue));
     await waitFor(() => expect(result.current.value).toEqual(swapValue));
 
     const { search } = getLocationSnapshot();

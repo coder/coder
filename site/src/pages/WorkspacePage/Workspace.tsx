@@ -89,7 +89,7 @@ export const Workspace: FC<WorkspaceProps> = ({
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
-  const sidebarOption = useSearchParamsKey("sidebar");
+  const sidebarOption = useSearchParamsKey({ key: "sidebar" });
   const setSidebarOption = (newOption: string) => {
     if (sidebarOption.value === newOption) {
       sidebarOption.removeValue();

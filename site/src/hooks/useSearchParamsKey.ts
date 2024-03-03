@@ -1,8 +1,8 @@
-import { useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useEffectEvent } from "./hookPolyfills";
 
-export type UseSearchParamKeyConfig = Readonly<{
+export type UseSearchParamsKeyConfig = Readonly<{
+  key: string;
+  searchParams?: URLSearchParams;
   defaultValue?: string;
   replace?: boolean;
 }>;
@@ -14,39 +14,28 @@ export type UseSearchParamKeyResult = Readonly<{
 }>;
 
 export const useSearchParamsKey = (
-  key: string,
-  config: UseSearchParamKeyConfig = {},
+  config: UseSearchParamsKeyConfig,
 ): UseSearchParamKeyResult => {
-  const { defaultValue = "", replace = true } = config;
-  const [searchParams, setSearchParams] = useSearchParams();
-  const stableSetSearchParams = useEffectEvent(setSearchParams);
+  // Cannot use function update form for setSearchParams, because by default, it
+  // will always be linked to innerSearchParams, ignoring the config's params
+  const [innerSearchParams, setSearchParams] = useSearchParams();
 
-  const onValueChange = useCallback(
-    (newValue: string) => {
-      stableSetSearchParams(
-        (currentParams) => {
-          currentParams.set(key, newValue);
-          return currentParams;
-        },
-        { replace },
-      );
-    },
-    [stableSetSearchParams, key, replace],
-  );
-
-  const removeValue = useCallback(() => {
-    stableSetSearchParams(
-      (currentParams) => {
-        currentParams.delete(key);
-        return currentParams;
-      },
-      { replace },
-    );
-  }, [stableSetSearchParams, key, replace]);
+  const {
+    key,
+    searchParams = innerSearchParams,
+    defaultValue = "",
+    replace = true,
+  } = config;
 
   return {
     value: searchParams.get(key) ?? defaultValue,
-    onValueChange,
-    removeValue,
+    onValueChange: (newValue) => {
+      searchParams.set(key, newValue);
+      setSearchParams(searchParams, { replace });
+    },
+    removeValue: () => {
+      searchParams.delete(key);
+      setSearchParams(searchParams, { replace: true });
+    },
   };
 };
