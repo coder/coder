@@ -6,12 +6,7 @@ import {
   RenderHookOptions,
   RenderHookResult,
 } from "@testing-library/react";
-import {
-  type ReactNode,
-  type FC,
-  type PropsWithChildren,
-  useState,
-} from "react";
+import { type ReactNode } from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -23,11 +18,7 @@ import {
   type Location,
   type RouteObject,
   createMemoryRouter,
-  MemoryRouter,
   RouterProvider,
-  Routes,
-  Route,
-  useLocation,
 } from "react-router-dom";
 import { MockUser } from "./entities";
 
@@ -117,38 +108,37 @@ export function renderWithAuth(
   };
 }
 
-type RenderHookWithAuthOptions<Props> = Partial<
-  Readonly<
-    Omit<RenderWithAuthOptions, "children"> & {
-      initialProps: Props;
-    }
-  >
->;
-
-export type RouterLocationSnapshot = Readonly<{
+export type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
   search: URLSearchParams;
   pathname: string;
-  state: Location["state"];
+  state: Location<TLocationState>["state"];
 }>;
 
-export type RenderHookWithAuthConfig<Props> = Readonly<{
-  routingOptions?: Omit<RenderWithAuthOptions, "children">;
-  renderOptions?: Omit<RenderHookOptions<Props>, "wrapper">;
-}>;
+/**
+ * Gives you back an immutable snapshot of the current location's values.
+ *
+ * As this is a snapshot, its values can quickly become inaccurate - as soon as
+ * a new re-render (even ones you didn't trigger yourself). Keep that in mind
+ * when making assertions.
+ */
+export type GetLocationSnapshot<TLocationState = unknown> =
+  () => RouterLocationSnapshot<TLocationState>;
 
-export type RenderHookWithAuthResult<Result, Props> = Readonly<
-  RenderHookResult<Result, Props> & {
+export type RenderHookWithAuthResult<
+  TResult,
+  TProps,
+  TLocationState = unknown,
+> = Readonly<
+  RenderHookResult<TResult, TProps> & {
     queryClient: QueryClient;
-
-    /**
-     * Gives you access to the navigation values associated with the test's
-     * isolated router. Treat this value as a snapshot; it does not provide a
-     * live link to the various location APIs, and it can become inaccurate
-     * after a re-render.
-     */
-    getLocationSnapshot: () => RouterLocationSnapshot;
+    getLocationSnapshot: GetLocationSnapshot<TLocationState>;
   }
 >;
+
+export type RenderHookWithAuthConfig<TProps> = Readonly<{
+  routingOptions?: Omit<RenderWithAuthOptions, "children">;
+  renderOptions?: Omit<RenderHookOptions<TProps>, "wrapper">;
+}>;
 
 /**
  * Gives you a custom version of renderHook that is aware of all our App
@@ -164,6 +154,7 @@ export type RenderHookWithAuthResult<Result, Props> = Readonly<
  * methods; calling renderHook's rerender method directly caused the router to
  * get lost/disconnected.
  */
+// Type param order mirrors the param order for renderHook
 export async function renderHookWithAuth<Result, Props>(
   render: (initialProps: Props) => Result,
   config: RenderHookWithAuthConfig<Props>,
@@ -186,58 +177,36 @@ export async function renderHookWithAuth<Result, Props>(
    * to re-renders, and hopefully removes the need to make every test file that
    * uses renderHookWithAuth be defined as a .tsx file just to add dummy JSX.
    */
-  // Easy to miss - evil definite assignment with !
-  let escapedLocation!: ReturnType<typeof useLocation>;
-  const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
-    const location = useLocation();
-    escapedLocation = location;
-    return <>{children}</>;
-  };
-
-  /**
-   * Can't use the fancy createMemoryRouter function because it gives you no
-   * direct way to re-render with arbitrary children. That's a deal-breaker when
-   * trying to test custom hooks - it removes your ability to unit-test them
-   */
-  const MemoryRouterWrapper: FC<PropsWithChildren> = ({ children }) => {
-    return (
-      <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route element={<RequireAuth />}>
-            <Route
-              path={path}
-              element={<LocationLeaker>{children}</LocationLeaker>}
-            />
-
-            {extraRoutes.map((route, index) => (
-              <Route
-                key={route.path ?? index}
-                path={route.path}
-                element={route.element}
-              />
-            ))}
-          </Route>
-
-          {nonAuthenticatedRoutes.map((route, index) => (
-            <Route
-              key={route.path ?? index}
-              path={route.path}
-              element={route.element}
-            />
-          ))}
-        </Routes>
-      </MemoryRouter>
-    );
-  };
-
+  // Easy to miss - evil definite assignments via !
+  let escapedRouter!: ReturnType<typeof createMemoryRouter>;
   const queryClient = createTestQueryClient();
   const { result, rerender, unmount } = renderHook(render, {
     ...renderOptions,
-    wrapper: ({ children }) => (
-      <AppProviders queryClient={queryClient}>
-        <MemoryRouterWrapper>{children}</MemoryRouterWrapper>
-      </AppProviders>
-    ),
+    wrapper: ({ children }) => {
+      // Cannot use useState here because even though the wrapper is a valid
+      // component, calling renderHook's rerender method will cause the state to
+      // get wiped (even though the underlying component instance should stay
+      // the same?)
+      if (escapedRouter === undefined) {
+        const routes: RouteObject[] = [
+          {
+            element: <RequireAuth />,
+            children: [{ path, element: <>{children}</> }, ...extraRoutes],
+          },
+          ...nonAuthenticatedRoutes,
+        ];
+
+        escapedRouter = createMemoryRouter(routes, {
+          initialEntries: [route],
+        });
+      }
+
+      return (
+        <AppProviders queryClient={queryClient}>
+          <RouterProvider router={escapedRouter} />
+        </AppProviders>
+      );
+    },
   });
 
   /**
@@ -250,9 +219,9 @@ export async function renderHookWithAuth<Result, Props>(
    */
   await waitFor(() => expect(result.current).not.toBe(null));
 
-  if (escapedLocation === undefined) {
+  if (escapedRouter === undefined) {
     throw new Error(
-      "Location is unavailable even after custom hook value is ready",
+      "Do not have source of truth for location snapshots, even after custom hook value is ready",
     );
   }
 
@@ -262,68 +231,13 @@ export async function renderHookWithAuth<Result, Props>(
     unmount,
     queryClient,
     getLocationSnapshot: () => {
+      const location = escapedRouter.state.location;
       return {
-        pathname: escapedLocation.pathname,
-        search: new URLSearchParams(escapedLocation.search),
-        state: escapedLocation.state,
+        pathname: location.pathname,
+        search: new URLSearchParams(location.search),
+        state: location.state,
       };
     },
-  } as const;
-}
-
-/**
- * Old version of renderHookWithAuth that mostly works, but breaks when you try
- * to perform manual, direct re-renders via renderHook's rerender method.
- * @deprecated
- */
-export async function deprecated_renderHookWithAuth<Result, Props>(
-  render: (initialProps: Props) => Result,
-  options: RenderHookWithAuthOptions<Props> = {},
-) {
-  const { initialProps, path = "/", route = "/", extraRoutes = [] } = options;
-  const queryClient = createTestQueryClient();
-
-  // Easy to miss – there's an evil definite assignment via the !
-  let escapedRouter!: ReturnType<typeof createMemoryRouter>;
-
-  const { result, rerender, unmount } = renderHook(render, {
-    initialProps,
-    wrapper: ({ children }) => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
-      const [readonlyStatefulRouter] = useState(() => {
-        return createMemoryRouter(
-          [{ path, element: <>{children}</> }, ...extraRoutes],
-          { initialEntries: [route] },
-        );
-      });
-
-      /**
-       * Leaks the wrapper component's state outside React's render cycles.
-       */
-      escapedRouter = readonlyStatefulRouter;
-
-      return (
-        <AppProviders queryClient={queryClient}>
-          <RouterProvider router={readonlyStatefulRouter} />
-        </AppProviders>
-      );
-    },
-  });
-
-  /**
-   * This is necessary to get around some providers in AppProviders having
-   * conditional rendering and not always rendering their children immediately.
-   *
-   * The hook result won't actually exist until the children defined via wrapper
-   * render in full.
-   */
-  await waitFor(() => expect(result.current).not.toBe(null));
-
-  return {
-    result,
-    rerender,
-    unmount,
-    router: escapedRouter,
   } as const;
 }
 

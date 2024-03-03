@@ -1,41 +1,45 @@
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import * as M from "../../testHelpers/entities";
 import { type Workspace } from "api/typesGenerated";
 import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { MockWorkspace } from "testHelpers/entities";
 import CreateWorkspacePage from "./CreateWorkspacePage";
-import { deprecated_renderHookWithAuth } from "testHelpers/renderHelpers";
+import {
+  type GetLocationSnapshot,
+  renderHookWithAuth,
+} from "testHelpers/renderHelpers";
 
 function render(workspace?: Workspace) {
-  return deprecated_renderHookWithAuth(
-    ({ workspace }) => {
-      return useWorkspaceDuplication(workspace);
-    },
+  return renderHookWithAuth(
+    ({ workspace }) => useWorkspaceDuplication(workspace),
     {
-      initialProps: { workspace },
-      extraRoutes: [
-        {
-          path: "/templates/:template/workspace",
-          element: <CreateWorkspacePage />,
-        },
-      ],
+      renderOptions: { initialProps: { workspace } },
+      routingOptions: {
+        extraRoutes: [
+          {
+            path: "/templates/:template/workspace",
+            element: <CreateWorkspacePage />,
+          },
+        ],
+      },
     },
   );
 }
 
 type RenderResult = Awaited<ReturnType<typeof render>>;
+type RenderHookResult = RenderResult["result"];
 
 async function performNavigation(
-  result: RenderResult["result"],
-  router: RenderResult["router"],
+  result: RenderHookResult,
+  getSnapshot: GetLocationSnapshot,
 ) {
   await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
-  result.current.duplicateWorkspace();
+  void act(() => result.current.duplicateWorkspace());
 
+  const templateName = MockWorkspace.template_name;
   return waitFor(() => {
-    expect(router.state.location.pathname).toEqual(
-      `/templates/${MockWorkspace.template_name}/workspace`,
-    );
+    const { pathname } = getSnapshot();
+    expect(pathname).toEqual(`/templates/${templateName}/workspace`);
   });
 }
 
@@ -52,21 +56,22 @@ describe(`${useWorkspaceDuplication.name}`, () => {
 
   it("Will become ready when workspace is provided and build params are successfully fetched", async () => {
     const { result } = await render(MockWorkspace);
-
     expect(result.current.isDuplicationReady).toBe(false);
     await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
   });
 
   it("Is able to navigate the user to the workspace creation page", async () => {
-    const { result, router } = await render(MockWorkspace);
-    await performNavigation(result, router);
+    const { result, getLocationSnapshot } = await render(MockWorkspace);
+    await performNavigation(result, getLocationSnapshot);
   });
 
   test("Navigating populates the URL search params with the workspace's build params", async () => {
-    const { result, router } = await render(MockWorkspace);
-    await performNavigation(result, router);
+    const { result, getLocationSnapshot } = await render(MockWorkspace);
+    await performNavigation(result, getLocationSnapshot);
 
-    const parsedParams = new URLSearchParams(router.state.location.search);
+    const { search } = getLocationSnapshot();
+    const parsedParams = new URLSearchParams(search);
+
     const mockBuildParams = [
       M.MockWorkspaceBuildParameter1,
       M.MockWorkspaceBuildParameter2,
@@ -82,10 +87,12 @@ describe(`${useWorkspaceDuplication.name}`, () => {
   });
 
   test("Navigating appends other necessary metadata to the search params", async () => {
-    const { result, router } = await render(MockWorkspace);
-    await performNavigation(result, router);
+    const { result, getLocationSnapshot } = await render(MockWorkspace);
+    await performNavigation(result, getLocationSnapshot);
 
-    const parsedParams = new URLSearchParams(router.state.location.search);
+    const { search } = getLocationSnapshot();
+    const parsedParams = new URLSearchParams(search);
+
     const extraMetadataEntries = [
       ["mode", "duplicate"],
       ["name", `${MockWorkspace.name}-copy`],
