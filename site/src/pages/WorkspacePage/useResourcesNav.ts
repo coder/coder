@@ -30,7 +30,7 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
         hasResources && resources[0].agents && resources[0].agents.length > 0;
 
       if (!hasSelectedResource && hasResourcesWithAgents) {
-        resourcesNav.onValueChange(resourceOptionValue(resources[0]));
+        resourcesNav.setValue(resourceOptionValue(resources[0]));
       }
     },
   );
@@ -40,7 +40,7 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 
   const select = useCallback(
     (resource: WorkspaceResource) => {
-      resourcesNav.onValueChange(resourceOptionValue(resource));
+      resourcesNav.setValue(resourceOptionValue(resource));
     },
     [resourcesNav],
   );

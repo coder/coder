@@ -92,9 +92,9 @@ export const Workspace: FC<WorkspaceProps> = ({
   const sidebarOption = useSearchParamsKey({ key: "sidebar" });
   const setSidebarOption = (newOption: string) => {
     if (sidebarOption.value === newOption) {
-      sidebarOption.removeValue();
+      sidebarOption.deleteValue();
     } else {
-      sidebarOption.onValueChange(newOption);
+      sidebarOption.setValue(newOption);
     }
   };
 

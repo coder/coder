@@ -9,8 +9,8 @@ export type UseSearchParamsKeyConfig = Readonly<{
 
 export type UseSearchParamKeyResult = Readonly<{
   value: string;
-  onValueChange: (newValue: string) => void;
-  removeValue: () => void;
+  setValue: (newValue: string) => void;
+  deleteValue: () => void;
 }>;
 
 export const useSearchParamsKey = (
@@ -29,13 +29,13 @@ export const useSearchParamsKey = (
 
   return {
     value: searchParams.get(key) ?? defaultValue,
-    onValueChange: (newValue) => {
+    setValue: (newValue) => {
       searchParams.set(key, newValue);
       setSearchParams(searchParams, { replace });
     },
-    removeValue: () => {
+    deleteValue: () => {
       searchParams.delete(key);
-      setSearchParams(searchParams, { replace: true });
+      setSearchParams(searchParams, { replace });
     },
   };
 };
