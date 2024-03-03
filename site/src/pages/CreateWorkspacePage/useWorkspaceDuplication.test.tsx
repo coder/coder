@@ -31,14 +31,14 @@ type RenderHookResult = RenderResult["result"];
 
 async function performNavigation(
   result: RenderHookResult,
-  getSnapshot: GetLocationSnapshot,
+  getLocationSnapshot: GetLocationSnapshot,
 ) {
   await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
   void act(() => result.current.duplicateWorkspace());
 
   const templateName = MockWorkspace.template_name;
   return waitFor(() => {
-    const { pathname } = getSnapshot();
+    const { pathname } = getLocationSnapshot();
     expect(pathname).toEqual(`/templates/${templateName}/workspace`);
   });
 }
@@ -66,12 +66,6 @@ describe(`${useWorkspaceDuplication.name}`, () => {
   });
 
   test("Navigating populates the URL search params with the workspace's build params", async () => {
-    const { result, getLocationSnapshot } = await render(MockWorkspace);
-    await performNavigation(result, getLocationSnapshot);
-
-    const { search } = getLocationSnapshot();
-    const parsedParams = new URLSearchParams(search);
-
     const mockBuildParams = [
       M.MockWorkspaceBuildParameter1,
       M.MockWorkspaceBuildParameter2,
@@ -80,27 +74,29 @@ describe(`${useWorkspaceDuplication.name}`, () => {
       M.MockWorkspaceBuildParameter5,
     ];
 
-    for (const { name, value } of mockBuildParams) {
-      const key = `param.${name}`;
-      expect(parsedParams.get(key)).toEqual(value);
-    }
-  });
-
-  test("Navigating appends other necessary metadata to the search params", async () => {
     const { result, getLocationSnapshot } = await render(MockWorkspace);
     await performNavigation(result, getLocationSnapshot);
 
     const { search } = getLocationSnapshot();
-    const parsedParams = new URLSearchParams(search);
+    for (const { name, value } of mockBuildParams) {
+      const key = `param.${name}`;
+      expect(search.get(key)).toEqual(value);
+    }
+  });
 
-    const extraMetadataEntries = [
+  test("Navigating appends other necessary metadata to the search params", async () => {
+    const extraMetadataEntries: readonly [string, string][] = [
       ["mode", "duplicate"],
       ["name", `${MockWorkspace.name}-copy`],
       ["version", MockWorkspace.template_active_version_id],
-    ] as const;
+    ];
 
+    const { result, getLocationSnapshot } = await render(MockWorkspace);
+    await performNavigation(result, getLocationSnapshot);
+
+    const { search } = getLocationSnapshot();
     for (const [key, value] of extraMetadataEntries) {
-      expect(parsedParams.get(key)).toBe(value);
+      expect(search.get(key)).toBe(value);
     }
   });
 });
