@@ -12,4 +12,5 @@ SELECT
 	true
 WHERE
 	-- Only insert if no organizations exist.
-	NOT EXISTS (SELECT * FROM organizations)
+	NOT EXISTS (SELECT * FROM organizations);
+
