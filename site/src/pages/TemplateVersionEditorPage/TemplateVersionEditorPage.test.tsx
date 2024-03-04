@@ -1,6 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
-import type { UserEvent } from "@testing-library/user-event";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { rest } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";

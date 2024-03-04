@@ -5,10 +5,8 @@ import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import type { FormikTouched } from "formik";
-import { useFormik } from "formik";
-import { useState, useEffect } from "react";
-import type { ChangeEvent, FC } from "react";
+import { type FormikTouched, useFormik } from "formik";
+import { type ChangeEvent, type FC, useState, useEffect } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import {
   FormSection,
@@ -20,15 +18,19 @@ import { Stack } from "components/Stack/Stack";
 import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import type { TemplateAutostartRequirementDaysValue } from "utils/schedule";
-import { calculateAutostopRequirementDaysValue } from "utils/schedule";
+import {
+  calculateAutostopRequirementDaysValue,
+  type TemplateAutostartRequirementDaysValue,
+} from "utils/schedule";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import type { TemplateScheduleFormValues } from "./formHelpers";
-import { getValidationSchema } from "./formHelpers";
+import {
+  getValidationSchema,
+  type TemplateScheduleFormValues,
+} from "./formHelpers";
 import { ScheduleDialog } from "./ScheduleDialog";
 import {
   ActivityBumpHelperText,

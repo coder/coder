@@ -4,15 +4,13 @@ import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePa
 import { MockTemplate } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { timeZones } from "utils/timeZones";
-import type {
-  WorkspaceScheduleFormValues,
-  WorkspaceScheduleFormProps,
-} from "./WorkspaceScheduleForm";
 import {
   Language,
   ttlShutdownAt,
   validationSchema,
   WorkspaceScheduleForm,
+  type WorkspaceScheduleFormValues,
+  type WorkspaceScheduleFormProps,
 } from "./WorkspaceScheduleForm";
 
 const valid: WorkspaceScheduleFormValues = {

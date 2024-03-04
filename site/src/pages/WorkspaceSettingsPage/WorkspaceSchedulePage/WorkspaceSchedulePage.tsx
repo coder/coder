@@ -1,6 +1,5 @@
 import dayjs from "dayjs";
-import type { FC } from "react";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
