@@ -20,7 +20,7 @@ WHERE
 		WHERE
 			nested.started_at IS NULL
 		  	-- Enforce hard organization boundary.
-		    AND nested.organization_id = @organization_id
+			AND nested.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
 			AND CASE

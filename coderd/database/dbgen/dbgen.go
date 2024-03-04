@@ -396,11 +396,14 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		orig.Tags[jobID.String()] = "true"
 	}
 
+	// Attempt to alloc to the default org if exists
+	defaultOrg, _ := db.GetDefaultOrganization(genCtx)
+
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		OrganizationID: takeFirst(orig.OrganizationID, defaultOrg.ID, uuid.New()),
 		InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 		Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
 		StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
