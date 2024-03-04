@@ -5,7 +5,7 @@ import {
   renderHook,
   act,
 } from "@testing-library/react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useReducer, FC, PropsWithChildren } from "react";
 import { QueryClient } from "react-query";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -17,6 +17,7 @@ import {
   type Location,
   createMemoryRouter,
   RouterProvider,
+  useLocation,
 } from "react-router-dom";
 
 export type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
@@ -122,34 +123,42 @@ export async function renderHookWithAuth<Result, Props>(
    *    the snapshot we grabbed (even if the inner values are the same, the
    *    reference values will be different), resolving that via a promise
    */
-  // Easy to miss - definite assignment via !
-  let forceChildRerender!: () => void;
+  // Easy to miss - definite assignments via !
+  let forceRenderHookChildrenUpdate!: () => void;
+  let escapedLocation!: Location;
   let currentRenderHookChildren: ReactNode = undefined;
 
-  const RenderHookEscapeHatch = () => {
-    const [, setThrowawayRenderValue] = useState(false);
-    forceChildRerender = () => {
-      act(() => setThrowawayRenderValue((current) => !current));
-    };
-
-    return <>{currentRenderHookChildren}</>;
+  const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
+    const location = useLocation();
+    escapedLocation = location;
+    return <>{children}</>;
   };
+
+  const InitialRoute: FC = () => {
+    const [, forceInternalRerender] = useReducer((b: boolean) => !b, false);
+    forceRenderHookChildrenUpdate = () => act(() => forceInternalRerender());
+    return <LocationLeaker>{currentRenderHookChildren}</LocationLeaker>;
+  };
+
+  const wrappedExtraRoutes = extraRoutes.map((route) => ({
+    ...route,
+    element: <LocationLeaker>{route.element}</LocationLeaker>,
+  }));
+
+  const wrappedNonAuthRoutes = nonAuthenticatedRoutes.map((route) => ({
+    ...route,
+    element: <LocationLeaker>{route.element}</LocationLeaker>,
+  }));
 
   const router = createMemoryRouter(
     [
       {
         element: <RequireAuth />,
-        children: [
-          { path, element: <RenderHookEscapeHatch /> },
-          ...extraRoutes,
-        ],
+        children: [{ path, element: <InitialRoute /> }, ...wrappedExtraRoutes],
       },
-      ...nonAuthenticatedRoutes,
+      ...wrappedNonAuthRoutes,
     ],
-    {
-      initialEntries: [route],
-      initialIndex: 0,
-    },
+    { initialEntries: [route], initialIndex: 0 },
   );
 
   const queryClient = createTestQueryClient();
@@ -182,15 +191,14 @@ export async function renderHookWithAuth<Result, Props>(
     rerender: (newProps) => {
       const currentValue = result.current;
       rerender(newProps);
-      forceChildRerender();
+      forceRenderHookChildrenUpdate();
       return waitFor(() => expect(result.current).not.toBe(currentValue));
     },
     getLocationSnapshot: () => {
-      const location = router.state.location;
       return {
-        pathname: location.pathname,
-        search: new URLSearchParams(location.search),
-        state: location.state,
+        pathname: escapedLocation.pathname,
+        search: new URLSearchParams(escapedLocation.search),
+        state: escapedLocation.state,
       };
     },
   } as const;
