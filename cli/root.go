@@ -994,7 +994,7 @@ func DumpHandler(ctx context.Context, name string) {
 		}
 		// Make the time filesystem-safe, for example ":" is not
 		// permitted on many filesystems.
-		filesystemSafeTime := time.Now().Format("2006-01-02T15-04-05.000Z")
+		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
 		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 
