@@ -170,6 +170,9 @@ var (
 					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:       {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceAPIKey.Type:         {rbac.WildcardSymbol},
+					// When org scoped provisioner credentials are implemented,
+					// this can be reduced to read a specific org.
+					rbac.ResourceOrganization.Type: {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

@@ -292,6 +292,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
+				apiKeyMiddlewareOptional,
+				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+					DB:       api.Database,
+					Optional: true,
+				}, api.ProvisionerDaemonPSK),
+				// Either a user auth or provisioner auth is required
+				// to move forward.
+				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
+				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
 			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
