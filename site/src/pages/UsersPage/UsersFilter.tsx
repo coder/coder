@@ -1,13 +1,12 @@
 import { useTheme } from "@emotion/react";
 import { type FC } from "react";
-import type {
-  useFilter} from "components/Filter/filter";
+import type { useFilter } from "components/Filter/filter";
 import {
   Filter,
   FilterMenu,
   MenuSkeleton,
   OptionItem,
-  SearchFieldSkeleton
+  SearchFieldSkeleton,
 } from "components/Filter/filter";
 import {
   type UseFilterMenuOptions,

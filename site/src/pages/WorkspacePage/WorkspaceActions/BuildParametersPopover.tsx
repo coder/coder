@@ -29,9 +29,8 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import type {
-  AutofillBuildParameter} from "utils/richParameters";
 import {
+  type AutofillBuildParameter,
   getInitialRichParameterValues,
 } from "utils/richParameters";
 

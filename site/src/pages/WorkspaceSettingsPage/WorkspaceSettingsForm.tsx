@@ -5,12 +5,8 @@ import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import { type FC } from "react";
 import * as Yup from "yup";
-import type {
-  AutomaticUpdates,
-  Workspace} from "api/typesGenerated";
-import {
-  AutomaticUpdateses
-} from "api/typesGenerated";
+import type { AutomaticUpdates, Workspace } from "api/typesGenerated";
+import { AutomaticUpdateses } from "api/typesGenerated";
 import {
   FormFields,
   FormFooter,

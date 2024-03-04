@@ -14,7 +14,10 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import type { AutofillBuildParameter, AutofillSource } from "utils/richParameters";
+import type {
+  AutofillBuildParameter,
+  AutofillSource,
+} from "utils/richParameters";
 import { MultiTextField } from "./MultiTextField";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {

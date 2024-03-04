@@ -4,11 +4,8 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { type FC, type ReactNode, useState } from "react";
 import { type UseQueryResult } from "react-query";
-import type {
-  LinkProps as RouterLinkProps} from "react-router-dom";
-import {
-  Link as RouterLink
-} from "react-router-dom";
+import type { LinkProps as RouterLinkProps } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { type Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";

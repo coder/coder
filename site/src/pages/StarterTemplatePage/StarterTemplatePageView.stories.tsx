@@ -3,7 +3,6 @@ import { chromatic } from "testHelpers/chromatic";
 import { mockApiError, MockTemplateExample } from "testHelpers/entities";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
-
 const meta: Meta<typeof StarterTemplatePageView> = {
   title: "pages/StarterTemplatePage",
   parameters: { chromatic },

@@ -5,17 +5,14 @@ import type { MenuProps } from "@mui/material/Menu";
 import Menu from "@mui/material/Menu";
 import type { MenuItemProps } from "@mui/material/MenuItem";
 import MenuItem from "@mui/material/MenuItem";
-import type {
-  ReactNode,
-  HTMLProps,
-  ReactElement} from "react";
+import type { ReactNode, HTMLProps, ReactElement } from "react";
 import {
   useRef,
   useState,
   createContext,
   useContext,
   cloneElement,
-  forwardRef
+  forwardRef,
 } from "react";
 
 type MoreMenuContextValue = {

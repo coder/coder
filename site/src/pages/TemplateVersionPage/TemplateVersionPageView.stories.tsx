@@ -5,10 +5,9 @@ import {
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
-import type {
-  TemplateVersionPageViewProps} from "./TemplateVersionPageView";
 import {
-  TemplateVersionPageView
+  TemplateVersionPageView,
+  type TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
 
 const readmeContent = `---

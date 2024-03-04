@@ -15,10 +15,9 @@ import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import type {
-  WorkspacePermissions} from "../../WorkspacePage/permissions";
 import {
   workspaceChecks,
+  type WorkspacePermissions,
 } from "../../WorkspacePage/permissions";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {

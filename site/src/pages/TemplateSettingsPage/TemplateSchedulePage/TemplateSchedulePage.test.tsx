@@ -10,7 +10,7 @@ import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import type { TemplateScheduleFormValues} from "./formHelpers";
+import type { TemplateScheduleFormValues } from "./formHelpers";
 import { getValidationSchema } from "./formHelpers";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 

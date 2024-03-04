@@ -1,4 +1,4 @@
-import type { FC} from "react";
+import type { FC } from "react";
 import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";

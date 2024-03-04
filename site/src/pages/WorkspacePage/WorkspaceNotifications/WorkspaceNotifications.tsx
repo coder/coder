@@ -11,12 +11,8 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import type { WorkspacePermissions } from "../permissions";
-import type {
-  NotificationItem} from "./Notifications";
-import {
-  NotificationActionButton,
-  Notifications,
-} from "./Notifications";
+import type { NotificationItem } from "./Notifications";
+import { NotificationActionButton, Notifications } from "./Notifications";
 
 type WorkspaceNotificationsProps = {
   workspace: Workspace;

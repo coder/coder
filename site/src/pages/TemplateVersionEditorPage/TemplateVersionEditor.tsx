@@ -36,8 +36,7 @@ import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import type {
-  FileTree} from "utils/filetree";
+import type { FileTree } from "utils/filetree";
 import {
   createFile,
   existsFile,

@@ -3,7 +3,7 @@ import { getUsers } from "api/api";
 import { useMe } from "contexts/auth/useMe";
 import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
-import type { UseFilterMenuOptions} from "./menu";
+import type { UseFilterMenuOptions } from "./menu";
 import { useFilterMenu } from "./menu";
 import type { BaseOption } from "./options";
 

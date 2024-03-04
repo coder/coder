@@ -2,7 +2,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
-import type { FC} from "react";
+import type { FC } from "react";
 import { useState } from "react";
 import type { TemplateVersionVariable } from "api/typesGenerated";
 

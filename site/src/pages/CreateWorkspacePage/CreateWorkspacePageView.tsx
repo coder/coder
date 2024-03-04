@@ -2,7 +2,7 @@ import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
-import type { FormikContextType} from "formik";
+import type { FormikContextType } from "formik";
 import { useFormik } from "formik";
 import { type FC, useEffect, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";

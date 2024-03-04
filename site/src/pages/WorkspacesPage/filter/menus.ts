@@ -1,6 +1,6 @@
 import { getTemplates } from "api/api";
 import type { WorkspaceStatus } from "api/typesGenerated";
-import type { UseFilterMenuOptions} from "components/Filter/menu";
+import type { UseFilterMenuOptions } from "components/Filter/menu";
 import { useFilterMenu } from "components/Filter/menu";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import type { StatusOption, TemplateOption } from "./options";

@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import axios from "axios";
-import type { ChildProcess} from "child_process";
+import type { ChildProcess } from "child_process";
 import { exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import express from "express";
@@ -22,12 +22,9 @@ import type {
   PlanComplete,
   ApplyComplete,
   Resource,
-  RichParameter} from "./provisionerGenerated";
-import {
-  Agent,
-  AppSharingLevel,
-  Response
+  RichParameter,
 } from "./provisionerGenerated";
+import { Agent, AppSharingLevel, Response } from "./provisionerGenerated";
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.

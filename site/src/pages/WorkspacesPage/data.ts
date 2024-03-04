@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { QueryKey} from "react-query";
+import type { QueryKey } from "react-query";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getWorkspaces, updateWorkspaceVersion } from "api/api";
 import { getErrorMessage } from "api/errors";

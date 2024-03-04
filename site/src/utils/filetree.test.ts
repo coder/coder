@@ -1,5 +1,4 @@
-import type {
-  FileTree} from "./filetree";
+import type { FileTree } from "./filetree";
 import {
   existsFile,
   getFileContent,

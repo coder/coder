@@ -13,7 +13,6 @@ import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
 import { AuditPageView } from "./AuditPageView";
 
-
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({

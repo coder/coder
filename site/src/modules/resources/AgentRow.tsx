@@ -23,11 +23,8 @@ import type {
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
-import type {
-  Line} from "modules/workspaces/WorkspaceBuildLogs/Logs";
-import {
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
+import type { Line } from "modules/workspaces/WorkspaceBuildLogs/Logs";
+import { logLineHeight } from "modules/workspaces/WorkspaceBuildLogs/Logs";
 import { AgentLatency } from "./AgentLatency";
 import { AgentLogs, useAgentLogs } from "./AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";

@@ -19,7 +19,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
-import type { FileTree} from "utils/filetree";
+import type { FileTree } from "utils/filetree";
 import { traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";

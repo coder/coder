@@ -3,7 +3,10 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { type FC, type FormEvent, useId, useState } from "react";
-import type { Workspace, CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import type {
+  Workspace,
+  CreateWorkspaceBuildRequest,
+} from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { docs } from "utils/docs";
 

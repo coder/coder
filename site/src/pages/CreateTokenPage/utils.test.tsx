@@ -1,5 +1,4 @@
-import type {
-  LifetimeDay} from "./utils";
+import type { LifetimeDay } from "./utils";
 import {
   filterByMaxTokenLifetime,
   determineDefaultLtValue,

@@ -5,14 +5,8 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import Link from "@mui/material/Link";
-import type {
-  ComponentProps,
-  HTMLAttributes,
-  ReactElement} from "react";
-import {
-  cloneElement,
-  forwardRef,
-} from "react";
+import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
+import { cloneElement, forwardRef } from "react";
 import type { HealthMessage, HealthSeverity } from "api/typesGenerated";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";

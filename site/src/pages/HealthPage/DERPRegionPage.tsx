@@ -1,4 +1,4 @@
-import type { Interpolation, Theme} from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import { useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";

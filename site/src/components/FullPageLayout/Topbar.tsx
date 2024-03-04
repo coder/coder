@@ -12,7 +12,7 @@ import {
   cloneElement,
   forwardRef,
 } from "react";
-import type { AvatarProps} from "components/Avatar/Avatar";
+import type { AvatarProps } from "components/Avatar/Avatar";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {

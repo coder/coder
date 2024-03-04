@@ -14,8 +14,7 @@ import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
-import type { WorkspacePermissions} from "./permissions";
-import { workspaceChecks } from "./permissions";
+import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 export const WorkspacePage: FC = () => {

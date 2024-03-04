@@ -18,10 +18,9 @@ import {
   cancelBuild,
 } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import type {
-  ConfirmDialogProps} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
-  ConfirmDialog
+  ConfirmDialog,
+  type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";

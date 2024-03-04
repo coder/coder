@@ -1,4 +1,4 @@
-import type { FormikContextType, FormikErrors} from "formik";
+import type { FormikContextType, FormikErrors } from "formik";
 import { getIn } from "formik";
 import type {
   ChangeEvent,

@@ -15,7 +15,7 @@ import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import type { FormikTouched} from "formik";
+import type { FormikTouched } from "formik";
 import { useFormik } from "formik";
 import { type ChangeEvent, type FC } from "react";
 import * as Yup from "yup";

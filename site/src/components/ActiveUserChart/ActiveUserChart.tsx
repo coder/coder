@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type {
-  ChartOptions} from "chart.js";
+import type { ChartOptions } from "chart.js";
 import {
   CategoryScale,
   Chart as ChartJS,

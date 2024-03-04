@@ -33,11 +33,8 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "utils/groups";
-import type {
-  UserOrGroupAutocompleteValue} from "./UserOrGroupAutocomplete";
-import {
-  UserOrGroupAutocomplete
-} from "./UserOrGroupAutocomplete";
+import type { UserOrGroupAutocompleteValue } from "./UserOrGroupAutocomplete";
+import { UserOrGroupAutocomplete } from "./UserOrGroupAutocomplete";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;

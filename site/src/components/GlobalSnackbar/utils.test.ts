@@ -1,6 +1,4 @@
-import type {
-  NotificationMsg,
-  NotificationTextPrefixed} from "./utils";
+import type { NotificationMsg, NotificationTextPrefixed } from "./utils";
 import {
   displayError,
   displaySuccess,
