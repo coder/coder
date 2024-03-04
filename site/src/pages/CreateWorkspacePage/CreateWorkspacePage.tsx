@@ -94,11 +94,11 @@ const CreateWorkspacePage: FC = () => {
   );
 
   // Auto fill parameters
+  const autofillEnabled = experiments.includes("auto-fill-parameters");
   const userParametersQuery = useQuery({
     queryKey: ["userParameters"],
     queryFn: () => getUserParameters(templateQuery.data!.id),
-    enabled:
-      experiments.includes("auto-fill-parameters") && templateQuery.isSuccess,
+    enabled: autofillEnabled && templateQuery.isSuccess,
   });
   const autofillParameters = getAutofillParameters(
     searchParams,
@@ -128,7 +128,8 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
-  const autoStartReady = mode === "auto" && userParametersQuery.isSuccess;
+  const autoStartReady =
+    mode === "auto" && (!autofillEnabled || userParametersQuery.isSuccess);
   useEffect(() => {
     if (autoStartReady) {
       void automateWorkspaceCreation();
