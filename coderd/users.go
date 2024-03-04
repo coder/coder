@@ -1029,7 +1029,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := codersdk.UserRoles{
-		Roles:             user.RBACRoles,
+		Roles:             make([]string, 0),
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
@@ -1042,10 +1042,40 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// We have to handle rbac permissions manually here. The 'GetAuthorizationUserRoles' does
+	// not have the ability to check permissions itself.
+	// The query 'GetAuthorizationUserRoles' handles implied roles, so it is
+	// the source of truth.
+	// nolint: gocritic // System is the only actor who can fetch these.
+	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user's roles.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	allowedOrgs := make(map[uuid.UUID]struct{})
 	for _, mem := range memberships {
-		// If we can read the org member, include the roles.
-		if err == nil {
-			resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
+		allowedOrgs[mem.OrganizationID] = struct{}{}
+	}
+
+	// Only return roles the user can read.
+	for _, role := range roles.Roles {
+		orgID, ok := rbac.IsOrgRole(role)
+		if !ok {
+			resp.Roles = append(resp.Roles, role)
+			continue
+		}
+
+		uid, err := uuid.Parse(orgID)
+		if err != nil {
+			continue // This should never happen
+		}
+		if _, ok := allowedOrgs[uid]; ok {
+			resp.OrganizationRoles[uid] = append(resp.OrganizationRoles[uid], role)
+			continue
 		}
 	}
 
@@ -1257,9 +1287,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// TODO: When organizations are allowed to be created, we should
 			// come back to determining the default role of the person who
 			// creates the org. Until that happens, all users in an organization
-			// should be just regular members.
-			orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
-
+			// should be just regular members. Membership role is implied, and
+			// not required to be explicit.
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
 				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)

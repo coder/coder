@@ -1091,11 +1091,12 @@ func TestInitialRoles(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, roles.Roles, []string{
 		rbac.RoleOwner(),
+		rbac.RoleMember(),
 	}, "should be a member and admin")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
 		rbac.RoleOrgMember(first.OrganizationID),
-	}, "should be a member and admin")
+	}, "should be a member")
 }
 
 func TestPutUserSuspend(t *testing.T) {
