@@ -124,15 +124,16 @@ export async function renderHookWithAuth<Result, Props>(
    *    reference values will be different), resolving that via a promise
    */
   // Easy to miss - definite assignments via !
-  let forceRenderHookChildrenUpdate!: () => void;
-  let escapedLocation!: Location;
-  let currentRenderHookChildren: ReactNode = undefined;
 
+  let escapedLocation!: Location;
   const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
     const location = useLocation();
     escapedLocation = location;
     return <>{children}</>;
   };
+
+  let forceRenderHookChildrenUpdate!: () => void;
+  let currentRenderHookChildren: ReactNode = undefined;
 
   const InitialRoute: FC = () => {
     const [, forceInternalRerender] = useReducer((b: boolean) => !b, false);
