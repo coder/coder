@@ -171,6 +171,15 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	defaultOrg, err := api.Database.GetDefaultOrganization(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching default organization. If you are encountering this error, you will have to restart the Coder deployment.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
@@ -178,9 +187,9 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Username: createUser.Username,
 			Password: createUser.Password,
 			// Create an org for the first user.
-			OrganizationID: uuid.Nil,
+			OrganizationID: defaultOrg.ID,
 		},
-		CreateOrganization: true,
+		CreateOrganization: false,
 		LoginType:          database.LoginTypePassword,
 	})
 	if err != nil {
