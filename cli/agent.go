@@ -149,7 +149,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
-			go DumpHandler(ctx)
+			go DumpHandler(ctx, "agent")
 
 			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
