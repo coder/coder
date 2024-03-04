@@ -171,7 +171,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	defaultOrg, err := api.Database.GetDefaultOrganization(ctx)
+	//nolint:gocritic // needed to create first user
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching default organization. If you are encountering this error, you will have to restart the Coder deployment.",
