@@ -173,6 +173,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
 
+	// We need the technical row to present the correct count on every page.
+	filter.WithSummary = true
+
 	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -181,6 +184,23 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if len(workspaceRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  "Workspace summary row is missing.",
+		})
+		return
+	}
+	if len(workspaceRows) == 1 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+			Workspaces: []codersdk.Workspace{},
+			Count:      int(workspaceRows[0].Count),
+		})
+		return
+	}
+	// Skip technical summary row
+	workspaceRows = workspaceRows[:len(workspaceRows)-1]
+
 	if len(workspaceRows) == 0 {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 			Workspaces: []codersdk.Workspace{},
