@@ -56,10 +56,8 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
-import type { DateRangeValue } from "./DateRange";
-import { DateRange as DailyPicker } from "./DateRange";
-import type { InsightsInterval } from "./IntervalMenu";
-import { IntervalMenu } from "./IntervalMenu";
+import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
+import { IntervalMenu, type InsightsInterval } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 

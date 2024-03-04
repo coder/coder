@@ -1,7 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import type { ComponentProps } from "react";
-import { forwardRef, useEffect, useMemo, useState } from "react";
+import {
+  type ComponentProps,
+  forwardRef,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { FixedSizeList as List } from "react-window";
 import * as API from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";

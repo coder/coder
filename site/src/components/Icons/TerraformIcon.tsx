@@ -1,5 +1,4 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
-import SvgIcon from "@mui/material/SvgIcon";
+import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
 export const TerraformIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 32 32">

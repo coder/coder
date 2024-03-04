@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { type WorkspaceAgent } from "api/typesGenerated";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
   MockProxyLatencies,

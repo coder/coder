@@ -12,8 +12,7 @@ import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
-import type { CreateTokenData } from "./utils";
-import { NANO_HOUR } from "./utils";
+import { type CreateTokenData, NANO_HOUR } from "./utils";
 
 const initialValues: CreateTokenData = {
   name: "",

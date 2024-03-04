@@ -11,8 +11,7 @@ import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { usePermissions } from "contexts/auth/usePermissions";
-import type { ProxyLatencyReport } from "./useProxyLatency";
-import { useProxyLatency } from "./useProxyLatency";
+import { useProxyLatency, type ProxyLatencyReport } from "./useProxyLatency";
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.

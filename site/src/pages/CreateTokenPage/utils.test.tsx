@@ -1,7 +1,7 @@
-import type { LifetimeDay } from "./utils";
 import {
-  filterByMaxTokenLifetime,
   determineDefaultLtValue,
+  filterByMaxTokenLifetime,
+  type LifetimeDay,
   lifetimeDayPresets,
   NANO_HOUR,
 } from "./utils";

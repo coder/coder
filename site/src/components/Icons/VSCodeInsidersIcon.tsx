@@ -1,7 +1,6 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
-import SvgIcon from "@mui/material/SvgIcon";
+import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
-export const VSCodeInsidersIcon = (props: SvgIconProps) => (
+export const VSCodeInsidersIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 256 256">
     <svg
       width="256"

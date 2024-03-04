@@ -1,7 +1,6 @@
-import type { SvgIconProps } from "@mui/material/SvgIcon";
-import SvgIcon from "@mui/material/SvgIcon";
+import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
-export const JetBrainsIcon = (props: SvgIconProps) => (
+export const JetBrainsIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 100 100">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180">
       <path

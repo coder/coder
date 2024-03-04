@@ -1,6 +1,7 @@
 import type { Meta, StoryFn } from "@storybook/react";
-import type { ExternalAuthPageViewProps } from "./ExternalAuthPageView";
-import ExternalAuthPageView from "./ExternalAuthPageView";
+import ExternalAuthPageView, {
+  type ExternalAuthPageViewProps,
+} from "./ExternalAuthPageView";
 
 export default {
   title: "pages/ExternalAuthPage",

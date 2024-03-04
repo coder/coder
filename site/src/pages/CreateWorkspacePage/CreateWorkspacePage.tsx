@@ -26,8 +26,7 @@ import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import type { CreateWSPermissions } from "./permissions";
-import { createWorkspaceChecks } from "./permissions";
+import { createWorkspaceChecks, type CreateWSPermissions } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];

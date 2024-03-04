@@ -1,19 +1,16 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import type { ButtonProps } from "@mui/material/Button";
-import Button from "@mui/material/Button";
-import type { IconButtonProps } from "@mui/material/IconButton";
-import IconButton from "@mui/material/IconButton";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
 import {
+  cloneElement,
   type FC,
   type ForwardedRef,
+  forwardRef,
   type HTMLAttributes,
   type ReactElement,
-  cloneElement,
-  forwardRef,
 } from "react";
-import type { AvatarProps } from "components/Avatar/Avatar";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { type AvatarProps, ExternalAvatar } from "components/Avatar/Avatar";
 
 export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
   const theme = useTheme();

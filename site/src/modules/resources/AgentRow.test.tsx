@@ -8,8 +8,7 @@ import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import type { AgentRowProps } from "./AgentRow";
-import { AgentRow } from "./AgentRow";
+import { AgentRow, type AgentRowProps } from "./AgentRow";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 jest.mock("modules/resources/AgentMetadata", () => {

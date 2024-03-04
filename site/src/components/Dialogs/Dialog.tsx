@@ -1,8 +1,8 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import type { LoadingButtonProps } from "@mui/lab/LoadingButton";
-import LoadingButton from "@mui/lab/LoadingButton";
-import type { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
-import MuiDialog from "@mui/material/Dialog";
+import LoadingButton, { type LoadingButtonProps } from "@mui/lab/LoadingButton";
+import MuiDialog, {
+  type DialogProps as MuiDialogProps,
+} from "@mui/material/Dialog";
 import { type FC, type ReactNode } from "react";
 import type { ConfirmDialogType } from "./types";
 

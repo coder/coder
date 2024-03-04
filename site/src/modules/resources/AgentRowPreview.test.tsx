@@ -1,6 +1,9 @@
 import { screen } from "@testing-library/react";
-import type { WorkspaceAgent, DisplayApp } from "api/typesGenerated";
-import { DisplayApps } from "api/typesGenerated";
+import {
+  DisplayApps,
+  type DisplayApp,
+  type WorkspaceAgent,
+} from "api/typesGenerated";
 import { MockWorkspaceAgent } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { AgentRowPreview } from "./AgentRowPreview";

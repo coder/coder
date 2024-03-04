@@ -2,7 +2,7 @@ import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
 import set from "lodash/fp/set";
-import { useMemo, type FC, useCallback } from "react";
+import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import type { FileTree } from "utils/filetree";

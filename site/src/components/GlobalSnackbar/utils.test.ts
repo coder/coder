@@ -1,9 +1,10 @@
-import type { NotificationMsg, NotificationTextPrefixed } from "./utils";
 import {
   displayError,
   displaySuccess,
   isNotificationTextPrefixed,
   MsgType,
+  type NotificationMsg,
+  type NotificationTextPrefixed,
   SnackbarEventType,
 } from "./utils";
 
