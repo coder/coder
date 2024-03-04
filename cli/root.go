@@ -937,7 +937,7 @@ func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...inter
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func DumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context, name string) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return
@@ -992,7 +992,11 @@ func DumpHandler(ctx context.Context) {
 		if err != nil {
 			dir = os.TempDir()
 		}
-		fpath := filepath.Join(dir, fmt.Sprintf("coder-agent-%s.dump", time.Now().Format("2006-01-02T15:04:05.000Z")))
+		// Make the time filesystem-safe, for example ":" is not
+		// permitted on many filesystems. Note that Z here only appends
+		// Z to the string, it does not actually change the time zone.
+		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
+		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 
 		f, err := os.Create(fpath)
