@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useState, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -122,11 +122,18 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
+  const autoCreationStartedRef = useRef(false);
   useEffect(() => {
-    if (mode === "auto") {
+    const shouldStartAutoCreation =
+      !autoCreationStartedRef.current &&
+      mode === "auto" &&
+      userParametersQuery.isSuccess;
+
+    if (shouldStartAutoCreation) {
+      autoCreationStartedRef.current = true;
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, mode]);
+  }, [automateWorkspaceCreation, mode, userParametersQuery.isSuccess]);
 
   return (
     <>
