@@ -905,15 +905,23 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
+		emailSp := strings.Split(email, "@")
+		if len(emailSp) == 1 {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+			})
+			return
+		}
+		userEmailDomain := emailSp[len(emailSp)-1]
 		for _, domain := range api.OIDCConfig.EmailDomain {
-			if strings.HasSuffix(strings.ToLower(email), strings.ToLower(domain)) {
+			if strings.EqualFold(userEmailDomain, domain) {
 				ok = true
 				break
 			}
 		}
 		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
 			})
 			return
 		}
