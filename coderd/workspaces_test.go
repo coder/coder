@@ -1753,6 +1753,7 @@ func TestOffsetLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 0)
+	require.Equal(t, ws.Count, 3) // can't find workspaces, but count is non-zero
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
