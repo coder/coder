@@ -1,17 +1,17 @@
+import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import { useNavigate } from "react-router-dom";
+import { uploadFile } from "api/queries/files";
 import {
   templateVersionLogs,
   JobError,
   templateVersionVariables,
 } from "api/queries/templates";
-import { uploadFile } from "api/queries/files";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
+import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
-import { FC } from "react";
-import { CreateTemplatePageViewProps } from "./types";
 
 export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,

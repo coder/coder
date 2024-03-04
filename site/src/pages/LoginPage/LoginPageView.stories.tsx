@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockAuthMethodsAll,
   MockAuthMethodsExternal,
@@ -5,7 +6,6 @@ import {
   mockApiError,
 } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof LoginPageView> = {
   title: "pages/LoginPage",

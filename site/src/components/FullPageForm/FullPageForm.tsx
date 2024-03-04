@@ -1,5 +1,5 @@
-import { Margins } from "components/Margins/Margins";
 import { type FC, type ReactNode } from "react";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderTitle,

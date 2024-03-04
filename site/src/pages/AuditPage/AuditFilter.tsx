@@ -1,17 +1,20 @@
 import capitalize from "lodash/capitalize";
 import { type FC } from "react";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
-import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import type {
+  useFilter} from "components/Filter/filter";
 import {
   Filter,
   FilterMenu,
   MenuSkeleton,
   OptionItem,
-  SearchFieldSkeleton,
-  useFilter,
+  SearchFieldSkeleton
 } from "components/Filter/filter";
-import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
-import { BaseOption } from "components/Filter/options";
+import type { UseFilterMenuOptions} from "components/Filter/menu";
+import { useFilterMenu } from "components/Filter/menu";
+import type { BaseOption } from "components/Filter/options";
+import type { UserFilterMenu} from "components/Filter/UserFilter";
+import { UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [

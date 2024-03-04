@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import type {
   ComponentProps,
   FC,
@@ -5,8 +6,6 @@ import type {
   PropsWithChildren,
 } from "react";
 import { PaginationContainer } from "./PaginationContainer";
-import type { Meta, StoryObj } from "@storybook/react";
-
 import {
   mockPaginationResultBase,
   mockInitialRenderResult,

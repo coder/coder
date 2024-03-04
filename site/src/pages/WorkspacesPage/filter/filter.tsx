@@ -1,17 +1,18 @@
 import { useTheme } from "@emotion/react";
 import { type FC } from "react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import type {
+  useFilter} from "components/Filter/filter";
 import {
   Filter,
   FilterMenu,
   FilterSearchMenu,
   MenuSkeleton,
   OptionItem,
-  SearchFieldSkeleton,
-  useFilter,
+  SearchFieldSkeleton
 } from "components/Filter/filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { docs } from "utils/docs";
 import type { TemplateFilterMenu, StatusFilterMenu } from "./menus";
 import type { TemplateOption, StatusOption } from "./options";

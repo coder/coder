@@ -1,7 +1,7 @@
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 // eslint-disable-next-line no-restricted-imports -- use it to have the component prop
 import Box, { type BoxProps } from "@mui/material/Box";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import {
   type FC,

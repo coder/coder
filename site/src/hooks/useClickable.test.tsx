@@ -1,13 +1,13 @@
+
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   type ElementType,
   type FC,
   type MouseEventHandler,
   type PropsWithChildren,
 } from "react";
-
 import { type ClickableAriaRole, useClickable } from "./useClickable";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 /**
  * Since the point of the hook is to take a traditionally non-interactive HTML

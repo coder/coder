@@ -1,5 +1,5 @@
-import { Stack } from "components/Stack/Stack";
 import { type FC, type PropsWithChildren } from "react";
+import { Stack } from "components/Stack/Stack";
 
 export const AppPreview: FC<PropsWithChildren> = ({ children }) => {
   return (

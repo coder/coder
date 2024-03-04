@@ -1,6 +1,6 @@
 import Link from "@mui/material/Link";
-import cronstrue from "cronstrue";
 import cronParser from "cron-parser";
+import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";

@@ -1,14 +1,15 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
+import type {
+  TemplateVersionPageViewProps} from "./TemplateVersionPageView";
 import {
-  TemplateVersionPageView,
-  TemplateVersionPageViewProps,
+  TemplateVersionPageView
 } from "./TemplateVersionPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const readmeContent = `---
 name:Template test

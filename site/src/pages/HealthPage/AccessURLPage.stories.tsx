@@ -1,4 +1,4 @@
-import { StoryObj, Meta } from "@storybook/react";
+import type { StoryObj, Meta } from "@storybook/react";
 import { AccessURLPage } from "./AccessURLPage";
 import { generateMeta } from "./storybook";
 

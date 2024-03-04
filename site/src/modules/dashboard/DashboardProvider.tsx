@@ -1,14 +1,3 @@
-import { useQuery } from "react-query";
-import { buildInfo } from "api/queries/buildInfo";
-import { experiments } from "api/queries/experiments";
-import { entitlements } from "api/queries/entitlements";
-import {
-  AppearanceConfig,
-  BuildInfoResponse,
-  Entitlements,
-  Experiments,
-} from "api/typesGenerated";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import {
   type FC,
   type PropsWithChildren,
@@ -16,9 +5,20 @@ import {
   useCallback,
   useState,
 } from "react";
+import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
-import { hslToHex, isHexColor, isHslColor } from "utils/colors";
+import { buildInfo } from "api/queries/buildInfo";
+import { entitlements } from "api/queries/entitlements";
+import { experiments } from "api/queries/experiments";
+import type {
+  AppearanceConfig,
+  BuildInfoResponse,
+  Entitlements,
+  Experiments,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { hslToHex, isHexColor, isHslColor } from "utils/colors";
 
 interface Appearance {
   config: AppearanceConfig;

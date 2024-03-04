@@ -1,20 +1,21 @@
 /* eslint-disable jsx-a11y/heading-has-content -- infer from props */
-import {
+import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import Link from "@mui/material/Link";
+import type {
   ComponentProps,
   HTMLAttributes,
-  ReactElement,
+  ReactElement} from "react";
+import {
   cloneElement,
   forwardRef,
 } from "react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import { healthyColor } from "./healthyColor";
+import type { HealthMessage, HealthSeverity } from "api/typesGenerated";
 import { docs } from "utils/docs";
-import { css } from "@emotion/css";
-import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import { HealthMessage, HealthSeverity } from "api/typesGenerated";
-import Link from "@mui/material/Link";
-import { useTheme } from "@emotion/react";
+import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
 

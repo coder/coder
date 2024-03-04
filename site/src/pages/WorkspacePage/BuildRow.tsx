@@ -1,5 +1,5 @@
-import TableCell from "@mui/material/TableCell";
 import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import TableCell from "@mui/material/TableCell";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { WorkspaceBuild } from "api/typesGenerated";

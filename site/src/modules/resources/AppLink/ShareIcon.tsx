@@ -1,8 +1,8 @@
-import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined";
-import * as TypesGen from "api/typesGenerated";
+import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
+import type * as TypesGen from "api/typesGenerated";
 
 export interface ShareIconProps {
   app: TypesGen.WorkspaceApp;

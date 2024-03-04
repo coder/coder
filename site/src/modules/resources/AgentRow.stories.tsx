@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import {
   MockPrimaryWorkspaceProxy,
@@ -22,9 +23,9 @@ import {
   MockProxyLatencies,
   MockListeningPortsResponse,
 } from "testHelpers/entities";
-import { AgentRow, LineWithID } from "./AgentRow";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { withDashboardProvider } from "testHelpers/storybook";
+import type { LineWithID } from "./AgentRow";
+import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
   {

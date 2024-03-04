@@ -1,17 +1,18 @@
-import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
-import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
-import { server } from "testHelpers/server";
 import { MockUser, MockWorkspace } from "testHelpers/entities";
+import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
+import type {
+  WorkspaceScheduleFormValues} from "./WorkspaceScheduleForm";
 import {
-  WorkspaceScheduleFormValues,
   Language as FormLanguage,
 } from "./WorkspaceScheduleForm";
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";

@@ -1,5 +1,5 @@
-import { type FC, type ReactNode } from "react";
 import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, type ReactNode } from "react";
 
 type SectionLayout = "fixed" | "fluid";
 

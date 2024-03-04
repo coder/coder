@@ -1,9 +1,10 @@
 import TextField from "@mui/material/TextField";
 import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import { FormFooter } from "../FormFooter/FormFooter";
 import { Stack } from "../Stack/Stack";
-import { FullPageForm, FullPageFormProps } from "./FullPageForm";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { FullPageFormProps } from "./FullPageForm";
+import { FullPageForm } from "./FullPageForm";
 
 const Template = (props: FullPageFormProps) => (
   <FullPageForm {...props}>

@@ -7,9 +7,9 @@ import {
   HelpTooltipTitle,
   HelpTooltipContent,
 } from "components/HelpTooltip/HelpTooltip";
+import { PopoverTrigger } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { getLatencyColor } from "utils/latency";
-import { PopoverTrigger } from "components/Popover/Popover";
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display

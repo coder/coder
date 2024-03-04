@@ -1,11 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  renderWithTemplateSettingsLayout,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
 import * as API from "api/api";
-import TemplateVariablesPage from "./TemplateVariablesPage";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
   MockTemplate,
@@ -14,7 +9,12 @@ import {
   MockTemplateVersionVariable2,
   MockTemplateVersion2,
 } from "testHelpers/entities";
+import {
+  renderWithTemplateSettingsLayout,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers";
 import { delay } from "utils/delay";
+import TemplateVariablesPage from "./TemplateVariablesPage";
 
 const validFormValues = {
   first_variable: "Hello world",

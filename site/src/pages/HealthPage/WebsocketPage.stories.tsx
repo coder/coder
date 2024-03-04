@@ -1,6 +1,6 @@
-import { StoryObj, Meta } from "@storybook/react";
-import { WebsocketPage } from "./WebsocketPage";
+import type { StoryObj, Meta } from "@storybook/react";
 import { generateMeta } from "./storybook";
+import { WebsocketPage } from "./WebsocketPage";
 
 const meta: Meta = {
   title: "pages/Health/Websocket",

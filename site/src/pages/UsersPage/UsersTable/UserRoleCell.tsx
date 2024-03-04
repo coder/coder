@@ -14,8 +14,8 @@
  * users like that, though, know that it will be painful
  */
 import { useTheme } from "@emotion/react";
-import TableCell from "@mui/material/TableCell";
 import Stack from "@mui/material/Stack";
+import TableCell from "@mui/material/TableCell";
 import { type FC } from "react";
 import { type User, type Role } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";

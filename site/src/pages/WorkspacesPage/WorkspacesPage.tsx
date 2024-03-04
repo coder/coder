@@ -2,21 +2,21 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
-import type { Workspace } from "api/typesGenerated";
 import { templates } from "api/queries/templates";
+import type { Workspace } from "api/typesGenerated";
+import { useFilter } from "components/Filter/filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { useFilter } from "components/Filter/filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useBatchActions } from "./batchActions";
-import { useWorkspacesData, useWorkspaceUpdate } from "./data";
-import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
+import { useWorkspacesData, useWorkspaceUpdate } from "./data";
+import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 function useSafeSearchParams() {

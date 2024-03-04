@@ -2,7 +2,6 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
 import { createMemoryRouter } from "react-router-dom";
-import { Language } from "./SignInForm";
 import {
   render,
   renderWithRouter,
@@ -10,6 +9,7 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { LoginPage } from "./LoginPage";
+import { Language } from "./SignInForm";
 
 describe("LoginPage", () => {
   beforeEach(() => {

@@ -1,9 +1,9 @@
+import { type QueryClient, type QueryOptions } from "react-query";
 import * as API from "api/api";
 import {
   type UserQuietHoursScheduleResponse,
   type UpdateUserQuietHoursScheduleRequest,
 } from "api/typesGenerated";
-import { type QueryClient, type QueryOptions } from "react-query";
 
 export const userQuietHoursScheduleKey = (userId: string) => [
   "settings",

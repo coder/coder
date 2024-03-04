@@ -1,6 +1,6 @@
 import * as _storybook_types from "@storybook/react";
-import { Experiments, FeatureName } from "api/typesGenerated";
-import { QueryKey } from "react-query";
+import type { QueryKey } from "react-query";
+import type { Experiments, FeatureName } from "api/typesGenerated";
 
 declare module "@storybook/react" {
   interface Parameters {

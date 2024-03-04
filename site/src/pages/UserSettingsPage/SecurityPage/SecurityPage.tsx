@@ -2,10 +2,10 @@ import { type ComponentProps, type FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { getUserLoginType } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";
-import { useMe } from "contexts/auth/useMe";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useMe } from "contexts/auth/useMe";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
 import {

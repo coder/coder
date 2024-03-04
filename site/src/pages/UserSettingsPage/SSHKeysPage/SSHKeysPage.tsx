@@ -1,11 +1,11 @@
 import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorMessage } from "api/errors";
+import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "../Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
-import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getErrorMessage } from "api/errors";
 
 export const Language = {
   title: "SSH keys",

@@ -20,13 +20,14 @@ import { Loader } from "components/Loader/Loader";
 import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "utils/page";
-import { AutofillBuildParameter } from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { useDashboard } from "modules/dashboard/useDashboard";
+import type { CreateWSPermissions} from "./permissions";
+import { createWorkspaceChecks } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];

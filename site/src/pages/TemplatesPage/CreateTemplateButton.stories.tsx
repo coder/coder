@@ -1,6 +1,6 @@
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, screen } from "@storybook/test";
+import { CreateTemplateButton } from "./CreateTemplateButton";
 
 const meta: Meta<typeof CreateTemplateButton> = {
   title: "pages/TemplatesPage/CreateTemplateButton",

@@ -1,10 +1,11 @@
 import { screen } from "@testing-library/react";
-import {
-  PaginationWidgetBase,
-  PaginationWidgetBaseProps,
-} from "./PaginationWidgetBase";
-import { renderWithAuth } from "testHelpers/renderHelpers";
 import userEvent from "@testing-library/user-event";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import type {
+  PaginationWidgetBaseProps} from "./PaginationWidgetBase";
+import {
+  PaginationWidgetBase
+} from "./PaginationWidgetBase";
 
 type SampleProps = Omit<PaginationWidgetBaseProps, "onPageChange">;
 

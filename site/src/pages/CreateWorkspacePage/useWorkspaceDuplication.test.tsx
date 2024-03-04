@@ -1,10 +1,10 @@
 import { waitFor } from "@testing-library/react";
-import * as M from "../../testHelpers/entities";
 import { type Workspace } from "api/typesGenerated";
-import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 import { MockWorkspace } from "testHelpers/entities";
-import CreateWorkspacePage from "./CreateWorkspacePage";
 import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import * as M from "../../testHelpers/entities";
+import CreateWorkspacePage from "./CreateWorkspacePage";
+import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {
   return renderHookWithAuth(

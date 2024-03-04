@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
 import { type FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";

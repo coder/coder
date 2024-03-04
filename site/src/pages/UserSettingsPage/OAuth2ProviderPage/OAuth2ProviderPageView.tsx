@@ -7,9 +7,9 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { type FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import { TableLoader } from "components/TableLoader/TableLoader";
 
 export type OAuth2ProviderPageViewProps = {

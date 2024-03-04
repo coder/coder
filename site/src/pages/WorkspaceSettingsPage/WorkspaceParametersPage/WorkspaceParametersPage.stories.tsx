@@ -1,5 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { WorkspaceParametersPageView } from "./WorkspaceParametersPage";
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
@@ -10,6 +9,7 @@ import {
   MockWorkspace,
   MockOutdatedStoppedWorkspaceRequireActiveVersion,
 } from "testHelpers/entities";
+import { WorkspaceParametersPageView } from "./WorkspaceParametersPage";
 
 const meta: Meta<typeof WorkspaceParametersPageView> = {
   title: "pages/WorkspaceSettingsPage/WorkspaceParametersPageView",

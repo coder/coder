@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { SSHButton } from "./SSHButton";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SSHButton> = {
   title: "modules/resources/SSHButton",

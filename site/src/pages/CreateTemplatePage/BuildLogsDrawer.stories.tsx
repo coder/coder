@@ -1,12 +1,12 @@
-import { JobError } from "api/queries/templates";
-import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import type { Meta, StoryObj } from "@storybook/react";
+import { JobError } from "api/queries/templates";
 import {
   MockProvisionerJob,
   MockTemplateVersion,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
 import { withWebSocket } from "testHelpers/storybook";
+import { BuildLogsDrawer } from "./BuildLogsDrawer";
 
 const meta: Meta<typeof BuildLogsDrawer> = {
   title: "pages/CreateTemplatePage/BuildLogsDrawer",

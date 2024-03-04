@@ -1,6 +1,6 @@
+import { type CSSObject, useTheme } from "@emotion/react";
 import { type FC, type ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
-import { type CSSObject, useTheme } from "@emotion/react";
 
 type AvatarCardProps = {
   header: string;

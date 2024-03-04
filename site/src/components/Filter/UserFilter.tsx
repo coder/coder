@@ -3,8 +3,9 @@ import { getUsers } from "api/api";
 import { useMe } from "contexts/auth/useMe";
 import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
-import { UseFilterMenuOptions, useFilterMenu } from "./menu";
-import { BaseOption } from "./options";
+import type { UseFilterMenuOptions} from "./menu";
+import { useFilterMenu } from "./menu";
+import type { BaseOption } from "./options";
 
 export type UserOption = BaseOption & {
   avatarUrl?: string;

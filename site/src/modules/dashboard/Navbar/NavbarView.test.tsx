@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
-import { ProxyContextValue } from "contexts/ProxyContext";
 
 const proxyContextValue: ProxyContextValue = {
   proxy: {

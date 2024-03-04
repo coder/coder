@@ -1,12 +1,19 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
-import {
+import type { ComponentProps } from "react";
+import type {
   Workspace,
-  WorkspaceStatus,
+  WorkspaceStatus} from "api/typesGenerated";
+import {
   WorkspaceStatuses,
 } from "api/typesGenerated";
+import {
+  MockMenu,
+  getDefaultFilterProps,
+} from "components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockWorkspace,
   MockAppearanceConfig,
@@ -19,12 +26,6 @@ import {
   MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { ComponentProps } from "react";
-import {
-  MockMenu,
-  getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
 
 const createWorkspace = (
   status: WorkspaceStatus,

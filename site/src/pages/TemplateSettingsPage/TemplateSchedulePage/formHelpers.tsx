@@ -1,9 +1,9 @@
-import { UpdateTemplateMeta } from "api/typesGenerated";
-import {
+import * as Yup from "yup";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import type {
   TemplateAutostartRequirementDaysValue,
   TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
-import * as Yup from "yup";
 
 export interface TemplateScheduleFormValues
   extends Omit<

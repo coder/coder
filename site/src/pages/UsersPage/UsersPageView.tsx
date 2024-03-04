@@ -1,12 +1,12 @@
 import { type ComponentProps, type FC } from "react";
-import type * as TypesGen from "api/typesGenerated";
 import { type GroupsByUserId } from "api/queries/groups";
+import type * as TypesGen from "api/typesGenerated";
 import {
   PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
+import { UsersTable } from "./UsersTable/UsersTable";
 
 export interface UsersPageViewProps {
   users?: TypesGen.User[];

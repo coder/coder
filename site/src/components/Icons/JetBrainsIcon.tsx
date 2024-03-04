@@ -1,4 +1,5 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
+import SvgIcon from "@mui/material/SvgIcon";
 
 export const JetBrainsIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 100 100">

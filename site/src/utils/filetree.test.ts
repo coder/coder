@@ -1,6 +1,7 @@
+import type {
+  FileTree} from "./filetree";
 import {
   existsFile,
-  FileTree,
   getFileContent,
   isFolder,
   moveFile,

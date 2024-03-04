@@ -1,12 +1,13 @@
-import Badge from "@mui/material/Badge";
 import { css, cx } from "@emotion/css";
 import { useTheme } from "@emotion/react";
+import Badge from "@mui/material/Badge";
 import { type FC } from "react";
 import type { WorkspaceBuild } from "api/typesGenerated";
-import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
-import { useClassName } from "hooks/useClassName";
-import { Avatar, AvatarProps } from "components/Avatar/Avatar";
+import type { AvatarProps } from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import { useClassName } from "hooks/useClassName";
+import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 
 export interface BuildAvatarProps {
   build: WorkspaceBuild;

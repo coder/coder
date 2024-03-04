@@ -1,17 +1,17 @@
-import Snackbar from "@mui/material/Snackbar";
-import Link from "@mui/material/Link";
-import Button from "@mui/material/Button";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import Snackbar from "@mui/material/Snackbar";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
+import { Loader } from "components/Loader/Loader";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { Loader } from "components/Loader/Loader";
 import { dashboardContentBottomPadding } from "theme/constants";
 import { docs } from "utils/docs";
-import { Navbar } from "./Navbar/Navbar";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
+import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {

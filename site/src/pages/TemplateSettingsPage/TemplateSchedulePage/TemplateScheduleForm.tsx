@@ -1,19 +1,15 @@
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
-import Link from "@mui/material/Link";
+import { useTheme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
-import { FormikTouched, useFormik } from "formik";
-import { type FC, ChangeEvent, useState, useEffect } from "react";
-import { useTheme } from "@emotion/react";
+import TextField from "@mui/material/TextField";
+import type { FormikTouched} from "formik";
+import { useFormik } from "formik";
+import { useState, useEffect } from "react";
+import type { ChangeEvent, type FC } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { getFormHelpers } from "utils/formUtils";
-import { docs } from "utils/docs";
-import {
-  TemplateAutostartRequirementDaysValue,
-  calculateAutostopRequirementDaysValue,
-} from "utils/schedule";
 import {
   FormSection,
   HorizontalForm,
@@ -22,11 +18,21 @@ import {
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
 import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
+import { docs } from "utils/docs";
+import { getFormHelpers } from "utils/formUtils";
+import type {
+  TemplateAutostartRequirementDaysValue} from "utils/schedule";
 import {
-  useWorkspacesToGoDormant,
-  useWorkspacesToBeDeleted,
-} from "./useWorkspacesToBeDeleted";
-import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
+  calculateAutostopRequirementDaysValue,
+} from "utils/schedule";
+import {
+  AutostopRequirementDaysHelperText,
+  AutostopRequirementWeeksHelperText,
+  convertAutostopRequirementDaysValue,
+} from "./AutostopRequirementHelperText";
+import type { TemplateScheduleFormValues} from "./formHelpers";
+import { getValidationSchema } from "./formHelpers";
+import { ScheduleDialog } from "./ScheduleDialog";
 import {
   ActivityBumpHelperText,
   DefaultTTLHelperText,
@@ -35,12 +41,10 @@ import {
   FailureTTLHelperText,
   MaxTTLHelperText,
 } from "./TTLHelperText";
-import { ScheduleDialog } from "./ScheduleDialog";
 import {
-  AutostopRequirementDaysHelperText,
-  AutostopRequirementWeeksHelperText,
-  convertAutostopRequirementDaysValue,
-} from "./AutostopRequirementHelperText";
+  useWorkspacesToGoDormant,
+  useWorkspacesToBeDeleted,
+} from "./useWorkspacesToBeDeleted";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;

@@ -1,8 +1,8 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { mockApiError, MockTemplateExample } from "testHelpers/entities";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof StarterTemplatePageView> = {
   title: "pages/StarterTemplatePage",

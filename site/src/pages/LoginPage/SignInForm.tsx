@@ -4,8 +4,8 @@ import type { AuthMethods } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { getApplicationName } from "utils/appearance";
-import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
+import { PasswordSignInForm } from "./PasswordSignInForm";
 
 export const Language = {
   emailLabel: "Email",

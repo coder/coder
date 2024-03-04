@@ -1,23 +1,23 @@
-import Divider from "@mui/material/Divider";
-import MenuItem from "@mui/material/MenuItem";
-import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
-import BugIcon from "@mui/icons-material/BugReportOutlined";
-import ChatIcon from "@mui/icons-material/ChatOutlined";
-import LaunchIcon from "@mui/icons-material/LaunchOutlined";
-import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
-import { Link } from "react-router-dom";
-import * as TypesGen from "api/typesGenerated";
-import DocsIcon from "@mui/icons-material/MenuBook";
-import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
 import {
   css,
   type CSSObject,
   type Interpolation,
   type Theme,
 } from "@emotion/react";
-import { usePopover } from "components/Popover/Popover";
+import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
+import BugIcon from "@mui/icons-material/BugReportOutlined";
+import ChatIcon from "@mui/icons-material/ChatOutlined";
+import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
+import LaunchIcon from "@mui/icons-material/LaunchOutlined";
+import DocsIcon from "@mui/icons-material/MenuBook";
+import Divider from "@mui/material/Divider";
+import MenuItem from "@mui/material/MenuItem";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
+import type * as TypesGen from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { usePopover } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 
 export const Language = {
   accountLabel: "Account",

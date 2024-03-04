@@ -1,7 +1,7 @@
 import ReplayIcon from "@mui/icons-material/Replay";
+import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
-import LoadingButton from "@mui/lab/LoadingButton";
 import { visuallyHidden } from "@mui/utils";
 import { type FC } from "react";
 import type { TemplateVersionExternalAuth } from "api/typesGenerated";

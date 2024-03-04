@@ -7,9 +7,8 @@ import {
   stopWorkspace,
   verifyParameters,
 } from "../helpers";
-
 import { firstBuildOption, secondBuildOption } from "../parameters";
-import { RichParameter } from "../provisionerGenerated";
+import type { RichParameter } from "../provisionerGenerated";
 
 test("start workspace with ephemeral parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];

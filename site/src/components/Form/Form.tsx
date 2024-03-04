@@ -1,17 +1,19 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import {
   createContext,
-  type FC,
-  type HTMLProps,
   useContext,
+  forwardRef} from "react";
+import type {
   ReactNode,
   ComponentProps,
-  forwardRef,
+  type FC,
+  type HTMLProps
 } from "react";
 import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
-  FormFooter as BaseFormFooter,
+  FormFooter as BaseFormFooter} from "../FormFooter/FormFooter";
+import type {
   FormFooterProps,
   type FormFooterStyles,
 } from "../FormFooter/FormFooter";

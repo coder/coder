@@ -1,6 +1,6 @@
-import { TemplateVersionExternalAuth } from "api/typesGenerated";
-import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { Meta, StoryObj } from "@storybook/react";
+import type { TemplateVersionExternalAuth } from "api/typesGenerated";
+import { ExternalAuthButton } from "./ExternalAuthButton";
 
 const MockExternalAuth: TemplateVersionExternalAuth = {
   id: "",

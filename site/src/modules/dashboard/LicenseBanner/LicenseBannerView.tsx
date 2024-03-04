@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import {
   css,
   type CSSObject,
@@ -6,6 +5,7 @@ import {
   type Theme,
   useTheme,
 } from "@emotion/react";
+import Link from "@mui/material/Link";
 import { type FC, useState } from "react";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";

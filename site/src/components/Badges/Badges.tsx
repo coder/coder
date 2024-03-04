@@ -1,11 +1,7 @@
-import {
-  type PropsWithChildren,
-  type FC,
-  forwardRef,
-  HTMLAttributes,
-} from "react";
-import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
+import Tooltip from "@mui/material/Tooltip";
+import { forwardRef } from "react";
+import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { Stack } from "components/Stack/Stack";
 
 const styles = {

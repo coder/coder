@@ -1,7 +1,7 @@
+import type { Endpoints } from "@octokit/types";
 import { test } from "@playwright/test";
+import type { ExternalAuthDevice } from "api/typesGenerated";
 import { gitAuth } from "../constants";
-import { Endpoints } from "@octokit/types";
-import { ExternalAuthDevice } from "api/typesGenerated";
 import { Awaiter, createServer } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 

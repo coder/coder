@@ -1,6 +1,6 @@
-import { StoryObj, Meta } from "@storybook/react";
-import { WorkspaceProxyPage } from "./WorkspaceProxyPage";
+import type { StoryObj, Meta } from "@storybook/react";
 import { generateMeta } from "./storybook";
+import { WorkspaceProxyPage } from "./WorkspaceProxyPage";
 
 const meta: Meta = {
   title: "pages/Health/WorkspaceProxy",
