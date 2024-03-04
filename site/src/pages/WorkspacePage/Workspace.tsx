@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import AlertTitle from "@mui/material/AlertTitle";
 import { type FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -43,9 +42,9 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template: TypesGen.Template;
-  canRetryDebugMode: boolean;
-  handleBuildRetry: () => void;
-  handleBuildRetryDebug: () => void;
+  canDebugMode: boolean;
+  handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   buildLogs?: React.ReactNode;
   latestVersion?: TypesGen.TemplateVersion;
   permissions: WorkspacePermissions;
@@ -75,9 +74,9 @@ export const Workspace: FC<WorkspaceProps> = ({
   buildInfo,
   sshPrefix,
   template,
-  canRetryDebugMode,
-  handleBuildRetry,
-  handleBuildRetryDebug,
+  canDebugMode,
+  handleRetry,
+  handleDebug,
   buildLogs,
   latestVersion,
   permissions,
@@ -129,12 +128,12 @@ export const Workspace: FC<WorkspaceProps> = ({
         handleUpdate={handleUpdate}
         handleCancel={handleCancel}
         handleSettings={handleSettings}
-        handleBuildRetry={handleBuildRetry}
-        handleBuildRetryDebug={handleBuildRetryDebug}
+        handleRetry={handleRetry}
+        handleDebug={handleDebug}
         handleChangeVersion={handleChangeVersion}
         handleDormantActivate={handleDormantActivate}
         handleToggleFavorite={handleToggleFavorite}
-        canRetryDebugMode={canRetryDebugMode}
+        canDebugMode={canDebugMode}
         canChangeVersions={canChangeVersions}
         isUpdating={isUpdating}
         isRestarting={isRestarting}
@@ -208,20 +207,7 @@ export const Workspace: FC<WorkspaceProps> = ({
           )}
 
           {workspace.latest_build.job.error && (
-            <Alert
-              severity="error"
-              actions={
-                <Button
-                  onClick={
-                    canRetryDebugMode ? handleBuildRetryDebug : handleBuildRetry
-                  }
-                  variant="text"
-                  size="small"
-                >
-                  Retry{canRetryDebugMode && " in debug mode"}
-                </Button>
-              }
-            >
+            <Alert severity="error">
               <AlertTitle>Workspace build failed</AlertTitle>
               <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
             </Alert>

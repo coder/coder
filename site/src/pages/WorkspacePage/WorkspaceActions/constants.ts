@@ -21,7 +21,7 @@ export const actionTypes = [
   // into one of the starting, stopping, or deleting states (based on the
   // WorkspaceTransition type)
   "retry",
-  "retryDebug",
+  "debug",
 
   // These are buttons that should be used with disabled UI elements
   "canceling",
@@ -39,7 +39,7 @@ type WorkspaceAbilities = {
 
 export const abilitiesByWorkspaceStatus = (
   workspace: Workspace,
-  canRetryDebug: boolean,
+  canDebug: boolean,
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
@@ -50,10 +50,10 @@ export const abilitiesByWorkspaceStatus = (
   }
 
   const status = workspace.latest_build.status;
-  if (status === "failed" && canRetryDebug) {
+  if (status === "failed" && canDebug) {
     return {
       ...statusToAbility.failed,
-      actions: ["retry", "retryDebug"],
+      actions: ["retry", "debug"],
     };
   }
 

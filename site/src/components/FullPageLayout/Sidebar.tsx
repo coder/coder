@@ -74,14 +74,17 @@ interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
   isActive: boolean;
 }
 
-export const SidebarIconButton: FC<SidebarIconButton> = (props) => {
+export const SidebarIconButton: FC<SidebarIconButton> = ({
+  isActive,
+  ...buttonProps
+}) => {
   return (
     <TopbarIconButton
       css={[
         { opacity: 0.75, "&:hover": { opacity: 1 } },
-        props.isActive && styles.activeSidebarIconButton,
+        isActive && styles.activeSidebarIconButton,
       ]}
-      {...props}
+      {...buttonProps}
     />
   );
 };

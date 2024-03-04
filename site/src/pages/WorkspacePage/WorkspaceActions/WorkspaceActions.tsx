@@ -11,7 +11,6 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
-  RetryButton,
   FavoriteButton,
 } from "./Buttons";
 
@@ -28,6 +27,8 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import { RetryButton } from "./RetryButton";
+import { DebugButton } from "./DebugButton";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -40,14 +41,14 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
-  handleRetry: () => void;
-  handleRetryDebug: () => void;
+  handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   children?: ReactNode;
   canChangeVersions: boolean;
-  canRetryDebug: boolean;
+  canDebug: boolean;
   isOwner: boolean;
 }
 
@@ -62,13 +63,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleRetry,
-  handleRetryDebug,
+  handleDebug,
   handleChangeVersion,
   handleDormantActivate,
   isUpdating,
   isRestarting,
   canChangeVersions,
-  canRetryDebug,
+  canDebug,
   isOwner,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
@@ -76,7 +77,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
     workspace,
-    canRetryDebug,
+    canDebug,
   );
   const showCancel =
     canCancel &&
@@ -132,8 +133,20 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     pending: <DisabledButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
-    retry: <RetryButton handleAction={handleRetry} />,
-    retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
+    retry: (
+      <RetryButton
+        handleAction={handleRetry}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
+    debug: (
+      <DebugButton
+        handleAction={handleDebug}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
     toggleFavorite: (
       <FavoriteButton
         workspaceID={workspace.id}
