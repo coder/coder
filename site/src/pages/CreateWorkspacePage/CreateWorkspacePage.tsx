@@ -105,8 +105,14 @@ const CreateWorkspacePage: FC = () => {
     userParametersQuery.data ? userParametersQuery.data : [],
   );
 
+  const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
+    if (autoCreationStartedRef.current) {
+      return;
+    }
+
     try {
+      autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
@@ -122,18 +128,12 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
-  const autoCreationStartedRef = useRef(false);
+  const autoStartReady = mode === "auto" && userParametersQuery.isSuccess;
   useEffect(() => {
-    const shouldStartAutoCreation =
-      !autoCreationStartedRef.current &&
-      mode === "auto" &&
-      userParametersQuery.isSuccess;
-
-    if (shouldStartAutoCreation) {
-      autoCreationStartedRef.current = true;
+    if (autoStartReady) {
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, mode, userParametersQuery.isSuccess]);
+  }, [automateWorkspaceCreation, autoStartReady]);
 
   return (
     <>
