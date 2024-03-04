@@ -14,6 +14,7 @@ import {
   createTemplateVersion,
   resources,
   templateByName,
+  templateByNameKey,
   templateVersionByName,
   templateVersionVariables,
 } from "api/queries/templates";
@@ -68,6 +69,11 @@ export const TemplateVersionEditorPage: FC = () => {
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
   const publishVersionMutation = useMutation({
     mutationFn: publishVersion,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(
+        templateByNameKey(orgId, templateName),
+      );
+    },
   });
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
@@ -179,16 +185,16 @@ export const TemplateVersionEditorPage: FC = () => {
               `/templates/${templateName}/workspace?${params.toString()}`,
             );
           }}
-          disablePreview={
-            templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status === "pending" ||
+          isBuilding={
             createTemplateVersionMutation.isLoading ||
-            uploadFileMutation.isLoading
+            uploadFileMutation.isLoading ||
+            templateVersionQuery.data.job.status === "running" ||
+            templateVersionQuery.data.job.status === "pending"
           }
-          disableUpdate={
-            templateVersionQuery.data.job.status !== "succeeded" ||
-            templateVersionQuery.data.name ===
-              lastSuccessfulPublishedVersion?.name
+          canPublish={
+            templateVersionQuery.data.job.status === "succeeded" &&
+            templateQuery.data.active_version_id !==
+              templateVersionQuery.data.id
           }
           resources={resourcesQuery.data}
           buildLogs={logs}

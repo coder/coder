@@ -65,8 +65,8 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
-  disablePreview?: boolean;
-  disableUpdate?: boolean;
+  isBuilding?: boolean;
+  canPublish?: boolean;
   onPreview: (files: FileTree) => Promise<void>;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
@@ -88,8 +88,8 @@ export interface TemplateVersionEditorProps {
 }
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
-  disablePreview,
-  disableUpdate,
+  isBuilding,
+  canPublish,
   template,
   templateVersion,
   defaultFileTree,
@@ -179,6 +179,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   }, [buildLogs]);
 
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (canPublish) {
+        e.preventDefault();
+        return "You have unpublished changes. Are you sure you want to leave?";
+      }
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [canPublish]);
+
+  const canBuild = !isBuilding && dirty;
+
   return (
     <>
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -242,7 +259,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   borderLeft: "1px solid #FFF",
                 },
               }}
-              disabled={disablePreview}
+              disabled={!canBuild}
             >
               <TopbarButton
                 startIcon={
@@ -251,7 +268,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   />
                 }
                 title="Build template (Ctrl + Enter)"
-                disabled={disablePreview}
+                disabled={!canBuild}
                 onClick={async () => {
                   await triggerPreview();
                 }}
@@ -276,7 +293,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <TopbarButton
               variant="contained"
-              disabled={dirty || disableUpdate}
+              disabled={dirty || !canPublish}
               onClick={onPublish}
             >
               Publish
@@ -540,7 +557,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </button>
 
                   <button
-                    disabled={disableUpdate}
+                    disabled={!canPublish}
                     css={styles.tab}
                     className={selectedTab === "resources" ? "active" : ""}
                     onClick={() => {
