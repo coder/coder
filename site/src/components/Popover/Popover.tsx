@@ -6,22 +6,21 @@ import MuiPopover, {
 import {
   cloneElement,
   createContext,
+  type FC,
+  type HTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
   useContext,
   useEffect,
   useId,
   useRef,
-  useState
-} from "react";
-import type {
-  HTMLAttributes,
-  type FC,
-  type ReactElement,
-  type ReactNode
+  useState,
 } from "react";
 
 type TriggerMode = "hover" | "click";
 
-type TriggerRef = React.RefObject<HTMLElement>;
+type TriggerRef = RefObject<HTMLElement>;
 
 type TriggerElement = ReactElement<{
   ref: TriggerRef;

@@ -2,18 +2,18 @@ import type { Dayjs } from "dayjs";
 import type {
   QueryClient,
   UseMutationOptions,
-  type QueryOptions,
+  QueryOptions,
 } from "react-query";
 import * as API from "api/api";
 import { putWorkspaceExtension } from "api/api";
 import type {
-  WorkspaceBuild,
+  CreateWorkspaceRequest,
   ProvisionerLogLevel,
-  type WorkspaceBuildParameter,
-  type Workspace,
-  type CreateWorkspaceRequest,
-  type WorkspacesResponse,
-  type WorkspacesRequest
+  Workspace,
+  WorkspaceBuild,
+  WorkspaceBuildParameter,
+  WorkspacesRequest,
+  WorkspacesResponse,
 } from "api/typesGenerated";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 

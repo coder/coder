@@ -23,6 +23,7 @@ import {
 } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { entitlements } from "api/queries/entitlements";
 import {
   insightsTemplate,
@@ -57,7 +58,7 @@ import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
 import type { DateRangeValue } from "./DateRange";
 import { DateRange as DailyPicker } from "./DateRange";
-import type { InsightsInterval} from "./IntervalMenu";
+import type { InsightsInterval } from "./IntervalMenu";
 import { IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";

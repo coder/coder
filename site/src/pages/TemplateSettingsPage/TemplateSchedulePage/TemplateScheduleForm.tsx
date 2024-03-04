@@ -5,10 +5,10 @@ import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import type { FormikTouched} from "formik";
+import type { FormikTouched } from "formik";
 import { useFormik } from "formik";
 import { useState, useEffect } from "react";
-import type { ChangeEvent, type FC } from "react";
+import type { ChangeEvent, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import {
   FormSection,
@@ -20,17 +20,14 @@ import { Stack } from "components/Stack/Stack";
 import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import type {
-  TemplateAutostartRequirementDaysValue} from "utils/schedule";
-import {
-  calculateAutostopRequirementDaysValue,
-} from "utils/schedule";
+import type { TemplateAutostartRequirementDaysValue } from "utils/schedule";
+import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import type { TemplateScheduleFormValues} from "./formHelpers";
+import type { TemplateScheduleFormValues } from "./formHelpers";
 import { getValidationSchema } from "./formHelpers";
 import { ScheduleDialog } from "./ScheduleDialog";
 import {

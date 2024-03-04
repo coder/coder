@@ -8,7 +8,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import dayjs, { type Dayjs } from "dayjs";
 import { forwardRef, useRef, useState } from "react";
-import type { ReactNode , type FC } from "react";
+import type { FC, ReactNode } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { getErrorMessage } from "api/errors";

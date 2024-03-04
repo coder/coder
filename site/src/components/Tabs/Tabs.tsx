@@ -1,9 +1,6 @@
-import type { Interpolation, Theme} from "@emotion/react";
-import { useTheme } from "@emotion/react";
-import { createContext, useContext } from "react";
-import type { HTMLAttributes, type FC } from "react";
-import type { LinkProps } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { createContext, type FC, type HTMLAttributes, useContext } from "react";
+import { Link, type LinkProps } from "react-router-dom";
 
 export const TAB_PADDING_Y = 12;
 export const TAB_PADDING_X = 16;

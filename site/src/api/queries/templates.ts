@@ -1,18 +1,14 @@
-import type {
-  MutationOptions,
-  type QueryClient,
-  type QueryOptions,
-} from "react-query";
+import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
 import * as API from "api/api";
 import type {
   CreateTemplateRequest,
+  CreateTemplateVersionRequest,
   ProvisionerJob,
+  ProvisionerJobStatus,
   UsersRequest,
   TemplateRole,
-  type Template,
-  type CreateTemplateVersionRequest,
-  type ProvisionerJobStatus,
-  type TemplateVersion
+  Template,
+  TemplateVersion,
 } from "api/typesGenerated";
 import { delay } from "utils/delay";
 import { getTemplateVersionFiles } from "utils/templateVersion";

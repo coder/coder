@@ -14,7 +14,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import type { FormikContextType} from "formik";
+import type { FormikContextType } from "formik";
 import { useFormik } from "formik";
 import { type FC } from "react";
 import { useQuery, useMutation } from "react-query";
@@ -25,14 +25,13 @@ import {
   upsertWorkspacePortShare,
   workspacePortShares,
 } from "api/queries/workspaceportsharing";
-import {
-  WorkspaceAppSharingLevels} from "api/typesGenerated";
+import { WorkspaceAppSharingLevels } from "api/typesGenerated";
 import type {
+  Template,
   UpsertWorkspaceAgentPortShareRequest,
-  type Template,
-  type WorkspaceAgent,
-  type WorkspaceAgentListeningPort,
-  type WorkspaceAgentPortShareLevel
+  WorkspaceAgent,
+  WorkspaceAgentListeningPort,
+  WorkspaceAgentPortShareLevel,
 } from "api/typesGenerated";
 import {
   HelpTooltipLink,
