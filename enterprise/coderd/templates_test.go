@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -143,9 +144,12 @@ func TestTemplates(t *testing.T) {
 	t.Run("MaxPortShareLevel", func(t *testing.T) {
 		t.Parallel()
 
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"shared-ports"}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				DeploymentValues:         cfg,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -154,9 +158,43 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "example",
+					},
+				},
+			}, {
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id: "something",
+								Auth: &proto.Agent_Token{
+									Token: uuid.NewString(),
+								},
+								Name: "test",
+							}},
+						}, {
+							Name: "another",
+							Type: "example",
+						}},
+					},
+				},
+			}},
+		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws, err := client.Workspace(context.Background(), ws.ID)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -175,6 +213,39 @@ func TestTemplates(t *testing.T) {
 			MaxPortShareLevel: &level,
 		})
 		require.ErrorContains(t, err, "invalid max port sharing level")
+
+		// Create public port share
+		_, err = client.UpsertWorkspaceAgentPortShare(ctx, ws.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+			AgentName:  ws.LatestBuild.Resources[0].Agents[0].Name,
+			Port:       8080,
+			ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+		})
+		require.NoError(t, err)
+
+		// Reduce max level to authenticated
+		level = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+
+		// Ensure previously public port is now authenticated
+		wpsr, err := client.GetWorkspaceAgentPortShares(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, wpsr.Shares, 1)
+		assert.Equal(t, codersdk.WorkspaceAgentPortShareLevelAuthenticated, wpsr.Shares[0].ShareLevel)
+
+		// reduce max level to owner
+		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+
+		// Ensure previously authenticated port is removed
+		wpsr, err = client.GetWorkspaceAgentPortShares(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Empty(t, wpsr.Shares)
 	})
 
 	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
