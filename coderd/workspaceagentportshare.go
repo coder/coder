@@ -33,6 +33,25 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 	if !req.ShareLevel.ValidPortShareLevel() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Port sharing level not allowed.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "share_level",
+					Detail: "Port sharing level not allowed.",
+				},
+			},
+		})
+		return
+	}
+
+	if req.Port < 9 || req.Port > 65535 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Port must be between 9 and 65535.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "port",
+					Detail: "Port must be between 9 and 65535.",
+				},
+			},
 		})
 		return
 	}
