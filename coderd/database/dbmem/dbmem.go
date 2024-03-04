@@ -77,6 +77,17 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 		},
 	}
+	// Always start with a default org. Matching migration 198.
+	_, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+		ID:          uuid.New(),
+		Name:        "first-organization",
+		Description: "Builtin default organization.",
+		CreatedAt:   dbtime.Now(),
+		UpdatedAt:   dbtime.Now(),
+	})
+	if err != nil {
+		panic(fmt.Errorf("failed to create default organization: %w", err))
+	}
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
 	return q
