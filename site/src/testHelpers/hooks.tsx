@@ -171,7 +171,12 @@ export async function renderHookWithAuth<Result, Props>(
     result,
     queryClient,
     unmount,
-    rerender: (newProps) => {
+    rerender: async (newProps) => {
+      const currentPathname = escapedLocation.pathname;
+      if (currentPathname !== path) {
+        return;
+      }
+
       const resultSnapshot = result.current;
       rerender(newProps);
       forceUpdateRenderHookChildren();
