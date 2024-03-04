@@ -1,0 +1,8 @@
+-- UPDATE
+-- 	provisioner_jobs
+-- SET
+-- 	-- Default to the first org
+-- 	organization_id = (SELECT id FROM organizations ORDER BY organizations.created_at ASC LIMIT 1 );
+--
+-- ALTER TABLE provisioner_jobs
+-- 	ALTER COLUMN organization_id SET NOT NULL REFERENCES organizations(id) ON DELETE CASCADE;
