@@ -1,10 +1,10 @@
 import axios, { isAxiosError } from "axios";
-import dayjs from "dayjs";
+import type dayjs from "dayjs";
+import userAgentParser from "ua-parser-js";
+import { delay } from "utils/delay";
 import * as TypesGen from "./typesGenerated";
 // This needs to include the `../`, otherwise it breaks when importing into
 // vscode-coder.
-import { delay } from "../utils/delay";
-import userAgentParser from "ua-parser-js";
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here

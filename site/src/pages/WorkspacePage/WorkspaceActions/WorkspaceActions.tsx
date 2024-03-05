@@ -1,8 +1,20 @@
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import Divider from "@mui/material/Divider";
 import { type FC, type ReactNode, Fragment } from "react";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { mustUpdateWorkspace } from "utils/workspace";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import {
   CancelButton,
   DisabledButton,
@@ -13,22 +25,9 @@ import {
   ActivateButton,
   FavoriteButton,
 } from "./Buttons";
-
-import Divider from "@mui/material/Divider";
-import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
-import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import {
-  MoreMenu,
-  MoreMenuContent,
-  MoreMenuItem,
-  MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
-import { TopbarIconButton } from "components/FullPageLayout/Topbar";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
-import { RetryButton } from "./RetryButton";
+import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import { DebugButton } from "./DebugButton";
+import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;

@@ -1,12 +1,12 @@
-import { Stack } from "components/Stack/Stack";
-import { type FC, type DragEvent, useRef, type ReactNode } from "react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
-import { useClickable } from "hooks/useClickable";
-import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/DeleteOutline";
 import FileIcon from "@mui/icons-material/FolderOutlined";
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import { type FC, type DragEvent, useRef, type ReactNode } from "react";
+import { Stack } from "components/Stack/Stack";
+import { useClickable } from "hooks/useClickable";
 
 export interface FileUploadProps {
   isUploading: boolean;

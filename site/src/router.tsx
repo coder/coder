@@ -1,27 +1,27 @@
 import { Suspense, lazy } from "react";
 import {
-  Route,
   createBrowserRouter,
-  Navigate,
   createRoutesFromChildren,
+  Navigate,
   Outlet,
+  Route,
 } from "react-router-dom";
-import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
+import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
+import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
-import { HealthLayout } from "./pages/HealthPage/HealthLayout";
+import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
+import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
-import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
-import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
-import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed

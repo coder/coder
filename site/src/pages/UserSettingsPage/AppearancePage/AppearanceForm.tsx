@@ -1,12 +1,12 @@
+import type { Interpolation } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
-import { type Interpolation } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Stack } from "components/Stack/Stack";
 import { PreviewBadge } from "components/Badges/Badges";
+import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import themes, { DEFAULT_THEME, type Theme } from "theme";
 
 export interface AppearanceFormProps {
   isUpdating?: boolean;

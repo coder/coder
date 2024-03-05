@@ -1,21 +1,21 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import type {
   ClibaseOption,
   DAUsResponse,
   Entitlements,
   Experiments,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   ActiveUserChart,
   ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
+import { useDeploymentOptions } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
-import { useDeploymentOptions } from "utils/deployOptions";
-import { docs } from "utils/docs";
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: ClibaseOption[];

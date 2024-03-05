@@ -1,5 +1,5 @@
-import { useAuth } from "./useAuth";
 import type { Permissions } from "./permissions";
+import { useAuth } from "./useAuth";
 
 export const usePermissions = (): Permissions => {
   const { permissions } = useAuth();

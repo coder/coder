@@ -1,6 +1,6 @@
+import PauseIcon from "@mui/icons-material/PauseOutlined";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Avatar, AvatarIcon } from "./Avatar";
-import PauseIcon from "@mui/icons-material/PauseOutlined";
 
 const meta: Meta<typeof Avatar> = {
   title: "components/Avatar",

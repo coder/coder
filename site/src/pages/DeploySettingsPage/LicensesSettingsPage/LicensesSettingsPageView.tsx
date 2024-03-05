@@ -1,19 +1,19 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
-import Skeleton from "@mui/material/Skeleton";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import MuiLink from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { type FC } from "react";
+import Button from "@mui/material/Button";
+import MuiLink from "@mui/material/Link";
+import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
 import type { GetLicensesResponse } from "api/api";
 import { Stack } from "components/Stack/Stack";
-import { LicenseCard } from "./LicenseCard";
 import { Header } from "../Header";
+import { LicenseCard } from "./LicenseCard";
 
 type Props = {
   showConfetti: boolean;

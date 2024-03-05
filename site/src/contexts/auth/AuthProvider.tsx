@@ -5,6 +5,7 @@ import {
   useCallback,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { isApiError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
   authMethods,
@@ -14,7 +15,6 @@ import {
   me,
   updateProfile as updateProfileOptions,
 } from "api/queries/users";
-import { isApiError } from "api/errors";
 import type {
   AuthMethods,
   UpdateUserProfileRequest,

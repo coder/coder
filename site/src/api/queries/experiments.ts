@@ -1,7 +1,7 @@
+import type { UseQueryOptions } from "react-query";
 import * as API from "api/api";
+import type { Experiments } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
-import { type Experiments } from "api/typesGenerated";
-import { type UseQueryOptions } from "react-query";
 
 const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
 const experimentsKey = ["experiments"] as const;

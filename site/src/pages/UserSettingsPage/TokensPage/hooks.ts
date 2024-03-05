@@ -1,6 +1,11 @@
-import { useQuery, useMutation, useQueryClient, QueryKey } from "react-query";
+import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "react-query";
 import { getTokens, deleteToken } from "api/api";
-import { TokensFilter } from "api/typesGenerated";
+import type { TokensFilter } from "api/typesGenerated";
 
 // Load all tokens
 export const useTokensData = ({ include_all }: TokensFilter) => {

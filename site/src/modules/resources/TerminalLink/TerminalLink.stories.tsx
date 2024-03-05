@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace } from "testHelpers/entities";
 import { TerminalLink } from "./TerminalLink";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TerminalLink> = {
   title: "modules/resources/TerminalLink",

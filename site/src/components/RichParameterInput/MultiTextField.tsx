@@ -1,7 +1,7 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Chip from "@mui/material/Chip";
 import FormHelperText from "@mui/material/FormHelperText";
-import { type FC } from "react";
+import type { FC } from "react";
 
 export type MultiTextFieldProps = {
   label: string;

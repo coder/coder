@@ -1,9 +1,9 @@
-import {
+import type { Meta, StoryObj } from "@storybook/react";
+import type {
   WorkspaceAgentMetadataDescription,
   WorkspaceAgentMetadataResult,
 } from "api/typesGenerated";
 import { AgentMetadataView } from "./AgentMetadata";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AgentMetadataView> = {
   title: "modules/resources/AgentMetadataView",

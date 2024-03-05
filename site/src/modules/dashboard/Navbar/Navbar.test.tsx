@@ -1,12 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { App } from "App";
-import { Language } from "./NavbarView";
 import { rest } from "msw";
+import { App } from "App";
 import {
   MockEntitlementsWithAuditLog,
   MockMemberPermissions,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { Language } from "./NavbarView";
 
 /**
  * The LicenseBanner, mounted above the AppRouter, fetches entitlements. Thus, to test their

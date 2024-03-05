@@ -1,15 +1,15 @@
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { DividerWithText } from "./DividerWithText";
 import { Fieldset } from "../Fieldset";
 import { Header } from "../Header";
+import { DividerWithText } from "./DividerWithText";
 
 type AddNewLicenseProps = {
   onSaveLicenseKey: (license: string) => void;

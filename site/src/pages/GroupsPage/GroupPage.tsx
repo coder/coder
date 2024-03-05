@@ -1,3 +1,8 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
+import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -5,33 +10,11 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import type { Group, ReducedUser, User } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import {
-  PaginationStatus,
-  TableToolbar,
-} from "components/TableToolbar/TableToolbar";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { isEveryoneGroup } from "utils/groups";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { getErrorMessage } from "api/errors";
 import {
   addMember,
   deleteGroup,
@@ -39,11 +22,14 @@ import {
   groupPermissions,
   removeMember,
 } from "api/queries/groups";
+import type { Group, ReducedUser, User } from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { getErrorMessage } from "api/errors";
 import { LastSeen } from "components/LastSeen/LastSeen";
-import { type Interpolation, type Theme } from "@emotion/react";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -51,6 +37,20 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { isEveryoneGroup } from "utils/groups";
+import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };

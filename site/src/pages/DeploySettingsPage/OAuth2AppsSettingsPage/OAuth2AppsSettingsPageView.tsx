@@ -8,20 +8,20 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { TableLoader } from "components/TableLoader/TableLoader";
 import { Stack } from "components/Stack/Stack";
+import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { Header } from "../Header";
 

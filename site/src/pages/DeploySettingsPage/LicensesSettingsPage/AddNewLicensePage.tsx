@@ -1,11 +1,11 @@
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { createLicense } from "api/api";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { AddNewLicensePageView } from "./AddNewLicensePageView";
 import { pageTitle } from "utils/page";
-import { Helmet } from "react-helmet-async";
+import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
 const AddNewLicensePage: FC = () => {
   const navigate = useNavigate();

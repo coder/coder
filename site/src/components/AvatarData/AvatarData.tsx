@@ -1,5 +1,5 @@
-import type { FC, ReactNode } from "react";
 import { useTheme } from "@emotion/react";
+import type { FC, ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 

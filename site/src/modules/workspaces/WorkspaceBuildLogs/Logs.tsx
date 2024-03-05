@@ -1,8 +1,8 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import type { LogLevel } from "api/typesGenerated";
+import type { Interpolation, Theme } from "@emotion/react";
+import AnsiToHTML from "ansi-to-html";
 import dayjs from "dayjs";
 import { type FC, type ReactNode, useMemo } from "react";
-import AnsiToHTML from "ansi-to-html";
+import type { LogLevel } from "api/typesGenerated";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;

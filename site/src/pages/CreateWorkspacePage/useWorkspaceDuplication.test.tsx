@@ -1,10 +1,9 @@
 import { waitFor } from "@testing-library/react";
-import * as M from "../../testHelpers/entities";
-import { type Workspace } from "api/typesGenerated";
-import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
-import { MockWorkspace } from "testHelpers/entities";
-import CreateWorkspacePage from "./CreateWorkspacePage";
+import type { Workspace } from "api/typesGenerated";
+import * as M from "testHelpers/entities";
 import { renderHookWithAuth } from "testHelpers/renderHelpers";
+import CreateWorkspacePage from "./CreateWorkspacePage";
+import { useWorkspaceDuplication } from "./useWorkspaceDuplication";
 
 function render(workspace?: Workspace) {
   return renderHookWithAuth(
@@ -34,7 +33,7 @@ async function performNavigation(
 
   return waitFor(() => {
     expect(router.state.location.pathname).toEqual(
-      `/templates/${MockWorkspace.template_name}/workspace`,
+      `/templates/${M.MockWorkspace.template_name}/workspace`,
     );
   });
 }
@@ -51,19 +50,19 @@ describe(`${useWorkspaceDuplication.name}`, () => {
   });
 
   it("Will become ready when workspace is provided and build params are successfully fetched", async () => {
-    const { result } = await render(MockWorkspace);
+    const { result } = await render(M.MockWorkspace);
 
     expect(result.current.isDuplicationReady).toBe(false);
     await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
   });
 
   it("Is able to navigate the user to the workspace creation page", async () => {
-    const { result, router } = await render(MockWorkspace);
+    const { result, router } = await render(M.MockWorkspace);
     await performNavigation(result, router);
   });
 
   test("Navigating populates the URL search params with the workspace's build params", async () => {
-    const { result, router } = await render(MockWorkspace);
+    const { result, router } = await render(M.MockWorkspace);
     await performNavigation(result, router);
 
     const parsedParams = new URLSearchParams(router.state.location.search);
@@ -82,14 +81,14 @@ describe(`${useWorkspaceDuplication.name}`, () => {
   });
 
   test("Navigating appends other necessary metadata to the search params", async () => {
-    const { result, router } = await render(MockWorkspace);
+    const { result, router } = await render(M.MockWorkspace);
     await performNavigation(result, router);
 
     const parsedParams = new URLSearchParams(router.state.location.search);
     const extraMetadataEntries = [
       ["mode", "duplicate"],
-      ["name", `${MockWorkspace.name}-copy`],
-      ["version", MockWorkspace.template_active_version_id],
+      ["name", `${M.MockWorkspace.name}-copy`],
+      ["version", M.MockWorkspace.template_active_version_id],
     ] as const;
 
     for (const [key, value] of extraMetadataEntries) {

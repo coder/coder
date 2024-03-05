@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type ComponentProps, type FC, type HTMLAttributes } from "react";
+import type { ComponentProps, FC, HTMLAttributes } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 import { TopbarIconButton } from "./Topbar";
 

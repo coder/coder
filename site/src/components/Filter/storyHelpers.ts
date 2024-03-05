@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions";
-import { UseFilterResult } from "./filter";
-import { UseFilterMenuResult } from "./menu";
+import type { UseFilterResult } from "./filter";
+import type { UseFilterMenuResult } from "./menu";
 
 export const MockMenu: UseFilterMenuResult = {
   initialOption: undefined,

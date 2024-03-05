@@ -1,16 +1,16 @@
+import { useTheme } from "@emotion/react";
+import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
+import Button from "@mui/material/Button";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext } from "react-router-dom";
 import type {
   HealthMessage,
   HealthSeverity,
   HealthcheckReport,
 } from "api/typesGenerated";
-import Button from "@mui/material/Button";
-import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useTheme } from "@emotion/react";
-import { type FC } from "react";
 import {
   Header,
   HeaderTitle,

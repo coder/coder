@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 
 const meta: Meta<typeof WorkspaceDeletedBanner> = {

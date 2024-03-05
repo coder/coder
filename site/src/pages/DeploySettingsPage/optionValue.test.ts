@@ -1,5 +1,5 @@
+import type { ClibaseOption } from "api/typesGenerated";
 import { optionValue } from "./optionValue";
-import { ClibaseOption } from "api/typesGenerated";
 
 const defaultOption: ClibaseOption = {
   name: "",

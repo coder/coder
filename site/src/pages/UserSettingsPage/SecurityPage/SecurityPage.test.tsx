@@ -1,15 +1,15 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
-import { Language } from "./SecurityForm";
+import type { OAuthConversionResponse } from "api/typesGenerated";
+import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { Language } from "./SecurityForm";
 import { SecurityPage } from "./SecurityPage";
-import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
-import userEvent from "@testing-library/user-event";
 import * as SSO from "./SingleSignOnSection";
-import { OAuthConversionResponse } from "api/typesGenerated";
 
 const renderPage = async () => {
   const utils = renderWithAuth(<SecurityPage />);

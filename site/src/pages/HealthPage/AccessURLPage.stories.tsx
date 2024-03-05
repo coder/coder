@@ -1,9 +1,9 @@
-import { StoryObj } from "@storybook/react";
+import type { StoryObj } from "@storybook/react";
+import { HEALTH_QUERY_KEY } from "api/queries/debug";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { MockHealth } from "testHelpers/entities";
 import { AccessURLPage } from "./AccessURLPage";
 import { generateMeta } from "./storybook";
-import { HEALTH_QUERY_KEY } from "api/queries/debug";
-import { MockHealth } from "testHelpers/entities";
-import { HealthcheckReport } from "api/typesGenerated";
 
 const meta = {
   title: "pages/Health/AccessURL",

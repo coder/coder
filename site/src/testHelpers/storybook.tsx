@@ -1,5 +1,5 @@
-import { type FC } from "react";
 import type { StoryContext } from "@storybook/react";
+import type { FC } from "react";
 import { withDefaultFeatures } from "api/api";
 import type { Entitlements } from "api/typesGenerated";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";

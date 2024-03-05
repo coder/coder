@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { health } from "api/queries/debug";
 import { deploymentStats } from "api/queries/deployment";

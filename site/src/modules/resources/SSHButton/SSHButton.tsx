@@ -1,21 +1,21 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import Button from "@mui/material/Button";
+import type { FC } from "react";
+import { CodeExample } from "components/CodeExample/CodeExample";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
-import { docs } from "utils/docs";
-import { type ClassName, useClassName } from "hooks/useClassName";
-import { CodeExample } from "components/CodeExample/CodeExample";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import Button from "@mui/material/Button";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import { type ClassName, useClassName } from "hooks/useClassName";
+import { docs } from "utils/docs";
 
 export interface SSHButtonProps {
   workspaceName: string;

@@ -1,18 +1,23 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import "xterm/css/xterm.css";
+import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import * as XTerm from "xterm";
-import { WebglAddon } from "xterm-addon-webgl";
 import { CanvasAddon } from "xterm-addon-canvas";
 import { FitAddon } from "xterm-addon-fit";
-import { WebLinksAddon } from "xterm-addon-web-links";
 import { Unicode11Addon } from "xterm-addon-unicode11";
-import "xterm/css/xterm.css";
+import { WebLinksAddon } from "xterm-addon-web-links";
+import { WebglAddon } from "xterm-addon-webgl";
+import { deploymentConfig } from "api/queries/deployment";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import { useProxy } from "contexts/ProxyContext";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
-import { useProxy } from "contexts/ProxyContext";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
@@ -22,11 +27,6 @@ import {
   LoadedScriptsAlert,
   LoadingScriptsAlert,
 } from "./TerminalAlerts";
-import { useQuery } from "react-query";
-import { deploymentConfig } from "api/queries/deployment";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import themes from "theme";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",

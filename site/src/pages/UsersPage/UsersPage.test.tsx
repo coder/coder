@@ -1,17 +1,17 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
+import * as API from "api/api";
+import type { Role } from "api/typesGenerated";
 import {
   MockUser,
   MockUser2,
   SuspendedMockUser,
   MockAuditorRole,
 } from "testHelpers/entities";
-import * as API from "api/api";
-import { Role } from "api/typesGenerated";
-import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
 import { UsersPage } from "./UsersPage";
 
 const renderPage = () => {

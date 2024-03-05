@@ -1,8 +1,11 @@
-import { StatusOption, TemplateOption } from "./options";
 import { getTemplates } from "api/api";
-import { WorkspaceStatus } from "api/typesGenerated";
+import type { WorkspaceStatus } from "api/typesGenerated";
+import {
+  useFilterMenu,
+  type UseFilterMenuOptions,
+} from "components/Filter/menu";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
+import type { StatusOption, TemplateOption } from "./options";
 
 export const useTemplateFilterMenu = ({
   value,

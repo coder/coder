@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockTemplateVersion,
@@ -8,7 +9,6 @@ import {
   MockTemplateVersionVariable5,
 } from "testHelpers/entities";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVariablesPageView> = {
   title: "pages/TemplateSettingsPage/TemplateVariablesPageView",

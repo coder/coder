@@ -1,17 +1,17 @@
-import Drawer from "@mui/material/Drawer";
+import type { Interpolation, Theme } from "@emotion/react";
 import Close from "@mui/icons-material/Close";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import Button from "@mui/material/Button";
+import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import { visuallyHidden } from "@mui/utils";
-import { FC, useLayoutEffect, useRef } from "react";
-import { TemplateVersion } from "api/typesGenerated";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { Interpolation, Theme } from "@emotion/react";
-import { navHeight } from "theme/constants";
-import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { type FC, useLayoutEffect, useRef } from "react";
 import { JobError } from "api/queries/templates";
-import Button from "@mui/material/Button";
+import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {
   error: unknown;

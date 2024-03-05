@@ -1,16 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC } from "react";
-import { QueryClient, QueryClientProvider, useQuery } from "react-query";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import dayjs from "dayjs";
 import { rest } from "msw";
+import type { FC } from "react";
+import { QueryClient, QueryClientProvider, useQuery } from "react-query";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import * as API from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 const Wrapper: FC = () => {

@@ -1,10 +1,10 @@
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
+import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import { useTheme } from "@emotion/react";
 import type { FC, ReactNode } from "react";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   HealthyBadge,
   NotHealthyBadge,

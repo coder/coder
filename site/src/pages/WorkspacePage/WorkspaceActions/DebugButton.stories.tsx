@@ -1,7 +1,7 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { DebugButton } from "./DebugButton";
-import { MockWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within, expect } from "@storybook/test";
+import { MockWorkspace } from "testHelpers/entities";
+import { DebugButton } from "./DebugButton";
 
 const meta: Meta<typeof DebugButton> = {
   title: "pages/WorkspacePage/DebugButton",

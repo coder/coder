@@ -1,18 +1,19 @@
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
+import Menu, { type MenuProps } from "@mui/material/Menu";
+import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import {
+  cloneElement,
+  createContext,
+  type FC,
+  forwardRef,
+  type HTMLProps,
+  type PropsWithChildren,
+  type ReactElement,
+  useContext,
   useRef,
   useState,
-  createContext,
-  useContext,
-  ReactNode,
-  cloneElement,
-  HTMLProps,
-  forwardRef,
-  ReactElement,
 } from "react";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
-import Menu, { MenuProps } from "@mui/material/Menu";
-import MenuItem, { MenuItemProps } from "@mui/material/MenuItem";
-import IconButton, { IconButtonProps } from "@mui/material/IconButton";
 
 type MoreMenuContextValue = {
   triggerRef: React.RefObject<HTMLButtonElement>;
@@ -25,7 +26,7 @@ const MoreMenuContext = createContext<MoreMenuContextValue | undefined>(
   undefined,
 );
 
-export const MoreMenu = (props: { children: ReactNode }) => {
+export const MoreMenu: FC<PropsWithChildren> = ({ children }) => {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -39,7 +40,7 @@ export const MoreMenu = (props: { children: ReactNode }) => {
 
   return (
     <MoreMenuContext.Provider value={{ close, open, triggerRef, isOpen }}>
-      {props.children}
+      {children}
     </MoreMenuContext.Provider>
   );
 };
@@ -54,10 +55,10 @@ const useMoreMenuContext = () => {
   return ctx;
 };
 
-export const MoreMenuTrigger = ({
+export const MoreMenuTrigger: FC<HTMLProps<HTMLButtonElement>> = ({
   children,
   ...props
-}: HTMLProps<HTMLButtonElement>) => {
+}) => {
   const menu = useMoreMenuContext();
 
   return cloneElement(children as ReactElement, {
@@ -83,7 +84,9 @@ export const ThreeDotsButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   },
 );
 
-export const MoreMenuContent = (props: Omit<MenuProps, "open" | "onClose">) => {
+export const MoreMenuContent: FC<Omit<MenuProps, "open" | "onClose">> = (
+  props,
+) => {
   const menu = useMoreMenuContext();
 
   return (
@@ -98,10 +101,16 @@ export const MoreMenuContent = (props: Omit<MenuProps, "open" | "onClose">) => {
   );
 };
 
-export const MoreMenuItem = (
-  props: MenuItemProps & { closeOnClick?: boolean; danger?: boolean },
-) => {
-  const { closeOnClick = true, danger = false, ...menuItemProps } = props;
+interface MoreMenuItemProps extends MenuItemProps {
+  closeOnClick?: boolean;
+  danger?: boolean;
+}
+
+export const MoreMenuItem: FC<MoreMenuItemProps> = ({
+  closeOnClick = true,
+  danger = false,
+  ...menuItemProps
+}) => {
   const ctx = useContext(MoreMenuContext);
 
   if (!ctx) {

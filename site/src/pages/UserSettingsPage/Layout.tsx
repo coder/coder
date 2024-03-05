@@ -1,11 +1,11 @@
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useMe } from "contexts/auth/useMe";
+import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { useMe } from "contexts/auth/useMe";
+import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
 const Layout: FC = () => {

@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableContainer from "@mui/material/TableContainer";
+import type { Meta, StoryObj } from "@storybook/react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { TableEmpty } from "./TableEmpty";
 

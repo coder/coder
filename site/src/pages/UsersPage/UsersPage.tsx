@@ -2,11 +2,10 @@ import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import type { User } from "api/typesGenerated";
-import { roles } from "api/queries/roles";
-import { groupsByUserId } from "api/queries/groups";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
+import { groupsByUserId } from "api/queries/groups";
+import { roles } from "api/queries/roles";
 import {
   paginatedUsers,
   suspendUser,
@@ -16,16 +15,17 @@ import {
   updateRoles,
   authMethods,
 } from "api/queries/users";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { useMe } from "contexts/auth/useMe";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFilter } from "components/Filter/filter";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import type { User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { useFilter } from "components/Filter/filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
+import { useMe } from "contexts/auth/useMe";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";

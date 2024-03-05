@@ -1,10 +1,10 @@
-import ButtonGroup from "@mui/material/ButtonGroup";
 import DebugIcon from "@mui/icons-material/BugReportOutlined";
-import { type FC } from "react";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
-import { ActionButtonProps } from "./Buttons";
+import { BuildParametersPopover } from "./BuildParametersPopover";
+import type { ActionButtonProps } from "./Buttons";
 
 type DebugButtonProps = Omit<ActionButtonProps, "loading"> & {
   workspace: Workspace;

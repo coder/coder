@@ -1,18 +1,18 @@
-import Tooltip from "@mui/material/Tooltip";
-import ButtonGroup from "@mui/material/ButtonGroup";
+import BlockIcon from "@mui/icons-material/Block";
+import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import ReplayIcon from "@mui/icons-material/Replay";
-import BlockIcon from "@mui/icons-material/Block";
-import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
+import ReplayIcon from "@mui/icons-material/Replay";
 import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
-import { type FC } from "react";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { BuildParametersPopover } from "./BuildParametersPopover";
 
 export interface ActionButtonProps {
   loading?: boolean;

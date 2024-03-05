@@ -1,7 +1,7 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { RetryButton } from "./RetryButton";
-import { MockWorkspace } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within, expect } from "@storybook/test";
+import { MockWorkspace } from "testHelpers/entities";
+import { RetryButton } from "./RetryButton";
 
 const meta: Meta<typeof RetryButton> = {
   title: "pages/WorkspacePage/RetryButton",

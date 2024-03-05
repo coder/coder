@@ -1,16 +1,16 @@
-import Badge from "@mui/material/Badge";
-import { type FC, type ReactNode } from "react";
-import type * as TypesGen from "api/typesGenerated";
-import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { UserDropdownContent } from "./UserDropdownContent";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import Badge from "@mui/material/Badge";
+import type { FC, ReactNode } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import { UserDropdownContent } from "./UserDropdownContent";
 
 export interface UserDropdownProps {
   user: TypesGen.User;

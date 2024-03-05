@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
@@ -7,8 +9,6 @@ import {
   MockProxyLatencies,
 } from "testHelpers/entities";
 import { AppLink } from "./AppLink";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AppLink> = {
   title: "modules/resources/AppLink",

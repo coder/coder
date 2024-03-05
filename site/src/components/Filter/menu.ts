@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { BaseOption } from "./options";
 import { useQuery } from "react-query";
+import type { BaseOption } from "./options";
 
 export type UseFilterMenuOptions<TOption extends BaseOption> = {
   id: string;

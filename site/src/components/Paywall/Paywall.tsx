@@ -1,8 +1,8 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import TaskAltIcon from "@mui/icons-material/TaskAlt";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { EnterpriseBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { docs } from "utils/docs";
