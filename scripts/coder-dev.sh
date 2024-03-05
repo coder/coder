@@ -62,4 +62,4 @@ if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	runcmd=(dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --)
 fi
 
-exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
+CGO_ENABLED=0 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
