@@ -231,6 +231,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
+		arg.WithSummary,
 	)
 	if err != nil {
 		return nil, err
@@ -258,6 +259,11 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
+			&i.Username,
+			&i.LatestBuildCompletedAt,
+			&i.LatestBuildCanceledAt,
+			&i.LatestBuildError,
+			&i.LatestBuildTransition,
 			&i.Count,
 		); err != nil {
 			return nil, err

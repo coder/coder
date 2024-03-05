@@ -77,12 +77,17 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
+WITH filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	COUNT(*) OVER () as count
+	users.username as username,
+	latest_build.completed_at as latest_build_completed_at,
+	latest_build.canceled_at as latest_build_canceled_at,
+	latest_build.error as latest_build_error,
+	latest_build.transition as latest_build_transition
 FROM
     workspaces
 JOIN
@@ -266,23 +271,75 @@ WHERE
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
-ORDER BY
-	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-	CASE WHEN workspaces.owner_id = @requester_id AND workspaces.favorite THEN 0 ELSE 1 END ASC,
-	(latest_build.completed_at IS NOT NULL AND
-		latest_build.canceled_at IS NULL AND
-		latest_build.error IS NULL AND
-		latest_build.transition = 'start'::workspace_transition) DESC,
-	LOWER(users.username) ASC,
-	LOWER(workspaces.name) ASC
-LIMIT
-	CASE
-		WHEN @limit_ :: integer > 0 THEN
-			@limit_
-	END
-OFFSET
-	@offset_
-;
+), filtered_workspaces_order AS (
+	SELECT
+		fw.*
+	FROM
+		filtered_workspaces fw
+	ORDER BY
+		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		CASE WHEN owner_id = @requester_id AND favorite THEN 0 ELSE 1 END ASC,
+		(latest_build_completed_at IS NOT NULL AND
+			latest_build_canceled_at IS NULL AND
+			latest_build_error IS NULL AND
+			latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(username) ASC,
+		LOWER(name) ASC
+	LIMIT
+		CASE
+			WHEN @limit_ :: integer > 0 THEN
+				@limit_
+		END
+	OFFSET
+		@offset_
+), filtered_workspaces_order_with_summary AS (
+	SELECT
+		fwo.*
+	FROM
+		filtered_workspaces_order fwo
+	-- Return a technical summary row with total count of workspaces.
+	-- It is used to present the correct count if pagination goes beyond the offset.
+	UNION ALL
+	SELECT
+		'00000000-0000-0000-0000-000000000000'::uuid, -- id
+		'0001-01-01 00:00:00+00'::timestamp, -- created_at
+		'0001-01-01 00:00:00+00'::timestamp, -- updated_at
+		'00000000-0000-0000-0000-000000000000'::uuid, -- owner_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- organization_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_id
+		false, -- deleted
+		'**TECHNICAL_ROW**', -- name
+		'', -- autostart_schedule
+		0, -- ttl
+		'0001-01-01 00:00:00+00'::timestamp, -- last_used_at
+		'0001-01-01 00:00:00+00'::timestamp, -- dormant_at
+		'0001-01-01 00:00:00+00'::timestamp, -- deleting_at
+		'never'::automatic_updates, -- automatic_updates
+		false, -- favorite
+		-- Extra columns added to `filtered_workspaces`
+		'', -- template_name
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
+		'', -- template_version_name
+		'', -- username
+		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_completed_at,
+		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_canceled_at,
+		'', -- latest_build_error
+		'start'::workspace_transition -- latest_build_transition
+	WHERE
+		@with_summary :: boolean = true
+), total_count AS (
+	SELECT
+		count(*) AS count
+    FROM
+		filtered_workspaces
+)
+SELECT
+	fwos.*,
+	tc.count
+FROM
+	filtered_workspaces_order_with_summary fwos
+CROSS JOIN
+	total_count tc;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT

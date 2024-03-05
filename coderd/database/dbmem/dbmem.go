@@ -345,7 +345,7 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64, withSummary bool) []database.GetWorkspacesRow { //nolint:revive // withSummary flag ensures the extra technical row
 	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
 	for _, w := range workspaces {
 		wr := database.GetWorkspacesRow{
@@ -388,6 +388,12 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 		}
 
 		rows = append(rows, wr)
+	}
+	if withSummary {
+		rows = append(rows, database.GetWorkspacesRow{
+			Name:  "**TECHNICAL_ROW**",
+			Count: count,
+		})
 	}
 	return rows
 }
@@ -8278,12 +8284,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 }
 
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
