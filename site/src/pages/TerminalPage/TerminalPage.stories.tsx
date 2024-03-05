@@ -22,7 +22,7 @@ import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import { Workspace } from "api/typesGenerated";
 import { withWebSocket } from "testHelpers/storybook";
 
-const meta: Meta<typeof TerminalPage> = {
+const meta = {
   title: "pages/Terminal",
   component: RequireAuth,
   parameters: {
@@ -49,6 +49,37 @@ const meta: Meta<typeof TerminalPage> = {
       { key: ["entitlements"], data: MockEntitlements },
       { key: ["experiments"], data: MockExperiments },
       { key: ["appearance"], data: MockAppearanceConfig },
+
+      {
+        key: getAuthorizationKey({ checks: permissionsToCheck }),
+        data: { editWorkspaceProxies: true },
+      },
+    ],
+  },
+  decorators: [
+    (Story) => (
+      <AuthProvider>
+        <Story />
+      </AuthProvider>
+    ),
+  ],
+} satisfies Meta<typeof TerminalPage>;
+
+export default meta;
+type Story = StoryObj<typeof TerminalPage>;
+
+export const Connected: Story = {
+  decorators: [withWebSocket],
+  parameters: {
+    ...meta.parameters,
+    webSocket: {
+      // Copied and pasted this from browser
+      messages: [
+        `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+      ],
+    },
+    queries: [
+      ...meta.parameters.queries,
       {
         key: workspaceByOwnerAndNameKey(
           MockWorkspace.owner_name,
@@ -67,29 +98,6 @@ const meta: Meta<typeof TerminalPage> = {
           },
         } satisfies Workspace,
       },
-      {
-        key: getAuthorizationKey({ checks: permissionsToCheck }),
-        data: { editWorkspaceProxies: true },
-      },
     ],
-    webSocket: {
-      // Copied and pasted this from browser
-      messages: [
-        `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
-      ],
-    },
   },
-  decorators: [
-    (Story) => (
-      <AuthProvider>
-        <Story />
-      </AuthProvider>
-    ),
-    withWebSocket,
-  ],
 };
-
-export default meta;
-type Story = StoryObj<typeof TerminalPage>;
-
-export const Default: Story = {};
