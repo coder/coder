@@ -48,7 +48,6 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const queryClient = useQueryClient();
   const meOptions = me();
-
   const userQuery = useQuery(meOptions);
   const authMethodsQuery = useQuery(authMethods());
   const hasFirstUserQuery = useQuery(hasFirstUser());
