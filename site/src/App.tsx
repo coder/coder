@@ -1,13 +1,16 @@
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { AppRouter } from "./AppRouter";
+import { router } from "./router";
+import { ThemeProvider } from "./contexts/ThemeProvider";
+import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import "./theme/globalFonts";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { RouterProvider } from "react-router-dom";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +64,7 @@ export const App: FC = () => {
   return (
     <AppProviders>
       <ErrorBoundary>
-        <AppRouter />
+        <RouterProvider router={router} />
       </ErrorBoundary>
     </AppProviders>
   );

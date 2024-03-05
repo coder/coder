@@ -34,6 +34,8 @@ export const AccessURLPage = () => {
       </Header>
 
       <Main>
+        {accessUrl.error && <Alert severity="error">{accessUrl.error}</Alert>}
+
         {accessUrl.warnings.map((warning) => {
           return (
             <Alert

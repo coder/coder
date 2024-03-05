@@ -698,6 +698,21 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			delete(groupACL, template.OrganizationID.String())
 		}
 
+		if template.MaxPortSharingLevel != maxPortShareLevel {
+			switch maxPortShareLevel {
+			case database.AppSharingLevelOwner:
+				err = tx.DeleteWorkspaceAgentPortSharesByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("delete workspace agent port shares by template: %w", err)
+				}
+			case database.AppSharingLevelAuthenticated:
+				err = tx.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("reduce workspace agent share level to authenticated by template: %w", err)
+				}
+			}
+		}
+
 		var err error
 		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,

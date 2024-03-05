@@ -77,6 +77,17 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 		},
 	}
+	// Always start with a default org. Matching migration 198.
+	_, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+		ID:          uuid.New(),
+		Name:        "first-organization",
+		Description: "Builtin default organization.",
+		CreatedAt:   dbtime.Now(),
+		UpdatedAt:   dbtime.Now(),
+	})
+	if err != nil {
+		panic(fmt.Errorf("failed to create default organization: %w", err))
+	}
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
 	return q
@@ -345,7 +356,7 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64, withSummary bool) []database.GetWorkspacesRow { //nolint:revive // withSummary flag ensures the extra technical row
 	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
 	for _, w := range workspaces {
 		wr := database.GetWorkspacesRow{
@@ -388,6 +399,12 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 		}
 
 		rows = append(rows, wr)
+	}
+	if withSummary {
+		rows = append(rows, database.GetWorkspacesRow{
+			Name:  "**TECHNICAL_ROW**",
+			Count: count,
+		})
 	}
 	return rows
 }
@@ -1443,6 +1460,30 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg datab
 		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
 			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
 			return nil
+		}
+	}
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context, templateID uuid.UUID) error {
+	err := validateDatabaseType(templateID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID != templateID {
+			continue
+		}
+		for i, share := range q.workspaceAgentPortShares {
+			if share.WorkspaceID != workspace.ID {
+				continue
+			}
+			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
 		}
 	}
 
@@ -6333,6 +6374,33 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
+	err := validateDatabaseType(templateID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID != templateID {
+			continue
+		}
+		for i, share := range q.workspaceAgentPortShares {
+			if share.WorkspaceID != workspace.ID {
+				continue
+			}
+			if share.ShareLevel == database.AppSharingLevelPublic {
+				share.ShareLevel = database.AppSharingLevelAuthenticated
+			}
+			q.workspaceAgentPortShares[i] = share
+		}
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8278,12 +8346,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 }
 
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {

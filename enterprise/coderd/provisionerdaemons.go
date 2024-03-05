@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -86,11 +85,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
-	for _, daemon := range daemons {
-		apiDaemons = append(apiDaemons, db2sdk.ProvisionerDaemon(daemon))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
 type provisionerDaemonAuth struct {
@@ -118,13 +114,11 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	}
 
 	// Check for PSK
-	if p.psk != "" {
-		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
-		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
-			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-			return tags, true
-		}
+	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
+	if provAuth {
+		// If using PSK auth, the daemon is, by definition, scoped to the organization.
+		tags = provisionersdk.MutateTags(uuid.Nil, tags)
+		return tags, true
 	}
 	return nil, false
 }

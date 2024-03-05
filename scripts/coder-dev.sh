@@ -10,6 +10,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
+DEBUG_DELVE="${DEBUG_DELVE:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
 	BINARY_TYPE=coder
@@ -55,4 +56,10 @@ coder)
 	;;
 esac
 
-exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"
+runcmd=("${CODER_DEV_BIN}")
+if [[ "${DEBUG_DELVE}" == 1 ]]; then
+	set -x
+	runcmd=(dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --)
+fi
+
+CGO_ENABLED=0 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"

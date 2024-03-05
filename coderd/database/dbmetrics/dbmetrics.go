@@ -321,6 +321,13 @@ func (m metricsStore) DeleteWorkspaceAgentPortShare(ctx context.Context, arg dat
 	return r0
 }
 
+func (m metricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentPortSharesByTemplate").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)
@@ -1696,6 +1703,13 @@ func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspac
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("ListWorkspaceAgentPortShares").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
+	m.queryLatencies.WithLabelValues("ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {

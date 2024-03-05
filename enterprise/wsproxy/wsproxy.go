@@ -128,7 +128,7 @@ type Server struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	derpCloseFunc func()
-	registerDone  <-chan struct{}
+	registerLoop  *wsproxysdk.RegisterWorkspaceProxyLoop
 }
 
 // New creates a new workspace proxy server. This requires a primary coderd
@@ -210,7 +210,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// goroutine to periodically re-register.
 	replicaID := uuid.New()
 	osHostname := cliutil.Hostname()
-	regResp, registerDone, err := client.RegisterWorkspaceProxyLoop(ctx, wsproxysdk.RegisterWorkspaceProxyLoopOpts{
+	registerLoop, regResp, err := client.RegisterWorkspaceProxyLoop(ctx, wsproxysdk.RegisterWorkspaceProxyLoopOpts{
 		Logger: opts.Logger,
 		Request: wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           opts.AccessURL.String(),
@@ -230,12 +230,13 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("register proxy: %w", err)
 	}
-	s.registerDone = registerDone
-	err = s.handleRegister(ctx, regResp)
+	s.registerLoop = registerLoop
+
+	derpServer.SetMeshKey(regResp.DERPMeshKey)
+	err = s.handleRegister(regResp)
 	if err != nil {
 		return nil, xerrors.Errorf("handle register: %w", err)
 	}
-	derpServer.SetMeshKey(regResp.DERPMeshKey)
 
 	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
 	if err != nil {
@@ -409,16 +410,16 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) RegisterNow() error {
+	_, err := s.registerLoop.RegisterNow()
+	return err
+}
+
 func (s *Server) Close() error {
 	s.cancel()
 
 	var err error
-	registerDoneWaitTicker := time.NewTicker(11 * time.Second) // the attempt timeout is 10s
-	select {
-	case <-registerDoneWaitTicker.C:
-		err = multierror.Append(err, xerrors.New("timed out waiting for registerDone"))
-	case <-s.registerDone:
-	}
+	s.registerLoop.Close()
 	s.derpCloseFunc()
 	appServerErr := s.AppServer.Close()
 	if appServerErr != nil {
@@ -437,11 +438,12 @@ func (*Server) mutateRegister(_ *wsproxysdk.RegisterWorkspaceProxyRequest) {
 	// package in the primary and update req.ReplicaError accordingly.
 }
 
-func (s *Server) handleRegister(_ context.Context, res wsproxysdk.RegisterWorkspaceProxyResponse) error {
+func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) error {
 	addresses := make([]string, len(res.SiblingReplicas))
 	for i, replica := range res.SiblingReplicas {
 		addresses[i] = replica.RelayAddress
 	}
+	s.Logger.Debug(s.ctx, "setting DERP mesh sibling addresses", slog.F("addresses", addresses))
 	s.derpMesh.SetAddresses(addresses, false)
 
 	s.latestDERPMap.Store(res.DERPMap)

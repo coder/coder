@@ -277,135 +277,214 @@ type RegisterWorkspaceProxyLoopOpts struct {
 	// called in a blocking manner, so it should avoid blocking for too long. If
 	// the callback returns an error, the loop will stop immediately and the
 	// error will be returned to the FailureFn.
-	CallbackFn func(ctx context.Context, res RegisterWorkspaceProxyResponse) error
+	CallbackFn func(res RegisterWorkspaceProxyResponse) error
 	// FailureFn is called with the last error returned from the server if the
 	// context is canceled, registration fails for more than MaxFailureCount,
 	// or if any permanent values in the response change.
 	FailureFn func(err error)
 }
 
-// RegisterWorkspaceProxyLoop will register the workspace proxy and then start a
-// goroutine to keep registering periodically in the background.
-//
-// The first response is returned immediately, and subsequent responses will be
-// notified to the given CallbackFn. When the context is canceled the loop will
-// stop immediately and the context error will be returned to the FailureFn.
-//
-// The returned channel will be closed when the loop stops and can be used to
-// ensure the loop is dead before continuing. When a fatal error is encountered,
-// the proxy will be deregistered (with the same ReplicaID and AttemptTimeout)
-// before calling the FailureFn.
-func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWorkspaceProxyLoopOpts) (RegisterWorkspaceProxyResponse, <-chan struct{}, error) {
-	if opts.Interval == 0 {
-		opts.Interval = 30 * time.Second
-	}
-	if opts.MaxFailureCount == 0 {
-		opts.MaxFailureCount = 10
-	}
-	if opts.AttemptTimeout == 0 {
-		opts.AttemptTimeout = 10 * time.Second
-	}
-	if opts.MutateFn == nil {
-		opts.MutateFn = func(_ *RegisterWorkspaceProxyRequest) {}
-	}
-	if opts.CallbackFn == nil {
-		opts.CallbackFn = func(_ context.Context, _ RegisterWorkspaceProxyResponse) error {
-			return nil
-		}
-	}
+type RegisterWorkspaceProxyLoop struct {
+	opts RegisterWorkspaceProxyLoopOpts
+	c    *Client
 
-	failureFn := func(err error) {
-		// We have to use background context here because the original context
-		// may be canceled.
-		deregisterCtx, cancel := context.WithTimeout(context.Background(), opts.AttemptTimeout)
-		defer cancel()
-		deregisterErr := c.DeregisterWorkspaceProxy(deregisterCtx, DeregisterWorkspaceProxyRequest{
-			ReplicaID: opts.Request.ReplicaID,
-		})
-		if deregisterErr != nil {
-			opts.Logger.Error(ctx,
-				"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
-				slog.Error(deregisterErr),
-			)
-		}
+	// runLoopNow takes a response channel to send the response to and triggers
+	// the loop to run immediately if it's waiting.
+	runLoopNow chan chan RegisterWorkspaceProxyResponse
+	closedCtx  context.Context
+	close      context.CancelFunc
+	done       chan struct{}
+}
 
-		if opts.FailureFn != nil {
-			opts.FailureFn(err)
-		}
-	}
-
-	originalRes, err := c.RegisterWorkspaceProxy(ctx, opts.Request)
+func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	registerCtx, registerCancel := context.WithTimeout(ctx, l.opts.AttemptTimeout)
+	res, err := l.c.RegisterWorkspaceProxy(registerCtx, l.opts.Request)
+	registerCancel()
 	if err != nil {
-		return RegisterWorkspaceProxyResponse{}, nil, xerrors.Errorf("register workspace proxy: %w", err)
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("register workspace proxy: %w", err)
 	}
 
-	done := make(chan struct{})
+	return res, nil
+}
+
+// Start starts the proxy registration loop. The provided context is only used
+// for the initial registration. Use Close() to stop.
+func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	if l.opts.Interval == 0 {
+		l.opts.Interval = 15 * time.Second
+	}
+	if l.opts.MaxFailureCount == 0 {
+		l.opts.MaxFailureCount = 10
+	}
+	if l.opts.AttemptTimeout == 0 {
+		l.opts.AttemptTimeout = 10 * time.Second
+	}
+
+	var err error
+	originalRes, err := l.register(ctx)
+	if err != nil {
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("initial registration: %w", err)
+	}
+
 	go func() {
-		defer close(done)
+		defer close(l.done)
 
 		var (
 			failedAttempts = 0
-			ticker         = time.NewTicker(opts.Interval)
+			ticker         = time.NewTicker(l.opts.Interval)
 		)
 		for {
+			var respCh chan RegisterWorkspaceProxyResponse
 			select {
-			case <-ctx.Done():
-				failureFn(ctx.Err())
+			case <-l.closedCtx.Done():
+				l.failureFn(xerrors.Errorf("proxy registration loop closed"))
 				return
+			case respCh = <-l.runLoopNow:
 			case <-ticker.C:
 			}
 
-			opts.Logger.Debug(ctx,
+			l.opts.Logger.Debug(context.Background(),
 				"re-registering workspace proxy with Coder primary",
-				slog.F("req", opts.Request),
-				slog.F("timeout", opts.AttemptTimeout),
+				slog.F("req", l.opts.Request),
+				slog.F("timeout", l.opts.AttemptTimeout),
 				slog.F("failed_attempts", failedAttempts),
 			)
-			opts.MutateFn(&opts.Request)
-			registerCtx, cancel := context.WithTimeout(ctx, opts.AttemptTimeout)
-			res, err := c.RegisterWorkspaceProxy(registerCtx, opts.Request)
-			cancel()
+
+			l.mutateFn(&l.opts.Request)
+			resp, err := l.register(l.closedCtx)
 			if err != nil {
 				failedAttempts++
-				opts.Logger.Warn(ctx,
+				l.opts.Logger.Warn(context.Background(),
 					"failed to re-register workspace proxy with Coder primary",
-					slog.F("req", opts.Request),
-					slog.F("timeout", opts.AttemptTimeout),
+					slog.F("req", l.opts.Request),
+					slog.F("timeout", l.opts.AttemptTimeout),
 					slog.F("failed_attempts", failedAttempts),
 					slog.Error(err),
 				)
 
-				if failedAttempts > opts.MaxFailureCount {
-					failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", opts.MaxFailureCount, err))
+				if failedAttempts > l.opts.MaxFailureCount {
+					l.failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", l.opts.MaxFailureCount, err))
 					return
 				}
 				continue
 			}
 			failedAttempts = 0
 
-			if res.AppSecurityKey != originalRes.AppSecurityKey {
-				failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
+			// Check for consistency.
+			if originalRes.AppSecurityKey != resp.AppSecurityKey {
+				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
 				return
 			}
-			if res.DERPMeshKey != originalRes.DERPMeshKey {
-				failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
+			if originalRes.DERPMeshKey != resp.DERPMeshKey {
+				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
 				return
 			}
-			if res.DERPRegionID != originalRes.DERPRegionID {
-				failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
+			if originalRes.DERPRegionID != resp.DERPRegionID {
+				l.failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
+				return
 			}
 
-			err = opts.CallbackFn(ctx, res)
+			err = l.callbackFn(resp)
 			if err != nil {
-				failureFn(xerrors.Errorf("callback fn returned error: %w", err))
+				l.failureFn(xerrors.Errorf("callback function returned an error: %w", err))
 				return
 			}
 
-			ticker.Reset(opts.Interval)
+			// If we were triggered by RegisterNow(), send the response back.
+			if respCh != nil {
+				respCh <- resp
+				close(respCh)
+			}
+
+			ticker.Reset(l.opts.Interval)
 		}
 	}()
 
-	return originalRes, done, nil
+	return originalRes, nil
+}
+
+// RegisterNow asks the registration loop to register immediately. A timeout of
+// 2x the attempt timeout is used to wait for the response.
+func (l *RegisterWorkspaceProxyLoop) RegisterNow() (RegisterWorkspaceProxyResponse, error) {
+	// The channel is closed by the loop after sending the response.
+	respCh := make(chan RegisterWorkspaceProxyResponse, 1)
+	select {
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case l.runLoopNow <- respCh:
+	}
+	select {
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case resp := <-respCh:
+		return resp, nil
+	}
+}
+
+func (l *RegisterWorkspaceProxyLoop) Close() {
+	l.close()
+	<-l.done
+}
+
+func (l *RegisterWorkspaceProxyLoop) mutateFn(req *RegisterWorkspaceProxyRequest) {
+	if l.opts.MutateFn != nil {
+		l.opts.MutateFn(req)
+	}
+}
+
+func (l *RegisterWorkspaceProxyLoop) callbackFn(res RegisterWorkspaceProxyResponse) error {
+	if l.opts.CallbackFn != nil {
+		return l.opts.CallbackFn(res)
+	}
+	return nil
+}
+
+func (l *RegisterWorkspaceProxyLoop) failureFn(err error) {
+	// We have to use background context here because the original context may
+	// be canceled.
+	deregisterCtx, cancel := context.WithTimeout(context.Background(), l.opts.AttemptTimeout)
+	defer cancel()
+	deregisterErr := l.c.DeregisterWorkspaceProxy(deregisterCtx, DeregisterWorkspaceProxyRequest{
+		ReplicaID: l.opts.Request.ReplicaID,
+	})
+	if deregisterErr != nil {
+		l.opts.Logger.Error(context.Background(),
+			"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
+			slog.Error(deregisterErr),
+		)
+	}
+
+	if l.opts.FailureFn != nil {
+		l.opts.FailureFn(err)
+	}
+}
+
+// RegisterWorkspaceProxyLoop will register the workspace proxy and then start a
+// goroutine to keep registering periodically in the background.
+//
+// The first response is returned immediately, and subsequent responses will be
+// notified to the given CallbackFn. When the loop is Close()d it will stop
+// immediately and an error will be returned to the FailureFn.
+//
+// When a fatal error is encountered (or the proxy is closed), the proxy will be
+// deregistered (with the same ReplicaID and AttemptTimeout) before calling the
+// FailureFn.
+func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWorkspaceProxyLoopOpts) (*RegisterWorkspaceProxyLoop, RegisterWorkspaceProxyResponse, error) {
+	closedCtx, closeFn := context.WithCancel(context.Background())
+	loop := &RegisterWorkspaceProxyLoop{
+		opts:       opts,
+		c:          c,
+		runLoopNow: make(chan chan RegisterWorkspaceProxyResponse),
+		closedCtx:  closedCtx,
+		close:      closeFn,
+		done:       make(chan struct{}),
+	}
+
+	regResp, err := loop.Start(ctx)
+	if err != nil {
+		return nil, RegisterWorkspaceProxyResponse{}, xerrors.Errorf("start loop: %w", err)
+	}
+	return loop, regResp, nil
 }
 
 type CoordinateMessageType int
