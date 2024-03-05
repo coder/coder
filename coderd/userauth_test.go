@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -937,7 +939,28 @@ func TestUserOIDC(t *testing.T) {
 		IgnoreUserInfo: true,
 		AllowSignups:   true,
 		StatusCode:     http.StatusOK,
-	}} {
+	},
+		{
+			Name: "HugeIDToken",
+			IDTokenClaims: inflateClaims(t, jwt.MapClaims{
+				"email":          "user@domain.tld",
+				"email_verified": true,
+			}, 65536),
+			Username:     "user",
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+		},
+		{
+			Name: "HugeClaims",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "user@domain.tld",
+				"email_verified": true,
+			},
+			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
+			Username:       "user",
+			AllowSignups:   true,
+			StatusCode:     http.StatusOK,
+		}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
@@ -956,7 +979,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			auditor := audit.NewMock()
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 			owner := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
 				OIDCConfig: cfg,
@@ -1286,4 +1309,14 @@ func authCookieValue(cookies []*http.Cookie) string {
 		}
 	}
 	return ""
+}
+
+// inflateClaims 'inflates' a jwt.MapClaims from a seed by
+// adding a ridiculously large key-value pair of length size.
+func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
+	t.Helper()
+	junk, err := cryptorand.String(size)
+	require.NoError(t, err)
+	seed["random_data"] = junk
+	return seed
 }

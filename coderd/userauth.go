@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/mail"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -1189,6 +1191,26 @@ func blankFields(claims map[string]interface{}) []string {
 	return fields
 }
 
+// fieldSizes returns the sorted sizes of fields in the claims map
+func fieldSizes(claims map[string]interface{}) []int {
+	fs := claimFields(claims)
+	lens := make([]int, len(fs))
+	for i, f := range fs {
+		v, ok := claims[f]
+		if !ok {
+			lens[i] = -1
+			continue
+		}
+		vs, ok := v.(string)
+		if !ok {
+			lens[i] = -1
+			continue
+		}
+		lens[i] = len(vs)
+	}
+	return lens
+}
+
 // mergeClaims merges the claims from a and b and returns the merged set.
 // claims from b take precedence over claims from a.
 func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
@@ -1871,4 +1893,21 @@ func parseStringSliceClaim(claim interface{}) ([]string, error) {
 
 	// Not sure what the user gave us.
 	return nil, xerrors.Errorf("invalid claim type. Expected an array of strings, got: %T", claim)
+}
+
+type countWriter struct {
+	w            io.Writer
+	bytesWritten atomic.Int64
+}
+
+func (cw *countWriter) Write(p []byte) (int, error) {
+	n, err := cw.w.Write(p)
+	if n > 0 {
+		cw.bytesWritten.Add(int64(n))
+	}
+	return n, err
+}
+
+func (cw *countWriter) Length() int {
+	return int(cw.bytesWritten.Load())
 }
