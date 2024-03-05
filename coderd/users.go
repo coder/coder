@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -196,10 +197,9 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Email:    createUser.Email,
-			Username: createUser.Username,
-			Password: createUser.Password,
-			// Create an org for the first user.
+			Email:          createUser.Email,
+			Username:       createUser.Username,
+			Password:       createUser.Password,
 			OrganizationID: defaultOrg.ID,
 		},
 		CreateOrganization: false,
@@ -1083,6 +1083,11 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 
 		uid, err := uuid.Parse(orgID)
 		if err != nil {
+			api.Logger.Critical(r.Context(), "org role contains invalid uuid",
+				slog.F("username", user.Username),
+				slog.F("user_id", user.ID.String()),
+				slog.F("role", role),
+			)
 			continue // This should never happen
 		}
 		if _, ok := allowedOrgs[uid]; ok {
