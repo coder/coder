@@ -2,7 +2,10 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CreateIcon from "@mui/icons-material/AddOutlined";
-import { Link as RouterLink } from "react-router-dom";
+import {
+  Link as RouterLink,
+  unstable_usePrompt as usePrompt,
+} from "react-router-dom";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import AlertTitle from "@mui/material/AlertTitle";
@@ -65,8 +68,8 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
-  isBuilding?: boolean;
-  canPublish?: boolean;
+  isBuilding: boolean;
+  canPublish: boolean;
   onPreview: (files: FileTree) => Promise<void>;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
@@ -179,20 +182,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   }, [buildLogs]);
 
-  useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (canPublish) {
-        e.preventDefault();
-        return "You have unpublished changes. Are you sure you want to leave?";
-      }
-    };
-
-    window.addEventListener("beforeunload", onBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-    };
-  }, [canPublish]);
+  useLeaveSiteWarning(canPublish);
 
   const canBuild = !isBuilding && dirty;
 
@@ -664,6 +654,38 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       />
     </>
   );
+};
+
+const useLeaveSiteWarning = (enabled: boolean) => {
+  const MESSAGE =
+    "You have unpublished changes. Are you sure you want to leave?";
+
+  // This works for regular browser actions like close tab and back button
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (enabled) {
+        e.preventDefault();
+        return MESSAGE;
+      }
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [enabled]);
+
+  // This is used for react router navigation that is not triggered by the
+  // browser
+  usePrompt({
+    message: MESSAGE,
+    when: ({ nextLocation }) => {
+      // We need to check the path because we change the URL when new template
+      // version is created during builds
+      return enabled && !nextLocation.pathname.endsWith("/edit");
+    },
+  });
 };
 
 const styles = {
