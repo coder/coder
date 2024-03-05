@@ -62,5 +62,4 @@ if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	runcmd=(dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --)
 fi
 
-# shellcheck disable=SC2086 # This is probably one of the few times you actually want this.
 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
