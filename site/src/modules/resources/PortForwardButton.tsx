@@ -49,7 +49,6 @@ import { FormikContextType, useFormik } from "formik";
 import { getFormHelpers } from "utils/formUtils";
 import { LoadingButton } from "@mui/lab";
 
-
 export interface PortForwardButtonProps {
   host: string;
   username: string;
@@ -389,33 +388,30 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                       {label}
                     </Link>
                     <FormControl size="small" css={styles.protocolFormControl}>
-                        <Select
-                          css={styles.shareLevelSelect}
-                          value={share.protocol}
-                          onChange={async (event) => {
-                            await upsertSharedPortMutation.mutateAsync({
-                              agent_name: agent.name,
-                              port: share.port,
-                              protocol: event.target
-                                .value as WorkspaceAgentPortShareProtocol,
-                              share_level: share.share_level,
-                            });
-                            await sharedPortsQuery.refetch();
-                          }}
-                        >
-                          <MenuItem value="http">
-                            HTTP
-                          </MenuItem>
-                          <MenuItem
-                            value="https"
-                          >
-                            HTTPS
-                          </MenuItem>
-                        </Select>
-                      </FormControl>
+                      <Select
+                        css={styles.shareLevelSelect}
+                        value={share.protocol}
+                        onChange={async (event) => {
+                          await upsertSharedPortMutation.mutateAsync({
+                            agent_name: agent.name,
+                            port: share.port,
+                            protocol: event.target
+                              .value as WorkspaceAgentPortShareProtocol,
+                            share_level: share.share_level,
+                          });
+                          await sharedPortsQuery.refetch();
+                        }}
+                      >
+                        <MenuItem value="http">HTTP</MenuItem>
+                        <MenuItem value="https">HTTPS</MenuItem>
+                      </Select>
+                    </FormControl>
 
                     <Stack direction="row" justifyContent="flex-end">
-                      <FormControl size="small" css={styles.shareLevelFormControl}>
+                      <FormControl
+                        size="small"
+                        css={styles.shareLevelFormControl}
+                      >
                         <Select
                           css={styles.shareLevelSelect}
                           value={share.share_level}
@@ -492,9 +488,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     label="Protocol"
                   >
                     <MenuItem value="http">HTTP</MenuItem>
-                    <MenuItem value="https">
-                      HTTPS
-                    </MenuItem>
+                    <MenuItem value="https">HTTPS</MenuItem>
                   </TextField>
                   <TextField
                     {...getFieldHelpers("share_level")}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -186,6 +187,9 @@ func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.Wor
 	for _, share := range shares {
 		converted = append(converted, convertPortShare(share))
 	}
+	slices.SortFunc(converted, func(i, j codersdk.WorkspaceAgentPortShare) int {
+		return (int)(i.Port - j.Port)
+	})
 	return converted
 }
 
