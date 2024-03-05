@@ -799,6 +799,17 @@ func TestUserOIDC(t *testing.T) {
 		},
 		StatusCode: http.StatusOK,
 	}, {
+		Name: "EmailDomainSubset",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "colin@gmail.com",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain: []string{
+			"mail.com",
+		},
+		StatusCode: http.StatusForbidden,
+	}, {
 		Name:          "EmptyClaims",
 		IDTokenClaims: jwt.MapClaims{},
 		AllowSignups:  true,
