@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useState, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -94,19 +94,25 @@ const CreateWorkspacePage: FC = () => {
   );
 
   // Auto fill parameters
+  const autofillEnabled = experiments.includes("auto-fill-parameters");
   const userParametersQuery = useQuery({
     queryKey: ["userParameters"],
     queryFn: () => getUserParameters(templateQuery.data!.id),
-    enabled:
-      experiments.includes("auto-fill-parameters") && templateQuery.isSuccess,
+    enabled: autofillEnabled && templateQuery.isSuccess,
   });
   const autofillParameters = getAutofillParameters(
     searchParams,
     userParametersQuery.data ? userParametersQuery.data : [],
   );
 
+  const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
+    if (autoCreationStartedRef.current) {
+      return;
+    }
+
     try {
+      autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
@@ -122,11 +128,13 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
+  const autoStartReady =
+    mode === "auto" && (!autofillEnabled || userParametersQuery.isSuccess);
   useEffect(() => {
-    if (mode === "auto") {
+    if (autoStartReady) {
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, mode]);
+  }, [automateWorkspaceCreation, autoStartReady]);
 
   return (
     <>
