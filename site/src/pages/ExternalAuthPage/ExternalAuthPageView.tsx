@@ -1,11 +1,11 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AlertTitle from "@mui/material/AlertTitle";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";

@@ -1,10 +1,10 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import DialogActions from "@mui/material/DialogActions";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import { Stack } from "@mui/system";
-import { type FC } from "react";
-import { type ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { FC } from "react";
+import type { ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 
 export interface ScheduleDialogProps extends ConfirmDialogProps {

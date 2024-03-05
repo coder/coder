@@ -1,9 +1,9 @@
 import "@testing-library/jest-dom";
+import "jest-location-mock";
 import { cleanup } from "@testing-library/react";
 import { Blob } from "buffer";
 import crypto from "crypto";
 import jestFetchMock from "jest-fetch-mock";
-import "jest-location-mock";
 import { useMemo } from "react";
 import { TextEncoder, TextDecoder } from "util";
 import type { Region } from "api/typesGenerated";

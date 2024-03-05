@@ -1,7 +1,7 @@
-import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TableCell from "@mui/material/TableCell";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TemplateVersion } from "api/typesGenerated";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";

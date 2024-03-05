@@ -1,6 +1,6 @@
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import Button from "@mui/material/Button";
 import {

@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";

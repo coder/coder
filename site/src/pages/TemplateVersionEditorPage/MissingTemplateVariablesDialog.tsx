@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -11,7 +11,7 @@ import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
-import { type DialogProps } from "components/Dialogs/Dialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
 import { VariableInput } from "pages/CreateTemplatePage/VariableInput";

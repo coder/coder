@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";

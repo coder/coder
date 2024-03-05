@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";

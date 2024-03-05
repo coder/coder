@@ -1,7 +1,7 @@
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import Button from "@mui/material/Button";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

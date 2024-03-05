@@ -5,7 +5,7 @@ import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { workspaces } from "api/queries/workspaces";

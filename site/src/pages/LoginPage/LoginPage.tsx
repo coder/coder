@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "contexts/auth/useAuth";

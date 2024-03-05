@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
 import { FormFields, VerticalForm } from "components/Form/Form";

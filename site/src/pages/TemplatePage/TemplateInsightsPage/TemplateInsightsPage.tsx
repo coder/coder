@@ -57,7 +57,7 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
-import { IntervalMenu, type InsightsInterval } from "./IntervalMenu";
+import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 

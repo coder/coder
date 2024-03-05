@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
@@ -33,8 +33,10 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "utils/groups";
-import type { UserOrGroupAutocompleteValue } from "./UserOrGroupAutocomplete";
-import { UserOrGroupAutocomplete } from "./UserOrGroupAutocomplete";
+import {
+  UserOrGroupAutocomplete,
+  type UserOrGroupAutocompleteValue,
+} from "./UserOrGroupAutocomplete";
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string;

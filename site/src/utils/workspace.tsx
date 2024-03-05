@@ -1,4 +1,4 @@
-import { type Theme } from "@emotion/react";
+import type { Theme } from "@emotion/react";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined";

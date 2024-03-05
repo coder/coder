@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button";
 import { isAxiosError } from "axios";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { ApiErrorResponse } from "api/errors";

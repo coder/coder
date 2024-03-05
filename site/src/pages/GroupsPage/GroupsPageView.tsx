@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import AvatarGroup from "@mui/material/AvatarGroup";
@@ -10,7 +10,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Group } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";

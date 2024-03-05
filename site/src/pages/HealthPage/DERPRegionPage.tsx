@@ -3,7 +3,7 @@ import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import type {

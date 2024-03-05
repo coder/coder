@@ -1,9 +1,9 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import {
   WorkspaceAppSharingLevels,

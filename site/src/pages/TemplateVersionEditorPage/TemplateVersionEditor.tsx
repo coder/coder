@@ -1,11 +1,3 @@
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import CreateIcon from "@mui/icons-material/AddOutlined";
-import {
-  Link as RouterLink,
-  unstable_usePrompt as usePrompt,
-} from "react-router-dom";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
@@ -18,7 +10,10 @@ import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import {
+  Link as RouterLink,
+  unstable_usePrompt as usePrompt,
+} from "react-router-dom";
 import type {
   ProvisionerJobLog,
   Template,
@@ -44,10 +39,10 @@ import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import type { FileTree } from "utils/filetree";
 import {
   createFile,
   existsFile,
+  type FileTree,
   getFileText,
   isFolder,
   moveFile,

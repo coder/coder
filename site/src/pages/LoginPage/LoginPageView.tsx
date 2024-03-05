@@ -1,5 +1,5 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { FC } from "react";
 import { useLocation } from "react-router-dom";
 import type { AuthMethods } from "api/typesGenerated";
 import { CoderIcon } from "components/Icons/CoderIcon";

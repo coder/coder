@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import PlusIcon from "@mui/icons-material/AddOutlined";
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

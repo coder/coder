@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -8,7 +8,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

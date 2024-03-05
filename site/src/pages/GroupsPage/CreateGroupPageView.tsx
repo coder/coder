@@ -1,6 +1,6 @@
 import TextField from "@mui/material/TextField";
 import { type FormikTouched, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";

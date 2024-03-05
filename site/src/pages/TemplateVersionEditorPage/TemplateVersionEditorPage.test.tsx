@@ -20,10 +20,9 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { rest } from "msw";
-import { AppProviders } from "App";
-import { TemplateVersion } from "api/typesGenerated";
-import { MonacoEditorProps } from "./MonacoEditor";
+import type { MonacoEditorProps } from "./MonacoEditor";
+import { Language } from "./PublishTemplateVersionDialog";
+import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
