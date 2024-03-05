@@ -1239,7 +1239,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		}
 	}()
 
-	// All in memory provisioners will be apart of the default org for now.
+	// All in memory provisioners will be part of the default org for now.
 	//nolint:gocritic // in-memory provisioners are owned by system
 	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
 	if err != nil {

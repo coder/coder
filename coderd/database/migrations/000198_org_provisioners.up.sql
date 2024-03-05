@@ -8,7 +8,7 @@ UPDATE
 	provisioner_daemons
 SET
 	-- Default to the first org
-	organization_id = (SELECT id FROM organizations ORDER BY organizations.created_at ASC LIMIT 1 );
+	organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1 );
 
 ALTER TABLE provisioner_daemons
 	ALTER COLUMN organization_id SET NOT NULL;
