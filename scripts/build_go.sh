@@ -38,6 +38,7 @@ sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
+devel=${CODER_BUILD_DEVEL:-0}
 
 args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto -- "$@")"
 eval set -- "$args"
@@ -76,6 +77,10 @@ while true; do
 		boringcrypto=1
 		shift
 		;;
+  --devel)
+  	devel=1
+  	shift
+  	;;
 	--)
 		shift
 		break
@@ -102,10 +107,13 @@ if [[ "$sign_darwin" == 1 ]]; then
 fi
 
 ldflags=(
-	-s
-	-w
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
+
+# Outside of development we always want to strip debug information
+if [[ "$devel" == 0 ]]; then
+	ldflags+=(-s -w)
+fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.

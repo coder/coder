@@ -10,6 +10,8 @@ source "${SCRIPT_DIR}/lib.sh"
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
+CODER_BUILD_DEVEL=1
+debug="${debug:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
 	BINARY_TYPE=coder
@@ -55,4 +57,11 @@ coder)
 	;;
 esac
 
-exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"
+runcmd="${CODER_DEV_BIN}"
+if [[ "${debug}" == 1 ]]; then
+	set -x
+	runcmd="dlv debug ./cmd/coder --"
+fi
+
+# shellcheck disable=SC2086 # This is probably one of the few times you actually want this.
+exec $runcmd --global-config "${CODER_DEV_DIR}" "$@"
