@@ -1,7 +1,7 @@
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FileUpload } from "components/FileUpload/FileUpload";

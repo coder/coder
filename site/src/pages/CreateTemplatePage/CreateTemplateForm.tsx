@@ -2,7 +2,7 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
@@ -26,9 +26,9 @@ import {
   onChangeTrimmed,
   templateDisplayNameValidator,
 } from "utils/formUtils";
-import {
-  type TemplateAutostartRequirementDaysValue,
-  type TemplateAutostopRequirementDaysValue,
+import type {
+  TemplateAutostartRequirementDaysValue,
+  TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";

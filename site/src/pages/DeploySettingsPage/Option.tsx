@@ -1,6 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import { type FC, type HTMLAttributes, type PropsWithChildren } from "react";
+import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 

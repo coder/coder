@@ -1,4 +1,4 @@
-import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import TableCell from "@mui/material/TableCell";
 import { type FC, useState } from "react";
@@ -9,7 +9,7 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { type ThemeRole } from "theme/roles";
+import type { ThemeRole } from "theme/roles";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";

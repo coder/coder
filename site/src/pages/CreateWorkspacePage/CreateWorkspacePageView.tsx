@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";

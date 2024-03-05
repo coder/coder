@@ -1,5 +1,5 @@
 import capitalize from "lodash/capitalize";
-import { type FC } from "react";
+import type { FC } from "react";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import {
   Filter,
@@ -14,7 +14,7 @@ import {
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
 import type { BaseOption } from "components/Filter/options";
-import { UserMenu, type UserFilterMenu } from "components/Filter/UserFilter";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [

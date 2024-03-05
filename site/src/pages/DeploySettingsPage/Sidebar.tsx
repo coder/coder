@@ -7,8 +7,7 @@ import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
 import Globe from "@mui/icons-material/PublicOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-// import Token from "@mui/icons-material/Token";
-import { type FC } from "react";
+import type { FC } from "react";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
   Sidebar as BaseSidebar,

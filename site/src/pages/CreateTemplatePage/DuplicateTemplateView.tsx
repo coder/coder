@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {

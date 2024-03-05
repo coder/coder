@@ -1,5 +1,5 @@
 import { waitFor } from "@testing-library/react";
-import { type Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import * as M from "testHelpers/entities";
 import { renderHookWithAuth } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";

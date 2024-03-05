@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
 import { paginatedAudits } from "api/queries/audits";

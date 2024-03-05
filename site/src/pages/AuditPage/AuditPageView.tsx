@@ -3,7 +3,7 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
