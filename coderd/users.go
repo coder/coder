@@ -181,18 +181,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // ensure everyone group
-	_, err = api.Database.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), defaultOrg.ID)
-	// A unique constraint violation just means the group already exists.
-	// This should not happen, but is ok if it does.
-	if err != nil && !database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error creating all users group.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
