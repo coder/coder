@@ -23,7 +23,7 @@ type MetaOptions = {
   params?: Record<string, string>;
 };
 
-export const generateMeta = ({ element, path, params }: MetaOptions): Meta => {
+export const generateMeta = ({ element, path, params }: MetaOptions) => {
   return {
     component: HealthLayout,
     parameters: {
@@ -43,5 +43,5 @@ export const generateMeta = ({ element, path, params }: MetaOptions): Meta => {
       ],
       decorators: [withDashboardProvider],
     },
-  };
+  } satisfies Meta;
 };
