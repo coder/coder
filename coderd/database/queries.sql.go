@@ -3773,7 +3773,8 @@ VALUES (
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
-	api_version = $8
+	api_version = $8,
+	organization_id = $7
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb

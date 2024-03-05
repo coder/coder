@@ -42,7 +42,8 @@ VALUES (
 	tags = @tags,
 	last_seen_at = @last_seen_at,
 	"version" = @version,
-	api_version = @api_version
+	api_version = @api_version,
+	organization_id = @organization_id
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ @tags :: jsonb
