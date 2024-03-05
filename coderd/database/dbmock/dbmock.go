@@ -542,6 +542,20 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortShare(arg0, arg1 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortShare), arg0, arg1)
 }
 
+// DeleteWorkspaceAgentPortSharesByTemplate mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentPortSharesByTemplate(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentPortSharesByTemplate", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceAgentPortSharesByTemplate indicates an expected call of DeleteWorkspaceAgentPortSharesByTemplate.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortSharesByTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortSharesByTemplate", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortSharesByTemplate), arg0, arg1)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -3586,6 +3600,20 @@ func (m *MockStore) Ping(arg0 context.Context) (time.Duration, error) {
 func (mr *MockStoreMockRecorder) Ping(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStore)(nil).Ping), arg0)
+}
+
+// ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
+func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate indicates an expected call of ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate.
+func (mr *MockStoreMockRecorder) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", reflect.TypeOf((*MockStore)(nil).ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate), arg0, arg1)
 }
 
 // RegisterWorkspaceProxy mocks base method.

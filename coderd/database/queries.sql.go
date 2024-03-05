@@ -8483,6 +8483,15 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg Dele
 	return err
 }
 
+const deleteWorkspaceAgentPortSharesByTemplate = `-- name: DeleteWorkspaceAgentPortSharesByTemplate :exec
+DELETE FROM workspace_agent_port_share WHERE workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
+`
+
+func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentPortSharesByTemplate, templateID)
+	return err
+}
+
 const getWorkspaceAgentPortShare = `-- name: GetWorkspaceAgentPortShare :one
 SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
 `
@@ -8535,6 +8544,15 @@ func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspace
 		return nil, err
 	}
 	return items, nil
+}
+
+const reduceWorkspaceAgentShareLevelToAuthenticatedByTemplate = `-- name: ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate :exec
+UPDATE workspace_agent_port_share SET share_level = 'authenticated' WHERE share_level = 'public' AND workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
+`
+
+func (q *sqlQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, reduceWorkspaceAgentShareLevelToAuthenticatedByTemplate, templateID)
+	return err
 }
 
 const upsertWorkspaceAgentPortShare = `-- name: UpsertWorkspaceAgentPortShare :one
