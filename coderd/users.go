@@ -1040,7 +1040,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := codersdk.UserRoles{
-		Roles:             make([]string, 0),
+		Roles:             user.RBACRoles,
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
