@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import { type FC } from "react";
+import type { FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { generateRandomString } from "utils/random";

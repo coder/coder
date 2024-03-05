@@ -1,5 +1,5 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";

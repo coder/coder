@@ -1,5 +1,5 @@
-import { type FC, type HTMLAttributes } from "react";
-import { type PaginationResultInfo } from "hooks/usePaginatedQuery";
+import type { FC, HTMLAttributes } from "react";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { PaginationHeader } from "./PaginationHeader";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
 

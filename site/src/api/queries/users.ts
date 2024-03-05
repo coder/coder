@@ -1,8 +1,8 @@
-import {
-  type UseMutationOptions,
-  type QueryClient,
-  type QueryKey,
-  type UseQueryOptions,
+import type {
+  QueryClient,
+  QueryKey,
+  UseMutationOptions,
+  UseQueryOptions,
 } from "react-query";
 import * as API from "api/api";
 import type {
@@ -15,7 +15,7 @@ import type {
   User,
   GenerateAPIKeyResponse,
 } from "api/typesGenerated";
-import { type UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
 import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";

@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
   HelpTooltip,

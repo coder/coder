@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useAuth } from "contexts/auth/useAuth";
 import { useMe } from "contexts/auth/useMe";
 import { usePermissions } from "contexts/auth/usePermissions";

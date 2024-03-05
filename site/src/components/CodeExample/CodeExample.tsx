@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
 import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";

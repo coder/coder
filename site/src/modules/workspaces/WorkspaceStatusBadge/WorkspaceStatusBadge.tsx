@@ -6,7 +6,7 @@ import Tooltip, {
   tooltipClasses,
 } from "@mui/material/Tooltip";
 import { formatDistanceToNow } from "date-fns";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";

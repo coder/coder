@@ -3,7 +3,7 @@ import InfoIcon from "@mui/icons-material/InfoOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateVersion } from "api/queries/templates";
 import {

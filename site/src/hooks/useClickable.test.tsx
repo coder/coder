@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  type ElementType,
-  type FC,
-  type MouseEventHandler,
-  type PropsWithChildren,
+import type {
+  ElementType,
+  FC,
+  MouseEventHandler,
+  PropsWithChildren,
 } from "react";
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 

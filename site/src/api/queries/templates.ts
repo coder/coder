@@ -6,8 +6,8 @@ import type {
   ProvisionerJob,
   ProvisionerJobStatus,
   UsersRequest,
-  TemplateRole,
   Template,
+  TemplateRole,
   TemplateVersion,
 } from "api/typesGenerated";
 import { delay } from "utils/delay";

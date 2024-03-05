@@ -1,4 +1,4 @@
-import { type CSSObject } from "@emotion/css";
+import type { CSSObject } from "@emotion/css";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";

@@ -15,7 +15,7 @@ import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import * as Yup from "yup";
 import { getAgentListeningPorts } from "api/api";

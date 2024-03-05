@@ -1,5 +1,4 @@
-import type { Page } from "@playwright/test";
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import axios from "axios";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";

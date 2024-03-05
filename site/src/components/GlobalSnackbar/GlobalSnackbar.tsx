@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, useState } from "react";
 import { useCustomEvent } from "hooks/events";
 import { ErrorIcon } from "../Icons/ErrorIcon";

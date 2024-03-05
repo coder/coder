@@ -1,3 +1,4 @@
+import "testHelpers/localStorage";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
@@ -8,7 +9,6 @@ import {
   MockHealthyWildWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
 } from "testHelpers/entities";
-import "testHelpers/localStorage";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,

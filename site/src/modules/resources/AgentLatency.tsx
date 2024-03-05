@@ -1,5 +1,5 @@
 import { type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { WorkspaceAgent, DERPRegion } from "api/typesGenerated";
 import {
   HelpTooltipText,

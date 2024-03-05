@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 
 export type UserAvatarProps = {

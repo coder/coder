@@ -14,8 +14,8 @@
  * problems are fixed.
  */
 import { type CSSObject, useTheme } from "@emotion/react";
-import { type TableRowProps } from "@mui/material/TableRow";
-import { type MouseEventHandler } from "react";
+import type { TableRowProps } from "@mui/material/TableRow";
+import type { MouseEventHandler } from "react";
 import {
   type ClickableAriaRole,
   type UseClickableResult,

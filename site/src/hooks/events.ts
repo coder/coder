@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { type CustomEventListener } from "utils/events";
+import type { CustomEventListener } from "utils/events";
 import { useEffectEvent } from "./hookPolyfills";
 
 /**

@@ -1,3 +1,4 @@
+import "chartjs-adapter-date-fns";
 import { useTheme } from "@emotion/react";
 import {
   CategoryScale,
@@ -13,10 +14,9 @@ import {
   Tooltip,
   PointElement,
 } from "chart.js";
-import "chartjs-adapter-date-fns";
 import annotationPlugin from "chartjs-plugin-annotation";
 import dayjs from "dayjs";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Line } from "react-chartjs-2";
 import {
   HelpTooltip,

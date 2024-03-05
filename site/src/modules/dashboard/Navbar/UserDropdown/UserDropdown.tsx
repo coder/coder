@@ -1,6 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {

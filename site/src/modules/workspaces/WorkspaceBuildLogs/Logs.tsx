@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import AnsiToHTML from "ansi-to-html";
 import dayjs from "dayjs";
 import { type FC, type ReactNode, useMemo } from "react";

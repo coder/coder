@@ -1,7 +1,7 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import Button from "@mui/material/Button";
-import { type FC } from "react";
+import type { FC } from "react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
   HelpTooltipLink,
