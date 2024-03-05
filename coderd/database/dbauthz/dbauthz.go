@@ -232,7 +232,7 @@ var (
 					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate, rbac.ActionDelete},
 					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
-					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
+					rbac.ResourceOrganization.Type:       {rbac.ActionCreate, rbac.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
 					rbac.ResourceProvisionerDaemon.Type:  {rbac.ActionCreate, rbac.ActionUpdate},
