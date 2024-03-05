@@ -172,15 +172,36 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed to create first user
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching default organization. If you are encountering this error, you will have to restart the Coder deployment.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	//nolint:gocritic // ensure everyone group
+	_, err = api.Database.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), defaultOrg.ID)
+	// A unique constraint violation just means the group already exists.
+	// This should not happen, but is ok if it does.
+	if err != nil && !database.IsUniqueViolation(err) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating all users group.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Email:    createUser.Email,
-			Username: createUser.Username,
-			Password: createUser.Password,
-			// Create an org for the first user.
-			OrganizationID: uuid.Nil,
+			Email:          createUser.Email,
+			Username:       createUser.Username,
+			Password:       createUser.Password,
+			OrganizationID: defaultOrg.ID,
 		},
-		CreateOrganization: true,
+		CreateOrganization: false,
 		LoginType:          database.LoginTypePassword,
 	})
 	if err != nil {
@@ -1033,10 +1054,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		// If we can read the org member, include the roles.
-		if err == nil {
-			resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
-		}
+		resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -1247,9 +1265,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// TODO: When organizations are allowed to be created, we should
 			// come back to determining the default role of the person who
 			// creates the org. Until that happens, all users in an organization
-			// should be just regular members.
-			orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
-
+			// should be just regular members. Membership role is implied, and
+			// not required to be explicit.
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
 				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)

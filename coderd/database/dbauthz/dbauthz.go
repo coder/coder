@@ -232,7 +232,7 @@ var (
 					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate, rbac.ActionDelete},
 					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
-					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
+					rbac.ResourceOrganization.Type:       {rbac.ActionCreate, rbac.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
 					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
 					rbac.ResourceProvisionerDaemon.Type:  {rbac.ActionCreate, rbac.ActionUpdate},
@@ -913,6 +913,19 @@ func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg databas
 	}
 
 	return q.db.DeleteWorkspaceAgentPortShare(ctx, arg)
+}
+
+func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	template, err := q.db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+		return err
+	}
+
+	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
@@ -2612,6 +2625,19 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
+}
+
+func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
+	template, err := q.db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+		return err
+	}
+
+	return q.db.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
 }
 
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
