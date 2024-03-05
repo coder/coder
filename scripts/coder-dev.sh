@@ -59,7 +59,7 @@ esac
 runcmd="${CODER_DEV_BIN}"
 if [[ "${debug}" == 1 ]]; then
 	set -x
-	runcmd="dlv debug ./cmd/coder --"
+	runcmd="dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --"
 fi
 
 # shellcheck disable=SC2086 # This is probably one of the few times you actually want this.
