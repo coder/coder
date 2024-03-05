@@ -312,7 +312,7 @@ func (*FakeCoordinator) ServeMultiAgent(uuid.UUID) tailnet.MultiAgentConn {
 	panic("unimplemented")
 }
 
-func (f *FakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+func (f *FakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
 	f.CoordinateCalls <- &FakeCoordinate{
@@ -337,7 +337,7 @@ type FakeCoordinate struct {
 	Ctx   context.Context
 	ID    uuid.UUID
 	Name  string
-	Auth  tailnet.TunnelAuth
+	Auth  tailnet.CoordinateeAuth
 	Reqs  chan *proto.CoordinateRequest
 	Resps chan *proto.CoordinateResponse
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -23,9 +24,9 @@ func TestConvertResources(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 	type testCase struct {
-		resources        []*proto.Resource
-		parameters       []*proto.RichParameter
-		gitAuthProviders []string
+		resources             []*proto.Resource
+		parameters            []*proto.RichParameter
+		externalAuthProviders []*proto.ExternalAuthProviderResource
 	}
 
 	// If a user doesn't specify 'display_apps' then they default
@@ -486,7 +487,22 @@ func TestConvertResources(t *testing.T) {
 					DisplayApps:              &displayApps,
 				}},
 			}},
-			gitAuthProviders: []string{"github", "gitlab"},
+			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab"}},
+		},
+		"external-auth-providers": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "main",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+			externalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github"}, {Id: "gitlab", Optional: true}},
 		},
 		"display-apps": {
 			resources: []*proto.Resource{{
@@ -547,7 +563,7 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sort.Strings(state.ExternalAuthProviders)
+				sortExternalAuthProviders(state.ExternalAuthProviders)
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
 				for _, resource := range expected.resources {
@@ -585,7 +601,7 @@ func TestConvertResources(t *testing.T) {
 				require.Equal(t, string(parametersWant), string(parametersGot))
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
-				require.ElementsMatch(t, expected.gitAuthProviders, state.ExternalAuthProviders)
+				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -601,7 +617,7 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sort.Strings(state.ExternalAuthProviders)
+				sortExternalAuthProviders(state.ExternalAuthProviders)
 				for _, resource := range state.Resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
@@ -628,7 +644,7 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 
 				require.Equal(t, expectedMap, resourcesMap)
-				require.ElementsMatch(t, expected.gitAuthProviders, state.ExternalAuthProviders)
+				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
 		})
 	}
@@ -900,4 +916,10 @@ func sortResources(resources []*proto.Resource) {
 			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
 	}
+}
+
+func sortExternalAuthProviders(providers []*proto.ExternalAuthProviderResource) {
+	sort.Slice(providers, func(i, j int) bool {
+		return strings.Compare(providers[i].Id, providers[j].Id) == -1
+	})
 }

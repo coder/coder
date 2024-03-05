@@ -41,6 +41,7 @@ type TemplateVersionExternalAuth struct {
 	DisplayIcon     string `json:"display_icon"`
 	AuthenticateURL string `json:"authenticate_url"`
 	Authenticated   bool   `json:"authenticated"`
+	Optional        bool   `json:"optional,omitempty"`
 }
 
 type ValidationMonotonicOrder string

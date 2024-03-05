@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -286,6 +285,12 @@ func TestAgent_SessionExec(t *testing.T) {
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
+	tmpdir := t.TempDir()
+
+	// Defined by the coder script runner, hardcoded here since we don't
+	// have a reference to it.
+	scriptBinDir := filepath.Join(tmpdir, "coder-script-data", "bin")
+
 	manifest := agentsdk.Manifest{
 		EnvironmentVariables: map[string]string{
 			"MY_MANIFEST":         "true",
@@ -295,6 +300,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	}
 	banner := codersdk.ServiceBannerConfig{}
 	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
 
@@ -341,6 +347,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
 		"MY_SESSION_MANIFEST": "false", // From the manifest, overrides session env.
 		"MY_SESSION":          "true",  // From the session.
+		"PATH":                scriptBinDir + string(filepath.ListSeparator),
 	} {
 		t.Run(k, func(t *testing.T) {
 			echoEnv(t, stdin, k)
@@ -830,7 +837,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	var ll net.Listener
 	var err error
 	for {
-		randomPort = pickRandomPort()
+		randomPort = testutil.RandomPortNoListen(t)
 		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
 		ll, err = sshClient.ListenTCP(addr)
 		if err != nil {
@@ -2054,6 +2061,80 @@ func TestAgent_DebugServer(t *testing.T) {
 	})
 }
 
+func TestAgent_ScriptLogging(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bash scripts only")
+	}
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	logsCh := make(chan *proto.BatchCreateLogsRequest, 100)
+	lsStart := uuid.UUID{0x11}
+	lsStop := uuid.UUID{0x22}
+	//nolint:dogsled
+	_, _, _, _, agnt := setupAgent(
+		t,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{
+				{
+					LogSourceID: lsStart,
+					RunOnStart:  true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 5 ]
+do
+        i=$(($i+1))
+        echo "start $i"
+done
+`,
+				},
+				{
+					LogSourceID: lsStop,
+					RunOnStop:   true,
+					Script: `#!/bin/sh
+i=0
+while [ $i -ne 3000 ]
+do
+        i=$(($i+1))
+        echo "stop $i"
+done
+`, // send a lot of stop logs to make sure we don't truncate shutdown logs before closing the API conn
+				},
+			},
+		},
+		0,
+		func(cl *agenttest.Client, _ *agent.Options) {
+			cl.SetLogsChannel(logsCh)
+		},
+	)
+
+	n := 1
+	for n <= 5 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("start %d", n), l.GetOutput())
+			n++
+		}
+	}
+
+	err := agnt.Close()
+	require.NoError(t, err)
+
+	n = 1
+	for n <= 3000 {
+		logs := testutil.RequireRecvCtx(ctx, t, logsCh)
+		require.NotNil(t, logs)
+		for _, l := range logs.GetLogs() {
+			require.Equal(t, fmt.Sprintf("stop %d", n), l.GetOutput())
+			n++
+		}
+		t.Logf("got %d stop logs", n-1)
+	}
+}
+
 // setupAgentSSHClient creates an agent, dials it, and sets up an ssh.Client for it
 func setupAgentSSHClient(ctx context.Context, t *testing.T) *ssh.Client {
 	//nolint: dogsled
@@ -2129,7 +2210,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{
@@ -2144,9 +2225,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		opt(c, &options)
 	}
 
-	closer := agent.New(options)
+	agnt := agent.New(options)
 	t.Cleanup(func() {
-		_ = closer.Close()
+		_ = agnt.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -2183,7 +2264,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
 	}
-	return agentConn, c, statsCh, fs, closer
+	return agentConn, c, statsCh, fs, agnt
 }
 
 var dialTestPayload = []byte("dean-was-here123")
@@ -2582,20 +2663,6 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.Write(p)
-}
-
-// pickRandomPort picks a random port number for the ephemeral range. We do this entirely randomly
-// instead of opening a listener and closing it to find a port that is likely to be free, since
-// sometimes the OS reallocates the port very quickly.
-func pickRandomPort() uint16 {
-	const (
-		// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-		min = 49152
-		max = 60999
-	)
-	n := max - min
-	x := rand.Intn(n) //nolint: gosec
-	return uint16(min + x)
 }
 
 // echoOnce accepts a single connection, reads 4 bytes and echos them back

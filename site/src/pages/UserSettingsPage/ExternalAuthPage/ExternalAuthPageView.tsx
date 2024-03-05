@@ -5,6 +5,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import LoadingButton from "@mui/lab/LoadingButton";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 import { type FC, useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "api/queries/externalAuth";
@@ -25,8 +27,7 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import LoadingButton from "@mui/lab/LoadingButton";
-import visuallyHidden from "@mui/utils/visuallyHidden";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -71,13 +72,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
           </TableHead>
           <TableBody>
             {((auths.providers === null || auths.providers?.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <div css={{ textAlign: "center" }}>
-                    No providers have been configured!
-                  </div>
-                </TableCell>
-              </TableRow>
+              <TableEmpty message="No providers have been configured" />
             )) ||
               auths.providers?.map((app: ExternalAuthLinkProvider) => {
                 return (

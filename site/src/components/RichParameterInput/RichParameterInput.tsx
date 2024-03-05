@@ -3,14 +3,16 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
+import Button from "@mui/material/Button";
+import FormHelperText from "@mui/material/FormHelperText";
 import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { MultiTextField } from "./MultiTextField";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { AutofillSource } from "utils/richParameters";
+import { AutofillBuildParameter, AutofillSource } from "utils/richParameters";
 import { Pill } from "components/Pill/Pill";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
@@ -103,6 +105,15 @@ const styles = {
       width: 16,
     },
   },
+  suggestion: (theme) => ({
+    color: theme.roles.info.fill.solid,
+    marginLeft: "-4px",
+    padding: "4px 6px",
+    lineHeight: "inherit",
+    fontSize: "inherit",
+    height: "unset",
+    minWidth: "unset",
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface ParameterLabelProps {
@@ -169,17 +180,26 @@ export type RichParameterInputProps = Omit<
   "size" | "onChange"
 > & {
   parameter: TemplateVersionParameter;
-  autofillSource?: AutofillSource;
+  parameterAutofill?: AutofillBuildParameter;
   onChange: (value: string) => void;
   size?: Size;
 };
 
+const autofillDescription: Partial<Record<AutofillSource, ReactNode>> = {
+  url: " from the URL.",
+};
+
 export const RichParameterInput: FC<RichParameterInputProps> = ({
-  parameter,
   size = "medium",
-  autofillSource,
+  parameter,
+  parameterAutofill,
+  onChange,
   ...fieldProps
 }) => {
+  const autofillSource = parameterAutofill?.source;
+  const autofillValue = parameterAutofill?.value;
+  const [hideSuggestion, setHideSuggestion] = useState(false);
+
   return (
     <Stack
       direction="column"
@@ -189,16 +209,33 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
     >
       <ParameterLabel parameter={parameter} />
       <div css={{ display: "flex", flexDirection: "column" }}>
-        <RichParameterField {...fieldProps} size={size} parameter={parameter} />
-        {autofillSource && autofillSource !== "active_build" && (
+        <RichParameterField
+          {...fieldProps}
+          onChange={onChange}
+          size={size}
+          parameter={parameter}
+        />
+        {!parameter.ephemeral &&
+          autofillSource === "user_history" &&
+          autofillValue &&
+          !hideSuggestion && (
+            <FormHelperText>
+              <Button
+                variant="text"
+                css={styles.suggestion}
+                onClick={() => {
+                  onChange(autofillValue);
+                  setHideSuggestion(true);
+                }}
+              >
+                {autofillValue}
+              </Button>{" "}
+              was recently used for this parameter.
+            </FormHelperText>
+          )}
+        {autofillSource && autofillDescription[autofillSource] && (
           <div css={{ marginTop: 4, fontSize: 12 }}>
-            🪄 Autofilled:{" "}
-            {
-              {
-                ["url"]: "value supplied by URL.",
-                ["user_history"]: "recently used value.",
-              }[autofillSource]
-            }
+            🪄 Autofilled {autofillDescription[autofillSource]}
           </div>
         )}
       </div>

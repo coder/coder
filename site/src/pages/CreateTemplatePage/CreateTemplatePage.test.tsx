@@ -19,7 +19,7 @@ const renderPage = async (searchParams: URLSearchParams) => {
     route: `/templates/new?${searchParams.toString()}`,
     path: "/templates/new",
     // We need this because after creation, the user will be redirected to here
-    extraRoutes: [{ path: "templates/:template", element: <></> }],
+    extraRoutes: [{ path: "templates/:template/files", element: <></> }],
   });
   // It is lazy loaded, so we have to wait for it to be rendered to not get an
   // act error
@@ -60,6 +60,12 @@ test("Create template from starter template", async () => {
   await userEvent.type(screen.getByLabelText(/Name/), "my-template");
   await userEvent.click(
     within(form).getByRole("button", { name: /create template/i }),
+  );
+
+  // Wait for the drawer error to be rendered
+  await screen.findByRole("heading", { name: /missing variables/i });
+  await userEvent.click(
+    screen.getByRole("button", { name: /fill variables/i }),
   );
 
   // Wait for the variables form to be rendered and fill it

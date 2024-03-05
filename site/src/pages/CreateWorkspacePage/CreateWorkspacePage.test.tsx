@@ -6,12 +6,14 @@ import {
   MockUser,
   MockWorkspace,
   MockWorkspaceQuota,
+  MockWorkspaceRequest,
   MockWorkspaceRichParametersRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionExternalAuthGithub,
   MockOrganization,
+  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -19,13 +21,10 @@ import {
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 import { Language } from "./CreateWorkspacePageView";
-import { server } from "testHelpers/server";
-import { rest } from "msw";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
 const validationNumberNotInRangeText = "Value must be between 1 and 3.";
-const validationPatternNotMatched = `${MockTemplateVersionParameter3.validation_error} (value does not match the pattern ^[a-z]{3}$)`;
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -152,9 +151,86 @@ describe("CreateWorkspacePage", () => {
     fireEvent.submit(thirdParameterField);
 
     const validationError = await screen.findByText(
-      validationPatternNotMatched,
+      MockTemplateVersionParameter3.validation_error as string,
     );
     expect(validationError).toBeInTheDocument();
+  });
+
+  it("rich parameter: number validation fails with custom error", async () => {
+    jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+      {
+        ...MockTemplateVersionParameter2,
+        validation_error: "These are values: {min}, {max}, and {value}.",
+        validation_monotonic: undefined, // only needs min-max rules
+      },
+    ]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+      { exact: false },
+    );
+    expect(secondParameterField).toBeDefined();
+    fireEvent.change(secondParameterField, {
+      target: { value: "4" },
+    });
+    fireEvent.submit(secondParameterField);
+
+    const validationError = await screen.findByText(
+      "These are values: 1, 3, and 4.",
+    );
+    expect(validationError).toBeInTheDocument();
+  });
+
+  it("external auth authenticates and succeeds", async () => {
+    jest
+      .spyOn(API, "getWorkspaceQuota")
+      .mockResolvedValueOnce(MockWorkspaceQuota);
+    jest
+      .spyOn(API, "getUsers")
+      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const nameField = await screen.findByLabelText(nameLabelText);
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    });
+
+    const githubButton = await screen.findByText("Login with GitHub");
+    await userEvent.click(githubButton);
+
+    jest
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
+
+    await screen.findByText(
+      "Authenticated with GitHub",
+      {},
+      { interval: 500, timeout: 5000 },
+    );
+
+    const submitButton = screen.getByText(createWorkspaceText);
+    await userEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(API.createWorkspace).toBeCalledWith(
+        MockUser.organization_ids[0],
+        MockUser.id,
+        expect.objectContaining({
+          ...MockWorkspaceRequest,
+        }),
+      ),
+    );
   });
 
   it("auto create a workspace if uses mode=auto", async () => {
@@ -223,54 +299,12 @@ describe("CreateWorkspacePage", () => {
       route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
     });
 
-    const warningMessage = await screen.findByRole("alert");
+    const warningMessage = await screen.findByTestId("duplication-warning");
     const nameInput = await screen.findByRole("textbox", {
       name: "Workspace Name",
     });
 
     expect(warningMessage).toHaveTextContent(Language.duplicationWarning);
     expect(nameInput).toHaveValue(`${MockWorkspace.name}-copy`);
-  });
-
-  it("displays the form after connecting to all the external services", async () => {
-    jest.spyOn(window, "open").mockImplementation(() => null);
-    const user = userEvent.setup();
-    const notAuthenticatedExternalAuth = {
-      ...MockTemplateVersionExternalAuthGithub,
-      authenticated: false,
-    };
-    server.use(
-      rest.get(
-        "/api/v2/templateversions/:versionId/external-auth",
-        (req, res, ctx) => {
-          return res(ctx.json([notAuthenticatedExternalAuth]));
-        },
-      ),
-    );
-    renderCreateWorkspacePage();
-
-    await screen.findByText("External authentication");
-    expect(screen.queryByRole("form")).not.toBeInTheDocument();
-
-    const connectButton = screen.getByRole("button", {
-      name: /connect/i,
-    });
-    server.use(
-      rest.get(
-        "/api/v2/templateversions/:versionId/external-auth",
-        (req, res, ctx) => {
-          const authenticatedExternalAuth = {
-            ...MockTemplateVersionExternalAuthGithub,
-            authenticated: true,
-          };
-          return res(ctx.json([authenticatedExternalAuth]));
-        },
-      ),
-    );
-    await user.click(connectButton);
-    // TODO: Consider improving the timeout by simulating react-query polling.
-    // Current implementation could not achieve this, further research is
-    // needed.
-    await screen.findByRole("form", undefined, { timeout: 10_000 });
   });
 });

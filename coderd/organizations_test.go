@@ -12,6 +12,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestMultiOrgFetch(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	makeOrgs := []string{"foo", "bar", "baz"}
+	for _, name := range makeOrgs {
+		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: name,
+		})
+		require.NoError(t, err)
+	}
+
+	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NotNil(t, orgs)
+	require.Len(t, orgs, len(makeOrgs)+1)
+}
+
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
@@ -44,7 +66,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.OrganizationByName(ctx, codersdk.Me, "nothing")
+		_, err := client.OrganizationByUserAndName(ctx, codersdk.Me, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -63,7 +85,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 			Name: "another",
 		})
 		require.NoError(t, err)
-		_, err = other.OrganizationByName(ctx, codersdk.Me, org.Name)
+		_, err = other.OrganizationByUserAndName(ctx, codersdk.Me, org.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -79,7 +101,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 
 		org, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		_, err = client.OrganizationByName(ctx, codersdk.Me, org.Name)
+		_, err = client.OrganizationByUserAndName(ctx, codersdk.Me, org.Name)
 		require.NoError(t, err)
 	})
 }

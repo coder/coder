@@ -112,6 +112,31 @@ func ProtoFromMetadataDescription(d codersdk.WorkspaceAgentMetadataDescription) 
 	}
 }
 
+func ProtoFromMetadataResult(r codersdk.WorkspaceAgentMetadataResult) *proto.WorkspaceAgentMetadata_Result {
+	return &proto.WorkspaceAgentMetadata_Result{
+		CollectedAt: timestamppb.New(r.CollectedAt),
+		Age:         r.Age,
+		Value:       r.Value,
+		Error:       r.Error,
+	}
+}
+
+func MetadataResultFromProto(r *proto.WorkspaceAgentMetadata_Result) codersdk.WorkspaceAgentMetadataResult {
+	return codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: r.GetCollectedAt().AsTime(),
+		Age:         r.GetAge(),
+		Value:       r.GetValue(),
+		Error:       r.GetError(),
+	}
+}
+
+func MetadataFromProto(m *proto.Metadata) Metadata {
+	return Metadata{
+		Key:                          m.GetKey(),
+		WorkspaceAgentMetadataResult: MetadataResultFromProto(m.GetResult()),
+	}
+}
+
 func AgentScriptsFromProto(protoScripts []*proto.WorkspaceAgentScript) ([]codersdk.WorkspaceAgentScript, error) {
 	ret := make([]codersdk.WorkspaceAgentScript, len(protoScripts))
 	for i, protoScript := range protoScripts {
@@ -310,4 +335,23 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 		Output:    log.Output,
 		Level:     proto.Log_Level(lvl),
 	}, nil
+}
+
+func ProtoFromLifecycle(req PostLifecycleRequest) (*proto.Lifecycle, error) {
+	s, ok := proto.Lifecycle_State_value[strings.ToUpper(string(req.State))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown lifecycle state: %s", req.State)
+	}
+	return &proto.Lifecycle{
+		State:     proto.Lifecycle_State(s),
+		ChangedAt: timestamppb.New(req.ChangedAt),
+	}, nil
+}
+
+func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLifecycle, error) {
+	caps, ok := proto.Lifecycle_State_name[int32(s)]
+	if !ok {
+		return "", xerrors.Errorf("unknown lifecycle state: %d", s)
+	}
+	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
 }

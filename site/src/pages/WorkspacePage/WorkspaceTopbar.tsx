@@ -3,12 +3,15 @@ import Link from "@mui/material/Link";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
 import { useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { displayDormantDeletion } from "utils/dormant";
 import {
   Topbar,
   TopbarAvatar,
@@ -17,10 +20,6 @@ import {
   TopbarIcon,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { workspaceQuota } from "api/queries/workspaceQuota";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { displayDormantDeletion } from "utils/dormant";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -28,11 +27,8 @@ import { ExternalAvatar } from "components/Avatar/Avatar";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
-import {
-  WorkspaceScheduleControls,
-  shouldDisplayScheduleControls,
-} from "./WorkspaceScheduleControls";
 import { WorkspacePermissions } from "./permissions";
+import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -56,9 +52,9 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace;
   canUpdateWorkspace: boolean;
   canChangeVersions: boolean;
-  canRetryDebugMode: boolean;
-  handleBuildRetry: () => void;
-  handleBuildRetryDebug: () => void;
+  canDebugMode: boolean;
+  handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   isOwner: boolean;
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
@@ -82,9 +78,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   isRestarting,
   canUpdateWorkspace,
   canChangeVersions,
-  canRetryDebugMode,
-  handleBuildRetry,
-  handleBuildRetryDebug,
+  canDebugMode,
+  handleRetry,
+  handleDebug,
   isOwner,
   template,
   latestVersion,
@@ -200,6 +196,12 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </Popover>
         </TopbarData>
 
+        <WorkspaceScheduleControls
+          workspace={workspace}
+          template={template}
+          canUpdateSchedule={canUpdateWorkspace}
+        />
+
         {shouldDisplayDormantData && (
           <TopbarData>
             <TopbarIcon>
@@ -216,20 +218,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
                 {new Date(workspace.deleting_at!).toLocaleString()}
               </span>
             </Link>
-          </TopbarData>
-        )}
-
-        {shouldDisplayScheduleControls(workspace) && (
-          <TopbarData>
-            <TopbarIcon>
-              <Tooltip title="Schedule">
-                <ScheduleOutlined aria-label="Schedule" />
-              </Tooltip>
-            </TopbarIcon>
-            <WorkspaceScheduleControls
-              workspace={workspace}
-              canUpdateSchedule={canUpdateWorkspace}
-            />
           </TopbarData>
         )}
 
@@ -278,12 +266,12 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           handleUpdate={handleUpdate}
           handleCancel={handleCancel}
           handleSettings={handleSettings}
-          handleRetry={handleBuildRetry}
-          handleRetryDebug={handleBuildRetryDebug}
+          handleRetry={handleRetry}
+          handleDebug={handleDebug}
           handleChangeVersion={handleChangeVersion}
           handleDormantActivate={handleDormantActivate}
           handleToggleFavorite={handleToggleFavorite}
-          canRetryDebug={canRetryDebugMode}
+          canDebug={canDebugMode}
           canChangeVersions={canChangeVersions}
           isUpdating={isUpdating}
           isRestarting={isRestarting}

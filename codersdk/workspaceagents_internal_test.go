@@ -54,7 +54,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
 			Name: "client",
 			ID:   clientID,
-			Auth: tailnet.ClientTunnelAuth{AgentID: agentID},
+			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
 		})
 		assert.NoError(t, err)
 	}))

@@ -5,16 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"golang.org/x/exp/slices"
-
-	"tailscale.com/wgengine"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/wgengine"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -561,6 +559,94 @@ func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
 
 	// When: we set block endpoints
 	uut.setBlockEndpoints(true)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// at start of day, filling diagnostics will not have derp and sentNode is false
+	d := PeerDiagnostics{}
+	uut.fillPeerDiagnostics(&d)
+	require.Equal(t, 0, d.PreferredDERP)
+	require.False(t, d.SentNode)
+
+	dl := map[string]float64{"1": 0.025}
+	uut.setNetInfo(&tailcfg.NetInfo{
+		PreferredDERP: 1,
+		DERPLatency:   dl,
+	})
+
+	// after node callback, we should get the derp and SentNode is true.
+	// Use eventually since, there is a race between the callback completing
+	// and the test checking
+	require.Eventually(t, func() bool {
+		d := PeerDiagnostics{}
+		uut.fillPeerDiagnostics(&d)
+		// preferred DERP should be set right away, even if the callback is not
+		// complete.
+		if !assert.Equal(t, 1, d.PreferredDERP) {
+			return false
+		}
+		return d.SentNode
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestNodeUpdater_fillPeerDiagnostics_noCallback(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	uut := newNodeUpdater(
+		logger,
+		nil,
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// at start of day, filling diagnostics will not have derp and sentNode is false
+	d := PeerDiagnostics{}
+	uut.fillPeerDiagnostics(&d)
+	require.Equal(t, 0, d.PreferredDERP)
+	require.False(t, d.SentNode)
+
+	dl := map[string]float64{"1": 0.025}
+	uut.setNetInfo(&tailcfg.NetInfo{
+		PreferredDERP: 1,
+		DERPLatency:   dl,
+	})
+
+	// since there is no callback, SentNode should not be true, but we get
+	// the preferred DERP
+	uut.fillPeerDiagnostics(&d)
+	require.Equal(t, 1, d.PreferredDERP)
+	require.False(t, d.SentNode)
 
 	done := make(chan struct{})
 	go func() {

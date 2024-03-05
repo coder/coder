@@ -244,6 +244,56 @@ func WithIssuer(issuer string) func(*FakeIDP) {
 	}
 }
 
+type With429Arguments struct {
+	AllPaths      bool
+	TokenPath     bool
+	AuthorizePath bool
+	KeysPath      bool
+	UserInfoPath  bool
+	DeviceAuth    bool
+	DeviceVerify  bool
+}
+
+// With429 will emulate a 429 response for the selected paths.
+func With429(params With429Arguments) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.middlewares = append(f.middlewares, func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				if params.AllPaths {
+					http.Error(rw, "429, being manually blocked (all)", http.StatusTooManyRequests)
+					return
+				}
+				if params.TokenPath && strings.Contains(r.URL.Path, tokenPath) {
+					http.Error(rw, "429, being manually blocked (token)", http.StatusTooManyRequests)
+					return
+				}
+				if params.AuthorizePath && strings.Contains(r.URL.Path, authorizePath) {
+					http.Error(rw, "429, being manually blocked (authorize)", http.StatusTooManyRequests)
+					return
+				}
+				if params.KeysPath && strings.Contains(r.URL.Path, keysPath) {
+					http.Error(rw, "429, being manually blocked (keys)", http.StatusTooManyRequests)
+					return
+				}
+				if params.UserInfoPath && strings.Contains(r.URL.Path, userInfoPath) {
+					http.Error(rw, "429, being manually blocked (userinfo)", http.StatusTooManyRequests)
+					return
+				}
+				if params.DeviceAuth && strings.Contains(r.URL.Path, deviceAuth) {
+					http.Error(rw, "429, being manually blocked (device-auth)", http.StatusTooManyRequests)
+					return
+				}
+				if params.DeviceVerify && strings.Contains(r.URL.Path, deviceVerify) {
+					http.Error(rw, "429, being manually blocked (device-verify)", http.StatusTooManyRequests)
+					return
+				}
+
+				next.ServeHTTP(rw, r)
+			})
+		})
+	}
+}
+
 const (
 	// nolint:gosec // It thinks this is a secret lol
 	tokenPath     = "/oauth2/token"
@@ -534,37 +584,18 @@ func (*FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthI
 // unit tests, it's easier to skip this step sometimes. It does make an actual
 // request to the IDP, so it should be equivalent to doing this "manually" with
 // actual requests.
-func (f *FakeIDP) CreateAuthCode(t testing.TB, state string, opts ...func(r *http.Request)) string {
+func (f *FakeIDP) CreateAuthCode(t testing.TB, state string) string {
 	// We need to store some claims, because this is also an OIDC provider, and
 	// it expects some claims to be present.
 	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
 
-	u := f.cfg.AuthCodeURL(state)
-	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, u, nil)
-	require.NoError(t, err, "failed to create auth request")
-
-	for _, opt := range opts {
-		opt(r)
-	}
-
-	rw := httptest.NewRecorder()
-	f.handler.ServeHTTP(rw, r)
-	resp := rw.Result()
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "expected redirect")
-	to := resp.Header.Get("Location")
-	require.NotEmpty(t, to, "expected redirect location")
-
-	toURL, err := url.Parse(to)
-	require.NoError(t, err, "failed to parse redirect location")
-
-	code := toURL.Query().Get("code")
-	require.NotEmpty(t, code, "expected code in redirect location")
-
-	newState := toURL.Query().Get("state")
-	require.Equal(t, state, newState, "expected state to match")
-
+	code, err := OAuth2GetCode(f.cfg.AuthCodeURL(state), func(req *http.Request) (*http.Response, error) {
+		rw := httptest.NewRecorder()
+		f.handler.ServeHTTP(rw, req)
+		resp := rw.Result()
+		return resp, nil
+	})
+	require.NoError(t, err, "failed to get auth code")
 	return code
 }
 
@@ -1071,7 +1102,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		f.logger.Info(r.Context(), "http call device auth")
 
 		p := httpapi.NewQueryParamParser()
-		p.Required("client_id")
+		p.RequiredNotEmpty("client_id")
 		clientID := p.String(r.URL.Query(), "", "client_id")
 		_ = p.String(r.URL.Query(), "", "scopes")
 		if len(p.Errors) > 0 {

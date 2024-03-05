@@ -81,6 +81,11 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
+message ExternalAuthProviderResource {
+    string id = 1;
+    bool optional = 2;
+}
+
 message ExternalAuthProvider {
     string id = 1;
     string access_token = 2;
@@ -255,7 +260,7 @@ message PlanComplete {
     string error = 1;
     repeated Resource resources = 2;
     repeated RichParameter parameters = 3;
-    repeated string external_auth_providers = 4;
+    repeated ExternalAuthProviderResource external_auth_providers = 4;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -270,7 +275,7 @@ message ApplyComplete {
     string error = 2;
     repeated Resource resources = 3;
     repeated RichParameter parameters = 4;
-    repeated string external_auth_providers = 5;
+    repeated ExternalAuthProviderResource external_auth_providers = 5;
 }
 
 // CancelRequest requests that the previous request be canceled gracefully.

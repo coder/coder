@@ -1,4 +1,8 @@
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import {
+  MockTemplate,
+  MockWorkspace,
+  MockWorkspaceAgent,
+} from "testHelpers/entities";
 import { AgentRow, AgentRowProps } from "./AgentRow";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { screen } from "@testing-library/react";
@@ -80,6 +84,7 @@ describe.each<{
   const props: AgentRowProps = {
     agent: MockWorkspaceAgent,
     workspace: MockWorkspace,
+    template: MockTemplate,
     showApps: false,
     serverVersion: "",
     serverAPIVersion: "",

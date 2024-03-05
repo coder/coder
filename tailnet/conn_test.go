@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -410,6 +411,63 @@ parentLoop:
 	awaitReachableCtx4, awaitReachableCancel4 := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer awaitReachableCancel4()
 	require.True(t, client2.AwaitReachable(awaitReachableCtx4, ip))
+}
+
+func TestConn_BlockEndpoints(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	// Setup conn 1.
+	ip1 := tailnet.IP()
+	conn1, err := tailnet.NewConn(&tailnet.Options{
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip1, 128)},
+		Logger:         logger.Named("w1"),
+		DERPMap:        derpMap,
+		BlockEndpoints: true,
+	})
+	require.NoError(t, err)
+	defer func() {
+		err := conn1.Close()
+		assert.NoError(t, err)
+	}()
+
+	// Setup conn 2.
+	ip2 := tailnet.IP()
+	conn2, err := tailnet.NewConn(&tailnet.Options{
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip2, 128)},
+		Logger:         logger.Named("w2"),
+		DERPMap:        derpMap,
+		BlockEndpoints: true,
+	})
+	require.NoError(t, err)
+	defer func() {
+		err := conn2.Close()
+		assert.NoError(t, err)
+	}()
+
+	// Connect them together and wait for them to be reachable.
+	stitch(t, conn2, conn1)
+	stitch(t, conn1, conn2)
+	awaitReachableCtx, awaitReachableCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer awaitReachableCancel()
+	require.True(t, conn1.AwaitReachable(awaitReachableCtx, ip2))
+
+	// Wait 10s for endpoints to potentially be sent over Disco. There's no way
+	// to force Disco to send endpoints immediately.
+	time.Sleep(10 * time.Second)
+
+	// Double check that both peers don't have endpoints for the other peer
+	// according to magicsock.
+	conn1Status, ok := conn1.Status().Peer[conn2.Node().Key]
+	require.True(t, ok)
+	require.Empty(t, conn1Status.Addrs)
+	require.Empty(t, conn1Status.CurAddr)
+	conn2Status, ok := conn2.Status().Peer[conn1.Node().Key]
+	require.True(t, ok)
+	require.Empty(t, conn2Status.Addrs)
+	require.Empty(t, conn2Status.CurAddr)
 }
 
 // stitch sends node updates from src Conn as peer updates to dst Conn.  Sort of

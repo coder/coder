@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,8 @@ var (
 	clientSecret = flag.String("client-sec", "static-client-secret", "Client Secret, set empty to be random")
 	deviceFlow   = flag.Bool("device-flow", false, "Enable device flow")
 	// By default, no regex means it will never match anything. So at least default to matching something.
-	extRegex = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
+	extRegex        = flag.String("ext-regex", `^(https?://)?example\.com(/.*)?$`, "External auth regex")
+	tooManyRequests = flag.String("429", "", "Simulate too many requests for a given endpoint.")
 )
 
 func main() {
@@ -54,6 +56,31 @@ type withClientSecret struct {
 // RunIDP needs the testing.T because our oidctest package requires the
 // testing.T.
 func RunIDP() func(t *testing.T) {
+	tooManyRequestParams := oidctest.With429Arguments{}
+	if *tooManyRequests != "" {
+		for _, v := range strings.Split(*tooManyRequests, ",") {
+			v = strings.ToLower(strings.TrimSpace(v))
+			switch v {
+			case "all":
+				tooManyRequestParams.AllPaths = true
+			case "auth":
+				tooManyRequestParams.AuthorizePath = true
+			case "token":
+				tooManyRequestParams.TokenPath = true
+			case "keys":
+				tooManyRequestParams.KeysPath = true
+			case "userinfo":
+				tooManyRequestParams.UserInfoPath = true
+			case "device":
+				tooManyRequestParams.DeviceAuth = true
+			case "device-verify":
+				tooManyRequestParams.DeviceVerify = true
+			default:
+				log.Printf("Unknown too-many-requests value: %s\nView the `testidp/main.go` for valid values.", v)
+			}
+		}
+	}
+
 	return func(t *testing.T) {
 		idp := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
@@ -63,6 +90,7 @@ func RunIDP() func(t *testing.T) {
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
 			oidctest.WithIssuer("http://localhost:4500"),
 			oidctest.WithLogger(slog.Make(sloghuman.Sink(os.Stderr))),
+			oidctest.With429(tooManyRequestParams),
 		)
 		id, sec := idp.AppCredentials()
 		prov := idp.WellknownConfig()

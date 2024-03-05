@@ -191,6 +191,11 @@
           "path": "./templates/parameters.md"
         },
         {
+          "title": "Variables",
+          "description": "Prompt the template administrator for additional information about a template",
+          "path": "./templates/variables.md"
+        },
+        {
           "title": "Administering templates",
           "description": "Configuration settings for template admins",
           "path": "./templates/configuration.md",
@@ -1054,6 +1059,11 @@
           "title": "Template ImagePullSecrets",
           "description": "Creating ImagePullSecrets for private registries",
           "path": "./guides/image-pull-secret.md"
+        },
+        {
+          "title": "Postgres SSL",
+          "description": "Configure Coder to connect to Postgres over SSL",
+          "path": "./guides/postgres-ssl.md"
         },
         {
           "title": "Azure Federation",

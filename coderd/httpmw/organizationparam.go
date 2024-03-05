@@ -2,7 +2,11 @@ package httpmw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -40,20 +44,50 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			orgID, ok := ParseUUIDParam(rw, r, "organization")
-			if !ok {
+			arg := chi.URLParam(r, "organization")
+			if arg == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "\"organization\" must be provided.",
+				})
 				return
 			}
 
-			organization, err := db.GetOrganizationByID(ctx, orgID)
-			if httpapi.Is404Error(err) {
+			var organization database.Organization
+			var dbErr error
+
+			// If the name is exactly "default", then we fetch the default
+			// organization. This is a special case to make it easier
+			// for single org deployments.
+			//
+			// arg == uuid.Nil.String() should be a temporary workaround for
+			// legacy provisioners that don't provide an organization ID.
+			// This prevents a breaking change.
+			// TODO: This change was added March 2024. Nil uuid returning the
+			// 		default org should be removed some number of months after
+			//		that date.
+			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
+				organization, dbErr = db.GetDefaultOrganization(ctx)
+			} else {
+				// Try by name or uuid.
+				id, err := uuid.Parse(arg)
+				if err == nil {
+					organization, dbErr = db.GetOrganizationByID(ctx, id)
+				} else {
+					organization, dbErr = db.GetOrganizationByName(ctx, arg)
+				}
+			}
+			if httpapi.Is404Error(dbErr) {
 				httpapi.ResourceNotFound(rw)
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("Organization %q not found.", arg),
+					Detail:  "Provide either the organization id or name.",
+				})
 				return
 			}
-			if err != nil {
+			if dbErr != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching organization.",
-					Detail:  err.Error(),
+					Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
+					Detail:  dbErr.Error(),
 				})
 				return
 			}

@@ -8,26 +8,14 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
 	DatabaseDefaultThreshold = 15 * time.Millisecond
 )
 
-// @typescript-generate DatabaseReport
-type DatabaseReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool             `json:"healthy"`
-	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
-	Warnings  []health.Message `json:"warnings"`
-	Dismissed bool             `json:"dismissed"`
-
-	Reachable   bool    `json:"reachable"`
-	Latency     string  `json:"latency"`
-	LatencyMS   int64   `json:"latency_ms"`
-	ThresholdMS int64   `json:"threshold_ms"`
-	Error       *string `json:"error"`
-}
+type DatabaseReport codersdk.DatabaseReport
 
 type DatabaseReportOptions struct {
 	DB        database.Store

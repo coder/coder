@@ -1,46 +1,87 @@
 import { useEffect, useRef, useState } from "react";
+import { displayError } from "components/GlobalSnackbar/utils";
 
-type UseClipboardResult = Readonly<{
-  isCopied: boolean;
-  copyToClipboard: () => Promise<void>;
+const CLIPBOARD_TIMEOUT_MS = 1_000;
+const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+
+export type UseClipboardInput = Readonly<{
+  textToCopy: string;
+
+  /**
+   * Optional callback to call when an error happens. If not specified, the hook
+   * will dispatch an error message to the GlobalSnackbar
+   */
+  onError?: (errorMessage: string) => void;
 }>;
 
-export const useClipboard = (textToCopy: string): UseClipboardResult => {
-  const [isCopied, setIsCopied] = useState(false);
+export type UseClipboardResult = Readonly<{
+  copyToClipboard: () => Promise<void>;
+  error: Error | undefined;
+
+  /**
+   * Indicates whether the UI should show a successfully-copied status to the
+   * user. When flipped to true, this will eventually flip to false, with no
+   * action from the user.
+   *
+   * ---
+   *
+   * This is _not_ the same as an `isCopied` property, because the hook never
+   * actually checks the clipboard to determine any state, so it is possible for
+   * there to be misleading state combos like:
+   * - User accidentally copies new text before showCopiedSuccess naturally
+   *   flips to false
+   *
+   * Trying to make this property accurate enough that it could safely be called
+   * `isCopied` led to browser compatibility issues in Safari.
+   *
+   * @see {@link https://github.com/coder/coder/pull/11863}
+   */
+  showCopiedSuccess: boolean;
+}>;
+
+export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
+  const { textToCopy, onError: errorCallback } = input;
+  const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
+  const [error, setError] = useState<Error>();
   const timeoutIdRef = useRef<number | undefined>();
 
   useEffect(() => {
-    const clearIdsOnUnmount = () => window.clearTimeout(timeoutIdRef.current);
-    return clearIdsOnUnmount;
+    const clearIdOnUnmount = () => window.clearTimeout(timeoutIdRef.current);
+    return clearIdOnUnmount;
   }, []);
+
+  const handleSuccessfulCopy = () => {
+    setShowCopiedSuccess(true);
+    timeoutIdRef.current = window.setTimeout(() => {
+      setShowCopiedSuccess(false);
+    }, CLIPBOARD_TIMEOUT_MS);
+  };
 
   const copyToClipboard = async () => {
     try {
       await window.navigator.clipboard.writeText(textToCopy);
-      setIsCopied(true);
-      timeoutIdRef.current = window.setTimeout(() => {
-        setIsCopied(false);
-      }, 1000);
+      handleSuccessfulCopy();
     } catch (err) {
-      const isCopied = simulateClipboardWrite(textToCopy);
-      if (isCopied) {
-        setIsCopied(true);
-        timeoutIdRef.current = window.setTimeout(() => {
-          setIsCopied(false);
-        }, 1000);
-      } else {
-        const wrappedErr = new Error(
-          "copyToClipboard: failed to copy text to clipboard",
-        );
-        if (err instanceof Error) {
-          wrappedErr.stack = err.stack;
-        }
-        console.error(wrappedErr);
+      const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
+      if (fallbackCopySuccessful) {
+        handleSuccessfulCopy();
+        return;
       }
+
+      const wrappedErr = new Error(COPY_FAILED_MESSAGE);
+      if (err instanceof Error) {
+        wrappedErr.stack = err.stack;
+      }
+
+      console.error(wrappedErr);
+      setError(wrappedErr);
+
+      const notifyUser = errorCallback ?? displayError;
+      notifyUser(COPY_FAILED_MESSAGE);
     }
   };
 
-  return { isCopied, copyToClipboard };
+  return { showCopiedSuccess, error, copyToClipboard };
 };
 
 /**
@@ -56,6 +97,9 @@ export const useClipboard = (textToCopy: string): UseClipboardResult => {
 function simulateClipboardWrite(textToCopy: string): boolean {
   const previousFocusTarget = document.activeElement;
   const dummyInput = document.createElement("input");
+
+  // Have to add test ID to dummy element for mocking purposes in tests
+  dummyInput.setAttribute("data-testid", "dummy");
 
   // Using visually-hidden styling to ensure that inserting the element doesn't
   // cause any content reflows on the page (removes any risk of UI flickers).
@@ -86,11 +130,11 @@ function simulateClipboardWrite(textToCopy: string): boolean {
    *
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Clipboard}
    */
-  let isCopied: boolean;
+  let copySuccessful: boolean;
   try {
-    isCopied = document?.execCommand("copy") ?? false;
+    copySuccessful = document?.execCommand("copy") ?? false;
   } catch {
-    isCopied = false;
+    copySuccessful = false;
   }
 
   dummyInput.remove();
@@ -98,5 +142,5 @@ function simulateClipboardWrite(textToCopy: string): boolean {
     previousFocusTarget.focus();
   }
 
-  return isCopied;
+  return copySuccessful;
 }

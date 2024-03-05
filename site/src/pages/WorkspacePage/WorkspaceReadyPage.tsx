@@ -23,7 +23,7 @@ import {
   toggleFavorite,
   cancelBuild,
 } from "api/queries/workspaces";
-import { Alert } from "components/Alert/Alert";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import {
   ConfirmDialog,
@@ -153,12 +153,18 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   // Cancel build
   const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
-  const handleBuildRetry = (debug = false) => {
+  const runLastBuild = (
+    buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
+    debug: boolean,
+  ) => {
     const logLevel = debug ? "debug" : undefined;
 
     switch (workspace.latest_build.transition) {
       case "start":
-        startWorkspaceMutation.mutate({ logLevel });
+        startWorkspaceMutation.mutate({
+          logLevel,
+          buildParameters,
+        });
         break;
       case "stop":
         stopWorkspaceMutation.mutate({ logLevel });
@@ -167,6 +173,18 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         deleteWorkspaceMutation.mutate({ logLevel });
         break;
     }
+  };
+
+  const handleRetry = (
+    buildParameters?: TypesGen.WorkspaceBuildParameter[],
+  ) => {
+    runLastBuild(buildParameters, false);
+  };
+
+  const handleDebug = (
+    buildParameters?: TypesGen.WorkspaceBuildParameter[],
+  ) => {
+    runLastBuild(buildParameters, true);
   };
 
   return (
@@ -207,9 +225,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         }}
         handleCancel={cancelBuildMutation.mutate}
         handleSettings={() => navigate("settings")}
-        handleBuildRetry={() => handleBuildRetry(false)}
-        handleBuildRetryDebug={() => handleBuildRetry(true)}
-        canRetryDebugMode={
+        handleRetry={handleRetry}
+        handleDebug={handleDebug}
+        canDebugMode={
           deploymentValues?.config.enable_terraform_debug_mode ?? false
         }
         handleChangeVersion={() => {
@@ -324,7 +342,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
               <strong>delete non-persistent data</strong>.
             </p>
             {latestVersion?.message && (
-              <Alert severity="info">{latestVersion.message}</Alert>
+              <MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
+                {latestVersion.message}
+              </MemoizedInlineMarkdown>
             )}
           </Stack>
         }

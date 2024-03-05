@@ -40,6 +40,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
 		auth                string
 		logDir              string
+		scriptDataDir       string
 		pprofAddress        string
 		noReap              bool
 		sshMaxTimeout       time.Duration
@@ -148,7 +149,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
-			go DumpHandler(ctx)
+			go DumpHandler(ctx, "agent")
 
 			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
@@ -289,6 +290,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				Client:            client,
 				Logger:            logger,
 				LogDir:            logDir,
+				ScriptDataDir:     scriptDataDir,
 				TailnetListenPort: uint16(tailnetListenPort),
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
@@ -338,6 +340,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Description: "Specify the location for the agent log files.",
 			Env:         "CODER_AGENT_LOG_DIR",
 			Value:       clibase.StringOf(&logDir),
+		},
+		{
+			Flag:        "script-data-dir",
+			Default:     os.TempDir(),
+			Description: "Specify the location for storing script data.",
+			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
+			Value:       clibase.StringOf(&scriptDataDir),
 		},
 		{
 			Flag:        "pprof-address",

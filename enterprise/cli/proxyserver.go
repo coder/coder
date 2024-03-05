@@ -119,7 +119,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			defer topCancel()
 			closers.Add(topCancel)
 
-			go cli.DumpHandler(ctx)
+			go cli.DumpHandler(ctx, "workspace-proxy")
 
 			cli.PrintLogo(inv, "Coder Workspace Proxy")
 			logger, logCloser, err := clilog.New(clilog.FromDeploymentValues(cfg)).Build(inv)

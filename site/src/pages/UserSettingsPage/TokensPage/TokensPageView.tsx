@@ -66,7 +66,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
               <Cond condition={isLoading}>
                 <TableLoader />
               </Cond>
-              <Cond condition={hasLoaded && tokens?.length === 0}>
+              <Cond condition={hasLoaded && (!tokens || tokens.length === 0)}>
                 <TableEmpty message="No tokens found" />
               </Cond>
               <Cond>

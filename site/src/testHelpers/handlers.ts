@@ -245,6 +245,12 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/extend", async (req, res, ctx) => {
     return res(ctx.status(200));
   }),
+  rest.get(
+    "/api/v2/workspaces/:workspaceId/resolve-autostart",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json({ parameter_mismatch: false }));
+    },
+  ),
 
   // workspace builds
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
@@ -373,6 +379,15 @@ export const handlers = [
     },
   ),
 
+  rest.post("/api/v2/files", (_, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        hash: "some-file-hash",
+      }),
+    );
+  }),
+
   rest.get("/api/v2/files/:fileId", (_, res, ctx) => {
     const fileBuffer = fs.readFileSync(
       path.resolve(__dirname, "./templateFiles.tar"),
@@ -428,5 +443,9 @@ export const handlers = [
 
   rest.get("/api/v2/workspaceagents/:agent/listening-ports", (_, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockListeningPortsResponse));
+  }),
+
+  rest.get("/api/v2/integrations/jfrog/xray-scan", (_, res, ctx) => {
+    return res(ctx.status(404));
   }),
 ];

@@ -56,7 +56,7 @@ type WorkspaceProxy struct {
 	// and ready to use.
 	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
 
-	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created_at,default_sort"`
+	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
 	Deleted   bool      `json:"deleted" table:"deleted"`
 	Version   string    `json:"version" table:"version"`
@@ -69,9 +69,8 @@ type CreateWorkspaceProxyRequest struct {
 }
 
 type UpdateWorkspaceProxyResponse struct {
-	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
-	// The recursive table sort is not working very well.
-	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
+	Proxy      WorkspaceProxy `json:"proxy" table:"p,recursive_inline"`
+	ProxyToken string         `json:"proxy_token" table:"proxy token"`
 }
 
 func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (UpdateWorkspaceProxyResponse, error) {

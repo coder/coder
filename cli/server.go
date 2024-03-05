@@ -289,7 +289,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
-			go DumpHandler(ctx)
+			go DumpHandler(ctx, "coderd")
 
 			// Validate bind addresses.
 			if vals.Address.String() != "" {

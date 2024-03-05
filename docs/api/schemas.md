@@ -862,13 +862,6 @@ _None_
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
-          "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-          "roles": [
-            {
-              "display_name": "string",
-              "name": "string"
-            }
-          ],
           "status": "active",
           "theme_preference": "string",
           "username": "string"
@@ -889,13 +882,6 @@ _None_
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -906,10 +892,10 @@ _None_
 
 ### Properties
 
-| Name     | Type                                      | Required | Restrictions | Description |
-| -------- | ----------------------------------------- | -------- | ------------ | ----------- |
-| `groups` | array of [codersdk.Group](#codersdkgroup) | false    |              |             |
-| `users`  | array of [codersdk.User](#codersdkuser)   | false    |              |             |
+| Name     | Type                                                  | Required | Restrictions | Description |
+| -------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
+| `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
+| `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
 ## codersdk.APIKey
 
@@ -968,6 +954,49 @@ _None_
 | --------------------- |
 | `all`                 |
 | `application_connect` |
+
+## codersdk.AccessURLReport
+
+```json
+{
+  "access_url": "string",
+  "dismissed": true,
+  "error": "string",
+  "healthy": true,
+  "healthz_response": "string",
+  "reachable": true,
+  "severity": "ok",
+  "status_code": 0,
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                      | Required | Restrictions | Description                                                                                 |
+| ------------------ | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `access_url`       | string                                    | false    |              |                                                                                             |
+| `dismissed`        | boolean                                   | false    |              |                                                                                             |
+| `error`            | string                                    | false    |              |                                                                                             |
+| `healthy`          | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `healthz_response` | string                                    | false    |              |                                                                                             |
+| `reachable`        | boolean                                   | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `status_code`      | integer                                   | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## codersdk.AddLicenseRequest
 
@@ -2025,6 +2054,308 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `path`             | string  | false    |              |             |
 | `url`              | string  | false    |              |             |
 
+## codersdk.DERPHealthReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "healthy": true,
+  "netcheck": {
+    "captivePortal": "string",
+    "globalV4": "string",
+    "globalV6": "string",
+    "hairPinning": "string",
+    "icmpv4": true,
+    "ipv4": true,
+    "ipv4CanSend": true,
+    "ipv6": true,
+    "ipv6CanSend": true,
+    "mappingVariesByDestIP": "string",
+    "oshasIPv6": true,
+    "pcp": "string",
+    "pmp": "string",
+    "preferredDERP": 0,
+    "regionLatency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV4Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV6Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "udp": true,
+    "upnP": "string"
+  },
+  "netcheck_err": "string",
+  "netcheck_logs": ["string"],
+  "regions": {
+    "property1": {
+      "error": "string",
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [["string"]],
+          "client_logs": [["string"]],
+          "error": "string",
+          "healthy": true,
+          "node": {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
+          },
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
+          "severity": "ok",
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": "string"
+          },
+          "uses_websocket": true,
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "severity": "ok",
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
+    },
+    "property2": {
+      "error": "string",
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [["string"]],
+          "client_logs": [["string"]],
+          "error": "string",
+          "healthy": true,
+          "node": {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "node_info": {
+            "tokenBucketBytesBurst": 0,
+            "tokenBucketBytesPerSecond": 0
+          },
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
+          "severity": "ok",
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": "string"
+          },
+          "uses_websocket": true,
+          "warnings": [
+            {
+              "code": "EUNKNOWN",
+              "message": "string"
+            }
+          ]
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "severity": "ok",
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
+    }
+  },
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                 |
+| ------------------ | ------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`        | boolean                                                | false    |              |                                                                                             |
+| `error`            | string                                                 | false    |              |                                                                                             |
+| `healthy`          | boolean                                                | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                     | false    |              |                                                                                             |
+| `netcheck_err`     | string                                                 | false    |              |                                                                                             |
+| `netcheck_logs`    | array of string                                        | false    |              |                                                                                             |
+| `regions`          | object                                                 | false    |              |                                                                                             |
+| » `[any property]` | [codersdk.DERPRegionReport](#codersdkderpregionreport) | false    |              |                                                                                             |
+| `severity`         | [health.Severity](#healthseverity)                     | false    |              |                                                                                             |
+| `warnings`         | array of [health.Message](#healthmessage)              | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
+
+## codersdk.DERPNodeReport
+
+```json
+{
+  "can_exchange_messages": true,
+  "client_errs": [["string"]],
+  "client_logs": [["string"]],
+  "error": "string",
+  "healthy": true,
+  "node": {
+    "canPort80": true,
+    "certName": "string",
+    "derpport": 0,
+    "forceHTTP": true,
+    "hostName": "string",
+    "insecureForTests": true,
+    "ipv4": "string",
+    "ipv6": "string",
+    "name": "string",
+    "regionID": 0,
+    "stunonly": true,
+    "stunport": 0,
+    "stuntestIP": "string"
+  },
+  "node_info": {
+    "tokenBucketBytesBurst": 0,
+    "tokenBucketBytesPerSecond": 0
+  },
+  "round_trip_ping": "string",
+  "round_trip_ping_ms": 0,
+  "severity": "ok",
+  "stun": {
+    "canSTUN": true,
+    "enabled": true,
+    "error": "string"
+  },
+  "uses_websocket": true,
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                    | Type                                             | Required | Restrictions | Description                                                                                 |
+| ----------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `can_exchange_messages` | boolean                                          | false    |              |                                                                                             |
+| `client_errs`           | array of array                                   | false    |              |                                                                                             |
+| `client_logs`           | array of array                                   | false    |              |                                                                                             |
+| `error`                 | string                                           | false    |              |                                                                                             |
+| `healthy`               | boolean                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |                                                                                             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |                                                                                             |
+| `round_trip_ping`       | string                                           | false    |              |                                                                                             |
+| `round_trip_ping_ms`    | integer                                          | false    |              |                                                                                             |
+| `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
+| `stun`                  | [codersdk.STUNReport](#codersdkstunreport)       | false    |              |                                                                                             |
+| `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
+| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
+
 ## codersdk.DERPRegion
 
 ```json
@@ -2040,6 +2371,108 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------ | ------- | -------- | ------------ | ----------- |
 | `latency_ms` | number  | false    |              |             |
 | `preferred`  | boolean | false    |              |             |
+
+## codersdk.DERPRegionReport
+
+```json
+{
+  "error": "string",
+  "healthy": true,
+  "node_reports": [
+    {
+      "can_exchange_messages": true,
+      "client_errs": [["string"]],
+      "client_logs": [["string"]],
+      "error": "string",
+      "healthy": true,
+      "node": {
+        "canPort80": true,
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      },
+      "node_info": {
+        "tokenBucketBytesBurst": 0,
+        "tokenBucketBytesPerSecond": 0
+      },
+      "round_trip_ping": "string",
+      "round_trip_ping_ms": 0,
+      "severity": "ok",
+      "stun": {
+        "canSTUN": true,
+        "enabled": true,
+        "error": "string"
+      },
+      "uses_websocket": true,
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
+    }
+  ],
+  "region": {
+    "avoid": true,
+    "embeddedRelay": true,
+    "nodes": [
+      {
+        "canPort80": true,
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      }
+    ],
+    "regionCode": "string",
+    "regionID": 0,
+    "regionName": "string"
+  },
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                        | Required | Restrictions | Description                                                                                 |
+| -------------- | ----------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `error`        | string                                                      | false    |              |                                                                                             |
+| `healthy`      | boolean                                                     | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node_reports` | array of [codersdk.DERPNodeReport](#codersdkderpnodereport) | false    |              |                                                                                             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                    | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)                          | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage)                   | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## codersdk.DERPServerConfig
 
@@ -2094,6 +2527,49 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `allow_all_cors`                   | boolean | false    |              |             |
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
+
+## codersdk.DatabaseReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "healthy": true,
+  "latency": "string",
+  "latency_ms": 0,
+  "reachable": true,
+  "severity": "ok",
+  "threshold_ms": 0,
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
+| -------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                                   | false    |              |                                                                                             |
+| `error`        | string                                    | false    |              |                                                                                             |
+| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `latency`      | string                                    | false    |              |                                                                                             |
+| `latency_ms`   | integer                                   | false    |              |                                                                                             |
+| `reachable`    | boolean                                   | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `threshold_ms` | integer                                   | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## codersdk.DeleteWorkspaceAgentPortShareRequest
 
@@ -2917,10 +3393,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value          |
-| -------------- |
-| `example`      |
-| `shared-ports` |
+| Value                  |
+| ---------------------- |
+| `example`              |
+| `shared-ports`         |
+| `auto-fill-parameters` |
 
 ## codersdk.ExternalAuth
 
@@ -3206,13 +3683,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
       "status": "active",
       "theme_preference": "string",
       "username": "string"
@@ -3227,16 +3697,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                         | Required | Restrictions | Description |
-| ----------------- | -------------------------------------------- | -------- | ------------ | ----------- |
-| `avatar_url`      | string                                       | false    |              |             |
-| `display_name`    | string                                       | false    |              |             |
-| `id`              | string                                       | false    |              |             |
-| `members`         | array of [codersdk.User](#codersdkuser)      | false    |              |             |
-| `name`            | string                                       | false    |              |             |
-| `organization_id` | string                                       | false    |              |             |
-| `quota_allowance` | integer                                      | false    |              |             |
-| `source`          | [codersdk.GroupSource](#codersdkgroupsource) | false    |              |             |
+| Name              | Type                                                  | Required | Restrictions | Description |
+| ----------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`      | string                                                | false    |              |             |
+| `display_name`    | string                                                | false    |              |             |
+| `id`              | string                                                | false    |              |             |
+| `members`         | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
+| `name`            | string                                                | false    |              |             |
+| `organization_id` | string                                                | false    |              |             |
+| `quota_allowance` | integer                                               | false    |              |             |
+| `source`          | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |             |
 
 ## codersdk.GroupSource
 
@@ -3319,6 +3789,358 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
+
+## codersdk.HealthcheckReport
+
+```json
+{
+  "access_url": {
+    "access_url": "string",
+    "dismissed": true,
+    "error": "string",
+    "healthy": true,
+    "healthz_response": "string",
+    "reachable": true,
+    "severity": "ok",
+    "status_code": 0,
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
+  "coder_version": "string",
+  "database": {
+    "dismissed": true,
+    "error": "string",
+    "healthy": true,
+    "latency": "string",
+    "latency_ms": 0,
+    "reachable": true,
+    "severity": "ok",
+    "threshold_ms": 0,
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
+  "derp": {
+    "dismissed": true,
+    "error": "string",
+    "healthy": true,
+    "netcheck": {
+      "captivePortal": "string",
+      "globalV4": "string",
+      "globalV6": "string",
+      "hairPinning": "string",
+      "icmpv4": true,
+      "ipv4": true,
+      "ipv4CanSend": true,
+      "ipv6": true,
+      "ipv6CanSend": true,
+      "mappingVariesByDestIP": "string",
+      "oshasIPv6": true,
+      "pcp": "string",
+      "pmp": "string",
+      "preferredDERP": 0,
+      "regionLatency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV4Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV6Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "udp": true,
+      "upnP": "string"
+    },
+    "netcheck_err": "string",
+    "netcheck_logs": ["string"],
+    "regions": {
+      "property1": {
+        "error": "string",
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [["string"]],
+            "client_logs": [["string"]],
+            "error": "string",
+            "healthy": true,
+            "node": {
+              "canPort80": true,
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
+            "severity": "ok",
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": "string"
+            },
+            "uses_websocket": true,
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "canPort80": true,
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        },
+        "severity": "ok",
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
+      },
+      "property2": {
+        "error": "string",
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [["string"]],
+            "client_logs": [["string"]],
+            "error": "string",
+            "healthy": true,
+            "node": {
+              "canPort80": true,
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "node_info": {
+              "tokenBucketBytesBurst": 0,
+              "tokenBucketBytesPerSecond": 0
+            },
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
+            "severity": "ok",
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": "string"
+            },
+            "uses_websocket": true,
+            "warnings": [
+              {
+                "code": "EUNKNOWN",
+                "message": "string"
+              }
+            ]
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "canPort80": true,
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        },
+        "severity": "ok",
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
+      }
+    },
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
+  "failing_sections": ["DERP"],
+  "healthy": true,
+  "provisioner_daemons": {
+    "dismissed": true,
+    "error": "string",
+    "items": [
+      {
+        "provisioner_daemon": {
+          "api_version": "string",
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "name": "string",
+          "provisioners": ["string"],
+          "tags": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "version": "string"
+        },
+        "warnings": [
+          {
+            "code": "EUNKNOWN",
+            "message": "string"
+          }
+        ]
+      }
+    ],
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
+  "severity": "ok",
+  "time": "2019-08-24T14:15:22Z",
+  "websocket": {
+    "body": "string",
+    "code": 0,
+    "dismissed": true,
+    "error": "string",
+    "healthy": true,
+    "severity": "ok",
+    "warnings": ["string"]
+  },
+  "workspace_proxy": {
+    "dismissed": true,
+    "error": "string",
+    "healthy": true,
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ],
+    "workspace_proxies": {
+      "regions": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "deleted": true,
+          "derp_enabled": true,
+          "derp_only": true,
+          "display_name": "string",
+          "healthy": true,
+          "icon_url": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "path_app_url": "string",
+          "status": {
+            "checked_at": "2019-08-24T14:15:22Z",
+            "report": {
+              "errors": ["string"],
+              "warnings": ["string"]
+            },
+            "status": "ok"
+          },
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string",
+          "wildcard_hostname": "string"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                   | Required | Restrictions | Description                                                                         |
+| --------------------- | ---------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `access_url`          | [codersdk.AccessURLReport](#codersdkaccessurlreport)                   | false    |              |                                                                                     |
+| `coder_version`       | string                                                                 | false    |              | The Coder version of the server that the report was generated on.                   |
+| `database`            | [codersdk.DatabaseReport](#codersdkdatabasereport)                     | false    |              |                                                                                     |
+| `derp`                | [codersdk.DERPHealthReport](#codersdkderphealthreport)                 | false    |              |                                                                                     |
+| `failing_sections`    | array of [codersdk.HealthSection](#codersdkhealthsection)              | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
+| `healthy`             | boolean                                                                | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
+| `provisioner_daemons` | [codersdk.ProvisionerDaemonsReport](#codersdkprovisionerdaemonsreport) | false    |              |                                                                                     |
+| `severity`            | [health.Severity](#healthseverity)                                     | false    |              | Severity indicates the status of Coder health.                                      |
+| `time`                | string                                                                 | false    |              | Time is the time the report was generated at.                                       |
+| `websocket`           | [codersdk.WebsocketReport](#codersdkwebsocketreport)                   | false    |              |                                                                                     |
+| `workspace_proxy`     | [codersdk.WorkspaceProxyReport](#codersdkworkspaceproxyreport)         | false    |              |                                                                                     |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## codersdk.InsightsReportInterval
 
@@ -4032,6 +4854,88 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | » `[any property]` | string          | false    |              |             |
 | `version`          | string          | false    |              |             |
 
+## codersdk.ProvisionerDaemonsReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "items": [
+    {
+      "provisioner_daemon": {
+        "api_version": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "name": "string",
+        "provisioners": ["string"],
+        "tags": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "version": "string"
+      },
+      "warnings": [
+        {
+          "code": "EUNKNOWN",
+          "message": "string"
+        }
+      ]
+    }
+  ],
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                                                    | Required | Restrictions | Description |
+| ----------- | --------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed` | boolean                                                                                 | false    |              |             |
+| `error`     | string                                                                                  | false    |              |             |
+| `items`     | array of [codersdk.ProvisionerDaemonsReportItem](#codersdkprovisionerdaemonsreportitem) | false    |              |             |
+| `severity`  | [health.Severity](#healthseverity)                                                      | false    |              |             |
+| `warnings`  | array of [health.Message](#healthmessage)                                               | false    |              |             |
+
+## codersdk.ProvisionerDaemonsReportItem
+
+```json
+{
+  "provisioner_daemon": {
+    "api_version": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "provisioners": ["string"],
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "version": "string"
+  },
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
+| `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
+
 ## codersdk.ProvisionerJob
 
 ```json
@@ -4286,6 +5190,45 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `api`         | integer | false    |              |             |
 | `disable_all` | boolean | false    |              |             |
 
+## codersdk.ReducedUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
+  "name": "string",
+  "status": "active",
+  "theme_preference": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                       | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------ | -------- | ------------ | ----------- |
+| `avatar_url`       | string                                     | false    |              |             |
+| `created_at`       | string                                     | true     |              |             |
+| `email`            | string                                     | true     |              |             |
+| `id`               | string                                     | true     |              |             |
+| `last_seen_at`     | string                                     | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
+| `name`             | string                                     | false    |              |             |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
+| `theme_preference` | string                                     | false    |              |             |
+| `username`         | string                                     | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `active`    |
+| `status` | `suspended` |
+
 ## codersdk.Region
 
 ```json
@@ -4424,21 +5367,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value              |
-| ------------------ |
-| `template`         |
-| `template_version` |
-| `user`             |
-| `workspace`        |
-| `workspace_build`  |
-| `git_ssh_key`      |
-| `api_key`          |
-| `group`            |
-| `license`          |
-| `convert_login`    |
-| `health_settings`  |
-| `workspace_proxy`  |
-| `organization`     |
+| Value                        |
+| ---------------------------- |
+| `template`                   |
+| `template_version`           |
+| `user`                       |
+| `workspace`                  |
+| `workspace_build`            |
+| `git_ssh_key`                |
+| `api_key`                    |
+| `group`                      |
+| `license`                    |
+| `convert_login`              |
+| `health_settings`            |
+| `workspace_proxy`            |
+| `organization`               |
+| `oauth2_provider_app`        |
+| `oauth2_provider_app_secret` |
 
 ## codersdk.Response
 
@@ -4514,6 +5459,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hostname_prefix`    | string | false    |              |             |
 | `ssh_config_options` | object | false    |              |             |
 | » `[any property]`   | string | false    |              |             |
+
+## codersdk.STUNReport
+
+```json
+{
+  "canSTUN": true,
+  "enabled": true,
+  "error": "string"
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `canSTUN` | boolean | false    |              |             |
+| `enabled` | boolean | false    |              |             |
+| `error`   | string  | false    |              |             |
 
 ## codersdk.ServiceBannerConfig
 
@@ -5194,6 +6157,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
+  "optional": true,
   "type": "string"
 }
 ```
@@ -5207,6 +6171,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `display_icon`     | string  | false    |              |             |
 | `display_name`     | string  | false    |              |             |
 | `id`               | string  | false    |              |             |
+| `optional`         | boolean | false    |              |             |
 | `type`             | string  | false    |              |             |
 
 ## codersdk.TemplateVersionParameter
@@ -6003,6 +6968,40 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------- | ------ | -------- | ------------ | ----------- |
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WebsocketReport
+
+```json
+{
+  "body": "string",
+  "code": 0,
+  "dismissed": true,
+  "error": "string",
+  "healthy": true,
+  "severity": "ok",
+  "warnings": ["string"]
+}
+```
+
+### Properties
+
+| Name        | Type                               | Required | Restrictions | Description                                                                                 |
+| ----------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `body`      | string                             | false    |              |                                                                                             |
+| `code`      | integer                            | false    |              |                                                                                             |
+| `dismissed` | boolean                            | false    |              |                                                                                             |
+| `error`     | string                             | false    |              |                                                                                             |
+| `healthy`   | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity`  | [health.Severity](#healthseverity) | false    |              |                                                                                             |
+| `warnings`  | array of string                    | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## codersdk.Workspace
 
@@ -7098,6 +8097,61 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `version`           | string                                                         | false    |              |                                                                                                                                                                                    |
 | `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
+## codersdk.WorkspaceProxyReport
+
+```json
+{
+  "dismissed": true,
+  "error": "string",
+  "healthy": true,
+  "severity": "ok",
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ],
+  "workspace_proxies": {
+    "regions": [
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "deleted": true,
+        "derp_enabled": true,
+        "derp_only": true,
+        "display_name": "string",
+        "healthy": true,
+        "icon_url": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "path_app_url": "string",
+        "status": {
+          "checked_at": "2019-08-24T14:15:22Z",
+          "report": {
+            "errors": ["string"],
+            "warnings": ["string"]
+          },
+          "status": "ok"
+        },
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string",
+        "wildcard_hostname": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name                | Type                                                                                                 | Required | Restrictions | Description |
+| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `dismissed`         | boolean                                                                                              | false    |              |             |
+| `error`             | string                                                                                               | false    |              |             |
+| `healthy`           | boolean                                                                                              | false    |              |             |
+| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
+| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
+| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
+
 ## codersdk.WorkspaceProxyStatus
 
 ```json
@@ -7555,428 +8609,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
 | Zero means unspecified. There might be a limit, but the client need not try to respect it. |
 
-## derphealth.NodeReport
-
-```json
-{
-  "can_exchange_messages": true,
-  "client_errs": [["string"]],
-  "client_logs": [["string"]],
-  "error": "string",
-  "healthy": true,
-  "node": {
-    "canPort80": true,
-    "certName": "string",
-    "derpport": 0,
-    "forceHTTP": true,
-    "hostName": "string",
-    "insecureForTests": true,
-    "ipv4": "string",
-    "ipv6": "string",
-    "name": "string",
-    "regionID": 0,
-    "stunonly": true,
-    "stunport": 0,
-    "stuntestIP": "string"
-  },
-  "node_info": {
-    "tokenBucketBytesBurst": 0,
-    "tokenBucketBytesPerSecond": 0
-  },
-  "round_trip_ping": "string",
-  "round_trip_ping_ms": 0,
-  "severity": "ok",
-  "stun": {
-    "canSTUN": true,
-    "enabled": true,
-    "error": "string"
-  },
-  "uses_websocket": true,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name                    | Type                                             | Required | Restrictions | Description                                                                                 |
-| ----------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `can_exchange_messages` | boolean                                          | false    |              |                                                                                             |
-| `client_errs`           | array of array                                   | false    |              |                                                                                             |
-| `client_logs`           | array of array                                   | false    |              |                                                                                             |
-| `error`                 | string                                           | false    |              |                                                                                             |
-| `healthy`               | boolean                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |                                                                                             |
-| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |                                                                                             |
-| `round_trip_ping`       | string                                           | false    |              |                                                                                             |
-| `round_trip_ping_ms`    | integer                                          | false    |              |                                                                                             |
-| `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
-| `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |                                                                                             |
-| `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
-| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## derphealth.RegionReport
-
-```json
-{
-  "error": "string",
-  "healthy": true,
-  "node_reports": [
-    {
-      "can_exchange_messages": true,
-      "client_errs": [["string"]],
-      "client_logs": [["string"]],
-      "error": "string",
-      "healthy": true,
-      "node": {
-        "canPort80": true,
-        "certName": "string",
-        "derpport": 0,
-        "forceHTTP": true,
-        "hostName": "string",
-        "insecureForTests": true,
-        "ipv4": "string",
-        "ipv6": "string",
-        "name": "string",
-        "regionID": 0,
-        "stunonly": true,
-        "stunport": 0,
-        "stuntestIP": "string"
-      },
-      "node_info": {
-        "tokenBucketBytesBurst": 0,
-        "tokenBucketBytesPerSecond": 0
-      },
-      "round_trip_ping": "string",
-      "round_trip_ping_ms": 0,
-      "severity": "ok",
-      "stun": {
-        "canSTUN": true,
-        "enabled": true,
-        "error": "string"
-      },
-      "uses_websocket": true,
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  ],
-  "region": {
-    "avoid": true,
-    "embeddedRelay": true,
-    "nodes": [
-      {
-        "canPort80": true,
-        "certName": "string",
-        "derpport": 0,
-        "forceHTTP": true,
-        "hostName": "string",
-        "insecureForTests": true,
-        "ipv4": "string",
-        "ipv6": "string",
-        "name": "string",
-        "regionID": 0,
-        "stunonly": true,
-        "stunport": 0,
-        "stuntestIP": "string"
-      }
-    ],
-    "regionCode": "string",
-    "regionID": 0,
-    "regionName": "string"
-  },
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name           | Type                                                    | Required | Restrictions | Description                                                                                 |
-| -------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `error`        | string                                                  | false    |              |                                                                                             |
-| `healthy`      | boolean                                                 | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |                                                                                             |
-| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity)                      | false    |              |                                                                                             |
-| `warnings`     | array of [health.Message](#healthmessage)               | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## derphealth.Report
-
-```json
-{
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "netcheck": {
-    "captivePortal": "string",
-    "globalV4": "string",
-    "globalV6": "string",
-    "hairPinning": "string",
-    "icmpv4": true,
-    "ipv4": true,
-    "ipv4CanSend": true,
-    "ipv6": true,
-    "ipv6CanSend": true,
-    "mappingVariesByDestIP": "string",
-    "oshasIPv6": true,
-    "pcp": "string",
-    "pmp": "string",
-    "preferredDERP": 0,
-    "regionLatency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "regionV4Latency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "regionV6Latency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "udp": true,
-    "upnP": "string"
-  },
-  "netcheck_err": "string",
-  "netcheck_logs": ["string"],
-  "regions": {
-    "property1": {
-      "error": "string",
-      "healthy": true,
-      "node_reports": [
-        {
-          "can_exchange_messages": true,
-          "client_errs": [["string"]],
-          "client_logs": [["string"]],
-          "error": "string",
-          "healthy": true,
-          "node": {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          },
-          "node_info": {
-            "tokenBucketBytesBurst": 0,
-            "tokenBucketBytesPerSecond": 0
-          },
-          "round_trip_ping": "string",
-          "round_trip_ping_ms": 0,
-          "severity": "ok",
-          "stun": {
-            "canSTUN": true,
-            "enabled": true,
-            "error": "string"
-          },
-          "uses_websocket": true,
-          "warnings": [
-            {
-              "code": "EUNKNOWN",
-              "message": "string"
-            }
-          ]
-        }
-      ],
-      "region": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "severity": "ok",
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    },
-    "property2": {
-      "error": "string",
-      "healthy": true,
-      "node_reports": [
-        {
-          "can_exchange_messages": true,
-          "client_errs": [["string"]],
-          "client_logs": [["string"]],
-          "error": "string",
-          "healthy": true,
-          "node": {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          },
-          "node_info": {
-            "tokenBucketBytesBurst": 0,
-            "tokenBucketBytesPerSecond": 0
-          },
-          "round_trip_ping": "string",
-          "round_trip_ping_ms": 0,
-          "severity": "ok",
-          "stun": {
-            "canSTUN": true,
-            "enabled": true,
-            "error": "string"
-          },
-          "uses_websocket": true,
-          "warnings": [
-            {
-              "code": "EUNKNOWN",
-              "message": "string"
-            }
-          ]
-        }
-      ],
-      "region": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "severity": "ok",
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  },
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name               | Type                                               | Required | Restrictions | Description                                                                                 |
-| ------------------ | -------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `dismissed`        | boolean                                            | false    |              |                                                                                             |
-| `error`            | string                                             | false    |              |                                                                                             |
-| `healthy`          | boolean                                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |                                                                                             |
-| `netcheck_err`     | string                                             | false    |              |                                                                                             |
-| `netcheck_logs`    | array of string                                    | false    |              |                                                                                             |
-| `regions`          | object                                             | false    |              |                                                                                             |
-| » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |                                                                                             |
-| `severity`         | [health.Severity](#healthseverity)                 | false    |              |                                                                                             |
-| `warnings`         | array of [health.Message](#healthmessage)          | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## derphealth.StunReport
-
-```json
-{
-  "canSTUN": true,
-  "enabled": true,
-  "error": "string"
-}
-```
-
-### Properties
-
-| Name      | Type    | Required | Restrictions | Description |
-| --------- | ------- | -------- | ------------ | ----------- |
-| `canSTUN` | boolean | false    |              |             |
-| `enabled` | boolean | false    |              |             |
-| `error`   | string  | false    |              |             |
-
 ## health.Code
 
 ```json
@@ -8040,615 +8672,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `ok`      |
 | `warning` |
 | `error`   |
-
-## healthcheck.AccessURLReport
-
-```json
-{
-  "access_url": "string",
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "healthz_response": "string",
-  "reachable": true,
-  "severity": "ok",
-  "status_code": 0,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name               | Type                                      | Required | Restrictions | Description                                                                                 |
-| ------------------ | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `access_url`       | string                                    | false    |              |                                                                                             |
-| `dismissed`        | boolean                                   | false    |              |                                                                                             |
-| `error`            | string                                    | false    |              |                                                                                             |
-| `healthy`          | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `healthz_response` | string                                    | false    |              |                                                                                             |
-| `reachable`        | boolean                                   | false    |              |                                                                                             |
-| `severity`         | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
-| `status_code`      | integer                                   | false    |              |                                                                                             |
-| `warnings`         | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## healthcheck.DatabaseReport
-
-```json
-{
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "latency": "string",
-  "latency_ms": 0,
-  "reachable": true,
-  "severity": "ok",
-  "threshold_ms": 0,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name           | Type                                      | Required | Restrictions | Description                                                                                 |
-| -------------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `dismissed`    | boolean                                   | false    |              |                                                                                             |
-| `error`        | string                                    | false    |              |                                                                                             |
-| `healthy`      | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `latency`      | string                                    | false    |              |                                                                                             |
-| `latency_ms`   | integer                                   | false    |              |                                                                                             |
-| `reachable`    | boolean                                   | false    |              |                                                                                             |
-| `severity`     | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
-| `threshold_ms` | integer                                   | false    |              |                                                                                             |
-| `warnings`     | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## healthcheck.ProvisionerDaemonsReport
-
-```json
-{
-  "dismissed": true,
-  "error": "string",
-  "items": [
-    {
-      "provisioner_daemon": {
-        "api_version": "string",
-        "created_at": "2019-08-24T14:15:22Z",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "name": "string",
-        "provisioners": ["string"],
-        "tags": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "version": "string"
-      },
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  ],
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                                                          | Required | Restrictions | Description |
-| ----------- | --------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `dismissed` | boolean                                                                                       | false    |              |             |
-| `error`     | string                                                                                        | false    |              |             |
-| `items`     | array of [healthcheck.ProvisionerDaemonsReportItem](#healthcheckprovisionerdaemonsreportitem) | false    |              |             |
-| `severity`  | [health.Severity](#healthseverity)                                                            | false    |              |             |
-| `warnings`  | array of [health.Message](#healthmessage)                                                     | false    |              |             |
-
-## healthcheck.ProvisionerDaemonsReportItem
-
-```json
-{
-  "provisioner_daemon": {
-    "api_version": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "name": "string",
-    "provisioners": ["string"],
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "version": "string"
-  },
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name                 | Type                                                     | Required | Restrictions | Description |
-| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
-| `provisioner_daemon` | [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
-| `warnings`           | array of [health.Message](#healthmessage)                | false    |              |             |
-
-## healthcheck.Report
-
-```json
-{
-  "access_url": {
-    "access_url": "string",
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "healthz_response": "string",
-    "reachable": true,
-    "severity": "ok",
-    "status_code": 0,
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "coder_version": "string",
-  "database": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "latency": "string",
-    "latency_ms": 0,
-    "reachable": true,
-    "severity": "ok",
-    "threshold_ms": 0,
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "derp": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "netcheck": {
-      "captivePortal": "string",
-      "globalV4": "string",
-      "globalV6": "string",
-      "hairPinning": "string",
-      "icmpv4": true,
-      "ipv4": true,
-      "ipv4CanSend": true,
-      "ipv6": true,
-      "ipv6CanSend": true,
-      "mappingVariesByDestIP": "string",
-      "oshasIPv6": true,
-      "pcp": "string",
-      "pmp": "string",
-      "preferredDERP": 0,
-      "regionLatency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "regionV4Latency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "regionV6Latency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "udp": true,
-      "upnP": "string"
-    },
-    "netcheck_err": "string",
-    "netcheck_logs": ["string"],
-    "regions": {
-      "property1": {
-        "error": "string",
-        "healthy": true,
-        "node_reports": [
-          {
-            "can_exchange_messages": true,
-            "client_errs": [["string"]],
-            "client_logs": [["string"]],
-            "error": "string",
-            "healthy": true,
-            "node": {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            },
-            "node_info": {
-              "tokenBucketBytesBurst": 0,
-              "tokenBucketBytesPerSecond": 0
-            },
-            "round_trip_ping": "string",
-            "round_trip_ping_ms": 0,
-            "severity": "ok",
-            "stun": {
-              "canSTUN": true,
-              "enabled": true,
-              "error": "string"
-            },
-            "uses_websocket": true,
-            "warnings": [
-              {
-                "code": "EUNKNOWN",
-                "message": "string"
-              }
-            ]
-          }
-        ],
-        "region": {
-          "avoid": true,
-          "embeddedRelay": true,
-          "nodes": [
-            {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            }
-          ],
-          "regionCode": "string",
-          "regionID": 0,
-          "regionName": "string"
-        },
-        "severity": "ok",
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      },
-      "property2": {
-        "error": "string",
-        "healthy": true,
-        "node_reports": [
-          {
-            "can_exchange_messages": true,
-            "client_errs": [["string"]],
-            "client_logs": [["string"]],
-            "error": "string",
-            "healthy": true,
-            "node": {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            },
-            "node_info": {
-              "tokenBucketBytesBurst": 0,
-              "tokenBucketBytesPerSecond": 0
-            },
-            "round_trip_ping": "string",
-            "round_trip_ping_ms": 0,
-            "severity": "ok",
-            "stun": {
-              "canSTUN": true,
-              "enabled": true,
-              "error": "string"
-            },
-            "uses_websocket": true,
-            "warnings": [
-              {
-                "code": "EUNKNOWN",
-                "message": "string"
-              }
-            ]
-          }
-        ],
-        "region": {
-          "avoid": true,
-          "embeddedRelay": true,
-          "nodes": [
-            {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            }
-          ],
-          "regionCode": "string",
-          "regionID": 0,
-          "regionName": "string"
-        },
-        "severity": "ok",
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      }
-    },
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "failing_sections": ["DERP"],
-  "healthy": true,
-  "provisioner_daemons": {
-    "dismissed": true,
-    "error": "string",
-    "items": [
-      {
-        "provisioner_daemon": {
-          "api_version": "string",
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "last_seen_at": "2019-08-24T14:15:22Z",
-          "name": "string",
-          "provisioners": ["string"],
-          "tags": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "version": "string"
-        },
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      }
-    ],
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "severity": "ok",
-  "time": "string",
-  "websocket": {
-    "body": "string",
-    "code": 0,
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "severity": "ok",
-    "warnings": ["string"]
-  },
-  "workspace_proxy": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ],
-    "workspace_proxies": {
-      "regions": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "deleted": true,
-          "derp_enabled": true,
-          "derp_only": true,
-          "display_name": "string",
-          "healthy": true,
-          "icon_url": "string",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "name": "string",
-          "path_app_url": "string",
-          "status": {
-            "checked_at": "2019-08-24T14:15:22Z",
-            "report": {
-              "errors": ["string"],
-              "warnings": ["string"]
-            },
-            "status": "ok"
-          },
-          "updated_at": "2019-08-24T14:15:22Z",
-          "version": "string",
-          "wildcard_hostname": "string"
-        }
-      ]
-    }
-  }
-}
-```
-
-### Properties
-
-| Name                  | Type                                                                         | Required | Restrictions | Description                                                                         |
-| --------------------- | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
-| `access_url`          | [healthcheck.AccessURLReport](#healthcheckaccessurlreport)                   | false    |              |                                                                                     |
-| `coder_version`       | string                                                                       | false    |              | The Coder version of the server that the report was generated on.                   |
-| `database`            | [healthcheck.DatabaseReport](#healthcheckdatabasereport)                     | false    |              |                                                                                     |
-| `derp`                | [derphealth.Report](#derphealthreport)                                       | false    |              |                                                                                     |
-| `failing_sections`    | array of [codersdk.HealthSection](#codersdkhealthsection)                    | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
-| `healthy`             | boolean                                                                      | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
-| `provisioner_daemons` | [healthcheck.ProvisionerDaemonsReport](#healthcheckprovisionerdaemonsreport) | false    |              |                                                                                     |
-| `severity`            | [health.Severity](#healthseverity)                                           | false    |              | Severity indicates the status of Coder health.                                      |
-| `time`                | string                                                                       | false    |              | Time is the time the report was generated at.                                       |
-| `websocket`           | [healthcheck.WebsocketReport](#healthcheckwebsocketreport)                   | false    |              |                                                                                     |
-| `workspace_proxy`     | [healthcheck.WorkspaceProxyReport](#healthcheckworkspaceproxyreport)         | false    |              |                                                                                     |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## healthcheck.WebsocketReport
-
-```json
-{
-  "body": "string",
-  "code": 0,
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "severity": "ok",
-  "warnings": ["string"]
-}
-```
-
-### Properties
-
-| Name        | Type                               | Required | Restrictions | Description                                                                                 |
-| ----------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `body`      | string                             | false    |              |                                                                                             |
-| `code`      | integer                            | false    |              |                                                                                             |
-| `dismissed` | boolean                            | false    |              |                                                                                             |
-| `error`     | string                             | false    |              |                                                                                             |
-| `healthy`   | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `severity`  | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `warnings`  | array of string                    | false    |              |                                                                                             |
-
-#### Enumerated Values
-
-| Property   | Value     |
-| ---------- | --------- |
-| `severity` | `ok`      |
-| `severity` | `warning` |
-| `severity` | `error`   |
-
-## healthcheck.WorkspaceProxyReport
-
-```json
-{
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ],
-  "workspace_proxies": {
-    "regions": [
-      {
-        "created_at": "2019-08-24T14:15:22Z",
-        "deleted": true,
-        "derp_enabled": true,
-        "derp_only": true,
-        "display_name": "string",
-        "healthy": true,
-        "icon_url": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string",
-        "path_app_url": "string",
-        "status": {
-          "checked_at": "2019-08-24T14:15:22Z",
-          "report": {
-            "errors": ["string"],
-            "warnings": ["string"]
-          },
-          "status": "ok"
-        },
-        "updated_at": "2019-08-24T14:15:22Z",
-        "version": "string",
-        "wildcard_hostname": "string"
-      }
-    ]
-  }
-}
-```
-
-### Properties
-
-| Name                | Type                                                                                                 | Required | Restrictions | Description |
-| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `dismissed`         | boolean                                                                                              | false    |              |             |
-| `error`             | string                                                                                               | false    |              |             |
-| `healthy`           | boolean                                                                                              | false    |              |             |
-| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
-| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
 
 ## key.NodePublic
 
@@ -8721,6 +8744,27 @@ _None_
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
+
+## oauth2.Token
+
+```json
+{
+  "access_token": "string",
+  "expiry": "string",
+  "refresh_token": "string",
+  "token_type": "string"
+}
+```
+
+### Properties
+
+| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
+| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
+| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
+| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
 
 ## tailcfg.DERPHomeParams
 

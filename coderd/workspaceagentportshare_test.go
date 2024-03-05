@@ -54,6 +54,20 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	// invalid port should fail
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  agents[0].Name,
+		Port:       0,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+	})
+	require.Error(t, err)
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  agents[0].Name,
+		Port:       90000000,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+	})
+	require.Error(t, err)
+
 	// OK, ignoring template max port share level because we are AGPL
 	ps, err := client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
 		AgentName:  agents[0].Name,

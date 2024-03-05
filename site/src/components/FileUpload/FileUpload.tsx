@@ -8,36 +8,6 @@ import RemoveIcon from "@mui/icons-material/DeleteOutline";
 import FileIcon from "@mui/icons-material/FolderOutlined";
 import { css, type Interpolation, type Theme } from "@emotion/react";
 
-const useFileDrop = (
-  callback: (file: File) => void,
-  fileTypeRequired?: string,
-): {
-  onDragOver: (e: DragEvent<HTMLDivElement>) => void;
-  onDrop: (e: DragEvent<HTMLDivElement>) => void;
-} => {
-  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
-  const onDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- file can be undefined
-    if (!file) {
-      return;
-    }
-    if (fileTypeRequired && file.type !== fileTypeRequired) {
-      return;
-    }
-    callback(file);
-  };
-
-  return {
-    onDragOver,
-    onDrop,
-  };
-};
-
 export interface FileUploadProps {
   isUploading: boolean;
   onUpload: (file: File) => void;
@@ -46,8 +16,7 @@ export interface FileUploadProps {
   removeLabel: string;
   title: string;
   description?: ReactNode;
-  extension?: string;
-  fileTypeRequired?: string;
+  extensions?: string[];
 }
 
 export const FileUpload: FC<FileUploadProps> = ({
@@ -58,17 +27,13 @@ export const FileUpload: FC<FileUploadProps> = ({
   removeLabel,
   title,
   description,
-  extension,
-  fileTypeRequired,
+  extensions,
 }) => {
+  const fileDrop = useFileDrop(onUpload, extensions);
   const inputRef = useRef<HTMLInputElement>(null);
-  const tarDrop = useFileDrop(onUpload, fileTypeRequired);
-
-  const clickable = useClickable<HTMLDivElement>(() => {
-    if (inputRef.current) {
-      inputRef.current.click();
-    }
-  });
+  const clickable = useClickable<HTMLDivElement>(
+    () => inputRef.current?.click(),
+  );
 
   if (!isUploading && file) {
     return (
@@ -93,9 +58,10 @@ export const FileUpload: FC<FileUploadProps> = ({
   return (
     <>
       <div
+        data-testid="drop-zone"
         css={[styles.root, isUploading && styles.disabled]}
         {...clickable}
-        {...tarDrop}
+        {...fileDrop}
       >
         <Stack alignItems="center" spacing={1}>
           {isUploading ? (
@@ -116,7 +82,7 @@ export const FileUpload: FC<FileUploadProps> = ({
         data-testid="file-upload"
         ref={inputRef}
         css={styles.input}
-        accept={extension}
+        accept={extensions?.map((ext) => `.${ext}`).join(",")}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           if (file) {
@@ -126,6 +92,47 @@ export const FileUpload: FC<FileUploadProps> = ({
       />
     </>
   );
+};
+
+const useFileDrop = (
+  callback: (file: File) => void,
+  extensions?: string[],
+): {
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void;
+  onDrop: (e: DragEvent<HTMLDivElement>) => void;
+} => {
+  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0] as File | undefined;
+
+    if (!file) {
+      return;
+    }
+
+    if (!extensions) {
+      callback(file);
+      return;
+    }
+
+    const extension = file.name.split(".").pop();
+
+    if (!extension) {
+      throw new Error(`File has no extension to compare with ${extensions}`);
+    }
+
+    if (extensions.includes(extension)) {
+      callback(file);
+    }
+  };
+
+  return {
+    onDragOver,
+    onDrop,
+  };
 };
 
 const styles = {
@@ -154,12 +161,16 @@ const styles = {
 
   title: {
     fontSize: 16,
+    lineHeight: "1",
   },
 
   description: (theme) => ({
     color: theme.palette.text.secondary,
     textAlign: "center",
     maxWidth: 400,
+    fontSize: 14,
+    lineHeight: "1.5",
+    marginTop: 4,
   }),
 
   input: {

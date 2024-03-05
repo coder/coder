@@ -593,11 +593,12 @@ func AllLogSourceValues() []LogSource {
 type LoginType string
 
 const (
-	LoginTypePassword LoginType = "password"
-	LoginTypeGithub   LoginType = "github"
-	LoginTypeOIDC     LoginType = "oidc"
-	LoginTypeToken    LoginType = "token"
-	LoginTypeNone     LoginType = "none"
+	LoginTypePassword          LoginType = "password"
+	LoginTypeGithub            LoginType = "github"
+	LoginTypeOIDC              LoginType = "oidc"
+	LoginTypeToken             LoginType = "token"
+	LoginTypeNone              LoginType = "none"
+	LoginTypeOAuth2ProviderApp LoginType = "oauth2_provider_app"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -641,7 +642,8 @@ func (e LoginType) Valid() bool {
 		LoginTypeGithub,
 		LoginTypeOIDC,
 		LoginTypeToken,
-		LoginTypeNone:
+		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp:
 		return true
 	}
 	return false
@@ -654,6 +656,7 @@ func AllLoginTypeValues() []LoginType {
 		LoginTypeOIDC,
 		LoginTypeToken,
 		LoginTypeNone,
+		LoginTypeOAuth2ProviderApp,
 	}
 }
 
@@ -1146,19 +1149,21 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization    ResourceType = "organization"
-	ResourceTypeTemplate        ResourceType = "template"
-	ResourceTypeTemplateVersion ResourceType = "template_version"
-	ResourceTypeUser            ResourceType = "user"
-	ResourceTypeWorkspace       ResourceType = "workspace"
-	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
-	ResourceTypeApiKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
-	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
-	ResourceTypeLicense         ResourceType = "license"
-	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin    ResourceType = "convert_login"
-	ResourceTypeHealthSettings  ResourceType = "health_settings"
+	ResourceTypeOrganization            ResourceType = "organization"
+	ResourceTypeTemplate                ResourceType = "template"
+	ResourceTypeTemplateVersion         ResourceType = "template_version"
+	ResourceTypeUser                    ResourceType = "user"
+	ResourceTypeWorkspace               ResourceType = "workspace"
+	ResourceTypeGitSshKey               ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                  ResourceType = "api_key"
+	ResourceTypeGroup                   ResourceType = "group"
+	ResourceTypeWorkspaceBuild          ResourceType = "workspace_build"
+	ResourceTypeLicense                 ResourceType = "license"
+	ResourceTypeWorkspaceProxy          ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin            ResourceType = "convert_login"
+	ResourceTypeHealthSettings          ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1210,7 +1215,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
-		ResourceTypeHealthSettings:
+		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret:
 		return true
 	}
 	return false
@@ -1231,6 +1238,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret,
 	}
 }
 
@@ -1807,6 +1816,17 @@ type OAuth2ProviderApp struct {
 	CallbackURL string    `db:"callback_url" json:"callback_url"`
 }
 
+// Codes are meant to be exchanged for access tokens.
+type OAuth2ProviderAppCode struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+}
+
 type OAuth2ProviderAppSecret struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
@@ -1815,6 +1835,18 @@ type OAuth2ProviderAppSecret struct {
 	// The tail end of the original secret so secrets can be differentiated.
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
+	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
+}
+
+type OAuth2ProviderAppToken struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt  time.Time `db:"expires_at" json:"expires_at"`
+	HashPrefix []byte    `db:"hash_prefix" json:"hash_prefix"`
+	// Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.
+	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
 }
 
 type Organization struct {
@@ -2054,20 +2086,20 @@ type TemplateTable struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID     `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time     `db:"updated_at" json:"updated_at"`
-	Name                  string        `db:"name" json:"name"`
-	Readme                string        `db:"readme" json:"readme"`
-	JobID                 uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID     `db:"created_by" json:"created_by"`
-	ExternalAuthProviders []string      `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string        `db:"message" json:"message"`
-	Archived              bool          `db:"archived" json:"archived"`
-	CreatedByAvatarURL    string        `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string        `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
+	Name                  string          `db:"name" json:"name"`
+	Readme                string          `db:"readme" json:"readme"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string          `db:"message" json:"message"`
+	Archived              bool            `db:"archived" json:"archived"`
+	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -2117,7 +2149,7 @@ type TemplateVersionTable struct {
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of External auth providers for a specific template version
-	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
 	Message  string `db:"message" json:"message"`
 	Archived bool   `db:"archived" json:"archived"`

@@ -1,6 +1,10 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC } from "react";
-import type { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
+import type {
+  ProvisionerJobLog,
+  WorkspaceAgent,
+  WorkspaceBuild,
+} from "api/typesGenerated";
 import { Link } from "react-router-dom";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
@@ -20,6 +24,11 @@ import {
   WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useTab } from "hooks";
+import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
+
+export const LOGS_TAB_KEY = "logs";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -42,10 +51,14 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   activeBuildNumber,
 }) => {
   const theme = useTheme();
+  const tab = useTab(LOGS_TAB_KEY, "build");
 
   if (!build) {
     return <Loader />;
   }
+
+  const agents = build.resources.flatMap((r) => r.agents ?? []);
+  const selectedAgent = agents.find((a) => a.id === tab.value);
 
   return (
     <DashboardFullPage>
@@ -128,6 +141,23 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Sidebar>
 
         <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
+          <Tabs active={tab.value}>
+            <TabsList>
+              <TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
+                Build
+              </TabLink>
+
+              {agents.map((a) => (
+                <TabLink
+                  to={`?${LOGS_TAB_KEY}=${a.id}`}
+                  value={a.id}
+                  key={a.id}
+                >
+                  coder_agent.{a.name}
+                </TabLink>
+              ))}
+            </TabsList>
+          </Tabs>
           {build.transition === "delete" && build.job.status === "failed" && (
             <Alert
               severity="error"
@@ -156,17 +186,53 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
               </div>
             </Alert>
           )}
-          {logs ? (
-            <WorkspaceBuildLogs
-              css={{ border: 0 }}
-              logs={sortLogsByCreatedAt(logs)}
-            />
+
+          {tab.value === "build" ? (
+            <BuildLogsContent logs={logs} />
           ) : (
-            <Loader />
+            <AgentLogsContent agent={selectedAgent!} />
           )}
         </div>
       </div>
     </DashboardFullPage>
+  );
+};
+
+const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
+  if (!logs) {
+    return <Loader />;
+  }
+
+  return (
+    <WorkspaceBuildLogs
+      css={{
+        border: 0,
+        "--log-line-side-padding": `${TAB_PADDING_X}px`,
+        // Add extra spacing to the first log header to prevent it from being
+        // too close to the tabs
+        "& .logs-header:first-of-type": {
+          paddingTop: 16,
+        },
+      }}
+      logs={sortLogsByCreatedAt(logs)}
+    />
+  );
+};
+
+const AgentLogsContent: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
+  const logs = useAgentLogs(agent.id);
+
+  if (!logs) {
+    return <Loader />;
+  }
+
+  return (
+    <AgentLogs
+      sources={agent.log_sources}
+      logs={logs}
+      height={560}
+      width="100%"
+    />
   );
 };
 

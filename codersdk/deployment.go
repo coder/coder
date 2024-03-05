@@ -1408,7 +1408,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonPSK",
+			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// RateLimit settings
 		{
@@ -2117,8 +2117,9 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample     Experiment = "example" // This isn't used for anything.
-	ExperimentSharedPorts Experiment = "shared-ports"
+	ExperimentExample            Experiment = "example" // This isn't used for anything.
+	ExperimentSharedPorts        Experiment = "shared-ports"
+	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 )
 
 // ExperimentsAll should include all experiments that are safe for

@@ -2,8 +2,14 @@ import { screen, waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage";
-import { MockWorkspace, MockWorkspaceBuild } from "testHelpers/entities";
+import {
+  MockWorkspace,
+  MockWorkspaceAgent,
+  MockWorkspaceAgentLogs,
+  MockWorkspaceBuild,
+} from "testHelpers/entities";
 import * as API from "api/api";
+import { LOGS_TAB_KEY } from "./WorkspaceBuildPageView";
 
 afterEach(() => {
   WS.clean();
@@ -55,5 +61,19 @@ describe("WorkspaceBuildPage", () => {
     };
 
     server.close();
+  });
+
+  test("shows selected agent logs", async () => {
+    const server = new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/logs?follow&after=0`,
+    );
+    renderWithAuth(<WorkspaceBuildPage />, {
+      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=${MockWorkspaceAgent.id}`,
+      path: "/:username/:workspace/builds/:buildNumber",
+    });
+    await screen.findByText(`Build #${MockWorkspaceBuild.build_number}`);
+    await server.connected;
+    server.send(JSON.stringify(MockWorkspaceAgentLogs));
+    await screen.findByText(MockWorkspaceAgentLogs[0].output);
   });
 });

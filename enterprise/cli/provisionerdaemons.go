@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -67,6 +70,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		pollJitter     time.Duration
 		preSharedKey   string
 		verbose        bool
+
+		prometheusEnable  bool
+		prometheusAddress string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -117,9 +123,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				defer closeLogger()
 			}
 
-			if len(tags) != 0 {
-				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")
-				logger.Info(ctx, "see https://github.com/coder/coder/issues/6442 for details")
+			if len(tags) == 0 {
+				logger.Info(ctx, "note: untagged provisioners can only pick up jobs from untagged templates")
 			}
 
 			// When authorizing with a PSK, we automatically scope the provisionerd
@@ -166,6 +171,24 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				}
 			}()
 
+			var metrics *provisionerd.Metrics
+			if prometheusEnable {
+				logger.Info(ctx, "starting Prometheus endpoint", slog.F("address", prometheusAddress))
+
+				prometheusRegistry := prometheus.NewRegistry()
+				prometheusRegistry.MustRegister(collectors.NewGoCollector())
+				prometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+				m := provisionerd.NewMetrics(prometheusRegistry)
+				m.Runner.NumDaemons.Set(float64(1)) // Set numDaemons to 1 as this is standalone mode.
+				metrics = &m
+
+				closeFunc := agpl.ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					prometheusRegistry, promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}),
+				), prometheusAddress, "prometheus")
+				defer closeFunc()
+			}
+
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags), slog.F("name", name))
 
 			connector := provisionerd.LocalProvisioners{
@@ -186,6 +209,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				Logger:         logger,
 				UpdateInterval: 500 * time.Millisecond,
 				Connector:      connector,
+				Metrics:        metrics,
 			})
 
 			var exitErr error
@@ -291,6 +315,20 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Description: "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
 			Value:       clibase.StringArrayOf(&logFilter),
 			Default:     "",
+		},
+		{
+			Flag:        "prometheus-enable",
+			Env:         "CODER_PROMETHEUS_ENABLE",
+			Description: "Serve prometheus metrics on the address defined by prometheus address.",
+			Value:       clibase.BoolOf(&prometheusEnable),
+			Default:     "false",
+		},
+		{
+			Flag:        "prometheus-address",
+			Env:         "CODER_PROMETHEUS_ADDRESS",
+			Description: "The bind address to serve prometheus metrics.",
+			Value:       clibase.StringOf(&prometheusAddress),
+			Default:     "127.0.0.1:2112",
 		},
 	}
 

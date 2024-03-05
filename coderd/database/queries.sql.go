@@ -2691,12 +2691,57 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UU
 	return err
 }
 
+const deleteOAuth2ProviderAppCodeByID = `-- name: DeleteOAuth2ProviderAppCodeByID :exec
+DELETE FROM oauth2_provider_app_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodeByID, id)
+	return err
+}
+
+const deleteOAuth2ProviderAppCodesByAppAndUserID = `-- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
+DELETE FROM oauth2_provider_app_codes WHERE app_id = $1 AND user_id = $2
+`
+
+type DeleteOAuth2ProviderAppCodesByAppAndUserIDParams struct {
+	AppID  uuid.UUID `db:"app_id" json:"app_id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppCodesByAppAndUserID, arg.AppID, arg.UserID)
+	return err
+}
+
 const deleteOAuth2ProviderAppSecretByID = `-- name: DeleteOAuth2ProviderAppSecretByID :exec
 DELETE FROM oauth2_provider_app_secrets WHERE id = $1
 `
 
 func (q *sqlQuerier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppSecretByID, id)
+	return err
+}
+
+const deleteOAuth2ProviderAppTokensByAppAndUserID = `-- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
+DELETE FROM
+  oauth2_provider_app_tokens
+USING
+  oauth2_provider_app_secrets, api_keys
+WHERE
+  oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
+  AND api_keys.id = oauth2_provider_app_tokens.api_key_id
+  AND oauth2_provider_app_secrets.app_id = $1
+	AND api_keys.user_id = $2
+`
+
+type DeleteOAuth2ProviderAppTokensByAppAndUserIDParams struct {
+	AppID  uuid.UUID `db:"app_id" json:"app_id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOAuth2ProviderAppTokensByAppAndUserID, arg.AppID, arg.UserID)
 	return err
 }
 
@@ -2718,8 +2763,46 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByID, id)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByPrefix, secretPrefix)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+	)
+	return i, err
+}
+
 const getOAuth2ProviderAppSecretByID = `-- name: GetOAuth2ProviderAppSecretByID :one
-SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id FROM oauth2_provider_app_secrets WHERE id = $1
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error) {
@@ -2732,12 +2815,32 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppSecretByPrefix = `-- name: GetOAuth2ProviderAppSecretByPrefix :one
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE secret_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppSecret, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppSecretByPrefix, secretPrefix)
+	var i OAuth2ProviderAppSecret
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+		&i.HashedSecret,
+		&i.DisplaySecret,
+		&i.AppID,
+		&i.SecretPrefix,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppSecretsByAppID = `-- name: GetOAuth2ProviderAppSecretsByAppID :many
-SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id FROM oauth2_provider_app_secrets WHERE app_id = $1 ORDER BY (created_at, id) ASC
+SELECT id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix FROM oauth2_provider_app_secrets WHERE app_id = $1 ORDER BY (created_at, id) ASC
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error) {
@@ -2756,6 +2859,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 			&i.HashedSecret,
 			&i.DisplaySecret,
 			&i.AppID,
+			&i.SecretPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -2768,6 +2872,25 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 		return nil, err
 	}
 	return items, nil
+}
+
+const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppTokenByPrefix, hashPrefix)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
+	)
+	return i, err
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
@@ -2790,6 +2913,59 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			&i.Name,
 			&i.Icon,
 			&i.CallbackURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOAuth2ProviderAppsByUserID = `-- name: GetOAuth2ProviderAppsByUserID :many
+SELECT
+  COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
+  oauth2_provider_apps.id, oauth2_provider_apps.created_at, oauth2_provider_apps.updated_at, oauth2_provider_apps.name, oauth2_provider_apps.icon, oauth2_provider_apps.callback_url
+FROM oauth2_provider_app_tokens
+  INNER JOIN oauth2_provider_app_secrets
+    ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
+  INNER JOIN oauth2_provider_apps
+    ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
+  INNER JOIN api_keys
+    ON api_keys.id = oauth2_provider_app_tokens.api_key_id
+WHERE
+  api_keys.user_id = $1
+GROUP BY
+  oauth2_provider_apps.id
+`
+
+type GetOAuth2ProviderAppsByUserIDRow struct {
+	TokenCount        int64             `db:"token_count" json:"token_count"`
+	OAuth2ProviderApp OAuth2ProviderApp `db:"oauth2_provider_app" json:"oauth2_provider_app"`
+}
+
+func (q *sqlQuerier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderAppsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOAuth2ProviderAppsByUserIDRow
+	for rows.Next() {
+		var i GetOAuth2ProviderAppsByUserIDRow
+		if err := rows.Scan(
+			&i.TokenCount,
+			&i.OAuth2ProviderApp.ID,
+			&i.OAuth2ProviderApp.CreatedAt,
+			&i.OAuth2ProviderApp.UpdatedAt,
+			&i.OAuth2ProviderApp.Name,
+			&i.OAuth2ProviderApp.Icon,
+			&i.OAuth2ProviderApp.CallbackURL,
 		); err != nil {
 			return nil, err
 		}
@@ -2852,10 +3028,64 @@ func (q *sqlQuerier) InsertOAuth2ProviderApp(ctx context.Context, arg InsertOAut
 	return i, err
 }
 
+const insertOAuth2ProviderAppCode = `-- name: InsertOAuth2ProviderAppCode :one
+INSERT INTO oauth2_provider_app_codes (
+    id,
+    created_at,
+    expires_at,
+    secret_prefix,
+    hashed_secret,
+    app_id,
+    user_id
+) VALUES(
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id
+`
+
+type InsertOAuth2ProviderAppCodeParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+	SecretPrefix []byte    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	AppID        uuid.UUID `db:"app_id" json:"app_id"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderAppCode,
+		arg.ID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.AppID,
+		arg.UserID,
+	)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+	)
+	return i, err
+}
+
 const insertOAuth2ProviderAppSecret = `-- name: InsertOAuth2ProviderAppSecret :one
 INSERT INTO oauth2_provider_app_secrets (
     id,
     created_at,
+    secret_prefix,
     hashed_secret,
     display_secret,
     app_id
@@ -2864,13 +3094,15 @@ INSERT INTO oauth2_provider_app_secrets (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id
+    $5,
+    $6
+) RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
 `
 
 type InsertOAuth2ProviderAppSecretParams struct {
 	ID            uuid.UUID `db:"id" json:"id"`
 	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret  []byte    `db:"hashed_secret" json:"hashed_secret"`
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
@@ -2880,6 +3112,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg Inse
 	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderAppSecret,
 		arg.ID,
 		arg.CreatedAt,
+		arg.SecretPrefix,
 		arg.HashedSecret,
 		arg.DisplaySecret,
 		arg.AppID,
@@ -2892,6 +3125,60 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg Inse
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
+	)
+	return i, err
+}
+
+const insertOAuth2ProviderAppToken = `-- name: InsertOAuth2ProviderAppToken :one
+INSERT INTO oauth2_provider_app_tokens (
+    id,
+    created_at,
+    expires_at,
+    hash_prefix,
+    refresh_hash,
+    app_secret_id,
+    api_key_id
+) VALUES(
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id
+`
+
+type InsertOAuth2ProviderAppTokenParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
+	HashPrefix  []byte    `db:"hash_prefix" json:"hash_prefix"`
+	RefreshHash []byte    `db:"refresh_hash" json:"refresh_hash"`
+	AppSecretID uuid.UUID `db:"app_secret_id" json:"app_secret_id"`
+	APIKeyID    string    `db:"api_key_id" json:"api_key_id"`
+}
+
+func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
+	row := q.db.QueryRowContext(ctx, insertOAuth2ProviderAppToken,
+		arg.ID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.HashPrefix,
+		arg.RefreshHash,
+		arg.AppSecretID,
+		arg.APIKeyID,
+	)
+	var i OAuth2ProviderAppToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.HashPrefix,
+		&i.RefreshHash,
+		&i.AppSecretID,
+		&i.APIKeyID,
 	)
 	return i, err
 }
@@ -2936,7 +3223,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 const updateOAuth2ProviderAppSecretByID = `-- name: UpdateOAuth2ProviderAppSecretByID :one
 UPDATE oauth2_provider_app_secrets SET
     last_used_at = $2
-WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id
+WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
 `
 
 type UpdateOAuth2ProviderAppSecretByIDParams struct {
@@ -2954,6 +3241,7 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 		&i.HashedSecret,
 		&i.DisplaySecret,
 		&i.AppID,
+		&i.SecretPrefix,
 	)
 	return i, err
 }
@@ -3252,7 +3540,7 @@ SELECT
 FROM
 	organizations
 WHERE
-	id = (
+	id = ANY(
 		SELECT
 			organization_id
 		FROM
@@ -3648,8 +3936,13 @@ WHERE
 			nested.started_at IS NULL
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb
+			AND CASE
+				-- Special case for untagged provisioners: only match untagged jobs.
+				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+				THEN nested.tags :: jsonb = $4 :: jsonb
+				-- Ensure the caller satisfies all job tags.
+				ELSE nested.tags :: jsonb <@ $4 :: jsonb
+			END
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -6582,7 +6875,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6613,7 +6906,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6644,7 +6937,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6681,7 +6974,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.ExternalAuthProviders),
+		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
 		&i.CreatedByAvatarURL,
@@ -6718,7 +7011,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -6812,7 +7105,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -6854,7 +7147,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.ExternalAuthProviders),
+			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
 			&i.CreatedByAvatarURL,
@@ -7004,13 +7297,13 @@ WHERE
 `
 
 type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
-	JobID                 uuid.UUID `db:"job_id" json:"job_id"`
-	ExternalAuthProviders []string  `db:"external_auth_providers" json:"external_auth_providers"`
-	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
+	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, pq.Array(arg.ExternalAuthProviders), arg.UpdatedAt)
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, arg.ExternalAuthProviders, arg.UpdatedAt)
 	return err
 }
 
@@ -7894,18 +8187,13 @@ const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
 UPDATE
 	users
 SET
-	deleted = $2
+	deleted = true
 WHERE
 	id = $1
 `
 
-type UpdateUserDeletedByIDParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, arg.ID, arg.Deleted)
+func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, id)
 	return err
 }
 
