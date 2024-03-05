@@ -382,32 +382,44 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
-fmt: fmt/prettier fmt/terraform fmt/shfmt fmt/go
+BOLD := $(shell tput bold)
+GREEN := $(shell tput setaf 2)
+RESET := $(shell tput sgr0)
+
+fmt: fmt/eslint fmt/prettier fmt/terraform fmt/shfmt fmt/go
 .PHONY: fmt
 
 fmt/go:
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
 .PHONY: fmt/go
 
+fmt/eslint:
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/eslint$(RESET)"
+	cd site
+	pnpm run lint:fix
+.PHONY: fmt/eslint
+
 fmt/prettier:
-	echo "--- prettier"
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/prettier$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
 	pnpm run format:check
 else
-	pnpm run format:write
+	pnpm run format
 endif
 .PHONY: fmt/prettier
 
 fmt/terraform: $(wildcard *.tf)
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET)"
 	terraform fmt -recursive
 .PHONY: fmt/terraform
 
 fmt/shfmt: $(SHELL_SRC_FILES)
-	echo "--- shfmt"
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/shfmt$(RESET)"
 # Only do diff check in CI, errors on diff.
 ifdef CI
 	shfmt -d $(SHELL_SRC_FILES)
@@ -574,7 +586,7 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run ./scripts/apitypings/ > $@
-	pnpm run format:write:only "$@"
+	pnpm exec prettier --write "$@"
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
@@ -583,7 +595,7 @@ site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisio
 
 site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
-	pnpm run format:write:only "$@"
+	pnpm exec prettier --write "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
@@ -593,19 +605,19 @@ coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
-	pnpm run format:write:only ./docs/admin/prometheus.md
+	pnpm exec prettier --write ./docs/admin/prometheus.md
 
 docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
-	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
+	pnpm exec prettier --write ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
 docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
-	pnpm run format:write:only ./docs/admin/audit-logs.md
+	pnpm exec prettier --write ./docs/admin/audit-logs.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
-	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
+	pnpm exec prettier --write ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
 update-golden-files: \
 	cli/testdata/.gen-golden \
