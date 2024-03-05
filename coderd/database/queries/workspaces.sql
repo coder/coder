@@ -302,8 +302,8 @@ WHERE
 	UNION ALL
 	SELECT
 		'00000000-0000-0000-0000-000000000000'::uuid, -- id
-		'0001-01-01 00:00:00+00'::timestamp, -- created_at
-		'0001-01-01 00:00:00+00'::timestamp, -- updated_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- created_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- updated_at
 		'00000000-0000-0000-0000-000000000000'::uuid, -- owner_id
 		'00000000-0000-0000-0000-000000000000'::uuid, -- organization_id
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_id
@@ -311,9 +311,9 @@ WHERE
 		'**TECHNICAL_ROW**', -- name
 		'', -- autostart_schedule
 		0, -- ttl
-		'0001-01-01 00:00:00+00'::timestamp, -- last_used_at
-		'0001-01-01 00:00:00+00'::timestamp, -- dormant_at
-		'0001-01-01 00:00:00+00'::timestamp, -- deleting_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- last_used_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- dormant_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- deleting_at
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
 		-- Extra columns added to `filtered_workspaces`
@@ -321,8 +321,8 @@ WHERE
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name
 		'', -- username
-		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_completed_at,
-		'0001-01-01 00:00:00+00'::timestamp, -- latest_build_canceled_at,
+		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
+		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
 		'start'::workspace_transition -- latest_build_transition
 	WHERE
