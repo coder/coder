@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import type { useFilter } from "components/Filter/filter";
 import {
   Filter,
   FilterMenu,
@@ -9,6 +8,7 @@ import {
   MenuSkeleton,
   OptionItem,
   SearchFieldSkeleton,
+  type useFilter,
 } from "components/Filter/filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";

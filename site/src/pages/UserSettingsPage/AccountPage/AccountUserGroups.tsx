@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Grid from "@mui/material/Grid";
-import { type FC } from "react";
+import type { FC } from "react";
 import { isApiError } from "api/errors";
 import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";

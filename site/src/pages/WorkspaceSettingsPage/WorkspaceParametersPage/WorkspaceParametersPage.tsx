@@ -1,6 +1,6 @@
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";

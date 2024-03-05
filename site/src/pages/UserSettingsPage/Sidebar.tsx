@@ -4,7 +4,7 @@ import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { User } from "api/typesGenerated";
 import { GitIcon } from "components/Icons/GitIcon";
 import {

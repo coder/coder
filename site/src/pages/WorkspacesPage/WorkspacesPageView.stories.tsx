@@ -2,8 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
-import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
-import { WorkspaceStatuses } from "api/typesGenerated";
+import {
+  type Workspace,
+  type WorkspaceStatus,
+  WorkspaceStatuses,
+} from "api/typesGenerated";
 import {
   MockMenu,
   getDefaultFilterProps,

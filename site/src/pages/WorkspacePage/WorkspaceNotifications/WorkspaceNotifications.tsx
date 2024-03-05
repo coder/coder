@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import formatDistanceToNow from "date-fns/formatDistanceToNow";
@@ -13,8 +13,8 @@ import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import type { WorkspacePermissions } from "../permissions";
 import {
   NotificationActionButton,
-  Notifications,
   type NotificationItem,
+  Notifications,
 } from "./Notifications";
 
 type WorkspaceNotificationsProps = {

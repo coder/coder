@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type {
   ProvisionerJobLog,

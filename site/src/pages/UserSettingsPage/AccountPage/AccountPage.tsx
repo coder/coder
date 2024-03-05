@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";

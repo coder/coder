@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   updateUserQuietHoursSchedule,

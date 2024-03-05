@@ -3,7 +3,7 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { getWorkspaceParameters } from "api/api";
 import type {

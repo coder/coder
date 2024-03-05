@@ -16,8 +16,8 @@
 import { useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
-import { type FC } from "react";
-import { type User, type Role } from "api/typesGenerated";
+import type { FC } from "react";
+import type { Role, User } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,

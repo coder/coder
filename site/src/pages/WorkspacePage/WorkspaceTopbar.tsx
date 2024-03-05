@@ -4,7 +4,7 @@ import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { workspaceQuota } from "api/queries/workspaceQuota";

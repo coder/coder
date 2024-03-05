@@ -1,5 +1,9 @@
-import type { QueryKey } from "react-query";
-import { useQuery, useMutation, useQueryClient } from "react-query";
+import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "react-query";
 import { getTokens, deleteToken } from "api/api";
 import type { TokensFilter } from "api/typesGenerated";
 

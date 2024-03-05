@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { rest } from "msw";
-import { type FC } from "react";
+import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import * as API from "api/api";

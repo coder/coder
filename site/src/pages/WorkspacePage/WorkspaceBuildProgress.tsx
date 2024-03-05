@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";

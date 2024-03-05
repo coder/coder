@@ -5,7 +5,7 @@ import {
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
-import { type UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import {
   MockUser,
   MockUser2,

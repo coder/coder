@@ -9,7 +9,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";

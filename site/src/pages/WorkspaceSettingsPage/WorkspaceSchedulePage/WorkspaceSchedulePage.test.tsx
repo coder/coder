@@ -10,8 +10,10 @@ import {
 } from "./formToRequest";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
-import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
-import { Language as FormLanguage } from "./WorkspaceScheduleForm";
+import {
+  Language as FormLanguage,
+  type WorkspaceScheduleFormValues,
+} from "./WorkspaceScheduleForm";
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 
 const validValues: WorkspaceScheduleFormValues = {

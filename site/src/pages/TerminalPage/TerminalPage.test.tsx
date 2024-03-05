@@ -1,5 +1,5 @@
-import { waitFor } from "@testing-library/react";
 import "jest-canvas-mock";
+import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { rest } from "msw";
 import { TextDecoder, TextEncoder } from "util";

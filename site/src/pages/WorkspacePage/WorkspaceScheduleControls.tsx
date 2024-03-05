@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";

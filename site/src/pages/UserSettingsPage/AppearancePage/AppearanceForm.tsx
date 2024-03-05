@@ -1,6 +1,6 @@
-import { type Interpolation } from "@emotion/react";
+import type { Interpolation } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { PreviewBadge } from "components/Badges/Badges";

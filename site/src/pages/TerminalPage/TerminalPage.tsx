@@ -1,4 +1,5 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import "xterm/css/xterm.css";
+import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -10,7 +11,6 @@ import { FitAddon } from "xterm-addon-fit";
 import { Unicode11Addon } from "xterm-addon-unicode11";
 import { WebLinksAddon } from "xterm-addon-web-links";
 import { WebglAddon } from "xterm-addon-webgl";
-import "xterm/css/xterm.css";
 import { deploymentConfig } from "api/queries/deployment";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";

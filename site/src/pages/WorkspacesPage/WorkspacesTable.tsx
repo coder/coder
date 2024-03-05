@@ -9,7 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";

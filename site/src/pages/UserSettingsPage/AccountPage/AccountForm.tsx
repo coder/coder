@@ -1,7 +1,6 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import type { FormikTouched } from "formik";
-import { useFormik } from "formik";
+import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";

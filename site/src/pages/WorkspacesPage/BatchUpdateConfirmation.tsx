@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";

@@ -9,8 +9,8 @@ import {
   ttlShutdownAt,
   validationSchema,
   WorkspaceScheduleForm,
-  type WorkspaceScheduleFormValues,
   type WorkspaceScheduleFormProps,
+  type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
 
 const valid: WorkspaceScheduleFormValues = {

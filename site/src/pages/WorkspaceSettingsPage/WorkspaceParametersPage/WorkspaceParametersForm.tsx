@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import type {
   TemplateVersionParameter,

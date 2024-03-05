@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import GitHub from "@mui/icons-material/GitHub";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
@@ -10,8 +10,8 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { type FC } from "react";
-import { type GroupsByUserId } from "api/queries/groups";
+import type { FC } from "react";
+import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";

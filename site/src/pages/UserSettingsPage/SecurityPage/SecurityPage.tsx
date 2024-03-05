@@ -1,4 +1,4 @@
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { getUserLoginType } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";

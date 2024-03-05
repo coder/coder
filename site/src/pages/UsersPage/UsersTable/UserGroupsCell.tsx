@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
-import { type Group } from "api/typesGenerated";
+import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import {
