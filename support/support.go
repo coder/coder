@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -64,8 +63,11 @@ type Deps struct {
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Deployment {
 	// Note: each goroutine assigns to a different struct field, hence no mutex.
-	var d Deployment
-	eg, ctx := errgroup.WithContext(ctx)
+	var (
+		d  Deployment
+		eg errgroup.Group
+	)
+
 	eg.Go(func() error {
 		bi, err := client.BuildInfo(ctx)
 		if err != nil {
@@ -110,9 +112,11 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 }
 
 func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Network {
-	var n Network
+	var (
+		n  Network
+		eg errgroup.Group
+	)
 
-	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		coordResp, err := client.Request(ctx, http.MethodGet, "/api/v2/debug/coordinator", nil)
 		if err != nil {
@@ -162,7 +166,10 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 }
 
 func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID, agentID uuid.UUID) Workspace {
-	var w Workspace
+	var (
+		w  Workspace
+		eg errgroup.Group
+	)
 
 	if workspaceID == uuid.Nil {
 		log.Error(ctx, "no workspace id specified")
@@ -180,8 +187,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		return w
 	}
 	w.Workspace = ws
-
-	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
 		agt, err := client.WorkspaceAgent(ctx, agentID)
@@ -265,35 +270,24 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		}
 	}
 
-	var (
-		wg sync.WaitGroup
-		m  sync.Mutex
-	)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	var eg errgroup.Group
+	eg.Go(func() error {
 		di := DeploymentInfo(ctx, d.Client, d.Log)
-		m.Lock()
 		b.Deployment = di
-		m.Unlock()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+		return nil
+	})
+	eg.Go(func() error {
 		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)
-		m.Lock()
 		b.Workspace = wi
-		m.Unlock()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+		return nil
+	})
+	eg.Go(func() error {
 		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
-		m.Lock()
 		b.Network = ni
-		m.Unlock()
-	}()
-	wg.Wait()
+		return nil
+	})
+
+	_ = eg.Wait()
 
 	return &b, nil
 }
