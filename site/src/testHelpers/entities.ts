@@ -3276,18 +3276,21 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
       agent_name: "a-workspace-agent",
       port: 4000,
       share_level: "authenticated",
+      protocol: "http",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
-      port: 8080,
+      port: 65535,
       share_level: "authenticated",
+      protocol: "https",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
       port: 8081,
       share_level: "public",
+      protocol: "http",
     },
   ],
 };
