@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-debug="${debug:-0}"
+DEBUG_DELVE="${DEBUG_DELVE:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
 	BINARY_TYPE=coder
@@ -56,11 +56,11 @@ coder)
 	;;
 esac
 
-runcmd="${CODER_DEV_BIN}"
-if [[ "${debug}" == 1 ]]; then
+runcmd=("${CODER_DEV_BIN}")
+if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	set -x
-	runcmd="dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --"
+	runcmd=(dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --)
 fi
 
 # shellcheck disable=SC2086 # This is probably one of the few times you actually want this.
-exec $runcmd --global-config "${CODER_DEV_DIR}" "$@"
+exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
