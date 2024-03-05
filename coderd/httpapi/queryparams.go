@@ -79,6 +79,30 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	return v
 }
 
+// PositiveInt32 function checks if the given value is 32-bit and positive.
+//
+// We can't use `uint32` as the value must be within the range  <0,2147483647>
+// as database expects it. Otherwise, the database query fails with `pq: OFFSET must not be negative`.
+func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam string) int32 {
+	v, err := parseQueryParam(p, vals, func(v string) (int32, error) {
+		intValue, err := strconv.ParseInt(v, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		if intValue < 0 {
+			return 0, xerrors.Errorf("value is negative")
+		}
+		return int32(intValue), nil
+	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid 32-bit positive integer (%s)", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
 func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string) bool {
 	v, err := parseQueryParam(p, vals, strconv.ParseBool, def, queryParam)
 	if err != nil {

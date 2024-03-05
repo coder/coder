@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -1727,19 +1728,19 @@ func TestOffsetLimit(t *testing.T) {
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-	// empty finds all workspaces
+	// Case 1: empty finds all workspaces
 	ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 3)
 
-	// offset 1 finds 2 workspaces
+	// Case 2: offset 1 finds 2 workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 2)
 
-	// offset 1 limit 1 finds 1 workspace
+	// Case 3: offset 1 limit 1 finds 1 workspace
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 		Limit:  1,
@@ -1747,13 +1748,19 @@ func TestOffsetLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 1)
 
-	// offset 3 finds no workspaces
+	// Case 4: offset 3 finds no workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 3,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 0)
 	require.Equal(t, ws.Count, 3) // can't find workspaces, but count is non-zero
+
+	// Case 5: offset out of range
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: math.MaxInt32 + 1, // Potential risk: pq: OFFSET must not be negative
+	})
+	require.Error(t, err)
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
