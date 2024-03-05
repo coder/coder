@@ -14,7 +14,6 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
-CODER_BUILD_DEVEL=1
 debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"

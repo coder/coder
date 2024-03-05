@@ -10,7 +10,6 @@ source "${SCRIPT_DIR}/lib.sh"
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-CODER_BUILD_DEVEL=1
 debug="${debug:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then

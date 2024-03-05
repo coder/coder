@@ -38,7 +38,6 @@ sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
-devel=${CODER_BUILD_DEVEL:-0}
 
 args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto -- "$@")"
 eval set -- "$args"
