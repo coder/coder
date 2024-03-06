@@ -8469,7 +8469,12 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 }
 
 const deleteWorkspaceAgentPortShare = `-- name: DeleteWorkspaceAgentPortShare :exec
-DELETE FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+DELETE FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id = $1
+	AND agent_name = $2
+	AND port = $3
 `
 
 type DeleteWorkspaceAgentPortShareParams struct {
@@ -8484,7 +8489,17 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg Dele
 }
 
 const deleteWorkspaceAgentPortSharesByTemplate = `-- name: DeleteWorkspaceAgentPortSharesByTemplate :exec
-DELETE FROM workspace_agent_port_share WHERE workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
+DELETE FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id IN (
+		SELECT
+			id
+		FROM
+			workspaces
+		WHERE
+			template_id = $1
+	)
 `
 
 func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error {
@@ -8493,7 +8508,14 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Contex
 }
 
 const getWorkspaceAgentPortShare = `-- name: GetWorkspaceAgentPortShare :one
-SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1 AND agent_name = $2 AND port = $3
+SELECT
+	workspace_id, agent_name, port, share_level, protocol
+FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id = $1
+	AND agent_name = $2
+	AND port = $3
 `
 
 type GetWorkspaceAgentPortShareParams struct {
@@ -8510,12 +8532,18 @@ func (q *sqlQuerier) GetWorkspaceAgentPortShare(ctx context.Context, arg GetWork
 		&i.AgentName,
 		&i.Port,
 		&i.ShareLevel,
+		&i.Protocol,
 	)
 	return i, err
 }
 
 const listWorkspaceAgentPortShares = `-- name: ListWorkspaceAgentPortShares :many
-SELECT workspace_id, agent_name, port, share_level FROM workspace_agent_port_share WHERE workspace_id = $1
+SELECT
+	workspace_id, agent_name, port, share_level, protocol
+FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id = $1
 `
 
 func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error) {
@@ -8532,6 +8560,7 @@ func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspace
 			&i.AgentName,
 			&i.Port,
 			&i.ShareLevel,
+			&i.Protocol,
 		); err != nil {
 			return nil, err
 		}
@@ -8547,7 +8576,20 @@ func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspace
 }
 
 const reduceWorkspaceAgentShareLevelToAuthenticatedByTemplate = `-- name: ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate :exec
-UPDATE workspace_agent_port_share SET share_level = 'authenticated' WHERE share_level = 'public' AND workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
+UPDATE
+	workspace_agent_port_share
+SET
+	share_level = 'authenticated'
+WHERE
+	share_level = 'public'
+	AND workspace_id IN (
+		SELECT
+			id
+		FROM
+			workspaces
+		WHERE
+			template_id = $1
+	)
 `
 
 func (q *sqlQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
@@ -8556,16 +8598,38 @@ func (q *sqlQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx
 }
 
 const upsertWorkspaceAgentPortShare = `-- name: UpsertWorkspaceAgentPortShare :one
-INSERT INTO workspace_agent_port_share (workspace_id, agent_name, port, share_level)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (workspace_id, agent_name, port) DO UPDATE SET share_level = $4 RETURNING workspace_id, agent_name, port, share_level
+INSERT INTO
+	workspace_agent_port_share (
+		workspace_id,
+		agent_name,
+		port,
+		share_level,
+		protocol
+	)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5
+)
+ON CONFLICT (
+	workspace_id,
+	agent_name,
+	port
+)
+DO UPDATE SET
+	share_level = $4,
+	protocol = $5
+RETURNING workspace_id, agent_name, port, share_level, protocol
 `
 
 type UpsertWorkspaceAgentPortShareParams struct {
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
+	AgentName   string            `db:"agent_name" json:"agent_name"`
+	Port        int32             `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
+	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
 func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error) {
@@ -8574,6 +8638,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 		arg.AgentName,
 		arg.Port,
 		arg.ShareLevel,
+		arg.Protocol,
 	)
 	var i WorkspaceAgentPortShare
 	err := row.Scan(
@@ -8581,6 +8646,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 		&i.AgentName,
 		&i.Port,
 		&i.ShareLevel,
+		&i.Protocol,
 	)
 	return i, err
 }

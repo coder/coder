@@ -26,10 +26,11 @@ import {
 } from "api/queries/workspaceportsharing";
 import {
   type Template,
-  type UpsertWorkspaceAgentPortShareRequest,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
+  type UpsertWorkspaceAgentPortShareRequest,
+  type WorkspaceAgentPortShareProtocol,
   WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import {
@@ -162,6 +163,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     initialValues: {
       agent_name: agent.name,
       port: undefined,
+      protocol: "http",
       share_level: "authenticated",
     },
     validationSchema,
@@ -325,6 +327,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                         await upsertSharedPortMutation.mutateAsync({
                           agent_name: agent.name,
                           port: port.port,
+                          protocol: "http",
                           share_level: "authenticated",
                         });
                         await sharedPortsQuery.refetch();
@@ -384,8 +387,31 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                       )}
                       {label}
                     </Link>
+                    <FormControl size="small" css={styles.protocolFormControl}>
+                      <Select
+                        css={styles.shareLevelSelect}
+                        value={share.protocol}
+                        onChange={async (event) => {
+                          await upsertSharedPortMutation.mutateAsync({
+                            agent_name: agent.name,
+                            port: share.port,
+                            protocol: event.target
+                              .value as WorkspaceAgentPortShareProtocol,
+                            share_level: share.share_level,
+                          });
+                          await sharedPortsQuery.refetch();
+                        }}
+                      >
+                        <MenuItem value="http">HTTP</MenuItem>
+                        <MenuItem value="https">HTTPS</MenuItem>
+                      </Select>
+                    </FormControl>
+
                     <Stack direction="row" justifyContent="flex-end">
-                      <FormControl size="small">
+                      <FormControl
+                        size="small"
+                        css={styles.shareLevelFormControl}
+                      >
                         <Select
                           css={styles.shareLevelSelect}
                           value={share.share_level}
@@ -393,6 +419,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                             await upsertSharedPortMutation.mutateAsync({
                               agent_name: agent.name,
                               port: share.port,
+                              protocol: share.protocol,
                               share_level: event.target
                                 .value as WorkspaceAgentPortShareLevel,
                             });
@@ -453,6 +480,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     value={form.values.port}
                   />
                   <TextField
+                    {...getFieldHelpers("protocol")}
+                    disabled={isSubmitting}
+                    fullWidth
+                    select
+                    value={form.values.protocol}
+                    label="Protocol"
+                  >
+                    <MenuItem value="http">HTTP</MenuItem>
+                    <MenuItem value="https">HTTPS</MenuItem>
+                  </TextField>
+                  <TextField
                     {...getFieldHelpers("share_level")}
                     disabled={isSubmitting}
                     fullWidth
@@ -486,7 +524,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 const classNames = {
   paper: (css, theme) => css`
     padding: 0;
-    width: 304px;
+    width: 404px;
     color: ${theme.palette.text.secondary};
     margin-top: 4px;
   `,
@@ -515,6 +553,7 @@ const styles = {
     paddingTop: 8,
     paddingBottom: 8,
     fontWeight: 500,
+    minWidth: 80,
   }),
 
   portNumber: (theme) => ({
@@ -562,5 +601,14 @@ const styles = {
     appearance: "textfield",
     display: "block",
     width: "100%",
+  }),
+  sharedPortLink: () => ({
+    minWidth: 80,
+  }),
+  protocolFormControl: () => ({
+    minWidth: 90,
+  }),
+  shareLevelFormControl: () => ({
+    minWidth: 140,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

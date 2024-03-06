@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -55,6 +56,12 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	if !req.Protocol.ValidPortProtocol() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Port protocol not allowed.",
+		})
+		return
+	}
 
 	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
@@ -95,6 +102,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		AgentName:   req.AgentName,
 		Port:        req.Port,
 		ShareLevel:  database.AppSharingLevel(req.ShareLevel),
+		Protocol:    database.PortShareProtocol(req.Protocol),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -179,6 +187,9 @@ func convertPortShares(shares []database.WorkspaceAgentPortShare) []codersdk.Wor
 	for _, share := range shares {
 		converted = append(converted, convertPortShare(share))
 	}
+	slices.SortFunc(converted, func(i, j codersdk.WorkspaceAgentPortShare) int {
+		return (int)(i.Port - j.Port)
+	})
 	return converted
 }
 
@@ -188,5 +199,6 @@ func convertPortShare(share database.WorkspaceAgentPortShare) codersdk.Workspace
 		AgentName:   share.AgentName,
 		Port:        share.Port,
 		ShareLevel:  codersdk.WorkspaceAgentPortShareLevel(share.ShareLevel),
+		Protocol:    codersdk.WorkspaceAgentPortShareProtocol(share.Protocol),
 	}
 }
