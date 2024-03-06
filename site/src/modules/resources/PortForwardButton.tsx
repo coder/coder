@@ -26,7 +26,6 @@ import {
 } from "api/queries/workspaceportsharing";
 import {
   type Template,
-  type UpsertWorkspaceAgentPortShareRequest,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
