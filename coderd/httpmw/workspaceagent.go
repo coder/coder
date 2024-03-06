@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -93,6 +94,8 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				return
 			}
 
+			ensureLatestBuild(ctx, opts.DB, rw, row.WorkspaceAgent)
+
 			subject := rbac.Subject{
 				ID:     row.OwnerID.String(),
 				Roles:  rbac.RoleNames(row.OwnerRoles),
@@ -111,4 +114,48 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+func ensureLatestBuild(ctx context.Context, db database.Store, rw http.ResponseWriter, workspaceAgent database.WorkspaceAgent) (database.WorkspaceBuild, bool) {
+	resource, err := db.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace agent resource.",
+			Detail:  err.Error(),
+		})
+		return database.WorkspaceBuild{}, false
+	}
+
+	build, err := db.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
+		})
+		return database.WorkspaceBuild{}, false
+	}
+
+	// Ensure the resource is still valid!
+	// We only accept agents for resources on the latest build.
+	err = checkBuildIsLatest(ctx, db, build)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Agent trying to connect from non-latest build.",
+			Detail:  err.Error(),
+		})
+		return database.WorkspaceBuild{}, false
+	}
+
+	return build, true
+}
+
+func checkBuildIsLatest(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
+	latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if build.ID != latestBuild.ID {
+		return xerrors.New("build is outdated")
+	}
+	return nil
 }

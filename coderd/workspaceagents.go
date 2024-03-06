@@ -954,11 +954,24 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
+	// The middlware only accept agents for resources on the latest build.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	build, ok := ensureLatestBuild(ctx, api.Database, api.Logger, rw, workspaceAgent)
-	if !ok {
+
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace agent resource.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
