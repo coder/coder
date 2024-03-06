@@ -8489,18 +8489,7 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg Dele
 }
 
 const deleteWorkspaceAgentPortSharesByTemplate = `-- name: DeleteWorkspaceAgentPortSharesByTemplate :exec
-DELETE FROM
-	workspace_agent_port_share
-WHERE
-	workspace_id
-IN (
-	SELECT
-		id
-	FROM
-		workspaces
-	WHERE
-		template_id = $1
-)
+DELETE FROM workspace_agent_port_share WHERE workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
 `
 
 func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error {
@@ -8577,21 +8566,7 @@ func (q *sqlQuerier) ListWorkspaceAgentPortShares(ctx context.Context, workspace
 }
 
 const reduceWorkspaceAgentShareLevelToAuthenticatedByTemplate = `-- name: ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate :exec
-UPDATE
-	workspace_agent_port_share
-SET
-	share_level = 'authenticated'
-WHERE
-	share_level = 'public'
-AND
-	workspace_id IN (
-		SELECT
-			id
-		FROM
-			workspaces
-		WHERE
-			template_id = $1
-	)
+UPDATE workspace_agent_port_share SET share_level = 'authenticated' WHERE share_level = 'public' AND workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1)
 `
 
 func (q *sqlQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
