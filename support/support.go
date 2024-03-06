@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // Bundle is a set of information discovered about a deployment.
@@ -25,6 +27,7 @@ type Bundle struct {
 	Deployment Deployment `json:"deployment"`
 	Network    Network    `json:"network"`
 	Workspace  Workspace  `json:"workspace"`
+	Agent      Agent      `json:"agent"`
 	Logs       []string   `json:"logs"`
 }
 
@@ -43,11 +46,14 @@ type Network struct {
 }
 
 type Workspace struct {
-	Workspace        codersdk.Workspace           `json:"workspace"`
-	BuildLogs        []codersdk.ProvisionerJobLog `json:"build_logs"`
-	Agent            codersdk.WorkspaceAgent      `json:"agent"`
-	AgentStartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
-	AgentManifest    agentsdk.Manifest            `json:"agent_manifest"`
+	Workspace codersdk.Workspace           `json:"workspace"`
+	BuildLogs []codersdk.ProvisionerJobLog `json:"build_logs"`
+}
+
+type Agent struct {
+	Agent       codersdk.WorkspaceAgent      `json:"agent"`
+	StartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
+	Manifest    agentsdk.Manifest            `json:"manifest"`
 }
 
 // Deps is a set of dependencies for discovering information
@@ -167,7 +173,77 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 	return n
 }
 
-func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID, agentID uuid.UUID) Workspace {
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, netCh chan Network) Agent {
+	var (
+		a  Agent
+		eg errgroup.Group
+	)
+
+	if agentID == uuid.Nil {
+		log.Error(ctx, "no agent id specified")
+		return a
+	}
+
+	eg.Go(func() error {
+		agt, err := client.WorkspaceAgent(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("fetch workspace agent: %w", err)
+		}
+		a.Agent = agt
+		return nil
+	})
+
+	eg.Go(func() error {
+		agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
+		if err != nil {
+			return xerrors.Errorf("fetch agent startup logs: %w", err)
+		}
+		defer closer.Close()
+		var logs []codersdk.WorkspaceAgentLog
+		for logChunk := range agentLogCh {
+			logs = append(logs, logChunk...)
+		}
+		a.StartupLogs = logs
+		return nil
+	})
+
+	eg.Go(func() error {
+		// Establish a tailnet connection. We can't connect to the
+		// Agent API because it requires the agent token.
+		ni := <-netCh
+		ip := tailnet.IP()
+		tc, err := tailnet.NewConn(&tailnet.Options{
+			Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
+			DERPMap:             ni.NetcheckLocal.DERPMap,
+			DERPForceWebSockets: false,
+			Logger:              log.Named("support.tailnet"),
+			BlockEndpoints:      false,
+		})
+		if err != nil {
+			return xerrors.Errorf("establish tailnet connection: %w", err)
+		}
+
+		agtIP := tailnet.IPFromUUID(agentID)
+		dur, ok, res, err := tc.Ping(ctx, agtIP)
+		if err != nil {
+			panic(xerrors.Errorf("ping agent: %w", err))
+		}
+		if !ok {
+			panic("ping was not ok")
+		}
+		log.Info(ctx, "pinged agent", slog.F("duration_ms", dur.Milliseconds()), slog.F("node_name", res.NodeName), slog.F("ip", res.IP))
+
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		log.Error(ctx, "fetch agent information", slog.Error(err))
+	}
+
+	return a
+}
+
+func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID uuid.UUID) Workspace {
 	var (
 		w  Workspace
 		eg errgroup.Group
@@ -178,10 +254,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		return w
 	}
 
-	if agentID == uuid.Nil {
-		log.Error(ctx, "no agent id specified")
-	}
-
 	// dependency, cannot fetch concurrently
 	ws, err := client.Workspace(ctx, workspaceID)
 	if err != nil {
@@ -189,15 +261,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		return w
 	}
 	w.Workspace = ws
-
-	eg.Go(func() error {
-		agt, err := client.WorkspaceAgent(ctx, agentID)
-		if err != nil {
-			return xerrors.Errorf("fetch workspace agent: %w", err)
-		}
-		w.Agent = agt
-		return nil
-	})
 
 	eg.Go(func() error {
 		buildLogCh, closer, err := client.WorkspaceBuildLogsAfter(ctx, ws.LatestBuild.ID, 0)
@@ -210,24 +273,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 			logs = append(w.BuildLogs, log)
 		}
 		w.BuildLogs = logs
-		return nil
-	})
-
-	eg.Go(func() error {
-		if len(w.Workspace.LatestBuild.Resources) == 0 {
-			log.Warn(ctx, "workspace build has no resources")
-			return nil
-		}
-		agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
-		if err != nil {
-			return xerrors.Errorf("fetch agent startup logs: %w", err)
-		}
-		defer closer.Close()
-		var logs []codersdk.WorkspaceAgentLog
-		for logChunk := range agentLogCh {
-			logs = append(w.AgentStartupLogs, logChunk...)
-		}
-		w.AgentStartupLogs = logs
 		return nil
 	})
 
@@ -279,13 +324,20 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)
+		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID)
 		b.Workspace = wi
 		return nil
 	})
+	netCh := make(chan Network, 1)
 	eg.Go(func() error {
 		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
 		b.Network = ni
+		netCh <- ni
+		return nil
+	})
+	eg.Go(func() error {
+		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID, netCh)
+		b.Agent = ai
 		return nil
 	})
 
