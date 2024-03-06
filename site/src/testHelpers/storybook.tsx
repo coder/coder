@@ -45,29 +45,39 @@ export const withDashboardProvider = (
   );
 };
 
-export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
-  const webSocketConfig = parameters.webSocket;
+type MessageEvent = Record<"data", string>;
+type CallbackFn = (ev?: MessageEvent) => void;
 
-  if (!webSocketConfig) {
+export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
+  const events = parameters.webSocket;
+
+  if (!events) {
     console.warn("Your forgot to add the `parameters.webSocket` to your story");
     return <Story />;
   }
 
+  const listeners = new Map<string, CallbackFn>();
+  let callEventsDelay: number;
+
   // @ts-expect-error -- TS doesn't know about the global WebSocket
   window.WebSocket = function () {
     return {
-      addEventListener: (
-        type: string,
-        callback: (ev?: Record<"data", string>) => void,
-      ) => {
-        if (type === "message" && webSocketConfig.event === "message") {
-          webSocketConfig.messages.forEach((message) => {
-            callback({ data: message });
-          });
-        }
-        if (type === "error" && webSocketConfig.event === "error") {
-          callback();
-        }
+      addEventListener: (type: string, callback: CallbackFn) => {
+        listeners.set(type, callback);
+
+        // Runs when the last event listener is added
+        clearTimeout(callEventsDelay);
+        callEventsDelay = window.setTimeout(() => {
+          for (const entry of events) {
+            const callback = listeners.get(entry.event);
+
+            if (callback) {
+              entry.event === "message"
+                ? callback({ data: entry.data })
+                : callback();
+            }
+          }
+        }, 0);
       },
       close: () => {},
     };

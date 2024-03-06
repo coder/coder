@@ -87,13 +87,13 @@ export const OnMessage: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
-    webSocket: {
-      event: "message",
-      // Copied and pasted this from browser
-      messages: [
-        `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
-      ],
-    },
+    webSocket: [
+      {
+        event: "message",
+        // Copied and pasted this from browser
+        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+      },
+    ],
     queries: [...meta.parameters.queries, readyWorkspaceQuery],
   },
 };
@@ -102,9 +102,11 @@ export const OnError: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
-    webSocket: {
-      event: "error",
-    },
+    webSocket: [
+      {
+        event: "error",
+      },
+    ],
     queries: [...meta.parameters.queries, readyWorkspaceQuery],
   },
 };

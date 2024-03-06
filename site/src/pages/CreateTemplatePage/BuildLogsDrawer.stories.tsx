@@ -46,9 +46,9 @@ export const Logs: Story = {
   },
   decorators: [withWebSocket],
   parameters: {
-    webSocket: {
+    webSocket: MockWorkspaceBuildLogs.map((log) => ({
       event: "message",
-      messages: MockWorkspaceBuildLogs.map((log) => JSON.stringify(log)),
-    },
+      data: JSON.stringify(log),
+    })),
   },
 };
