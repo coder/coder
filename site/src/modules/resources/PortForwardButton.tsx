@@ -30,8 +30,8 @@ import {
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
-  UpsertWorkspaceAgentPortShareRequest,
-  WorkspaceAgentPortShareProtocol,
+  type UpsertWorkspaceAgentPortShareRequest,
+  type WorkspaceAgentPortShareProtocol,
   WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import {
