@@ -17,7 +17,7 @@ import type {
   TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
@@ -224,7 +224,7 @@ export const TemplateVersionEditorPage: FC = () => {
           }}
         />
       ) : (
-        <FullScreenLoader />
+        <Loader fullscreen />
       )}
     </>
   );
