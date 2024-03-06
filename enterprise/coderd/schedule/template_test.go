@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
@@ -67,11 +68,12 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 	// Workspace old max_deadline too soon
 	cases := []struct {
-		name           string
-		now            time.Time
-		deadline       time.Time
-		maxDeadline    time.Time
-		newDeadline    time.Time // 0 for no change
+		name        string
+		now         time.Time
+		deadline    time.Time
+		maxDeadline time.Time
+		// Set to nil for no change.
+		newDeadline    *time.Time
 		newMaxDeadline time.Time
 		noQuietHours   bool
 		autostopReq    *agplschedule.TemplateAutostopRequirement
@@ -82,7 +84,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    buildTime,
 			maxDeadline: buildTime.Add(1 * time.Hour),
 			// Unchanged since the max deadline is too soon.
-			newDeadline:    time.Time{},
+			newDeadline:    nil,
 			newMaxDeadline: buildTime.Add(1 * time.Hour),
 		},
 		{
@@ -92,7 +94,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: time.Time{},
+			newDeadline: nil,
 			// We will use now() + 2 hours if the newly calculated max deadline
 			// from the workspace build time is before now.
 			newMaxDeadline: nextQuietHours.Add(8 * time.Hour),
@@ -104,7 +106,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
-			newDeadline: time.Time{},
+			newDeadline: nil,
 			// We will use now() + 2 hours if the newly calculated max deadline
 			// from the workspace build time is within the next 2 hours.
 			newMaxDeadline: nextQuietHours.Add(1 * time.Hour),
@@ -116,7 +118,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline: buildTime,
 			// Far into the future...
 			maxDeadline:    nextQuietHours.Add(24 * time.Hour),
-			newDeadline:    time.Time{},
+			newDeadline:    nil,
 			newMaxDeadline: nextQuietHours,
 		},
 		{
@@ -127,7 +129,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    nextQuietHours.Add(24 * time.Hour),
 			maxDeadline: nextQuietHours.Add(24 * time.Hour),
 			// The deadline should match since it is after the new max deadline.
-			newDeadline:    nextQuietHours,
+			newDeadline:    ptr.Ref(nextQuietHours),
 			newMaxDeadline: nextQuietHours,
 		},
 		{
@@ -142,13 +144,42 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			deadline:    buildTime.Add(time.Hour * 8),
 			maxDeadline: time.Time{}, // No max set
 			// Should be unchanged
-			newDeadline:    buildTime.Add(time.Hour * 8),
+			newDeadline:    ptr.Ref(buildTime.Add(time.Hour * 8)),
 			newMaxDeadline: time.Time{},
 			noQuietHours:   true,
 			autostopReq: &agplschedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0,
 				Weeks:      0,
 			},
+		},
+		{
+			// A bug existed where MaxDeadline could be set, but deadline was
+			// `time.Time{}`. This is a logical inconsistency because the "max"
+			// deadline was ignored.
+			name:        "NoDeadline",
+			now:         buildTime,
+			deadline:    time.Time{},
+			maxDeadline: time.Time{}, // No max set
+			// Should be unchanged
+			newDeadline:    ptr.Ref(time.Time{}),
+			newMaxDeadline: time.Time{},
+			noQuietHours:   true,
+			autostopReq: &agplschedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0,
+				Weeks:      0,
+			},
+		},
+
+		{
+			// Similar to 'NoDeadline' test. This has a MaxDeadline set, so
+			// the deadline of the workspace should now be set.
+			name: "WorkspaceDeadlineNowSet",
+			now:  nextQuietHours.Add(-6 * time.Hour),
+			// Start with unset times
+			deadline:       time.Time{},
+			maxDeadline:    time.Time{},
+			newDeadline:    ptr.Ref(nextQuietHours),
+			newMaxDeadline: nextQuietHours,
 		},
 	}
 
@@ -275,10 +306,10 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			newBuild, err := db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 			require.NoError(t, err)
 
-			if c.newDeadline.IsZero() {
-				c.newDeadline = wsBuild.Deadline
+			if c.newDeadline == nil {
+				c.newDeadline = &wsBuild.Deadline
 			}
-			require.WithinDuration(t, c.newDeadline, newBuild.Deadline, time.Second)
+			require.WithinDuration(t, *c.newDeadline, newBuild.Deadline, time.Second)
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second)
 
 			// Check that the new build has the same state as before.
