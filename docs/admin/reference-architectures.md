@@ -68,15 +68,22 @@ allowing for efficient resource allocation and workload management.
 
 ## Registry
 
-A registry in Coder is a centralized repository for storing and managing
-container images used within the platform. By leveraging a registry, users can
-easily share, distribute, and deploy containerized applications across their
-development workflows, ensuring consistency and reliability.
+The Coder Registry hosts starter templates for various cloud providers and
+orchestration platforms, enabling self-service cloud development environments
+via Terraform-defined infrastructure. Additionally, Coder introduces _Modules_
+to streamline template creation by extracting commonly used functionalities such
+as web IDEs, third-party integrations, and helper scripts into reusable
+components.
 
-## Kubernetes Cluster for Coder
+The Registry is hosted service and it is not available for air-gapped
+deployments.
 
-A Kubernetes cluster for Coder is a dedicated cluster specifically configured to
+## Kubernetes cluster for Coder
+
+A dedicated cluster for Coder is Kubernetes cluster specifically configured to
 host and manage Coder workloads. Kubernetes provides container orchestration
 capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
 across a distributed infrastructure. This ensures high availability, fault
 tolerance, and scalability for Coder deployments.
+
+The cluster can be deployed using the Helm chart.
