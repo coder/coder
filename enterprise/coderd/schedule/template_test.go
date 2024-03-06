@@ -131,7 +131,13 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			newMaxDeadline: nextQuietHours,
 		},
 		{
-			name:        "MaxDealineShouldBeUnset",
+			// There was a bug if a user has no quiet hours set, and autostop
+			// req is not turned on, then the max deadline is set to `time.Time{}`.
+			// This zero value was "in the past", so the workspace deadline would
+			// be set to "now" + 2 hours.
+			// This is a mistake because the max deadline being zero means
+			// there is no max deadline.
+			name:        "MaxDeadlineShouldBeUnset",
 			now:         buildTime,
 			deadline:    buildTime.Add(time.Hour * 8),
 			maxDeadline: time.Time{}, // No max set
