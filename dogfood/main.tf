@@ -78,8 +78,8 @@ data "coder_parameter" "region" {
     value = "sa-saopaulo"
   }
   option {
-    icon = "/emojis/1f1ff-1f1e6.png"
-    name = "Johannesburg"
+    icon  = "/emojis/1f1ff-1f1e6.png"
+    name  = "Johannesburg"
     value = "za-jnb"
   }
 }
