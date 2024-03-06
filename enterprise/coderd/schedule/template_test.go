@@ -27,30 +27,35 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	var (
-		org  = dbgen.Organization(t, db, database.Organization{})
-		user = dbgen.User(t, db, database.User{})
+		org       = dbgen.Organization(t, db, database.Organization{})
+		quietUser = dbgen.User(t, db, database.User{
+			Username: "quiet",
+		})
+		noQuietUser = dbgen.User(t, db, database.User{
+			Username: "no-quiet",
+		})
 		file = dbgen.File(t, db, database.File{
-			CreatedBy: user.ID,
+			CreatedBy: quietUser.ID,
 		})
 		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			FileID:         file.ID,
-			InitiatorID:    user.ID,
+			InitiatorID:    quietUser.ID,
 			Tags: database.StringMap{
 				"foo": "bar",
 			},
 		})
 		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
+			CreatedBy:      quietUser.ID,
 			JobID:          templateJob.ID,
 		})
 	)
 
 	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, err := db.UpdateUserQuietHoursSchedule(ctx, database.UpdateUserQuietHoursScheduleParams{
-		ID:                 user.ID,
+	quietUser, err := db.UpdateUserQuietHoursSchedule(ctx, database.UpdateUserQuietHoursScheduleParams{
+		ID:                 quietUser.ID,
 		QuietHoursSchedule: userQuietHoursSchedule,
 	})
 	require.NoError(t, err)
@@ -68,6 +73,8 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 		maxDeadline    time.Time
 		newDeadline    time.Time // 0 for no change
 		newMaxDeadline time.Time
+		noQuietHours   bool
+		autostopReq    *agplschedule.TemplateAutostopRequirement
 	}{
 		{
 			name:        "SkippedWorkspaceMaxDeadlineTooSoon",
@@ -123,6 +130,20 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			newDeadline:    nextQuietHours,
 			newMaxDeadline: nextQuietHours,
 		},
+		{
+			name:        "MaxDealineShouldBeUnset",
+			now:         buildTime,
+			deadline:    buildTime.Add(time.Hour * 8),
+			maxDeadline: time.Time{}, // No max set
+			// Should be unchanged
+			newDeadline:    buildTime.Add(time.Hour * 8),
+			newMaxDeadline: time.Time{},
+			noQuietHours:   true,
+			autostopReq: &agplschedule.TemplateAutostopRequirement{
+				DaysOfWeek: 0,
+				Weeks:      0,
+			},
+		},
 	}
 
 	for _, c := range cases {
@@ -130,6 +151,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
+
+			user := quietUser
+			if c.noQuietHours {
+				user = noQuietUser
+			}
 
 			t.Log("buildTime", buildTime)
 			t.Log("nextQuietHours", nextQuietHours)
@@ -217,17 +243,22 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			templateScheduleStore.TimeNowFn = func() time.Time {
 				return c.now
 			}
+
+			autostopReq := agplschedule.TemplateAutostopRequirement{
+				// Every day
+				DaysOfWeek: 0b01111111,
+				Weeks:      0,
+			}
+			if c.autostopReq != nil {
+				autostopReq = *c.autostopReq
+			}
 			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-				UserAutostartEnabled: false,
-				UserAutostopEnabled:  false,
-				DefaultTTL:           0,
-				MaxTTL:               0,
-				UseMaxTTL:            false,
-				AutostopRequirement: agplschedule.TemplateAutostopRequirement{
-					// Every day
-					DaysOfWeek: 0b01111111,
-					Weeks:      0,
-				},
+				UserAutostartEnabled:     false,
+				UserAutostopEnabled:      false,
+				DefaultTTL:               0,
+				MaxTTL:                   0,
+				UseMaxTTL:                false,
+				AutostopRequirement:      autostopReq,
 				FailureTTL:               0,
 				TimeTilDormant:           0,
 				TimeTilDormantAutoDelete: 0,
