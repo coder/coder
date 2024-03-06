@@ -51,7 +51,30 @@ DO UPDATE SET
 RETURNING *;
 
 -- name: ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate :exec
-UPDATE workspace_agent_port_share SET share_level = 'authenticated' WHERE share_level = 'public' AND workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1);
+UPDATE
+	workspace_agent_port_share
+SET
+	share_level = 'authenticated'
+WHERE
+	share_level = 'public'
+	AND workspace_id IN (
+		SELECT
+			id
+		FROM
+			workspaces
+		WHERE
+			template_id = $1
+	);
 
 -- name: DeleteWorkspaceAgentPortSharesByTemplate :exec
-DELETE FROM workspace_agent_port_share WHERE workspace_id IN (SELECT id FROM workspaces WHERE template_id = $1);
+DELETE FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id IN (
+		SELECT
+			id
+		FROM
+			workspaces
+		WHERE
+			template_id = $1
+	);
