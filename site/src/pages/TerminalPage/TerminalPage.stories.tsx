@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import TerminalPage from "./TerminalPage";
-import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
   reactRouterOutlet,
   reactRouterParameters,
 } from "storybook-addon-react-router-v6";
+import { getAuthorizationKey } from "api/queries/authCheck";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
+import { AuthProvider } from "contexts/auth/AuthProvider";
+import { permissionsToCheck } from "contexts/auth/permissions";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
   MockAppearanceConfig,
@@ -16,11 +19,8 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { permissionsToCheck } from "contexts/auth/permissions";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import { Workspace } from "api/typesGenerated";
 import { withWebSocket } from "testHelpers/storybook";
+import TerminalPage from "./TerminalPage";
 
 const meta = {
   title: "pages/Terminal",
