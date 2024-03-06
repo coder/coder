@@ -289,6 +289,12 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		autostop.Deadline = autostop.MaxDeadline
 	}
 
+	// If there's a max_deadline but the deadline is 0, then set the deadline to
+	// the max_deadline.
+	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.IsZero() {
+		autostop.Deadline = autostop.MaxDeadline
+	}
+
 	// Update the workspace build deadline.
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 		ID:          build.ID,
