@@ -5,7 +5,7 @@ import {
 } from "storybook-addon-react-router-v6";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
+import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -21,6 +21,27 @@ import {
 } from "testHelpers/entities";
 import { withWebSocket } from "testHelpers/storybook";
 import TerminalPage from "./TerminalPage";
+
+const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
+  return {
+    key: workspaceByOwnerAndNameKey(
+      MockWorkspace.owner_name,
+      MockWorkspace.name,
+    ),
+    data: {
+      ...MockWorkspace,
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        resources: [
+          {
+            ...MockWorkspace.latest_build.resources[0],
+            agents: [{ ...MockWorkspaceAgent, lifecycle_state: lifecycle }],
+          },
+        ],
+      },
+    } satisfies Workspace,
+  };
+};
 
 const meta = {
   title: "pages/Terminal",
@@ -67,23 +88,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof TerminalPage>;
 
-const readyWorkspaceQuery = {
-  key: workspaceByOwnerAndNameKey(MockWorkspace.owner_name, MockWorkspace.name),
-  data: {
-    ...MockWorkspace,
-    latest_build: {
-      ...MockWorkspace.latest_build,
-      resources: [
-        {
-          ...MockWorkspace.latest_build.resources[0],
-          agents: [{ ...MockWorkspaceAgent, lifecycle_state: "ready" }],
-        },
-      ],
-    },
-  } satisfies Workspace,
-};
-
-export const OnMessage: Story = {
+export const Starting: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
@@ -94,11 +99,38 @@ export const OnMessage: Story = {
         data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
       },
     ],
-    queries: [...meta.parameters.queries, readyWorkspaceQuery],
+    queries: [...meta.parameters.queries, createWorkspaceWithAgent("starting")],
   },
 };
 
-export const OnError: Story = {
+export const Ready: Story = {
+  decorators: [withWebSocket],
+  parameters: {
+    ...meta.parameters,
+    webSocket: [
+      {
+        event: "message",
+        // Copied and pasted this from browser
+        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+      },
+    ],
+    queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+  },
+};
+
+export const StartError: Story = {
+  decorators: [withWebSocket],
+  parameters: {
+    ...meta.parameters,
+    webSocket: [],
+    queries: [
+      ...meta.parameters.queries,
+      createWorkspaceWithAgent("start_error"),
+    ],
+  },
+};
+
+export const ConnectionError: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
@@ -107,6 +139,6 @@ export const OnError: Story = {
         event: "error",
       },
     ],
-    queries: [...meta.parameters.queries, readyWorkspaceQuery],
+    queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
   },
 };
