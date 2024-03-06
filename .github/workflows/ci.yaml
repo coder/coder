@@ -863,7 +863,7 @@ jobs:
           TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
-          TOKEN_JNB: ${{ secrets.FLY_JNB_CODDER_PROXY_SESSION_TOKEN }}
+          TOKEN_JNB: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
