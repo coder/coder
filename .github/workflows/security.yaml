@@ -28,13 +28,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: go, javascript
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile
@@ -113,14 +113,6 @@ jobs:
           make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
-      - name: Run Prisma Cloud image scan
-        uses: PaloAltoNetworks/prisma-cloud-scan@v1
-        with:
-          pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
-          pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
-          pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
-          image_name: ${{ steps.build.outputs.image }}
-
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@84384bd6e777ef152729993b8145ea352e9dd3ef
         with:
@@ -141,6 +133,16 @@ jobs:
           name: trivy
           path: trivy-results.sarif
           retention-days: 7
+
+      # Prisma cloud scan runs last because it fails the entire job if it
+      # detects vulnerabilities. :|
+      - name: Run Prisma Cloud image scan
+        uses: PaloAltoNetworks/prisma-cloud-scan@v1
+        with:
+          pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
+          pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
+          pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
+          image_name: ${{ steps.build.outputs.image }}
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
