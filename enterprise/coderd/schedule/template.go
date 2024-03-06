@@ -285,7 +285,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	// If the current deadline on the build is after the new max_deadline, then
 	// set it to the max_deadline.
 	autostop.Deadline = build.Deadline
-	if autostop.Deadline.After(autostop.MaxDeadline) {
+	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.After(autostop.MaxDeadline) {
 		autostop.Deadline = autostop.MaxDeadline
 	}
 
