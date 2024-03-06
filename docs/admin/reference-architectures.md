@@ -49,7 +49,7 @@ leverage existing features shared with other templates, enhancing flexibility
 and consistency across deployments. Templates describe provisioning rules for
 infrastructure resources offered by cloud providers.
 
-## Proxy
+### Proxy
 
 A workspace proxy serves as a relay connection option for developers connecting
 to their workspace over SSH, a workspace app, or through port forwarding. It
@@ -57,7 +57,7 @@ helps reduce network latency for geo-distributed teams by minimizing the
 distance network traffic needs to travel. Notably, workspace proxies do not
 handle dashboard connections or API calls.
 
-## Provisioner
+### Provisioner
 
 Provisioners in Coder execute Terraform during workspace and template builds.
 While the platform includes built-in provisioner daemons by default, there are
@@ -66,7 +66,7 @@ secure build environments, and reduce server load, improving performance and
 scalability. Each provisioner can handle a single concurrent workspace build,
 allowing for efficient resource allocation and workload management.
 
-## Registry
+### Registry
 
 The Coder Registry hosts starter templates for various cloud providers and
 orchestration platforms, enabling self-service cloud development environments
@@ -78,7 +78,7 @@ components.
 The Registry is hosted service and it is not available for air-gapped
 deployments.
 
-## Kubernetes cluster for Coder
+### Kubernetes cluster for Coder
 
 A dedicated cluster for Coder is Kubernetes cluster specifically configured to
 host and manage Coder workloads. Kubernetes provides container orchestration
@@ -87,3 +87,20 @@ across a distributed infrastructure. This ensures high availability, fault
 tolerance, and scalability for Coder deployments.
 
 The cluster can be deployed using the Helm chart.
+
+## Scale tests methodology
+
+Scaling Coder involves careful planning and testing to ensure it can handle more
+users without slowing down. This process encompasses infrastructure setup,
+traffic projections, and aggressive testing to identify and mitigate potential
+bottlenecks.
+
+### Infrastructure and setup requirements
+
+TODO
+
+### Traffic Projections
+
+<!-- during scale tests -->
+
+TODO
