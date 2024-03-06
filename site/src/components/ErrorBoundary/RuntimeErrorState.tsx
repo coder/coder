@@ -50,7 +50,9 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
       <Helmet>
         <title>Something went wrong...</title>
       </Helmet>
-      {!checkingError ? (
+      {checkingError ? (
+        <Loader fullscreen />
+      ) : (
         <Margins css={styles.root}>
           <div css={{ width: "100%" }}>
             <CoderIcon css={styles.logo} />
@@ -109,8 +111,6 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
             )}
           </div>
         </Margins>
-      ) : (
-        <Loader fullscreen />
       )}
     </>
   );

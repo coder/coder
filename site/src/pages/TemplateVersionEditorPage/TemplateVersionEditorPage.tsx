@@ -120,7 +120,9 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree ? (
+      {!(templateQuery.data && templateVersionQuery.data && fileTree) ? (
+        <Loader fullscreen />
+      ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
@@ -223,8 +225,6 @@ export const TemplateVersionEditorPage: FC = () => {
             setProvisionerTags(tags);
           }}
         />
-      ) : (
-        <Loader fullscreen />
       )}
     </>
   );
