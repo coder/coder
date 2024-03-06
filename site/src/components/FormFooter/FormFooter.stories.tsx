@@ -1,5 +1,5 @@
-import { FormFooter } from "./FormFooter";
 import type { Meta, StoryObj } from "@storybook/react";
+import { FormFooter } from "./FormFooter";
 
 const meta: Meta<typeof FormFooter> = {
   title: "components/FormFooter",

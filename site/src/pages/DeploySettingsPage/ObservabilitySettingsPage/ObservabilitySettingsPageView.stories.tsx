@@ -1,6 +1,6 @@
-import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
-import { ClibaseGroup } from "api/typesGenerated";
+import type { ClibaseGroup } from "api/typesGenerated";
+import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const group: ClibaseGroup = {
   name: "Introspection",

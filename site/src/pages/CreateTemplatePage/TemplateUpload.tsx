@@ -1,7 +1,7 @@
 import Link from "@mui/material/Link";
-import { FileUpload } from "components/FileUpload/FileUpload";
-import { FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { FileUpload } from "components/FileUpload/FileUpload";
 
 export interface TemplateUploadProps {
   isUploading: boolean;

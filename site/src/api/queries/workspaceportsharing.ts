@@ -3,7 +3,7 @@ import {
   getWorkspaceAgentSharedPorts,
   upsertWorkspaceAgentSharedPort,
 } from "api/api";
-import {
+import type {
   DeleteWorkspaceAgentPortShareRequest,
   UpsertWorkspaceAgentPortShareRequest,
 } from "api/typesGenerated";

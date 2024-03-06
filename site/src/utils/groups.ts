@@ -1,4 +1,4 @@
-import { Group } from "api/typesGenerated";
+import type { Group } from "api/typesGenerated";
 
 /**
  * Returns true if the provided group is the 'Everyone' group.

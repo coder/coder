@@ -1,7 +1,7 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import PersonAdd from "@mui/icons-material/PersonAddOutlined";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import { type FC, Suspense } from "react";
 import {
   Link as RouterLink,
@@ -9,13 +9,13 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { USERS_LINK } from "modules/dashboard/Navbar/NavbarView";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Margins } from "components/Margins/Margins";
-import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { Loader } from "components/Loader/Loader";
 
 export const UsersLayout: FC = () => {
   const { createUser: canCreateUser, createGroup: canCreateGroup } =

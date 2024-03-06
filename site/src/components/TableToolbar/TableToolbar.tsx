@@ -1,5 +1,5 @@
 import Skeleton from "@mui/material/Skeleton";
-import { type FC, type PropsWithChildren } from "react";
+import type { FC, PropsWithChildren } from "react";
 
 export const TableToolbar: FC<PropsWithChildren> = ({ children }) => {
   return (

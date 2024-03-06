@@ -1,6 +1,6 @@
-import { QueryClient, UseQueryOptions } from "react-query";
+import type { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
-import { Entitlements } from "api/typesGenerated";
+import type { Entitlements } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
 const initialEntitlementsData = getMetadataAsJSON<Entitlements>("entitlements");

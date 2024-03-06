@@ -1,27 +1,23 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
-import Skeleton from "@mui/material/Skeleton";
-import Divider from "@mui/material/Divider";
+import type { Interpolation, Theme } from "@emotion/react";
+import GitHub from "@mui/icons-material/GitHub";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
-import GitHub from "@mui/icons-material/GitHub";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import Divider from "@mui/material/Divider";
+import Skeleton from "@mui/material/Skeleton";
+import TableCell from "@mui/material/TableCell";
+import TableRow from "@mui/material/TableRow";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import type { FC } from "react";
+import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { type GroupsByUserId } from "api/queries/groups";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import {
-  TableLoaderSkeleton,
-  TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
 import { EnterpriseBadge } from "components/Badges/Badges";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import {
   MoreMenu,
@@ -30,8 +26,12 @@ import {
   MoreMenuItem,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { UserRoleCell } from "./UserRoleCell";
+import {
+  TableLoaderSkeleton,
+  TableRowSkeleton,
+} from "components/TableLoader/TableLoader";
 import { UserGroupsCell } from "./UserGroupsCell";
+import { UserRoleCell } from "./UserRoleCell";
 
 dayjs.extend(relativeTime);
 

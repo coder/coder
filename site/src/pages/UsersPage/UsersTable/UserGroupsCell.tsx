@@ -1,18 +1,18 @@
 import { useTheme } from "@emotion/react";
-import { type Group } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/Avatar/Avatar";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import TableCell from "@mui/material/TableCell";
+import GroupIcon from "@mui/icons-material/Group";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import GroupIcon from "@mui/icons-material/Group";
+import TableCell from "@mui/material/TableCell";
+import type { Group } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;

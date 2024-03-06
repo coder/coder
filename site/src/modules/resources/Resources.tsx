@@ -1,5 +1,5 @@
-import Button from "@mui/material/Button";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import { type FC, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";

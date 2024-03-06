@@ -2,11 +2,11 @@ import * as cronParser from "cron-parser";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { extractTimezone, stripTimezone } from "utils/schedule";
-import { Autostop } from "./ttl";
-import { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 import map from "lodash/map";
 import some from "lodash/some";
+import { extractTimezone, stripTimezone } from "utils/schedule";
+import type { Autostop } from "./ttl";
+import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 
 // REMARK: timezone plugin depends on UTC
 //

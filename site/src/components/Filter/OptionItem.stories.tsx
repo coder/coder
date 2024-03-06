@@ -1,5 +1,5 @@
-import { OptionItem } from "./filter";
 import type { Meta, StoryObj } from "@storybook/react";
+import { OptionItem } from "./filter";
 
 const meta: Meta<typeof OptionItem> = {
   title: "components/Filter/OptionItem",

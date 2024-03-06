@@ -1,5 +1,4 @@
 /* eslint-disable no-console -- Logging is sort of the whole point here */
-import * as fs from "fs/promises";
 import type {
   FullConfig,
   Suite,
@@ -10,6 +9,7 @@ import type {
   TestError,
 } from "@playwright/test/reporter";
 import axios from "axios";
+import * as fs from "fs/promises";
 import type { Writable } from "stream";
 
 class CoderReporter implements Reporter {

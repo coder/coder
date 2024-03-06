@@ -7,6 +7,19 @@ import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import { formatDuration, intervalToDuration } from "date-fns";
+import dayjs from "dayjs";
+import advancedFormat from "dayjs/plugin/advancedFormat";
+import duration from "dayjs/plugin/duration";
+import relativeTime from "dayjs/plugin/relativeTime";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
+import { type FormikTouched, useFormik } from "formik";
+import type { ChangeEvent, FC } from "react";
+import * as Yup from "yup";
+import type { Template } from "api/typesGenerated";
+import { DisabledBadge } from "components/Badges/Badges";
 import {
   HorizontalForm,
   FormFooter,
@@ -14,25 +27,12 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import advancedFormat from "dayjs/plugin/advancedFormat";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
-import { FormikTouched, useFormik } from "formik";
 import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { type ChangeEvent, type FC } from "react";
-import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
-import Tooltip from "@mui/material/Tooltip";
-import { formatDuration, intervalToDuration } from "date-fns";
-import { DisabledBadge } from "components/Badges/Badges";
-import { Template } from "api/typesGenerated";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.

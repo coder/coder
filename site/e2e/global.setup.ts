@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
 import { STORAGE_STATE } from "./playwright.config";
-import { Language } from "pages/CreateUserPage/CreateUserForm";
 
 test("setup first user", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });

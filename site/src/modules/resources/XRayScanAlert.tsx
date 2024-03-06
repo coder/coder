@@ -1,6 +1,6 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { JFrogXrayScan } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 

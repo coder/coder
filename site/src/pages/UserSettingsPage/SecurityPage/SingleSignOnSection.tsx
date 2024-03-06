@@ -1,12 +1,12 @@
 import { useTheme } from "@emotion/react";
-import { type FC, useState } from "react";
-import { useMutation } from "react-query";
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import TextField from "@mui/material/TextField";
+import { type FC, useState } from "react";
+import { useMutation } from "react-query";
 import { convertToOAUTH } from "api/api";
 import { getErrorMessage } from "api/errors";
 import type {
@@ -15,8 +15,8 @@ import type {
   OIDCAuthMethod,
   UserLoginType,
 } from "api/typesGenerated";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
 import { docs } from "utils/docs";
 import { Section } from "../Section";

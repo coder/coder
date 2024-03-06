@@ -1,5 +1,5 @@
-import { MockWorkspaceResource } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react";
+import { MockWorkspaceResource } from "testHelpers/entities";
 import { ResourceMetadata } from "./ResourceMetadata";
 
 const meta: Meta<typeof ResourceMetadata> = {

@@ -1,6 +1,6 @@
-import { type UseQueryOptions } from "react-query";
-import { type BuildInfoResponse } from "api/typesGenerated";
+import type { UseQueryOptions } from "react-query";
 import * as API from "api/api";
+import type { BuildInfoResponse } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
 const initialBuildInfoData = getMetadataAsJSON<BuildInfoResponse>("build-info");

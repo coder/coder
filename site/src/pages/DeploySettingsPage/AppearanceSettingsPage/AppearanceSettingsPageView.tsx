@@ -1,13 +1,13 @@
-import InputAdornment from "@mui/material/InputAdornment";
+import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import Link from "@mui/material/Link";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import Link from "@mui/material/Link";
-import { useTheme } from "@emotion/react";
+import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { BlockPicker } from "react-color";
-import { useFormik } from "formik";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
   Badges,
@@ -16,10 +16,10 @@ import {
   EntitledBadge,
 } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
-import { getFormHelpers } from "utils/formUtils";
 import colors from "theme/tailwindColors";
-import { Header } from "../Header";
+import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
+import { Header } from "../Header";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;

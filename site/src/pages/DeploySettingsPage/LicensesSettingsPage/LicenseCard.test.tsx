@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
+import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { LicenseCard } from "./LicenseCard";
-import { MockLicenseResponse } from "testHelpers/entities";
 
 describe("LicenseCard", () => {
   it("renders (smoke test)", async () => {

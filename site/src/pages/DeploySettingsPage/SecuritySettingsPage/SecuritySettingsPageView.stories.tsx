@@ -1,6 +1,6 @@
-import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
-import { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
+import type { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
+import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const group: ClibaseGroup = {
   name: "Networking",

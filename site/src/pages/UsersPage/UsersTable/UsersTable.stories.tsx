@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockUser,
   MockUser2,
@@ -10,7 +11,6 @@ import {
   MockAuditorRole,
 } from "testHelpers/entities";
 import { UsersTable } from "./UsersTable";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const mockGroupsByUserId = new Map([
   [MockUser.id, [MockGroup]],

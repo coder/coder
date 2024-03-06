@@ -1,15 +1,19 @@
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import CreateIcon from "@mui/icons-material/AddOutlined";
-import { Link as RouterLink } from "react-router-dom";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import AlertTitle from "@mui/material/AlertTitle";
-import ButtonGroup from "@mui/material/ButtonGroup";
+import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import AlertTitle from "@mui/material/AlertTitle";
+import Button from "@mui/material/Button";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Link as RouterLink,
+  unstable_usePrompt as usePrompt,
+} from "react-router-dom";
 import type {
   ProvisionerJobLog,
   Template,
@@ -19,13 +23,26 @@ import type {
   WorkspaceResource,
 } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
+import {
+  Topbar,
+  TopbarAvatar,
+  TopbarButton,
+  TopbarData,
+  TopbarDivider,
+  TopbarIconButton,
+} from "components/FullPageLayout/Topbar";
+import { Loader } from "components/Loader/Loader";
+import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
   createFile,
   existsFile,
-  FileTree,
+  type FileTree,
   getFileText,
   isFolder,
   moveFile,
@@ -37,25 +54,11 @@ import {
   DeleteFileDialog,
   RenameFileDialog,
 } from "./FileDialog";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 import { MonacoEditor } from "./MonacoEditor";
+import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { Loader } from "components/Loader/Loader";
-import {
-  Topbar,
-  TopbarAvatar,
-  TopbarButton,
-  TopbarData,
-  TopbarDivider,
-  TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
-import { Sidebar } from "components/FullPageLayout/Sidebar";
-import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -65,8 +68,8 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree;
   buildLogs?: ProvisionerJobLog[];
   resources?: WorkspaceResource[];
-  disablePreview?: boolean;
-  disableUpdate?: boolean;
+  isBuilding: boolean;
+  canPublish: boolean;
   onPreview: (files: FileTree) => Promise<void>;
   onPublish: () => void;
   onConfirmPublish: (data: PublishVersionData) => void;
@@ -88,8 +91,8 @@ export interface TemplateVersionEditorProps {
 }
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
-  disablePreview,
-  disableUpdate,
+  isBuilding,
+  canPublish,
   template,
   templateVersion,
   defaultFileTree,
@@ -179,6 +182,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   }, [buildLogs]);
 
+  useLeaveSiteWarning(canPublish);
+
+  const canBuild = !isBuilding && dirty;
+
   return (
     <>
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -242,7 +249,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   borderLeft: "1px solid #FFF",
                 },
               }}
-              disabled={disablePreview}
+              disabled={!canBuild}
             >
               <TopbarButton
                 startIcon={
@@ -251,7 +258,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   />
                 }
                 title="Build template (Ctrl + Enter)"
-                disabled={disablePreview}
+                disabled={!canBuild}
                 onClick={async () => {
                   await triggerPreview();
                 }}
@@ -276,7 +283,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <TopbarButton
               variant="contained"
-              disabled={dirty || disableUpdate}
+              disabled={dirty || !canPublish}
               onClick={onPublish}
             >
               Publish
@@ -540,7 +547,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </button>
 
                   <button
-                    disabled={disableUpdate}
+                    disabled={!canPublish}
                     css={styles.tab}
                     className={selectedTab === "resources" ? "active" : ""}
                     onClick={() => {
@@ -647,6 +654,38 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       />
     </>
   );
+};
+
+const useLeaveSiteWarning = (enabled: boolean) => {
+  const MESSAGE =
+    "You have unpublished changes. Are you sure you want to leave?";
+
+  // This works for regular browser actions like close tab and back button
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (enabled) {
+        e.preventDefault();
+        return MESSAGE;
+      }
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [enabled]);
+
+  // This is used for react router navigation that is not triggered by the
+  // browser
+  usePrompt({
+    message: MESSAGE,
+    when: ({ nextLocation }) => {
+      // We need to check the path because we change the URL when new template
+      // version is created during builds
+      return enabled && !nextLocation.pathname.endsWith("/edit");
+    },
+  });
 };
 
 const styles = {

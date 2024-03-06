@@ -1,4 +1,14 @@
+import { useTheme } from "@emotion/react";
+import PublicOutlined from "@mui/icons-material/PublicOutlined";
+import TagOutlined from "@mui/icons-material/TagOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { createDayString } from "utils/createDayString";
+import { pageTitle } from "utils/page";
 import {
   BooleanPill,
   Header,
@@ -8,16 +18,6 @@ import {
   Main,
   Pill,
 } from "./Content";
-import type { HealthcheckReport } from "api/typesGenerated";
-import { useTheme } from "@emotion/react";
-import { createDayString } from "utils/createDayString";
-import PublicOutlined from "@mui/icons-material/PublicOutlined";
-import Tooltip from "@mui/material/Tooltip";
-import TagOutlined from "@mui/icons-material/TagOutlined";
-import { Alert } from "components/Alert/Alert";
-import { type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
 import { DismissWarningButton } from "./DismissWarningButton";
 
 export const WorkspaceProxyPage: FC = () => {

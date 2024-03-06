@@ -1,4 +1,5 @@
 import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockCanceledProvisionerJob,
   MockCancelingProvisionerJob,
@@ -8,7 +9,6 @@ import {
   MockTemplateVersion,
 } from "testHelpers/entities";
 import { VersionsTable } from "./VersionsTable";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof VersionsTable> = {
   title: "pages/TemplatePage/VersionsTable",

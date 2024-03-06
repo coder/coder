@@ -1,6 +1,8 @@
-import Link from "@mui/material/Link";
+import type { CSSObject } from "@emotion/css";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import Link from "@mui/material/Link";
 import {
   type FC,
   type PropsWithChildren,
@@ -8,9 +10,6 @@ import {
   type ReactNode,
   forwardRef,
 } from "react";
-import { Stack } from "components/Stack/Stack";
-import { type CSSObject } from "@emotion/css";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import {
   Popover,
   type PopoverProps,
@@ -19,6 +18,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 
 type Icon = typeof HelpIcon;
 

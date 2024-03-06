@@ -1,32 +1,32 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 import type {
   ProvisionerJobLog,
   WorkspaceAgent,
   WorkspaceBuild,
 } from "api/typesGenerated";
-import { Link } from "react-router-dom";
-import { displayWorkspaceBuildDuration } from "utils/workspace";
-import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { Alert } from "components/Alert/Alert";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
+import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { Alert } from "components/Alert/Alert";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useTab } from "hooks";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
-import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useTab } from "hooks";
-import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 
 export const LOGS_TAB_KEY = "logs";
 

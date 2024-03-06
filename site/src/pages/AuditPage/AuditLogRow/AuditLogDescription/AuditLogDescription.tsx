@@ -1,7 +1,7 @@
-import { type FC } from "react";
-import { AuditLog } from "api/typesGenerated";
-import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import type { AuditLog } from "api/typesGenerated";
 import { BuildAuditDescription } from "./BuildAuditDescription";
 
 interface AuditLogDescriptionProps {

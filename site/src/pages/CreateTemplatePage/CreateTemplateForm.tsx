@@ -1,8 +1,8 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC } from "react";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
+import type { FC } from "react";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
@@ -11,6 +11,14 @@ import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
+import {
+  HorizontalForm,
+  FormSection,
+  FormFields,
+  FormFooter,
+} from "components/Form/Form";
+import { IconField } from "components/IconField/IconField";
+import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -18,18 +26,10 @@ import {
   onChangeTrimmed,
   templateDisplayNameValidator,
 } from "utils/formUtils";
-import {
-  type TemplateAutostartRequirementDaysValue,
-  type TemplateAutostopRequirementDaysValue,
+import type {
+  TemplateAutostartRequirementDaysValue,
+  TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
-import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
-import { IconField } from "components/IconField/IconField";
-import {
-  HorizontalForm,
-  FormSection,
-  FormFields,
-  FormFooter,
-} from "components/Form/Form";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 

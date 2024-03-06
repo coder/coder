@@ -1,6 +1,6 @@
-import { StoryObj, Meta } from "@storybook/react";
-import { DERPRegionPage } from "./DERPRegionPage";
+import type { StoryObj, Meta } from "@storybook/react";
 import { MockHealth } from "testHelpers/entities";
+import { DERPRegionPage } from "./DERPRegionPage";
 import { generateMeta } from "./storybook";
 
 const firstRegionId = Object.values(MockHealth.derp.regions)[0].region

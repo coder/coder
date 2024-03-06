@@ -1,22 +1,37 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import CircularProgress from "@mui/material/CircularProgress";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import SensorsIcon from "@mui/icons-material/Sensors";
+import LoadingButton from "@mui/lab/LoadingButton";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import FormControl from "@mui/material/FormControl";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
-import { docs } from "utils/docs";
+import * as Yup from "yup";
 import { getAgentListeningPorts } from "api/api";
 import {
-  WorkspaceAppSharingLevels,
+  deleteWorkspacePortShare,
+  upsertWorkspacePortShare,
+  workspacePortShares,
+} from "api/queries/workspaceportsharing";
+import {
   type Template,
+  type UpsertWorkspaceAgentPortShareRequest,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
-  UpsertWorkspaceAgentPortShareRequest,
+  WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
-import { portForwardURL } from "utils/portForward";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
   HelpTooltipText,
@@ -27,26 +42,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import Stack from "@mui/material/Stack";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import TextField from "@mui/material/TextField";
-import SensorsIcon from "@mui/icons-material/Sensors";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import CloseIcon from "@mui/icons-material/Close";
-import {
-  deleteWorkspacePortShare,
-  upsertWorkspacePortShare,
-  workspacePortShares,
-} from "api/queries/workspaceportsharing";
+import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import * as Yup from "yup";
-import { FormikContextType, useFormik } from "formik";
+import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { LoadingButton } from "@mui/lab";
+import { portForwardURL } from "utils/portForward";
 
 export interface PortForwardButtonProps {
   host: string;

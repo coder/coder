@@ -4,15 +4,15 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
 import { type FC, lazy, Suspense } from "react";
-import { Loader } from "components/Loader/Loader";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Stack } from "components/Stack/Stack";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Loader } from "components/Loader/Loader";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { Stack } from "components/Stack/Stack";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>

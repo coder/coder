@@ -1,24 +1,24 @@
-import { type FC, type ReactNode, useState } from "react";
-import { type Template } from "api/typesGenerated";
-import { type UseQueryResult } from "react-query";
-import {
-  Link as RouterLink,
-  LinkProps as RouterLinkProps,
-} from "react-router-dom";
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
-import { Loader } from "components/Loader/Loader";
-import { OverflowY } from "components/OverflowY/OverflowY";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import { type FC, type ReactNode, useState } from "react";
+import type { UseQueryResult } from "react-query";
+import {
+  Link as RouterLink,
+  type LinkProps as RouterLinkProps,
+} from "react-router-dom";
+import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { SearchBox } from "./WorkspacesSearchBox";
+import { Loader } from "components/Loader/Loader";
+import { SearchEmpty, searchStyles } from "components/Menu/Search";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { SearchEmpty, searchStyles } from "components/Menu/Search";
+import { SearchBox } from "./WorkspacesSearchBox";
 
 const ICON_SIZE = 18;
 

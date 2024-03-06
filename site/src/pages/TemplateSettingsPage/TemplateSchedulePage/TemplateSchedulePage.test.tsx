@@ -10,7 +10,10 @@ import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
+import {
+  getValidationSchema,
+  type TemplateScheduleFormValues,
+} from "./formHelpers";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {

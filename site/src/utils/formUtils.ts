@@ -1,12 +1,12 @@
-import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
-import { FormikContextType, FormikErrors, getIn } from "formik";
-import {
+import { type FormikContextType, type FormikErrors, getIn } from "formik";
+import type {
   ChangeEvent,
   ChangeEventHandler,
   FocusEventHandler,
   ReactNode,
 } from "react";
 import * as Yup from "yup";
+import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 
 const Language = {
   nameRequired: (name: string): string => {

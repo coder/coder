@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AccountForm } from "./AccountForm";
 import { mockApiError } from "testHelpers/entities";
+import { AccountForm } from "./AccountForm";
 
 const meta: Meta<typeof AccountForm> = {
   title: "pages/UserSettingsPage/AccountForm",

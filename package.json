@@ -3,7 +3,8 @@
   "name": "coder",
   "version": "0.0.0",
   "scripts": {
-    "format:write:only": "prettier --cache --write"
+    "format": "prettier --cache --write",
+    "storybook": "pnpm run -C site/ storybook"
   },
   "devDependencies": {
     "prettier": "3.0.0"

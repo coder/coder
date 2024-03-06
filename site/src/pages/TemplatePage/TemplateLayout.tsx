@@ -7,17 +7,17 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
