@@ -277,6 +277,9 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	}
 
 	// If max deadline is before now()+2h, then set it to that.
+	// This is intended to give ample warning to this workspace about an upcoming auto-stop.
+	// If we were to omit this "grace" period, then this workspace could be set to be stopped "now".
+	// The "2 hours" was an arbitrary decision for this window.
 	now := s.now()
 	if !autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now.Add(2*time.Hour)) {
 		autostop.MaxDeadline = now.Add(time.Hour * 2)
