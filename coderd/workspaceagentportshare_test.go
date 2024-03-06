@@ -70,6 +70,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 		AgentName:  agents[0].Name,
 		Port:       0,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
 	})
 	require.Error(t, err)
 	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{

@@ -86,7 +86,7 @@ func New() database.Store {
 		UpdatedAt:   dbtime.Now(),
 	})
 	if err != nil {
-		panic(fmt.Errorf("failed to create default organization: %w", err))
+		panic(xerrors.Errorf("failed to create default organization: %w", err))
 	}
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
