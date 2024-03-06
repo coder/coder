@@ -203,6 +203,23 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   const canSharePortsPublic =
     canSharePorts && template.max_port_share_level === "public";
 
+  const publicMenuItem = (
+    <>
+      {canSharePortsPublic ? (
+        <MenuItem value="public">Public</MenuItem>
+      ) : (
+        <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
+        {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+        <div>
+          <MenuItem value="public" disabled>
+            Public
+          </MenuItem>
+        </div>
+      </Tooltip>
+      )}
+    </>
+  )
+
   return (
     <>
       <div
@@ -403,12 +420,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                           <MenuItem value="authenticated">
                             Authenticated
                           </MenuItem>
-                          <MenuItem
-                            value="public"
-                            disabled={!canSharePortsPublic}
-                          >
-                            Public
-                          </MenuItem>
+                          {publicMenuItem}
                         </Select>
                       </FormControl>
                       <Button
@@ -462,18 +474,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     label="Sharing Level"
                   >
                     <MenuItem value="authenticated">Authenticated</MenuItem>
-                    {canSharePortsPublic ? (
-                      <MenuItem value="public">Public</MenuItem>
-                    ) : (
-                      <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
-                        {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-                        <div>
-                          <MenuItem value="public" disabled>
-                            Public
-                          </MenuItem>
-                        </div>
-                      </Tooltip>
-                    )}
+                    {publicMenuItem}
                   </TextField>
                   <LoadingButton
                     variant="contained"
