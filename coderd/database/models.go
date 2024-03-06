@@ -898,6 +898,64 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	}
 }
 
+type PortShareProtocol string
+
+const (
+	PortShareProtocolHttp  PortShareProtocol = "http"
+	PortShareProtocolHttps PortShareProtocol = "https"
+)
+
+func (e *PortShareProtocol) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PortShareProtocol(s)
+	case string:
+		*e = PortShareProtocol(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PortShareProtocol: %T", src)
+	}
+	return nil
+}
+
+type NullPortShareProtocol struct {
+	PortShareProtocol PortShareProtocol `json:"port_share_protocol"`
+	Valid             bool              `json:"valid"` // Valid is true if PortShareProtocol is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPortShareProtocol) Scan(value interface{}) error {
+	if value == nil {
+		ns.PortShareProtocol, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PortShareProtocol.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPortShareProtocol) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PortShareProtocol), nil
+}
+
+func (e PortShareProtocol) Valid() bool {
+	switch e {
+	case PortShareProtocolHttp,
+		PortShareProtocolHttps:
+		return true
+	}
+	return false
+}
+
+func AllPortShareProtocolValues() []PortShareProtocol {
+	return []PortShareProtocol{
+		PortShareProtocolHttp,
+		PortShareProtocolHttps,
+	}
+}
+
 // Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
 type ProvisionerJobStatus string
 
@@ -2312,10 +2370,11 @@ type WorkspaceAgentMetadatum struct {
 }
 
 type WorkspaceAgentPortShare struct {
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
+	AgentName   string            `db:"agent_name" json:"agent_name"`
+	Port        int32             `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
+	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
 type WorkspaceAgentScript struct {

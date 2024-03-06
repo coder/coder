@@ -86,7 +86,7 @@ func New() database.Store {
 		UpdatedAt:   dbtime.Now(),
 	})
 	if err != nil {
-		panic(fmt.Errorf("failed to create default organization: %w", err))
+		panic(xerrors.Errorf("failed to create default organization: %w", err))
 	}
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
@@ -7933,6 +7933,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	for i, share := range q.workspaceAgentPortShares {
 		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && share.AgentName == arg.AgentName {
 			share.ShareLevel = arg.ShareLevel
+			share.Protocol = arg.Protocol
 			q.workspaceAgentPortShares[i] = share
 			return share, nil
 		}
@@ -7944,6 +7945,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 		AgentName:   arg.AgentName,
 		Port:        arg.Port,
 		ShareLevel:  arg.ShareLevel,
+		Protocol:    arg.Protocol,
 	}
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 

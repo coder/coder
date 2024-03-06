@@ -12619,8 +12619,28 @@ const docTemplate = `{
                 "port": {
                     "type": "integer"
                 },
+                "protocol": {
+                    "enum": [
+                        "http",
+                        "https"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
+                        }
+                    ]
+                },
                 "share_level": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                    "enum": [
+                        "owner",
+                        "authenticated",
+                        "public"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                        }
+                    ]
                 }
             }
         },
@@ -13366,8 +13386,28 @@ const docTemplate = `{
                 "port": {
                     "type": "integer"
                 },
+                "protocol": {
+                    "enum": [
+                        "http",
+                        "https"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareProtocol"
+                        }
+                    ]
+                },
                 "share_level": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                    "enum": [
+                        "owner",
+                        "authenticated",
+                        "public"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                        }
+                    ]
                 },
                 "workspace_id": {
                     "type": "string",
@@ -13386,6 +13426,17 @@ const docTemplate = `{
                 "WorkspaceAgentPortShareLevelOwner",
                 "WorkspaceAgentPortShareLevelAuthenticated",
                 "WorkspaceAgentPortShareLevelPublic"
+            ]
+        },
+        "codersdk.WorkspaceAgentPortShareProtocol": {
+            "type": "string",
+            "enum": [
+                "http",
+                "https"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentPortShareProtocolHTTP",
+                "WorkspaceAgentPortShareProtocolHTTPS"
             ]
         },
         "codersdk.WorkspaceAgentPortShares": {

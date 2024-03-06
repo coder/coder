@@ -219,6 +219,7 @@ func TestTemplates(t *testing.T) {
 			AgentName:  ws.LatestBuild.Resources[0].Agents[0].Name,
 			Port:       8080,
 			ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+			Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
 		})
 		require.NoError(t, err)
 

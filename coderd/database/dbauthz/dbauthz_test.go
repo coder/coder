@@ -1608,6 +1608,7 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
 			ShareLevel:  ps.ShareLevel,
+			Protocol:    ps.Protocol,
 		}).Asserts(ws, rbac.ActionUpdate).Returns(ps)
 	}))
 	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {

@@ -1504,6 +1504,7 @@ export interface UpsertWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/users.go
@@ -1762,6 +1763,7 @@ export interface WorkspaceAgentPortShare {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/workspaceagentportshare.go
@@ -2350,6 +2352,11 @@ export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
   "owner",
   "public",
 ];
+
+// From codersdk/workspaceagentportshare.go
+export type WorkspaceAgentPortShareProtocol = "http" | "https";
+export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] =
+  ["http", "https"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";

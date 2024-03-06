@@ -15,7 +15,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
     (Story) => (
       <div
         css={(theme) => ({
-          width: 304,
+          width: 404,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 8,
           backgroundColor: theme.palette.background.paper,
