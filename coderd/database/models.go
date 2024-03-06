@@ -1966,7 +1966,8 @@ type ProvisionerDaemon struct {
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
 	// The API version of the provisioner daemon
-	APIVersion string `db:"api_version" json:"api_version"`
+	APIVersion     string    `db:"api_version" json:"api_version"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type ProvisionerJob struct {

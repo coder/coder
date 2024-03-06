@@ -203,6 +203,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
+	defaultOrg := dbgen.Organization(t, db, database.Organization{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -213,24 +214,26 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	// given
 	_, err := db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 14 days ago, and checked in just before 7 days deadline.
-		Name:         "external-0",
-		Provisioners: []database.ProvisionerType{"echo"},
-		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
-		CreatedAt:    now.Add(-14 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
-		Version:      "1.0.0",
-		APIVersion:   proto.CurrentVersion.String(),
+		Name:           "external-0",
+		Provisioners:   []database.ProvisionerType{"echo"},
+		Tags:           database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		CreatedAt:      now.Add(-14 * 24 * time.Hour),
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 8 days ago, and checked in last time an hour after creation.
-		Name:         "external-1",
-		Provisioners: []database.ProvisionerType{"echo"},
-		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
-		CreatedAt:    now.Add(-8 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
-		Version:      "1.0.0",
-		APIVersion:   proto.CurrentVersion.String(),
+		Name:           "external-1",
+		Provisioners:   []database.ProvisionerType{"echo"},
+		Tags:           database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		CreatedAt:      now.Add(-8 * 24 * time.Hour),
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -241,9 +244,10 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 			provisionersdk.TagOwner: uuid.NewString(),
 		},
-		CreatedAt:  now.Add(-9 * 24 * time.Hour),
-		Version:    "1.0.0",
-		APIVersion: proto.CurrentVersion.String(),
+		CreatedAt:      now.Add(-9 * 24 * time.Hour),
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -254,10 +258,11 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 			provisionersdk.TagOwner: uuid.NewString(),
 		},
-		CreatedAt:  now.Add(-6 * 24 * time.Hour),
-		LastSeenAt: sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
-		Version:    "1.0.0",
-		APIVersion: proto.CurrentVersion.String(),
+		CreatedAt:      now.Add(-6 * 24 * time.Hour),
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 

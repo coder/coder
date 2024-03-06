@@ -3686,7 +3686,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 FROM
 	provisioner_daemons
 `
@@ -3710,6 +3710,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.LastSeenAt,
 			&i.Version,
 			&i.APIVersion,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -3754,6 +3755,7 @@ INSERT INTO
 		tags,
 		last_seen_at,
 		"version",
+		organization_id,
 		api_version
 	)
 VALUES (
@@ -3764,27 +3766,30 @@ VALUES (
 	$4,
 	$5,
 	$6,
-	$7
+	$7,
+	$8
 ) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
-	api_version = $7
+	api_version = $8,
+	organization_id = $7
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ $4 :: jsonb
-RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 `
 
 type UpsertProvisionerDaemonParams struct {
-	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
-	Name         string            `db:"name" json:"name"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
-	Tags         StringMap         `db:"tags" json:"tags"`
-	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
-	Version      string            `db:"version" json:"version"`
-	APIVersion   string            `db:"api_version" json:"api_version"`
+	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
+	Name           string            `db:"name" json:"name"`
+	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
+	Tags           StringMap         `db:"tags" json:"tags"`
+	LastSeenAt     sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
+	Version        string            `db:"version" json:"version"`
+	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
+	APIVersion     string            `db:"api_version" json:"api_version"`
 }
 
 func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -3795,6 +3800,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		arg.Tags,
 		arg.LastSeenAt,
 		arg.Version,
+		arg.OrganizationID,
 		arg.APIVersion,
 	)
 	var i ProvisionerDaemon
@@ -3808,6 +3814,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		&i.LastSeenAt,
 		&i.Version,
 		&i.APIVersion,
+		&i.OrganizationID,
 	)
 	return i, err
 }
