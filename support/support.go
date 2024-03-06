@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 // Bundle is a set of information discovered about a deployment.
@@ -46,6 +47,7 @@ type Workspace struct {
 	BuildLogs        []codersdk.ProvisionerJobLog `json:"build_logs"`
 	Agent            codersdk.WorkspaceAgent      `json:"agent"`
 	AgentStartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
+	AgentManifest    agentsdk.Manifest            `json:"agent_manifest"`
 }
 
 // Deps is a set of dependencies for discovering information

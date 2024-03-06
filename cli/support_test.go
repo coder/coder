@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -156,6 +157,11 @@ func assertBundleContents(t *testing.T, path string) {
 		case "workspace/agent_startup_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.Contains(t, string(bs), "started up")
+		case "workspace/agent_manifest.json":
+			// TODO: what do we need to sanitize?
+			var v agentsdk.Manifest
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "agent should not be empty")
 		case "logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")

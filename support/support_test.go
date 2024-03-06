@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -59,6 +60,8 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Workspace.BuildLogs)
 		require.NotNil(t, bun.Workspace.Agent)
 		require.NotEmpty(t, bun.Workspace.AgentStartupLogs)
+		require.NotEmpty(t, bun.Workspace.AgentManifest)
+		assertSanitizedManifest(t, bun.Workspace.AgentManifest)
 		require.NotEmpty(t, bun.Logs)
 	})
 
@@ -87,6 +90,8 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Network.CoordinatorDebug)
 		require.NotEmpty(t, bun.Network.TailnetDebug)
 		require.NotNil(t, bun.Workspace)
+		require.Empty(t, bun.Workspace.Agent)
+		require.Empty(t, bun.Workspace.AgentManifest)
 		require.NotEmpty(t, bun.Logs)
 	})
 
@@ -133,6 +138,12 @@ func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig
 			assert.Empty(t, opt.Value.String())
 		}
 	}
+}
+
+func assertSanitizedManifest(t *testing.T, m agentsdk.Manifest) {
+	t.Helper()
+	_ = m
+	require.Fail(t, "TODO implement me")
 }
 
 func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, db database.Store, user codersdk.CreateFirstUserResponse) (codersdk.Workspace, codersdk.WorkspaceAgent) {

@@ -137,14 +137,15 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	for k, v := range map[string]any{
-		"deployment/buildinfo.json":    src.Deployment.BuildInfo,
-		"deployment/config.json":       src.Deployment.Config,
-		"deployment/experiments.json":  src.Deployment.Experiments,
-		"deployment/health.json":       src.Deployment.HealthReport,
-		"network/netcheck_local.json":  src.Network.NetcheckLocal,
-		"network/netcheck_remote.json": src.Network.NetcheckRemote,
-		"workspace/workspace.json":     src.Workspace.Workspace,
-		"workspace/agent.json":         src.Workspace.Agent,
+		"deployment/buildinfo.json":     src.Deployment.BuildInfo,
+		"deployment/config.json":        src.Deployment.Config,
+		"deployment/experiments.json":   src.Deployment.Experiments,
+		"deployment/health.json":        src.Deployment.HealthReport,
+		"network/netcheck_local.json":   src.Network.NetcheckLocal,
+		"network/netcheck_remote.json":  src.Network.NetcheckRemote,
+		"workspace/workspace.json":      src.Workspace.Workspace,
+		"workspace/agent.json":          src.Workspace.Agent,
+		"workspace/agent_manifest.json": src.Workspace.AgentManifest,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
