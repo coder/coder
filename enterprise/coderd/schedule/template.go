@@ -278,7 +278,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 
 	// If max deadline is before now()+2h, then set it to that.
 	now := s.now()
-	if autostop.MaxDeadline.Before(now.Add(2 * time.Hour)) {
+	if !autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now.Add(2*time.Hour)) {
 		autostop.MaxDeadline = now.Add(time.Hour * 2)
 	}
 
