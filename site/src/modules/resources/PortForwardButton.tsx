@@ -209,16 +209,16 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
         <MenuItem value="public">Public</MenuItem>
       ) : (
         <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
-        {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-        <div>
-          <MenuItem value="public" disabled>
-            Public
-          </MenuItem>
-        </div>
-      </Tooltip>
+          {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+          <div>
+            <MenuItem value="public" disabled>
+              Public
+            </MenuItem>
+          </div>
+        </Tooltip>
       )}
     </>
-  )
+  );
 
   return (
     <>
