@@ -51,17 +51,20 @@ infrastructure resources offered by cloud providers.
 
 ## Proxy
 
-A proxy in Coder serves as an intermediary between users and the Coder platform,
-facilitating secure communication and access control. The proxy handles requests
-from users, routes them to the appropriate services within Coder, and enforces
-security policies to safeguard sensitive information.
+A workspace proxy serves as a relay connection option for developers connecting
+to their workspace over SSH, a workspace app, or through port forwarding. It
+helps reduce network latency for geo-distributed teams by minimizing the
+distance network traffic needs to travel. Notably, workspace proxies do not
+handle dashboard connections or API calls.
 
-## Provisionerd
+## Provisioner
 
-A provisioner in Coder is responsible for provisioning and managing resources
-required for workspace creation. This includes allocating computing resources
-such as CPU, memory, and storage, as well as configuring networking settings to
-ensure seamless connectivity within the workspace environment.
+Provisioners in Coder execute Terraform during workspace and template builds.
+While the platform includes built-in provisioner daemons by default, there are
+advantages to employing external provisioners. These external daemons provide
+secure build environments, and reduce server load, improving performance and
+scalability. Each provisioner can handle a single concurrent workspace build,
+allowing for efficient resource allocation and workload management.
 
 ## Registry
 
