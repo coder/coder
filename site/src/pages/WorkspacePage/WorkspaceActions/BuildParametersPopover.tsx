@@ -1,7 +1,9 @@
+import { useTheme } from "@emotion/react";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
-import { useTheme } from "@emotion/react";
-import { type FC } from "react";
+import visuallyHidden from "@mui/utils/visuallyHidden";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { getWorkspaceParameters } from "api/api";
 import type {
@@ -10,29 +12,27 @@ import type {
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { FormFields } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { useFormik } from "formik";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
-import {
-  AutofillBuildParameter,
-  getInitialRichParameterValues,
-} from "utils/richParameters";
+import { Loader } from "components/Loader/Loader";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
-import visuallyHidden from "@mui/utils/visuallyHidden";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { docs } from "utils/docs";
+import { getFormHelpers } from "utils/formUtils";
+import {
+  type AutofillBuildParameter,
+  getInitialRichParameterValues,
+} from "utils/richParameters";
 
 interface BuildParametersPopoverProps {
   workspace: Workspace;

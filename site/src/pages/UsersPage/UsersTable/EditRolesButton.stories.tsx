@@ -1,10 +1,10 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockOwnerRole,
   MockSiteRoles,
   MockUserAdminRole,
 } from "testHelpers/entities";
 import { EditRolesButton } from "./EditRolesButton";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof EditRolesButton> = {
   title: "pages/UsersPage/EditRolesButton",

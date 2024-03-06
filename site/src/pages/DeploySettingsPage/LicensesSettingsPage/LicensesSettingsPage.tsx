@@ -1,14 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getLicenses, removeLicense } from "api/api";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { FC, useEffect } from "react";
+import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import useToggle from "react-use/lib/useToggle";
-import { pageTitle } from "utils/page";
-import LicensesSettingsPageView from "./LicensesSettingsPageView";
+import { getLicenses, removeLicense } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { pageTitle } from "utils/page";
+import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient();

@@ -1,17 +1,16 @@
-import Tooltip from "@mui/material/Tooltip";
-import Link from "@mui/material/Link";
-import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import { useTheme } from "@emotion/react";
-import { type FC } from "react";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import type * as TypesGen from "api/typesGenerated";
 import { workspaceQuota } from "api/queries/workspaceQuota";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { displayDormantDeletion } from "utils/dormant";
+import type * as TypesGen from "api/typesGenerated";
+import { ExternalAvatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   Topbar,
   TopbarAvatar,
@@ -20,14 +19,15 @@ import {
   TopbarIcon,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { displayDormantDeletion } from "utils/dormant";
+import type { WorkspacePermissions } from "./permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
-import { WorkspacePermissions } from "./permissions";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 export type WorkspaceError =

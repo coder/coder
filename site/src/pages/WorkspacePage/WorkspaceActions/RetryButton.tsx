@@ -1,10 +1,10 @@
-import ButtonGroup from "@mui/material/ButtonGroup";
 import RetryIcon from "@mui/icons-material/CachedOutlined";
-import { type FC } from "react";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
-import { ActionButtonProps } from "./Buttons";
+import { BuildParametersPopover } from "./BuildParametersPopover";
+import type { ActionButtonProps } from "./Buttons";
 
 type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
   enableBuildParameters: boolean;

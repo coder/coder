@@ -1,18 +1,19 @@
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import CreateIcon from "@mui/icons-material/AddOutlined";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import WarningOutlined from "@mui/icons-material/WarningOutlined";
+import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
+import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import CreateIcon from "@mui/icons-material/AddOutlined";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
   Link as RouterLink,
   unstable_usePrompt as usePrompt,
 } from "react-router-dom";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import AlertTitle from "@mui/material/AlertTitle";
-import ButtonGroup from "@mui/material/ButtonGroup";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import type {
   ProvisionerJobLog,
   Template,
@@ -22,13 +23,26 @@ import type {
   WorkspaceResource,
 } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Sidebar } from "components/FullPageLayout/Sidebar";
+import {
+  Topbar,
+  TopbarAvatar,
+  TopbarButton,
+  TopbarData,
+  TopbarDivider,
+  TopbarIconButton,
+} from "components/FullPageLayout/Topbar";
+import { Loader } from "components/Loader/Loader";
+import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
   createFile,
   existsFile,
-  FileTree,
+  type FileTree,
   getFileText,
   isFolder,
   moveFile,
@@ -40,25 +54,11 @@ import {
   DeleteFileDialog,
   RenameFileDialog,
 } from "./FileDialog";
-import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 import { MonacoEditor } from "./MonacoEditor";
+import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { Loader } from "components/Loader/Loader";
-import {
-  Topbar,
-  TopbarAvatar,
-  TopbarButton,
-  TopbarData,
-  TopbarDivider,
-  TopbarIconButton,
-} from "components/FullPageLayout/Topbar";
-import { Sidebar } from "components/FullPageLayout/Sidebar";
-import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
-import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 

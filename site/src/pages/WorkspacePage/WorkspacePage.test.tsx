@@ -1,8 +1,9 @@
-import { TemplateVersionParameter, type Workspace } from "api/typesGenerated";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import EventSourceMock from "eventsourcemock";
 import { rest } from "msw";
+import * as api from "api/api";
+import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
+import EventSourceMock from "eventsourcemock";
 import {
   MockTemplate,
   MockWorkspace,
@@ -17,7 +18,6 @@ import {
   MockDeploymentConfig,
   MockWorkspaceBuildDelete,
 } from "testHelpers/entities";
-import * as api from "api/api";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";

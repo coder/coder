@@ -1,8 +1,8 @@
 import { renderHook } from "@testing-library/react";
-import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
-import { WorkspaceResource } from "api/typesGenerated";
-import { MockWorkspaceResource } from "testHelpers/entities";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import type { WorkspaceResource } from "api/typesGenerated";
+import { MockWorkspaceResource } from "testHelpers/entities";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 describe("useResourcesNav", () => {
   it("selects the first resource if it has agents and no resource is selected", () => {

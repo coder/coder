@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
-import { type FC } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import type { FC } from "react";
 import { Stack } from "components/Stack/Stack";
 import { useTime } from "hooks/useTime";
 

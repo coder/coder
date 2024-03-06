@@ -1,32 +1,32 @@
-import { Template, Workspace } from "api/typesGenerated";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { ComponentProps } from "react";
-import { Margins } from "components/Margins/Margins";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
-import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { WorkspacesFilter } from "./filter/filter";
-import { hasError, isApiValidationError } from "api/errors";
-import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import { WorkspacesButton } from "./WorkspacesButton";
-import { UseQueryResult } from "react-query";
-import StopOutlined from "@mui/icons-material/StopOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import CloudQueue from "@mui/icons-material/CloudQueue";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import StopOutlined from "@mui/icons-material/StopOutlined";
+import LoadingButton from "@mui/lab/LoadingButton";
+import Divider from "@mui/material/Divider";
+import type { ComponentProps } from "react";
+import type { UseQueryResult } from "react-query";
+import { hasError, isApiValidationError } from "api/errors";
+import type { Template, Workspace } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Margins } from "components/Margins/Margins";
 import {
   MoreMenu,
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import Divider from "@mui/material/Divider";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { Stack } from "components/Stack/Stack";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "utils/workspace";
+import { WorkspacesFilter } from "./filter/filter";
+import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+import { WorkspacesButton } from "./WorkspacesButton";
 
 export const Language = {
   pageTitle: "Workspaces",

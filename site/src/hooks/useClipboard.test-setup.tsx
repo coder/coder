@@ -41,13 +41,13 @@
  *    order of operations involving closure, but you have no idea why the code
  *    is working, and it's impossible to debug.
  */
+import { act, renderHook } from "@testing-library/react";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import {
   type UseClipboardInput,
   type UseClipboardResult,
   useClipboard,
 } from "./useClipboard";
-import { act, renderHook } from "@testing-library/react";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 
 const initialExecCommand = global.document.execCommand;
 beforeAll(() => {

@@ -1,15 +1,15 @@
-import { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within, screen } from "@storybook/test";
+import { addDays, addHours, addMinutes } from "date-fns";
+import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import {
   MockTemplate,
   MockTemplateVersion,
   MockUser,
   MockWorkspace,
 } from "testHelpers/entities";
-import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { addDays, addHours, addMinutes } from "date-fns";
-import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 // We want a workspace without a deadline to not pollute the screenshot
 const baseWorkspace = {

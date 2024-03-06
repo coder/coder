@@ -1,9 +1,9 @@
-import { type FC, type ReactNode } from "react";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import type { FC, ReactNode } from "react";
 import type { TemplateVersion } from "api/typesGenerated";
-import { type ThemeRole } from "theme/roles";
 import { Pill, PillSpinner } from "components/Pill/Pill";
+import type { ThemeRole } from "theme/roles";
 
 interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;

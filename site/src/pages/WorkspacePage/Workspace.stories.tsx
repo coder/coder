@@ -1,15 +1,15 @@
 import { action } from "@storybook/addon-actions";
-import { Meta, StoryObj } from "@storybook/react";
-import EventSource from "eventsourcemock";
+import type { Meta, StoryObj } from "@storybook/react";
 import { withReactContext } from "storybook-react-context";
 import type { ProvisionerJobLog } from "api/typesGenerated";
-import * as Mocks from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import EventSource from "eventsourcemock";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { WatchAgentMetadataContext } from "modules/resources/AgentMetadata";
+import * as Mocks from "testHelpers/entities";
+import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
-import { WorkspacePermissions } from "./permissions";
 
 const MockedAppearance = {
   config: Mocks.MockAppearanceConfig,

@@ -1,18 +1,18 @@
+import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import RecyclingIcon from "@mui/icons-material/Recycling";
 import Tooltip, {
   type TooltipProps,
   tooltipClasses,
 } from "@mui/material/Tooltip";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import RecyclingIcon from "@mui/icons-material/Recycling";
-import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
-import { type FC, type ReactNode } from "react";
-import type { Workspace } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { DormantDeletionText } from "./DormantDeletionText";
-import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { useClassName } from "hooks/useClassName";
 import { formatDistanceToNow } from "date-fns";
+import type { FC, ReactNode } from "react";
+import type { Workspace } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Pill } from "components/Pill/Pill";
+import { useClassName } from "hooks/useClassName";
+import { getDisplayWorkspaceStatus } from "utils/workspace";
+import { DormantDeletionText } from "./DormantDeletionText";
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace;

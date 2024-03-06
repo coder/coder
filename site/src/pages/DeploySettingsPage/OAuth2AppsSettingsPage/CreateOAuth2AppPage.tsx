@@ -1,11 +1,11 @@
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 import { pageTitle } from "utils/page";
-import { Helmet } from "react-helmet-async";
+import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const CreateOAuth2AppPage: FC = () => {
   const navigate = useNavigate();

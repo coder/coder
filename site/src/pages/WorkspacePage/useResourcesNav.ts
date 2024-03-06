@@ -1,7 +1,7 @@
-import { WorkspaceResource } from "api/typesGenerated";
+import { useCallback, useEffect } from "react";
+import type { WorkspaceResource } from "api/typesGenerated";
 import { useTab } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useCallback, useEffect } from "react";
 
 export const resourceOptionValue = (resource: WorkspaceResource) => {
   return `${resource.type}_${resource.name}`;

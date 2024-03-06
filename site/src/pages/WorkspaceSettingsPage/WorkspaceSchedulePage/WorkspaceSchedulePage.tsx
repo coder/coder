@@ -1,34 +1,34 @@
+import dayjs from "dayjs";
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  putWorkspaceAutostart,
+  putWorkspaceAutostop,
+  startWorkspace,
+} from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import dayjs from "dayjs";
 import {
   scheduleToAutostart,
   scheduleChanged,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import * as TypesGen from "api/typesGenerated";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { checkAuthorization } from "api/queries/authCheck";
-import { templateByName } from "api/queries/templates";
-import {
-  putWorkspaceAutostart,
-  putWorkspaceAutostop,
-  startWorkspace,
-} from "api/api";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
   ({

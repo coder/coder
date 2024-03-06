@@ -2,8 +2,9 @@ import type { Meta } from "@storybook/react";
 import {
   reactRouterParameters,
   reactRouterOutlet,
-  RouteDefinition,
+  type RouteDefinition,
 } from "storybook-addon-react-router-v6";
+import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
 import { chromatic } from "testHelpers/chromatic";
 import {
   MockAppearanceConfig,
@@ -13,9 +14,8 @@ import {
   MockHealth,
   MockHealthSettings,
 } from "testHelpers/entities";
-import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
-import { HealthLayout } from "./HealthLayout";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { HealthLayout } from "./HealthLayout";
 
 type MetaOptions = {
   element: RouteDefinition;

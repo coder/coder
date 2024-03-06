@@ -1,11 +1,11 @@
 import { test } from "@playwright/test";
+import { randomUUID } from "crypto";
 import {
   createTemplate,
   createWorkspace,
   startAgent,
   stopAgent,
 } from "../helpers";
-import { randomUUID } from "crypto";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));

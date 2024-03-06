@@ -1,13 +1,13 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
-import { useMemo, type FC, useCallback } from "react";
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import { TemplateVersionFiles } from "utils/templateVersion";
-import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
-import { FileTree } from "utils/filetree";
-import set from "lodash/fp/set";
-import { TemplateFileTree } from "./TemplateFileTree";
-import { Link } from "react-router-dom";
 import EditOutlined from "@mui/icons-material/EditOutlined";
+import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
+import set from "lodash/fp/set";
+import { type FC, useCallback, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
+import type { FileTree } from "utils/filetree";
+import type { TemplateVersionFiles } from "utils/templateVersion";
+import { TemplateFileTree } from "./TemplateFileTree";
 
 interface TemplateFilesProps {
   currentFiles: TemplateVersionFiles;

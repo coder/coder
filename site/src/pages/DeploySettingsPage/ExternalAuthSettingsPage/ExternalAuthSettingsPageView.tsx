@@ -1,16 +1,16 @@
 import { css } from "@emotion/react";
-import { type FC } from "react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import type { FC } from "react";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { EnterpriseBadge } from "components/Badges/Badges";
-import { Header } from "../Header";
 import { docs } from "utils/docs";
+import { Header } from "../Header";
 
 export type ExternalAuthSettingsPageViewProps = {
   config: DeploymentValues;

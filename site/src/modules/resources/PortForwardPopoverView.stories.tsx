@@ -1,4 +1,3 @@
-import { PortForwardPopoverView } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
@@ -7,6 +6,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
+import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
   title: "modules/resources/PortForwardPopoverView",

@@ -1,4 +1,12 @@
+import { useTheme } from "@emotion/react";
+import CodeOutlined from "@mui/icons-material/CodeOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { pageTitle } from "utils/page";
 import {
   Header,
   HeaderTitle,
@@ -7,14 +15,6 @@ import {
   Pill,
   SectionLabel,
 } from "./Content";
-import { HealthcheckReport } from "api/typesGenerated";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
-import Tooltip from "@mui/material/Tooltip";
-import { useTheme } from "@emotion/react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { Alert } from "components/Alert/Alert";
-import { pageTitle } from "utils/page";
-import { Helmet } from "react-helmet-async";
 import { DismissWarningButton } from "./DismissWarningButton";
 
 export const WebsocketPage = () => {

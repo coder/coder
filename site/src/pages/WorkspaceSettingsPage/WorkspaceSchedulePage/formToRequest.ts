@@ -1,5 +1,5 @@
-import * as TypesGen from "api/typesGenerated";
-import { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
+import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 
 export const formValuesToAutostartRequest = (
   values: WorkspaceScheduleFormValues,

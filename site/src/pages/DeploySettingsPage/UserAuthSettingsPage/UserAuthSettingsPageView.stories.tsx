@@ -1,6 +1,6 @@
-import { ClibaseGroup } from "api/typesGenerated";
-import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import type { ClibaseGroup } from "api/typesGenerated";
+import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const oidcGroup: ClibaseGroup = {
   name: "OIDC",

@@ -1,29 +1,3 @@
-import type {
-  DeploymentStats,
-  HealthcheckReport,
-  WorkspaceStatus,
-} from "api/typesGenerated";
-import {
-  type FC,
-  type PropsWithChildren,
-  useMemo,
-  useEffect,
-  useState,
-} from "react";
-import prettyBytes from "pretty-bytes";
-import BuildingIcon from "@mui/icons-material/Build";
-import Tooltip from "@mui/material/Tooltip";
-import { Link as RouterLink } from "react-router-dom";
-import Link from "@mui/material/Link";
-import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import DownloadIcon from "@mui/icons-material/CloudDownload";
-import UploadIcon from "@mui/icons-material/CloudUpload";
-import LatencyIcon from "@mui/icons-material/SettingsEthernet";
-import WebTerminalIcon from "@mui/icons-material/WebAsset";
-import CollectedIcon from "@mui/icons-material/Compare";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import Button from "@mui/material/Button";
 import {
   css,
   type CSSObject,
@@ -31,16 +5,42 @@ import {
   type Interpolation,
   useTheme,
 } from "@emotion/react";
-import dayjs from "dayjs";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
-import { RocketIcon } from "components/Icons/RocketIcon";
+import BuildingIcon from "@mui/icons-material/Build";
+import DownloadIcon from "@mui/icons-material/CloudDownload";
+import UploadIcon from "@mui/icons-material/CloudUpload";
+import CollectedIcon from "@mui/icons-material/Compare";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import LatencyIcon from "@mui/icons-material/SettingsEthernet";
+import WebTerminalIcon from "@mui/icons-material/WebAsset";
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import dayjs from "dayjs";
+import prettyBytes from "pretty-bytes";
+import {
+  type FC,
+  type PropsWithChildren,
+  useMemo,
+  useEffect,
+  useState,
+} from "react";
+import { Link as RouterLink } from "react-router-dom";
+import type {
+  DeploymentStats,
+  HealthcheckReport,
+  WorkspaceStatus,
+} from "api/typesGenerated";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
+import { RocketIcon } from "components/Icons/RocketIcon";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { Stack } from "components/Stack/Stack";
+import { type ClassName, useClassName } from "hooks/useClassName";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
-import { type ClassName, useClassName } from "hooks/useClassName";
 
 export const bannerHeight = 36;
 

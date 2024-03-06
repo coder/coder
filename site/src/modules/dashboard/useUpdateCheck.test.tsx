@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { type FC, type PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
 import { rest } from "msw";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { MockUpdateCheck } from "testHelpers/entities";
 import { server } from "testHelpers/server";
 import { useUpdateCheck } from "./useUpdateCheck";

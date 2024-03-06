@@ -1,19 +1,19 @@
-import TextField from "@mui/material/TextField";
-import Button, { type ButtonProps } from "@mui/material/Button";
-import Menu, { type MenuProps } from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import InputAdornment from "@mui/material/InputAdornment";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
-import MenuList from "@mui/material/MenuList";
-import Divider from "@mui/material/Divider";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { useTheme } from "@emotion/react";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
-import { useTheme } from "@emotion/react";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import Menu, { type MenuProps } from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import MenuList from "@mui/material/MenuList";
+import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import {
   type FC,
   type ReactNode,
@@ -22,22 +22,22 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import type { useSearchParams } from "react-router-dom";
 import {
   getValidationErrorMessage,
   hasError,
   isApiValidationError,
 } from "api/errors";
 import { Loader } from "components/Loader/Loader";
-import { useDebouncedFunction } from "hooks/debounce";
-import { useFilterMenu } from "./menu";
-import type { BaseOption } from "./options";
 import {
   Search,
   SearchEmpty,
   SearchInput,
   searchStyles,
 } from "components/Menu/Search";
+import { useDebouncedFunction } from "hooks/debounce";
+import type { useFilterMenu } from "./menu";
+import type { BaseOption } from "./options";
 
 export type PresetFilter = {
   name: string;

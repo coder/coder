@@ -1,18 +1,18 @@
+import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { useNavigate } from "react-router-dom";
-import { useFormik } from "formik";
-import { Loader } from "components/Loader/Loader";
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { createToken, getTokenConfig } from "api/api";
-import { CreateTokenForm } from "./CreateTokenForm";
-import { NANO_HOUR, CreateTokenData } from "./utils";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { CodeExample } from "components/CodeExample/CodeExample";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
+import { pageTitle } from "utils/page";
+import { CreateTokenForm } from "./CreateTokenForm";
+import { type CreateTokenData, NANO_HOUR } from "./utils";
 
 const initialValues: CreateTokenData = {
   name: "",

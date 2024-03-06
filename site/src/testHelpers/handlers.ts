@@ -1,10 +1,10 @@
+import fs from "fs";
 import { rest } from "msw";
-import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import path from "path";
+import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
-import fs from "fs";
-import path from "path";
 
 export const handlers = [
   rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {

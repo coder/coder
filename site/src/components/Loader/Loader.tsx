@@ -1,5 +1,5 @@
 import CircularProgress from "@mui/material/CircularProgress";
-import { type FC, type HTMLAttributes } from "react";
+import type { FC, HTMLAttributes } from "react";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;

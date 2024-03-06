@@ -2,14 +2,8 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
 import { patchTemplateVersion, updateActiveTemplateVersion } from "api/api";
-import type {
-  PatchTemplateVersionRequest,
-  TemplateVersion,
-} from "api/typesGenerated";
+import { file, uploadFile } from "api/queries/files";
 import {
   createTemplateVersion,
   resources,
@@ -18,13 +12,19 @@ import {
   templateVersionByName,
   templateVersionVariables,
 } from "api/queries/templates";
-import { file, uploadFile } from "api/queries/files";
-import { TarReader, TarWriter } from "utils/tar";
-import { FileTree, traverse } from "utils/filetree";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
+import type {
+  PatchTemplateVersionRequest,
+  TemplateVersion,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { type FileTree, traverse } from "utils/filetree";
+import { pageTitle } from "utils/page";
+import { TarReader, TarWriter } from "utils/tar";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 type Params = {
   version: string;

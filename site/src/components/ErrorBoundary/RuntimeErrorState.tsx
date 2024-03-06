@@ -1,15 +1,15 @@
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { Stack } from "components/Stack/Stack";
 import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
 
 const fetchDynamicallyImportedModuleError =
   "Failed to fetch dynamically imported module";

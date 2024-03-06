@@ -1,10 +1,10 @@
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { getTemplatePageTitle } from "../utils";
-import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
 import { useQuery } from "react-query";
 import { getTemplateVersionResources } from "api/api";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { getTemplatePageTitle } from "../utils";
+import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
 
 export const TemplateSummaryPage: FC = () => {
   const { template, activeVersion } = useTemplateLayoutContext();
