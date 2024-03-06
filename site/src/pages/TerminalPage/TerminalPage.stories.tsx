@@ -49,7 +49,6 @@ const meta = {
       { key: ["entitlements"], data: MockEntitlements },
       { key: ["experiments"], data: MockExperiments },
       { key: ["appearance"], data: MockAppearanceConfig },
-
       {
         key: getAuthorizationKey({ checks: permissionsToCheck }),
         data: { editWorkspaceProxies: true },
@@ -68,36 +67,44 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof TerminalPage>;
 
-export const Connected: Story = {
+const readyWorkspaceQuery = {
+  key: workspaceByOwnerAndNameKey(MockWorkspace.owner_name, MockWorkspace.name),
+  data: {
+    ...MockWorkspace,
+    latest_build: {
+      ...MockWorkspace.latest_build,
+      resources: [
+        {
+          ...MockWorkspace.latest_build.resources[0],
+          agents: [{ ...MockWorkspaceAgent, lifecycle_state: "ready" }],
+        },
+      ],
+    },
+  } satisfies Workspace,
+};
+
+export const OnMessage: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
     webSocket: {
+      event: "message",
       // Copied and pasted this from browser
       messages: [
         `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
       ],
     },
-    queries: [
-      ...meta.parameters.queries,
-      {
-        key: workspaceByOwnerAndNameKey(
-          MockWorkspace.owner_name,
-          MockWorkspace.name,
-        ),
-        data: {
-          ...MockWorkspace,
-          latest_build: {
-            ...MockWorkspace.latest_build,
-            resources: [
-              {
-                ...MockWorkspace.latest_build.resources[0],
-                agents: [{ ...MockWorkspaceAgent, lifecycle_state: "ready" }],
-              },
-            ],
-          },
-        } satisfies Workspace,
-      },
-    ],
+    queries: [...meta.parameters.queries, readyWorkspaceQuery],
+  },
+};
+
+export const OnError: Story = {
+  decorators: [withWebSocket],
+  parameters: {
+    ...meta.parameters,
+    webSocket: {
+      event: "error",
+    },
+    queries: [...meta.parameters.queries, readyWorkspaceQuery],
   },
 };
