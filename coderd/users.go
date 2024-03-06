@@ -201,8 +201,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Password:       createUser.Password,
 			OrganizationID: defaultOrg.ID,
 		},
-		CreateOrganization: false,
-		LoginType:          database.LoginTypePassword,
+		LoginType: database.LoginTypePassword,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1231,8 +1230,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequest
-	CreateOrganization bool
-	LoginType          database.LoginType
+	LoginType database.LoginType
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
@@ -1245,32 +1243,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	var user database.User
 	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
-		// If no organization is provided, create a new one for the user.
+		// Organization is required to know where to allocate the user.
 		if req.OrganizationID == uuid.Nil {
-			if !req.CreateOrganization {
-				return xerrors.Errorf("organization ID must be provided")
-			}
-
-			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:          uuid.New(),
-				Name:        req.Username,
-				CreatedAt:   dbtime.Now(),
-				UpdatedAt:   dbtime.Now(),
-				Description: "",
-			})
-			if err != nil {
-				return xerrors.Errorf("create organization: %w", err)
-			}
-			req.OrganizationID = organization.ID
-			// TODO: When organizations are allowed to be created, we should
-			// come back to determining the default role of the person who
-			// creates the org. Until that happens, all users in an organization
-			// should be just regular members. Membership role is implied, and
-			// not required to be explicit.
-			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
-			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
-			}
+			return xerrors.Errorf("organization ID must be provided")
 		}
 
 		params := database.InsertUserParams{
