@@ -215,6 +215,62 @@ func TestLogin(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("ExistingUserURLSavedInConfig", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		url := client.URL.String()
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: %s", url))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		if runtime.GOOS != "windows" {
+			// For some reason, the match does not show up on Windows.
+			pty.ExpectMatch(client.SessionToken())
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserURLSavedInEnv", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		url := client.URL.String()
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, _ := clitest.New(t, "login", "--no-open")
+		inv.Environ.Set("CODER_URL", url)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: %s", url))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		if runtime.GOOS != "windows" {
+			// For some reason, the match does not show up on Windows.
+			pty.ExpectMatch(client.SessionToken())
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

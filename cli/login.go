@@ -136,7 +136,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 		useTokenForSession bool
 	)
 	cmd := &clibase.Cmd{
-		Use:        "login <url>",
+		Use:        "login [<url>]",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {
@@ -144,8 +144,16 @@ func (r *RootCmd) login() *clibase.Cmd {
 			rawURL := ""
 			if len(inv.Args) == 0 {
 				rawURL = r.clientURL.String()
+				if rawURL != "" && rawURL == inv.Environ.Get(envURL) {
+					_, _ = fmt.Fprintf(inv.Stdout, "Attempting to authenticate with environment URL: %s\n", rawURL)
+				}
 			} else {
 				rawURL = inv.Args[0]
+			}
+
+			if url, err := r.createConfig().URL().Read(); rawURL == "" && err == nil {
+				_, _ = fmt.Fprintf(inv.Stdout, "Attempting to authenticate with config URL: %s\n", url)
+				rawURL = url
 			}
 
 			if rawURL == "" {
