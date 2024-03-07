@@ -32,6 +32,7 @@ pushd "$PROJECT_ROOT"
 mkdir -p ./.coderv2
 CODER_DEV_BIN="$(realpath "$RELATIVE_BINARY_PATH")"
 CODER_DEV_DIR="$(realpath ./.coderv2)"
+CODER_DELVE_DEBUG_BIN=$(realpath "./build/coder_debug_${GOOS}_${GOARCH}")
 popd
 
 case $BINARY_TYPE in
@@ -59,7 +60,20 @@ esac
 runcmd=("${CODER_DEV_BIN}")
 if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	set -x
-	runcmd=(dlv debug --headless --continue --listen 127.0.0.1:12345 --accept-multiclient ./cmd/coder --)
+	build_flags=(
+		--os "$GOOS"
+		--arch "$GOARCH"
+		--output "$CODER_DELVE_DEBUG_BIN"
+		--debug
+	)
+	if [[ "$BINARY_TYPE" == "coder-slim" ]]; then
+		build_flags+=(--slim)
+	fi
+	# All the prerequisites should be built above when we refreshed the regular
+	# binary, so we can just build the debug binary here without having to worry
+	# about/use the makefile.
+	./scripts/build_go.sh "${build_flags[@]}"
+	runcmd=(dlv exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
 fi
 
-CGO_ENABLED=0 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
+exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
