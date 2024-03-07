@@ -97,10 +97,47 @@ bottlenecks.
 
 ### Infrastructure and setup requirements
 
-TODO
+In a single workflow, the scale tests runner maintains a consistent load
+distribution as follows:
+
+- 80% of users open and utilize SSH connections.
+- 25% of users connect to the workspace using the Web Terminal.
+- 40% of users simulate traffic for workspace apps.
+- 20% of users interact with the Coder UI via a headless browser.
+
+This distribution closely mirrors natural user behavior, as observed among our
+customers.
+
+The basic setup of scale tests environment involves:
+
+1. Scale tests runner: `c2d-standard-32` (32 vCPU, 128 GB RAM)
+2. Coderd: 2 replicas (4 vCPU, 16 GB RAM)
+3. Database: 1 replica (2 vCPU, 32 GB RAM)
+4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
+
+No pod restarts or internal errors were observed.
 
 ### Traffic Projections
 
-<!-- during scale tests -->
+In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
+2000 agents, with metadata being sent 2 x every 10 s. Here are the resulting
+metrics:
 
-TODO
+Coder:
+
+- coderd: Median CPU usage for coderd: 3 vCPU, peaking at 3.7 vCPU during
+  dashboard tests.
+- provisionerd: Median CPU usage is 0.35 vCPU during workspace provisioning.
+
+API:
+
+- Median request rate: 350 req/s during dashboard tests, 250 req/s during Web
+  Terminal and workspace apps tests.
+- 2000 agent connections with latency: p90 at 60 ms, p95 at 220 ms.
+- on average 2400 websocket connections during dashboard tests.
+
+Database:
+
+- Median CPU utilization: 80%.
+- Median memory utilization: 40%.
+- Average write_ops_count per minute: between 400 and 500 operations.
