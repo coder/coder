@@ -142,3 +142,23 @@ export const ConnectionError: Story = {
     queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
   },
 };
+
+// Check if the terminal is not getting hide when the bottom message is shown
+// together with the error message
+export const BottomMessage: Story = {
+  decorators: [withWebSocket],
+  parameters: {
+    ...meta.parameters,
+    webSocket: [
+      {
+        event: "message",
+        // Copied and pasted this from browser
+        data: "\x1b[1000BLEFT\x1b[1000C\x1b[4DRIGHT",
+      },
+      {
+        event: "close",
+      },
+    ],
+    queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+  },
+};

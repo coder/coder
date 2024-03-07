@@ -345,16 +345,16 @@ const TerminalAlerts = ({
     prevLifecycleState.current = lifecycleState;
   }, [lifecycleState]);
 
-  // Mock state
-  const [displayAlert, setDisplayAlert] = useState(false);
-  useEffect(() => {
-    setTimeout(() => {
-      setDisplayAlert(true);
-    }, 1_000);
-  }, []);
-
   // We want to observe the children of the wrapper to detect when the alert
   // changes. So the terminal page can resize itself.
+  //
+  // Would it be possible to just always call fit() when this component
+  // re-renders instead of using an observer?
+  //
+  // This is a good question and the why this does not work is that the .fit()
+  // needs to run after the render so in this case, I just think the mutation
+  // observer is more reliable. I could use some hacky setTimeout inside of
+  // useEffect to do that, I guess, but I don't think it would be any better.
   const wrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!wrapperRef.current) {
@@ -370,18 +370,7 @@ const TerminalAlerts = ({
 
   return (
     <div ref={wrapperRef}>
-      {displayAlert ? (
-        <div css={{ height: 500, backgroundColor: "red" }}>
-          Some big element here
-          <button
-            onClick={() => {
-              setDisplayAlert(false);
-            }}
-          >
-            Close
-          </button>
-        </div>
-      ) : state === "disconnected" ? (
+      {state === "disconnected" ? (
         <DisconnectedAlert />
       ) : lifecycleState === "start_error" ? (
         <ErrorScriptAlert />

@@ -3,7 +3,9 @@ import type { QueryKey } from "react-query";
 import type { Experiments, FeatureName } from "api/typesGenerated";
 
 declare module "@storybook/react" {
-  type WebSocketEvent = { event: "message"; data: string } | { event: "error" };
+  type WebSocketEvent =
+    | { event: "message"; data: string }
+    | { event: "error" | "close" };
   interface Parameters {
     features?: FeatureName[];
     experiments?: Experiments;
