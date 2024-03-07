@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/google/uuid"
@@ -22,13 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/tailnet"
-)
-
-const (
-	templateNameLabel  = "template_name"
-	agentNameLabel     = "agent_name"
-	usernameLabel      = "username"
-	workspaceNameLabel = "workspace_name"
 )
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
@@ -156,7 +150,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, templateNameLabel, "template_version"}))
+	}, []string{agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, agentmetrics.TemplateNameLabel, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -167,7 +161,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "status", "lifecycle_state", "tailnet_node"}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "status", "lifecycle_state", "tailnet_node"}))
 	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
@@ -178,7 +172,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "derp_region", "preferred"}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
@@ -189,7 +183,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "apps",
 		Help:      "Agent applications with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "app_name", "health"}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "app_name", "health"}))
 	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
@@ -357,7 +351,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "tx_bytes",
 		Help:      "Agent Tx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsTxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -368,7 +362,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "rx_bytes",
 		Help:      "Agent Rx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsRxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -379,7 +373,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_count",
 		Help:      "The number of established connections by agent",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsConnectionCountGauge)
 	if err != nil {
 		return nil, err
@@ -390,7 +384,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_median_latency_seconds",
 		Help:      "The median agent connection latency in seconds",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsConnectionMedianLatencyGauge)
 	if err != nil {
 		return nil, err
@@ -401,7 +395,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_jetbrains",
 		Help:      "The number of session established by JetBrains",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsSessionCountJetBrainsGauge)
 	if err != nil {
 		return nil, err
@@ -412,7 +406,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_reconnecting_pty",
 		Help:      "The number of session established by reconnecting PTY",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsSessionCountReconnectingPTYGauge)
 	if err != nil {
 		return nil, err
@@ -423,7 +417,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_ssh",
 		Help:      "The number of session established by SSH",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsSessionCountSSHGauge)
 	if err != nil {
 		return nil, err
@@ -434,7 +428,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_vscode",
 		Help:      "The number of session established by VSCode",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}))
 	err = registerer.Register(agentStatsSessionCountVSCodeGauge)
 	if err != nil {
 		return nil, err

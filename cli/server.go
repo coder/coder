@@ -235,7 +235,7 @@ func enablePrometheus(
 		}
 		afterCtx(ctx, closeAgentStatsFunc)
 
-		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0)
+		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
 		if err != nil {
 			return nil, xerrors.Errorf("can't initialize metrics aggregator: %w", err)
 		}
