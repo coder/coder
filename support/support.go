@@ -2,6 +2,7 @@ package support
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"strings"
@@ -42,10 +43,14 @@ type Network struct {
 }
 
 type Workspace struct {
-	Workspace        codersdk.Workspace           `json:"workspace"`
-	BuildLogs        []codersdk.ProvisionerJobLog `json:"build_logs"`
-	Agent            codersdk.WorkspaceAgent      `json:"agent"`
-	AgentStartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
+	Workspace          codersdk.Workspace                 `json:"workspace"`
+	Parameters         []codersdk.WorkspaceBuildParameter `json:"parameters"`
+	Template           codersdk.Template                  `json:"template"`
+	TemplateVersion    codersdk.TemplateVersion           `json:"template_version"`
+	TemplateFileBase64 string                             `json:"template_file_base64"`
+	BuildLogs          []codersdk.ProvisionerJobLog       `json:"build_logs"`
+	Agent              codersdk.WorkspaceAgent            `json:"agent"`
+	AgentStartupLogs   []codersdk.WorkspaceAgentLog       `json:"startup_logs"`
 }
 
 // Deps is a set of dependencies for discovering information
@@ -226,6 +231,56 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 			logs = append(w.AgentStartupLogs, logChunk...)
 		}
 		w.AgentStartupLogs = logs
+		return nil
+	})
+
+	eg.Go(func() error {
+		if w.Workspace.TemplateActiveVersionID == uuid.Nil {
+			return xerrors.Errorf("workspace has nil template active version id")
+		}
+		tv, err := client.TemplateVersion(ctx, w.Workspace.TemplateActiveVersionID)
+		if err != nil {
+			return xerrors.Errorf("fetch template active version id")
+		}
+		w.TemplateVersion = tv
+
+		if tv.Job.FileID == uuid.Nil {
+			return xerrors.Errorf("template file id is nil")
+		}
+		raw, ctype, err := client.DownloadWithFormat(ctx, tv.Job.FileID, codersdk.FormatZip)
+		if err != nil {
+			return err
+		}
+		if ctype != codersdk.ContentTypeZip {
+			return xerrors.Errorf("expected content-type %s, got %s", codersdk.ContentTypeZip, ctype)
+		}
+
+		b64encoded := base64.StdEncoding.EncodeToString(raw)
+		w.TemplateFileBase64 = b64encoded
+		return nil
+	})
+
+	eg.Go(func() error {
+		if w.Workspace.TemplateID == uuid.Nil {
+			return xerrors.Errorf("workspace has nil version id")
+		}
+		tpl, err := client.Template(ctx, w.Workspace.TemplateID)
+		if err != nil {
+			return xerrors.Errorf("fetch template")
+		}
+		w.Template = tpl
+		return nil
+	})
+
+	eg.Go(func() error {
+		if ws.LatestBuild.ID == uuid.Nil {
+			return xerrors.Errorf("workspace has nil latest build id")
+		}
+		params, err := client.WorkspaceBuildParameters(ctx, ws.LatestBuild.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch workspace build parameters: %w", err)
+		}
+		w.Parameters = params
 		return nil
 	})
 
