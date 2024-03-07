@@ -4,10 +4,10 @@ This document provides prescriptive solutions and reference architectures to
 support successful deployments of up to 2000 users and outlines at a high-level
 the methodology currently used to scale-test Coder.
 
+## General concepts
+
 This section outlines core concepts and terminology essential for understanding
 Coder's architecture and deployment strategies.
-
-## General concepts
 
 ### Administrator
 
