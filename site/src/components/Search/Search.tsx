@@ -14,31 +14,38 @@ interface SearchProps extends BoxProps {
   $$ref?: Ref<unknown>;
 }
 
+/**
+ * A container component meant for `SearchInput`
+ *
+ * ```
+ * <Search>
+ *   <SearchInput />
+ * </Search>
+ * ```
+ */
 export const Search: FC<SearchProps> = ({ children, $$ref, ...boxProps }) => {
-  const theme = useTheme();
-
   return (
-    <Box
-      ref={$$ref}
-      {...boxProps}
-      css={{
-        display: "flex",
-        alignItems: "center",
-        paddingLeft: 16,
-        height: 40,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-      }}
-    >
-      <SearchOutlined
-        css={{
-          fontSize: 14,
-          color: theme.palette.text.secondary,
-        }}
-      />
+    <Box ref={$$ref} {...boxProps} css={SearchStyles.container}>
+      <SearchOutlined css={SearchStyles.icon} />
       {children}
     </Box>
   );
 };
+
+const SearchStyles = {
+  container: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    paddingLeft: 16,
+    height: 40,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  }),
+
+  icon: (theme) => ({
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 type SearchInputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
@@ -50,8 +57,6 @@ export const SearchInput: FC<SearchInputProps> = ({
   $$ref,
   ...inputProps
 }) => {
-  const theme = useTheme();
-
   return (
     <>
       <label css={{ ...visuallyHidden }} htmlFor={inputProps.id}>
@@ -62,45 +67,52 @@ export const SearchInput: FC<SearchInputProps> = ({
         tabIndex={-1}
         type="text"
         placeholder="Search..."
-        css={{
-          height: "100%",
-          border: 0,
-          background: "none",
-          flex: 1,
-          marginLeft: 16,
-          outline: 0,
-          "&::placeholder": {
-            color: theme.palette.text.secondary,
-          },
-        }}
+        css={SearchInputStyles.input}
         {...inputProps}
       />
     </>
   );
 };
 
+const SearchInputStyles = {
+  input: (theme) => ({
+    color: "inherit",
+    height: "100%",
+    border: 0,
+    background: "none",
+    flex: 1,
+    marginLeft: 16,
+    outline: 0,
+    "&::placeholder": {
+      color: theme.palette.text.secondary,
+    },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
 export const SearchEmpty: FC<HTMLAttributes<HTMLDivElement>> = ({
   children = "Not found",
   ...props
 }) => {
-  const theme = useTheme();
-
   return (
-    <div
-      css={{
-        fontSize: 13,
-        color: theme.palette.text.secondary,
-        textAlign: "center",
-        paddingTop: 8,
-        paddingBottom: 8,
-      }}
-      {...props}
-    >
+    <div css={SearchEmptyStyles.empty} {...props}>
       {children}
     </div>
   );
 };
 
+const SearchEmptyStyles = {
+  empty: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    textAlign: "center",
+    paddingTop: 8,
+    paddingBottom: 8,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
+/**
+ * Reusable styles for consumers of the base components
+ */
 export const searchStyles = {
   content: {
     width: 320,

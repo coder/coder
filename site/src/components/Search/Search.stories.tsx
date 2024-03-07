@@ -17,3 +17,10 @@ export default meta;
 type Story = StoryObj<typeof SearchInput>;
 
 export const Example: Story = {};
+
+export const WithPlaceholder: Story = {
+  args: {
+    label: "uwu",
+    placeholder: "uwu",
+  },
+};
