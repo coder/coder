@@ -69,6 +69,13 @@ export const parameters = {
         },
         type: "tablet",
       },
+      terminal: {
+        name: "Terminal",
+        styles: {
+          height: "400",
+          width: "400",
+        },
+      },
     },
   },
 };

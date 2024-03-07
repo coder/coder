@@ -149,6 +149,10 @@ export const BottomMessage: Story = {
   decorators: [withWebSocket],
   parameters: {
     ...meta.parameters,
+    // Forcing smaller viewport to make it easier to identify the issue
+    viewport: {
+      defaultViewport: "terminal",
+    },
     webSocket: [
       {
         event: "message",
