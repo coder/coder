@@ -1239,10 +1239,18 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		}
 	}()
 
+	// All in memory provisioners will be part of the default org for now.
+	//nolint:gocritic // in-memory provisioners are owned by system
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
+	if err != nil {
+		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
-		Name:      name,
-		CreatedAt: dbtime.Now(),
+		Name:           name,
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
 		Provisioners: []database.ProvisionerType{
 			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
 		},
