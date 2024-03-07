@@ -111,7 +111,7 @@ export const MoreMenuItem: FC<MoreMenuItemProps> = ({
   danger = false,
   ...menuItemProps
 }) => {
-  const ctx = useMoreMenuContext();
+  const menu = useMoreMenuContext();
 
   return (
     <MenuItem
@@ -127,7 +127,7 @@ export const MoreMenuItem: FC<MoreMenuItemProps> = ({
       onClick={(e) => {
         menuItemProps.onClick && menuItemProps.onClick(e);
         if (closeOnClick) {
-          ctx.close();
+          menu.close();
         }
       }}
     />
