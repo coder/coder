@@ -86,9 +86,9 @@ deployments.
 ## Scale tests methodology
 
 Scaling Coder involves careful planning and testing to ensure it can handle more
-users without slowing down. This process encompasses infrastructure setup,
-traffic projections, and aggressive testing to identify and mitigate potential
-bottlenecks.
+load without compromising service. This process encompasses infrastructure
+setup, traffic projections, and aggressive testing to identify and mitigate
+potential bottlenecks.
 
 A dedicated cluster for Coder is Kubernetes cluster specifically configured to
 host and manage Coder workloads. Kubernetes provides container orchestration
@@ -97,8 +97,7 @@ across a distributed infrastructure. This ensures high availability, fault
 tolerance, and scalability for Coder deployments. The cluster can be deployed
 using the Helm chart.
 
-In our scale tests, we adopt an approach with various stages to thoroughly
-evaluate the system's performance. These stages include:
+Our scale tests include the following stages:
 
 1. Prepare environment: create expected users and provision workspaces.
 
