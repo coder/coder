@@ -2,6 +2,8 @@
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 
+There are several ways to install Coder. For production deployments with 50+ users, we recommend [installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on your local machine or on a VM:
+
 <div class="tabs">
 
 ## Linux/macOS
@@ -52,4 +54,4 @@ coder login https://coder.example.com
 
 ## Next up
 
-- [Create your first template](./1-click.md)
+- [Create your first template](../templates/tutorial.md)
