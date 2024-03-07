@@ -876,6 +876,7 @@ type closerStack struct {
 	closed  bool
 	logger  slog.Logger
 	err     error
+	wg      sync.WaitGroup
 }
 
 func newCloserStack(ctx context.Context, logger slog.Logger) *closerStack {
@@ -893,10 +894,13 @@ func (c *closerStack) close(err error) {
 	c.Lock()
 	if c.closed {
 		c.Unlock()
+		c.wg.Wait()
 		return
 	}
 	c.closed = true
 	c.err = err
+	c.wg.Add(1)
+	defer c.wg.Done()
 	c.Unlock()
 
 	for i := len(c.closers) - 1; i >= 0; i-- {
