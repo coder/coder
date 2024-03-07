@@ -113,7 +113,7 @@ require (
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-chi/cors v1.2.1
-	github.com/go-chi/httprate v0.8.0
+	github.com/go-chi/httprate v0.9.0
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/go-logr/logr v1.4.1
