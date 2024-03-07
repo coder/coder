@@ -114,7 +114,6 @@ func assertBundleContents(t *testing.T, path string) {
 	require.NoError(t, err, "open zip file")
 	defer r.Close()
 	for _, f := range r.File {
-		require.NotZero(t, f.UncompressedSize64, "file %q should not be empty", f.Name)
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
@@ -156,11 +155,26 @@ func assertBundleContents(t *testing.T, path string) {
 		case "workspace/agent_startup_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.Contains(t, string(bs), "started up")
+		case "workspace/template.json":
+			var v codersdk.Template
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "workspace template should not be empty")
+		case "workspace/template_version.json":
+			var v codersdk.TemplateVersion
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "workspace template version should not be empty")
+		case "workspace/parameters.json":
+			var v []codersdk.WorkspaceBuildParameter
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "workspace parameters should not be nil")
+		case "workspace/template_file.zip":
+			bs := readBytesFromZip(t, f)
+			require.NotNil(t, bs, "template file should not be nil")
 		case "logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
 		default:
-			require.Fail(t, "unexpected file in bundle", f.Name)
+			require.Failf(t, "unexpected file in bundle: %q", f.Name)
 		}
 	}
 }
