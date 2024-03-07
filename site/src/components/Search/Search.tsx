@@ -5,7 +5,7 @@ import Box, { type BoxProps } from "@mui/material/Box";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import type { FC, HTMLAttributes, InputHTMLAttributes, Ref } from "react";
 
-interface SearchProps extends BoxProps {
+interface SearchProps extends Omit<BoxProps, "ref"> {
   $$ref?: Ref<unknown>;
 }
 
