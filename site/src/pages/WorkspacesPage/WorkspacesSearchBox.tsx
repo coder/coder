@@ -5,33 +5,30 @@
  * reusable this is outside of workspace dropdowns.
  */
 import {
-  type ForwardedRef,
+  type FC,
   type KeyboardEvent,
   type InputHTMLAttributes,
-  forwardRef,
+  type Ref,
   useId,
 } from "react";
-import { Search, SearchInput } from "components/Menu/Search";
+import { Search, SearchInput } from "components/Search/Search";
 
 interface SearchBoxProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   value: string;
   onKeyDown?: (event: KeyboardEvent) => void;
   onValueChange: (newValue: string) => void;
+  $$ref?: Ref<HTMLInputElement>;
 }
 
-export const SearchBox = forwardRef(function SearchBox(
-  props: SearchBoxProps,
-  ref?: ForwardedRef<HTMLInputElement>,
-) {
-  const {
-    onValueChange,
-    onKeyDown,
-    label = "Search",
-    placeholder = "Search...",
-    ...attrs
-  } = props;
-
+export const SearchBox: FC<SearchBoxProps> = ({
+  onValueChange,
+  onKeyDown,
+  label = "Search",
+  placeholder = "Search...",
+  $$ref,
+  ...attrs
+}) => {
   const hookId = useId();
   const inputId = `${hookId}-${SearchBox.name}-input`;
 
@@ -39,7 +36,7 @@ export const SearchBox = forwardRef(function SearchBox(
     <Search>
       <SearchInput
         label={label}
-        ref={ref}
+        $$ref={$$ref}
         id={inputId}
         autoFocus
         tabIndex={0}
@@ -50,4 +47,4 @@ export const SearchBox = forwardRef(function SearchBox(
       />
     </Search>
   );
-});
+};
