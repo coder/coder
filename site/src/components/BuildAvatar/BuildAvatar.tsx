@@ -28,7 +28,7 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
       title={status}
       overlap="circular"
       anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      badgeContent={<div></div>}
+      badgeContent={<div />}
       classes={{ badge: cx(classNames.badge, badgeType) }}
     >
       <Avatar background size={size}>
