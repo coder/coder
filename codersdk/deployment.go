@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -53,6 +54,13 @@ const (
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureOAuth2Provider             FeatureName = "oauth2_provider"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
+)
+
+var (
+	AcceptedMetricAggregationLabels = []string{
+		agentmetrics.TemplateNameLabel, agentmetrics.AgentNameLabel,
+		agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel,
+	}
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -255,10 +263,11 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address           clibase.HostPort `json:"address" typescript:",notnull"`
-	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
-	CollectDBMetrics  clibase.Bool     `json:"collect_db_metrics" typescript:",notnull"`
+	Enable                clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address               clibase.HostPort    `json:"address" typescript:",notnull"`
+	CollectAgentStats     clibase.Bool        `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics      clibase.Bool        `json:"collect_db_metrics" typescript:",notnull"`
+	AggregateAgentStatsBy clibase.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -941,6 +950,34 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.CollectAgentStats,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "collect_agent_stats",
+		},
+		{
+			Name:        "TODO",
+			Description: "TODO.",
+			Flag:        "prometheus-aggregate-agent-stats-by",
+			Env:         "CODER_PROMETHEUS_AGGREGATE_BY_LABELS",
+			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
+				if value == nil {
+					return nil
+				}
+
+				acceptable := make(map[string]any, len(AcceptedMetricAggregationLabels))
+				for _, label := range AcceptedMetricAggregationLabels {
+					acceptable[label] = nil
+				}
+
+				for _, label := range value.Value() {
+					if _, found := acceptable[label]; !found {
+						return xerrors.Errorf("%q is not a valid aggregation label; only one or more of %q are acceptable",
+							label, strings.Join(AcceptedMetricAggregationLabels, ", "))
+					}
+				}
+
+				return nil
+			}),
+			Group:   &deploymentGroupIntrospectionPrometheus,
+			YAML:    "aggregate_agent_stats_by",
+			Default: strings.Join(AcceptedMetricAggregationLabels, ","),
 		},
 		{
 			Name:        "Prometheus Collect Database Metrics",

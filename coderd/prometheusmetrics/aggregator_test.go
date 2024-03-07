@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour) // time.Hour, so metrics won't expire
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, nil) // time.Hour, so metrics won't expire
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -93,54 +94,54 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 	}
 
 	commonLabels := []*agentproto.Stats_Metric_Label{
-		{Name: "agent_name", Value: testAgentName},
-		{Name: "username", Value: testUsername},
-		{Name: "workspace_name", Value: testWorkspaceName},
-		{Name: "template_name", Value: testTemplateName},
+		{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
+		{Name: agentmetrics.UsernameLabel, Value: testUsername},
+		{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+		{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 	}
 	expected := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: -9, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "agent_name", Value: testAgentName},
+			{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
 			{Name: "lizz", Value: "rizz"},
-			{Name: "username", Value: testUsername},
-			{Name: "workspace_name", Value: testWorkspaceName},
-			{Name: "template_name", Value: testTemplateName},
+			{Name: agentmetrics.UsernameLabel, Value: testUsername},
+			{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+			{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 		}},
 		{Name: "b_counter_two", Type: agentproto.Stats_Metric_COUNTER, Value: 4, Labels: commonLabels},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 2, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "agent_name", Value: testAgentName},
+			{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
 			{Name: "foobar", Value: "Foobaz"},
 			{Name: "hello", Value: "world"},
-			{Name: "username", Value: testUsername},
-			{Name: "workspace_name", Value: testWorkspaceName},
-			{Name: "template_name", Value: testTemplateName},
+			{Name: agentmetrics.UsernameLabel, Value: testUsername},
+			{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+			{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 		}},
 		{Name: "c_gauge_three", Type: agentproto.Stats_Metric_GAUGE, Value: 5, Labels: commonLabels},
 		{Name: "d_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 6, Labels: commonLabels},
 		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 17, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "agent_name", Value: testAgentName},
+			{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
 			{Name: "cat", Value: "do,=g"},
 			{Name: "hello", Value: "wo,,rld"},
-			{Name: "username", Value: testUsername},
-			{Name: "workspace_name", Value: testWorkspaceName},
-			{Name: "template_name", Value: testTemplateName},
+			{Name: agentmetrics.UsernameLabel, Value: testUsername},
+			{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+			{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 		}},
 		{Name: "e_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 15, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "agent_name", Value: testAgentName},
+			{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
 			{Name: "foobar", Value: "Foo,ba=z"},
 			{Name: "halo", Value: "wor\\,d=1,e=\\,2"},
 			{Name: "hello", Value: "wo,,r=d"},
-			{Name: "username", Value: testUsername},
-			{Name: "workspace_name", Value: testWorkspaceName},
-			{Name: "template_name", Value: testTemplateName},
+			{Name: agentmetrics.UsernameLabel, Value: testUsername},
+			{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+			{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 		}},
 		{Name: "f_gauge_four", Type: agentproto.Stats_Metric_GAUGE, Value: 8, Labels: []*agentproto.Stats_Metric_Label{
-			{Name: "agent_name", Value: testAgentName},
+			{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
 			{Name: "foobar", Value: "foobaz"},
-			{Name: "username", Value: testUsername},
-			{Name: "workspace_name", Value: testWorkspaceName},
-			{Name: "template_name", Value: testTemplateName},
+			{Name: agentmetrics.UsernameLabel, Value: testUsername},
+			{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+			{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
 		}},
 	}
 
@@ -174,6 +175,11 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 		t.Logf("expected %d metrics, got %d", len(expected), len(actual))
 		return false
 	}
+
+	// ensure stable iteration order
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].Name < expected[j].Name
+	})
 
 	sort.Slice(actual, func(i, j int) bool {
 		m1 := prometheusMetricToString(t, actual[i])
@@ -253,7 +259,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond)
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, nil)
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -291,6 +297,235 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+func TestLabelsAggregation(t *testing.T) {
+	t.Parallel()
+
+	type statCollection struct {
+		labels  prometheusmetrics.AgentMetricLabels
+		metrics []*agentproto.Stats_Metric
+	}
+
+	commonLabels := []*agentproto.Stats_Metric_Label{
+		{Name: agentmetrics.UsernameLabel, Value: testUsername},
+		{Name: agentmetrics.AgentNameLabel, Value: testAgentName},
+		{Name: agentmetrics.WorkspaceNameLabel, Value: testWorkspaceName},
+		{Name: agentmetrics.TemplateNameLabel, Value: testTemplateName},
+	}
+
+	tests := []struct {
+		name        string
+		given       []statCollection
+		expected    []*agentproto.Stats_Metric
+		aggregateOn []string
+	}{
+		{
+			name: "label aggregations not specified, keep all (high cardinality, default behaviour)",
+			given: []statCollection{
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "no_extra_labels", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: []*agentproto.Stats_Metric_Label{
+							{Name: "lizz", Value: "rizz"},
+						}},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				{Name: "no_extra_labels", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
+				{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: append([]*agentproto.Stats_Metric_Label{
+					{Name: "lizz", Value: "rizz"},
+				}, commonLabels...)},
+			},
+		},
+		{
+			// Scenario: 2 users are using the same agent and we've configured the deployment to aggregate on the "agent_name" label.
+			name:        "single label aggregation, aggregating to single metric",
+			aggregateOn: []string{agentmetrics.AgentNameLabel},
+			given: []statCollection{
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:  "user1",
+						AgentName: "agent1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:  "user2",
+						AgentName: "agent1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				// We only observed one agent_name value, so all metrics are aggregated to a single series.
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 8, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.AgentNameLabel, Value: "agent1"},
+				}},
+			},
+		},
+		{
+			// Scenario: as above, but we're aggregating on two invariant labels.
+			name:        "multiple label aggregation, aggregating to single metric",
+			aggregateOn: []string{agentmetrics.AgentNameLabel, agentmetrics.TemplateNameLabel},
+			given: []statCollection{
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user1",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user2",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				// We only observed one agent_name & template_name tuple, so all metrics are aggregated to a single series.
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 8, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.AgentNameLabel, Value: "agent1"},
+					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
+				}},
+			},
+		},
+		{
+			// Scenario: aggregating on a label which is unique across all metrics.
+			name:        "single label aggregation, aggregating to multiple metrics",
+			aggregateOn: []string{agentmetrics.UsernameLabel},
+			given: []statCollection{
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user1",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user2",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				// We observed two unique username values, and therefore we have a metric for each.
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.UsernameLabel, Value: "user1"},
+				}},
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.UsernameLabel, Value: "user2"},
+				}},
+			},
+		},
+		{
+			// Scenario: aggregating on a label which is unique across all metrics, plus two invariant labels.
+			name:        "multiple label aggregation, aggregating to multiple metrics",
+			aggregateOn: []string{agentmetrics.UsernameLabel, agentmetrics.AgentNameLabel, agentmetrics.TemplateNameLabel},
+			given: []statCollection{
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user1",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "user2",
+						AgentName:    "agent1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				// We observed two unique username values, and therefore we have a metric for each.
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.UsernameLabel, Value: "user1"},
+					{Name: agentmetrics.AgentNameLabel, Value: "agent1"},
+					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
+				}},
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 7, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.UsernameLabel, Value: "user2"},
+					{Name: agentmetrics.AgentNameLabel, Value: "agent1"},
+					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
+				}},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// given
+			registry := prometheus.NewRegistry()
+			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
+			require.NoError(t, err)
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			t.Cleanup(cancelFunc)
+
+			closeFunc := metricsAggregator.Run(ctx)
+			t.Cleanup(closeFunc)
+
+			// when
+			for _, sc := range tc.given {
+				metricsAggregator.Update(ctx, sc.labels, sc.metrics)
+			}
+
+			// then
+			require.Eventually(t, func() bool {
+				var actual []prometheus.Metric
+				metricsCh := make(chan prometheus.Metric)
+
+				done := make(chan struct{}, 1)
+				defer close(done)
+				go func() {
+					for m := range metricsCh {
+						actual = append(actual, m)
+					}
+					done <- struct{}{}
+				}()
+				metricsAggregator.Collect(metricsCh)
+				close(metricsCh)
+				<-done
+				return verifyCollectedMetrics(t, tc.expected, actual)
+			}, testutil.WaitMedium, testutil.IntervalSlow)
+		})
+	}
+}
+
 func Benchmark_MetricsAggregator_Run(b *testing.B) {
 	// Number of metrics to generate and send in each iteration.
 	// Hard-coded to 1024 to avoid overflowing the queue in the metrics aggregator.
@@ -298,11 +533,7 @@ func Benchmark_MetricsAggregator_Run(b *testing.B) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(
-		slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}),
-		registry,
-		time.Hour,
-	))
+	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, nil))
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	b.Cleanup(cancelFunc)
