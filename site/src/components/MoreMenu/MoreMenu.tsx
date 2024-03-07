@@ -111,11 +111,7 @@ export const MoreMenuItem: FC<MoreMenuItemProps> = ({
   danger = false,
   ...menuItemProps
 }) => {
-  const ctx = useContext(MoreMenuContext);
-
-  if (!ctx) {
-    throw new Error("MoreMenuItem must be used inside of MoreMenu");
-  }
+  const ctx = useMoreMenuContext();
 
   return (
     <MenuItem
