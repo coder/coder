@@ -107,10 +107,12 @@ if [[ "$sign_darwin" == 1 ]]; then
 fi
 
 ldflags=(
-	-s
-	-w
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
+# Disable deubgger information if not building a binary for debuggers.
+if [[ "$debug" == 0 ]]; then
+	ldflags+=(-s -w)
+fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
