@@ -327,7 +327,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.seed.OrganizationID = takeFirst(t.seed.OrganizationID, uuid.New())
 	t.seed.ID = takeFirst(t.seed.ID, uuid.New())
 	t.seed.CreatedBy = takeFirst(t.seed.CreatedBy, uuid.New())
-
+	// nolint: revive
 	t.fileID = takeFirst(t.fileID, uuid.New())
 
 	var resp TemplateVersionResponse
