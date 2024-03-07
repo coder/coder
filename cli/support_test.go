@@ -164,7 +164,7 @@ func assertBundleContents(t *testing.T, path string) {
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "workspace template version should not be empty")
 		case "workspace/parameters.json":
-			var v []codersdk.TemplateVersionParameter
+			var v []codersdk.WorkspaceBuildParameter
 			decodeJSONFromZip(t, f, &v)
 			require.NotNil(t, v, "workspace parameters should not be nil")
 		case "workspace/template_file.zip":
