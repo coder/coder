@@ -52,7 +52,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
   const events = parameters.webSocket;
 
   if (!events) {
-    console.warn("Your forgot to add the `parameters.webSocket` to your story");
+    console.warn("You forgot to add `parameters.webSocket` to your story");
     return <Story />;
   }
 
