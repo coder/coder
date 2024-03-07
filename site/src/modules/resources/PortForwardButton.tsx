@@ -14,6 +14,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
@@ -203,6 +204,23 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     !(portSharingControlsEnabled && template.max_port_share_level === "owner");
   const canSharePortsPublic =
     canSharePorts && template.max_port_share_level === "public";
+
+  const publicMenuItem = (
+    <>
+      {canSharePortsPublic ? (
+        <MenuItem value="public">Public</MenuItem>
+      ) : (
+        <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
+          {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+          <div>
+            <MenuItem value="public" disabled>
+              Public
+            </MenuItem>
+          </div>
+        </Tooltip>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -429,12 +447,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                           <MenuItem value="authenticated">
                             Authenticated
                           </MenuItem>
-                          <MenuItem
-                            value="public"
-                            disabled={!canSharePortsPublic}
-                          >
-                            Public
-                          </MenuItem>
+                          {publicMenuItem}
                         </Select>
                       </FormControl>
                       <Button
@@ -499,9 +512,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     label="Sharing Level"
                   >
                     <MenuItem value="authenticated">Authenticated</MenuItem>
-                    <MenuItem value="public" disabled={!canSharePortsPublic}>
-                      Public
-                    </MenuItem>
+                    {publicMenuItem}
                   </TextField>
                   <LoadingButton
                     variant="contained"
