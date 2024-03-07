@@ -9,13 +9,20 @@ support successful customer deployments.
 Let's dive into the core concepts and terminology essential for understanding
 Coder's architecture and deployment strategies.
 
-## Glossary
+## General concepts
 
 ### Administrator
 
 An administrator is a user role within the Coder platform with elevated
 privileges. Admins have access to administrative functions such as user
 management, template definitions, insights, and deployment configuration.
+
+### Coder
+
+Coder, also known as _coderd_, is the main service recommended for deployment
+with Kubernetes replicas to ensure high availability. It provides an API for
+managing workspaces and templates. Each _coderd_ replica has the capability to
+host multiple provisioners (provisionerd).
 
 ### User
 
@@ -95,10 +102,28 @@ users without slowing down. This process encompasses infrastructure setup,
 traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
 
+In our scale tests, we adopt an approach with various stages to thoroughly
+evaluate the system's performance. These stages include:
+
+1. Prepare environment: create expected users and provision workspaces.
+
+2. Dashboard evaluation: verify the responsiveness and stability of Coder
+   dashboards under varying load conditions. This is achieved by simulating user
+   interactions using instances of headless Chromium browsers.
+
+3. SSH connections: establish user connections with agents, verifying their
+   ability to echo back received content.
+
+4. Workspace application traffic: assess the handling of user connections with
+   specific workspace apps, confirming their capability to echo back received
+   content effectively.
+
+5. Cleanup: clean used workspace resources.
+
 ### Infrastructure and setup requirements
 
-In a single workflow, the scale tests runner maintains a consistent load
-distribution as follows:
+In a single workflow, the scale tests runner evenly spreads out the workload
+like this:
 
 - 80% of users open and utilize SSH connections.
 - 25% of users connect to the workspace using the Web Terminal.
@@ -111,7 +136,7 @@ customers.
 The basic setup of scale tests environment involves:
 
 1. Scale tests runner: `c2d-standard-32` (32 vCPU, 128 GB RAM)
-2. Coderd: 2 replicas (4 vCPU, 16 GB RAM)
+2. Coder: 2 replicas (4 vCPU, 16 GB RAM)
 3. Database: 1 replica (2 vCPU, 32 GB RAM)
 4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
 
@@ -123,9 +148,9 @@ In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
 2000 agents, with metadata being sent 2 x every 10 s. Here are the resulting
 metrics:
 
-Coderd:
+Coder:
 
-- Median CPU usage for coderd: 3 vCPU, peaking at 3.7 vCPU during dashboard
+- Median CPU usage for _coderd_: 3 vCPU, peaking at 3.7 vCPU during dashboard
   tests.
 - Median API request rate: 350 req/s during dashboard tests, 250 req/s during
   Web Terminal and workspace apps tests.
@@ -140,4 +165,4 @@ Database:
 
 - Median CPU utilization: 80%.
 - Median memory utilization: 40%.
-- Average write_ops_count per minute: between 400 and 500 operations.
+- `write_ops_count` per minute between 400 and 500 operations.
