@@ -123,18 +123,18 @@ In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
 2000 agents, with metadata being sent 2 x every 10 s. Here are the resulting
 metrics:
 
-Coder:
+Coderd:
 
-- coderd: Median CPU usage for coderd: 3 vCPU, peaking at 3.7 vCPU during
-  dashboard tests.
-- provisionerd: Median CPU usage is 0.35 vCPU during workspace provisioning.
+- Median CPU usage for coderd: 3 vCPU, peaking at 3.7 vCPU during dashboard
+  tests.
+- Median API request rate: 350 req/s during dashboard tests, 250 req/s during
+  Web Terminal and workspace apps tests.
+- 2000 agent API connections with latency: p90 at 60 ms, p95 at 220 ms.
+- on average 2400 Web Socket connections during dashboard tests.
 
-API:
+Provisionerd:
 
-- Median request rate: 350 req/s during dashboard tests, 250 req/s during Web
-  Terminal and workspace apps tests.
-- 2000 agent connections with latency: p90 at 60 ms, p95 at 220 ms.
-- on average 2400 websocket connections during dashboard tests.
+- Median CPU usage is 0.35 vCPU during workspace provisioning.
 
 Database:
 
