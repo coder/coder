@@ -16,7 +16,6 @@ export const Loader: FC<LoaderProps> = ({
     <div
       css={fullscreen ? styles.fullscreen : styles.inline}
       data-testid="loader"
-      data-chromatic="ignore"
       {...attrs}
     >
       <CircularProgress size={size} />
