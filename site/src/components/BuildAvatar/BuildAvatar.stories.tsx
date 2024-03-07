@@ -36,3 +36,102 @@ export const XLSize: Story = {
     size: "xl",
   },
 };
+
+export const Start: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      transition: "start",
+    },
+  },
+};
+
+export const Stop: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      transition: "stop",
+    },
+  },
+};
+
+export const Delete: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      transition: "delete",
+    },
+  },
+};
+
+export const Succeeded: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "succeeded",
+      },
+    },
+  },
+};
+
+export const Pending: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "pending",
+      },
+    },
+  },
+};
+
+export const Running: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "running",
+      },
+    },
+  },
+};
+
+export const Failed: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "failed",
+      },
+    },
+  },
+};
+
+export const Canceling: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "canceling",
+      },
+    },
+  },
+};
+
+export const Canceled: Story = {
+  args: {
+    build: {
+      ...MockWorkspaceBuild,
+      job: {
+        ...MockWorkspaceBuild.job,
+        status: "canceled",
+      },
+    },
+  },
+};
