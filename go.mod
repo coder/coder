@@ -118,7 +118,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/go-logr/logr v1.4.1
 	github.com/go-ping/ping v1.1.0
-	github.com/go-playground/validator/v10 v10.18.0
+	github.com/go-playground/validator/v10 v10.19.0
 	github.com/gofrs/flock v0.8.1
 	github.com/gohugoio/hugo v0.123.3
 	github.com/golang-jwt/jwt/v4 v4.5.0
