@@ -1,12 +1,10 @@
 # Reference architectures
 
-As Coder evolves to meet the demands of modern development workflows, ensuring
-scalability is paramount. Today, we're stress-testing our platform with 2000
-concurrent users, preparing for deployments of up to 5000 users. This
-documentation provides prescriptive solutions and reference architectures to
-support successful customer deployments.
+This document provides prescriptive solutions and reference architectures to
+support successful deployments of up to 2000 users and outlines at a high-level
+the methodology currently used to scale-test Coder.
 
-Let's dive into the core concepts and terminology essential for understanding
+This section outlines core concepts and terminology essential for understanding
 Coder's architecture and deployment strategies.
 
 ## General concepts
@@ -20,9 +18,9 @@ management, template definitions, insights, and deployment configuration.
 ### Coder
 
 Coder, also known as _coderd_, is the main service recommended for deployment
-with Kubernetes replicas to ensure high availability. It provides an API for
+with multiple replicas to ensure high availability. It provides an API for
 managing workspaces and templates. Each _coderd_ replica has the capability to
-host multiple provisioners (provisionerd).
+host multiple provisioners (`provisionerd`).
 
 ### User
 
@@ -43,7 +41,7 @@ Users can connect to workspaces using SSH or via workspace applications like
 `code-server`, facilitating collaboration and remote access. Additionally,
 workspaces can be parameterized, allowing users to customize settings and
 configurations based on their unique needs. Workspaces are instantiated using
-Coder templates and deployed on nodes by provisioners.
+Coder templates and deployed on resources created by provisioners.
 
 ### Template
 
@@ -85,22 +83,19 @@ components.
 The Registry is hosted service and it is not available for air-gapped
 deployments.
 
-### Kubernetes cluster for Coder
-
-A dedicated cluster for Coder is Kubernetes cluster specifically configured to
-host and manage Coder workloads. Kubernetes provides container orchestration
-capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
-across a distributed infrastructure. This ensures high availability, fault
-tolerance, and scalability for Coder deployments.
-
-The cluster can be deployed using the Helm chart.
-
 ## Scale tests methodology
 
 Scaling Coder involves careful planning and testing to ensure it can handle more
 users without slowing down. This process encompasses infrastructure setup,
 traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
+
+A dedicated cluster for Coder is Kubernetes cluster specifically configured to
+host and manage Coder workloads. Kubernetes provides container orchestration
+capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
+across a distributed infrastructure. This ensures high availability, fault
+tolerance, and scalability for Coder deployments. The cluster can be deployed
+using the Helm chart.
 
 In our scale tests, we adopt an approach with various stages to thoroughly
 evaluate the system's performance. These stages include:
@@ -118,7 +113,7 @@ evaluate the system's performance. These stages include:
    specific workspace apps, confirming their capability to echo back received
    content effectively.
 
-5. Cleanup: clean used workspace resources.
+5. Cleanup: delete workspaces and users created in step 1.
 
 ### Infrastructure and setup requirements
 
@@ -135,18 +130,19 @@ customers.
 
 The basic setup of scale tests environment involves:
 
-1. Scale tests runner: `c2d-standard-32` (32 vCPU, 128 GB RAM)
+1. Scale tests runner (32 vCPU, 128 GB RAM)
 2. Coder: 2 replicas (4 vCPU, 16 GB RAM)
 3. Database: 1 replica (2 vCPU, 32 GB RAM)
 4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
 
-No pod restarts or internal errors were observed.
+The test is deemed successful if no crashes or restarts of `coderd` or other
+internal errors were observed.
 
 ### Traffic Projections
 
 In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
-2000 agents, with metadata being sent 2 x every 10 s. Here are the resulting
-metrics:
+2000 agents, with two items of workspace agent metadata being sent every 10
+seconds. Here are the resulting metrics:
 
 Coder:
 
@@ -165,4 +161,4 @@ Database:
 
 - Median CPU utilization: 80%.
 - Median memory utilization: 40%.
-- `write_ops_count` per minute between 400 and 500 operations.
+- `write_ops_count` between 6.7 and 8.4 operations per second.
