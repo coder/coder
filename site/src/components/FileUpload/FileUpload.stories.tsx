@@ -30,6 +30,6 @@ export const Uploading: Story = {
 
 export const WithFile: Story = {
   args: {
-    file: new File([""], "template.zip"),
+    file: new File([], "template.zip"),
   },
 };
