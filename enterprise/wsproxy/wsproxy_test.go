@@ -2,8 +2,11 @@ package wsproxy_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -20,6 +23,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -29,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -128,21 +133,20 @@ func TestDERP(t *testing.T) {
 	})
 
 	// Create a proxy that is never started.
-	createProxyCtx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 		Name: "never-started-proxy",
 	})
 	require.NoError(t, err)
 
 	// Wait for both running proxies to become healthy.
 	require.Eventually(t, func() bool {
-		healthCtx := testutil.Context(t, testutil.WaitLong)
-		err := api.ProxyHealth.ForceUpdate(healthCtx)
+		err := api.ProxyHealth.ForceUpdate(ctx)
 		if !assert.NoError(t, err) {
 			return false
 		}
 
-		regions, err := client.Regions(healthCtx)
+		regions, err := client.Regions(ctx)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -264,7 +268,8 @@ resourceLoop:
 	t.Run("ConnectDERP", func(t *testing.T) {
 		t.Parallel()
 
-		connInfo, err := client.WorkspaceAgentConnectionInfo(testutil.Context(t, testutil.WaitLong), agentID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		connInfo, err := client.WorkspaceAgentConnectionInfo(ctx, agentID)
 		require.NoError(t, err)
 		require.NotNil(t, connInfo.DERPMap)
 		require.Len(t, connInfo.DERPMap.Regions, 3+len(api.DeploymentValues.DERP.Server.STUNAddresses.Value()))
@@ -287,7 +292,6 @@ resourceLoop:
 					OmitDefaultRegions: true,
 				}
 
-				ctx := testutil.Context(t, testutil.WaitLong)
 				report := derphealth.Report{}
 				report.Run(ctx, &derphealth.ReportOptions{
 					DERPMap: derpMap,
@@ -350,14 +354,14 @@ func TestDERPEndToEnd(t *testing.T) {
 	})
 
 	// Wait for the proxy to become healthy.
+	ctx := testutil.Context(t, testutil.WaitLong)
 	require.Eventually(t, func() bool {
-		healthCtx := testutil.Context(t, testutil.WaitLong)
-		err := api.ProxyHealth.ForceUpdate(healthCtx)
+		err := api.ProxyHealth.ForceUpdate(ctx)
 		if !assert.NoError(t, err) {
 			return false
 		}
 
-		regions, err := client.Regions(healthCtx)
+		regions, err := client.Regions(ctx)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -413,7 +417,6 @@ resourceLoop:
 	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Connect to the workspace agent.
-	ctx := testutil.Context(t, testutil.WaitLong)
 	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, &slogtest.Options{
 			IgnoreErrors: true,
@@ -532,6 +535,243 @@ func TestDERPMesh(t *testing.T) {
 			testDERPSend(t, ctx, client1.SelfPublicKey(), client1Recv, client2)
 		})
 	}
+}
+
+// TestWorkspaceProxyDERPMeshProbe ensures that each replica pings every other
+// replica in the same region as itself periodically.
+func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
+	t.Parallel()
+	createProxyRegion := func(ctx context.Context, t *testing.T, client *codersdk.Client, name string) codersdk.UpdateWorkspaceProxyResponse {
+		t.Helper()
+		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: name,
+			Icon: "/emojis/flag.png",
+		})
+		require.NoError(t, err, "failed to create workspace proxy")
+		return proxyRes
+	}
+
+	registerBrokenProxy := func(ctx context.Context, t *testing.T, primaryAccessURL *url.URL, accessURL, token string) {
+		t.Helper()
+		// Create a HTTP server that always replies with 500.
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		// Register a proxy.
+		wsproxyClient := wsproxysdk.New(primaryAccessURL)
+		wsproxyClient.SetSessionToken(token)
+
+		hostname, err := cryptorand.String(6)
+		require.NoError(t, err)
+		_, err = wsproxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           accessURL,
+			WildcardHostname:    "",
+			DerpEnabled:         true,
+			DerpOnly:            false,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     hostname,
+			ReplicaError:        "",
+			ReplicaRelayAddress: srv.URL,
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("ProbeOK", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.Experiments = []string{
+			"*",
+		}
+
+		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues:         deploymentValues,
+				AppHostname:              "*.primary.test.coder.com",
+				IncludeProvisionerDaemon: true,
+				RealIPConfig: &httpmw.RealIPConfig{
+					TrustedOrigins: []*net.IPNet{{
+						IP:   net.ParseIP("127.0.0.1"),
+						Mask: net.CIDRMask(8, 32),
+					}},
+					TrustedHeaders: []string{
+						"CF-Connecting-IP",
+					},
+				},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+
+		// Register but don't start a proxy in a different region. This
+		// shouldn't affect the mesh since it's in a different region.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		fakeProxyRes := createProxyRegion(ctx, t, client, "fake-proxy")
+		registerBrokenProxy(ctx, t, api.AccessURL, "https://fake-proxy.test.coder.com", fakeProxyRes.ProxyToken)
+
+		proxyURL, err := url.Parse("https://proxy1.test.coder.com")
+		require.NoError(t, err)
+
+		// Create 6 proxy replicas.
+		const count = 6
+		var (
+			sessionToken    = ""
+			proxies         = [count]coderdenttest.WorkspaceProxy{}
+			replicaPingDone = [count]bool{}
+		)
+		for i := range proxies {
+			i := i
+			proxies[i] = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
+				Name:     "proxy-1",
+				Token:    sessionToken,
+				ProxyURL: proxyURL,
+				ReplicaPingCallback: func(replicas []codersdk.Replica, err string) {
+					if len(replicas) != count-1 {
+						// Still warming up...
+						return
+					}
+					replicaPingDone[i] = true
+					assert.Emptyf(t, err, "replica %d ping callback error", i)
+				},
+			})
+			if i == 0 {
+				sessionToken = proxies[i].Options.ProxySessionToken
+			}
+		}
+
+		// Force all proxies to re-register immediately. This ensures the DERP
+		// mesh is up-to-date. In production this will happen automatically
+		// after about 15 seconds.
+		for i, proxy := range proxies {
+			err := proxy.RegisterNow()
+			require.NoErrorf(t, err, "failed to force proxy %d to re-register", i)
+		}
+
+		// Ensure that all proxies have pinged.
+		require.Eventually(t, func() bool {
+			ok := true
+			for i := range proxies {
+				if !replicaPingDone[i] {
+					t.Logf("replica %d has not pinged yet", i)
+					ok = false
+				}
+			}
+			return ok
+		}, testutil.WaitLong, testutil.IntervalSlow)
+		t.Log("all replicas have pinged")
+
+		// Check they're all healthy according to /healthz-report.
+		for _, proxy := range proxies {
+			// GET /healthz-report
+			u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+
+			var respJSON codersdk.ProxyHealthReport
+			err = json.NewDecoder(resp.Body).Decode(&respJSON)
+			resp.Body.Close()
+			require.NoError(t, err)
+
+			require.Empty(t, respJSON.Errors, "proxy is not healthy")
+		}
+	})
+
+	// Register one proxy, then pretend to register 5 others. This should cause
+	// the mesh to fail and return an error.
+	t.Run("ProbeFail", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.Experiments = []string{
+			"*",
+		}
+
+		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues:         deploymentValues,
+				AppHostname:              "*.primary.test.coder.com",
+				IncludeProvisionerDaemon: true,
+				RealIPConfig: &httpmw.RealIPConfig{
+					TrustedOrigins: []*net.IPNet{{
+						IP:   net.ParseIP("127.0.0.1"),
+						Mask: net.CIDRMask(8, 32),
+					}},
+					TrustedHeaders: []string{
+						"CF-Connecting-IP",
+					},
+				},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+
+		proxyURL, err := url.Parse("https://proxy2.test.coder.com")
+		require.NoError(t, err)
+
+		// Create 1 real proxy replica.
+		const fakeCount = 5
+		replicaPingErr := make(chan string, 4)
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
+			Name:     "proxy-2",
+			ProxyURL: proxyURL,
+			ReplicaPingCallback: func(replicas []codersdk.Replica, err string) {
+				if len(replicas) != fakeCount {
+					// Still warming up...
+					return
+				}
+				replicaPingErr <- err
+			},
+		})
+
+		// Register (but don't start wsproxy.Server) 5 other proxies in the same
+		// region. Since they registered recently they should be included in the
+		// mesh. We create a HTTP server on the relay address that always
+		// responds with 500 so probes fail.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		for i := 0; i < fakeCount; i++ {
+			registerBrokenProxy(ctx, t, api.AccessURL, proxyURL.String(), proxy.Options.ProxySessionToken)
+		}
+
+		// Force the proxy to re-register immediately.
+		err = proxy.RegisterNow()
+		require.NoError(t, err, "failed to force proxy to re-register")
+
+		// Wait for the ping to fail.
+		replicaErr := testutil.RequireRecvCtx(ctx, t, replicaPingErr)
+		require.NotEmpty(t, replicaErr, "replica ping error")
+
+		// GET /healthz-report
+		u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+
+		var respJSON codersdk.ProxyHealthReport
+		err = json.NewDecoder(resp.Body).Decode(&respJSON)
+		resp.Body.Close()
+		require.NoError(t, err)
+
+		require.Len(t, respJSON.Errors, 1, "proxy is healthy")
+		require.Contains(t, respJSON.Errors[0], "High availability networking")
+	})
 }
 
 func TestWorkspaceProxyWorkspaceApps(t *testing.T) {

@@ -3,8 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"math"
 	"net/http"
@@ -365,27 +363,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	}
 
-	meshRootCA := x509.NewCertPool()
-	for _, certificate := range options.TLSCertificates {
-		for _, certificatePart := range certificate.Certificate {
-			certificate, err := x509.ParseCertificate(certificatePart)
-			if err != nil {
-				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
-			}
-			meshRootCA.AddCert(certificate)
-		}
-	}
-	// This TLS configuration spoofs access from the access URL hostname
-	// assuming that the certificates provided will cover that hostname.
-	//
-	// Replica sync and DERP meshing require accessing replicas via their
-	// internal IP addresses, and if TLS is configured we use the same
-	// certificates.
-	meshTLSConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: options.TLSCertificates,
-		RootCAs:      meshRootCA,
-		ServerName:   options.AccessURL.Hostname(),
+	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
+	if err != nil {
+		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
 	}
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:             api.AGPL.ID,
