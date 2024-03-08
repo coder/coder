@@ -2786,6 +2786,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "host": "string",
         "port": "string"
       },
+      "aggregate_agent_stats_by": ["string"],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
       "enable": true
@@ -3154,6 +3155,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "host": "string",
       "port": "string"
     },
+    "aggregate_agent_stats_by": ["string"],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
     "enable": true
@@ -4783,6 +4785,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "host": "string",
     "port": "string"
   },
+  "aggregate_agent_stats_by": ["string"],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
   "enable": true
@@ -4791,12 +4794,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                  | Type                                 | Required | Restrictions | Description |
-| --------------------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `address`             | [clibase.HostPort](#clibasehostport) | false    |              |             |
-| `collect_agent_stats` | boolean                              | false    |              |             |
-| `collect_db_metrics`  | boolean                              | false    |              |             |
-| `enable`              | boolean                              | false    |              |             |
+| Name                       | Type                                 | Required | Restrictions | Description |
+| -------------------------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`                  | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `aggregate_agent_stats_by` | array of string                      | false    |              |             |
+| `collect_agent_stats`      | boolean                              | false    |              |             |
+| `collect_db_metrics`       | boolean                              | false    |              |             |
+| `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
