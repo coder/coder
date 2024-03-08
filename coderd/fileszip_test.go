@@ -22,10 +22,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// refTime is the Go reference time. The contents of the sample tar and zip files
-// in testdata/ all have their modtimes set to the below in some timezone.
-var refTime = time.Date(2006, 1, 2, 3, 4, 5, 0, must(time.LoadLocation("MST")))
-
 func TestCreateTarFromZip(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "linux" {
@@ -99,7 +95,7 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 			if checkModePerm {
 				assert.Equal(t, fs.ModePerm&0o755, stat.Mode().Perm(), "expected mode 0755 on directory")
 			}
-			assert.Equal(t, refTime.UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
+			assert.Equal(t, archiveRefTime(t).UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
 		case "/test/hello.txt":
 			stat, err := os.Stat(path)
 			assert.NoError(t, err, "failed to stat path %q", path)
@@ -131,7 +127,6 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 			assert.Fail(t, "unexpected path", relPath)
 		}
 
-		t.Logf(relPath)
 		return nil
 	})
 }
@@ -150,7 +145,7 @@ func assertSampleTarFile(t *testing.T, tarBytes []byte) {
 		}
 
 		// Note: ignoring timezones here.
-		require.Equal(t, refTime.UTC(), hdr.ModTime.UTC())
+		require.Equal(t, archiveRefTime(t).UTC(), hdr.ModTime.UTC())
 
 		switch hdr.Name {
 		case "test/":
@@ -185,7 +180,7 @@ func assertSampleZipFile(t *testing.T, zipBytes []byte) {
 
 	for _, f := range zr.File {
 		// Note: ignoring timezones here.
-		require.Equal(t, refTime.UTC(), f.Modified.UTC())
+		require.Equal(t, archiveRefTime(t).UTC(), f.Modified.UTC())
 		switch f.Name {
 		case "test/", "test/dir/":
 			// directory
@@ -209,9 +204,10 @@ func assertSampleZipFile(t *testing.T, zipBytes []byte) {
 	}
 }
 
-func must[T any](t T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return t
+// archiveRefTime is the Go reference time. The contents of the sample tar and zip files
+// in testdata/ all have their modtimes set to the below in some timezone.
+func archiveRefTime(t *testing.T) time.Time {
+	locMST, err := time.LoadLocation("MST")
+	require.NoError(t, err, "failed to load MST timezone")
+	return time.Date(2006, 1, 2, 3, 4, 5, 0, locMST)
 }

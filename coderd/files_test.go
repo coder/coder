@@ -84,7 +84,7 @@ func TestDownload(t *testing.T) {
 		// given
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		tarball, err := os.ReadFile(filepath.Join(".", "testdata", "test.tar"))
+		tarball, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
 		require.NoError(t, err)
 
 		// when
@@ -106,7 +106,7 @@ func TestDownload(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// given
-		zipContent, err := os.ReadFile(filepath.Join(".", "testdata", "test.zip"))
+		zipContent, err := os.ReadFile(filepath.Join("testdata", "test.zip"))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -123,7 +123,6 @@ func TestDownload(t *testing.T) {
 
 		// Note: creating a zip from a tar will result in some loss of information
 		// as zip files do not store UNIX user:group data.
-		// require.Equal(t, tarball, data)
 		assertSampleTarFile(t, data)
 	})
 
@@ -133,7 +132,7 @@ func TestDownload(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// given
-		tarball, err := os.ReadFile(filepath.Join(".", "testdata", "test.tar"))
+		tarball, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
 		require.NoError(t, err)
 
 		tarReader := tar.NewReader(bytes.NewReader(tarball))
