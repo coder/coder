@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 
 	"cdr.dev/slog"
 
@@ -253,7 +254,6 @@ func newLabelAggregator(size int) *labelAggregator {
 func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
 	// Use a LabelSet because it can give deterministic fingerprints of label combinations regardless of map ordering.
 	labelSet := make(model.LabelSet, len(labels))
-	labelValues := make([]string, 0, len(labels))
 
 	for _, label := range labels {
 		val, err := am.getFieldByLabel(label)
@@ -262,7 +262,6 @@ func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
 		}
 
 		labelSet[model.LabelName(label)] = model.LabelValue(val)
-		labelValues = append(labelValues, val)
 	}
 
 	// Memoize based on the metric name & the unique combination of labels.
@@ -286,11 +285,12 @@ func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
 	return nil
 }
 
-func (a *labelAggregator) toMetrics() (out []annotatedMetric) {
+func (a *labelAggregator) listMetrics() []annotatedMetric {
+	var out []annotatedMetric
 	for _, am := range a.metrics {
 		out = append(out, am)
 	}
-	return
+	return out
 }
 
 func (ma *MetricsAggregator) Run(ctx context.Context) func() {
@@ -337,7 +337,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				// If custom aggregation labels have not been chosen, generate Prometheus metrics without any pre-aggregation.
 				// This results in higher cardinality, but may be desirable in larger deployments.
-				// Default behaviour.
+				// Default behavior.
 				if len(ma.aggregateByLabels) == 0 {
 					for _, m := range ma.store {
 						// Aggregate by all available metrics.
@@ -355,7 +355,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 						}
 					}
 
-					input = la.toMetrics()
+					input = la.listMetrics()
 				}
 
 				for _, m := range input {

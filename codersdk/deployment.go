@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
@@ -954,7 +955,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Prometheus Aggregate Agent Stats By",
-			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %q", AcceptedMetricAggregationLabels),
+			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %q.", AcceptedMetricAggregationLabels),
 			Flag:        "prometheus-aggregate-agent-stats-by",
 			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
 			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
