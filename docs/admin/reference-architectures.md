@@ -73,15 +73,16 @@ allowing for efficient resource allocation and workload management.
 
 ### Registry
 
-The Coder Registry hosts starter templates for various cloud providers and
-orchestration platforms, enabling self-service cloud development environments
-via Terraform-defined infrastructure. Additionally, Coder introduces _Modules_
-to streamline template creation by extracting commonly used functionalities such
-as web IDEs, third-party integrations, and helper scripts into reusable
-components.
+The Coder Registry is a platform where you can find starter templates and
+_Modules_ for various cloud services and platforms.
 
-The Registry is a hosted service and it is not available for air-gapped
-deployments.
+Templates help create self-service development environments using
+Terraform-defined infrastructure, while _Modules_ simplify template creation by
+providing common features like workspace applications, third-party integrations,
+or helper scripts.
+
+Please note that the Registry is a hosted service and isn't available for
+offline use.
 
 ## Scale-testing methodology
 
