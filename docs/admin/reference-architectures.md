@@ -80,15 +80,15 @@ to streamline template creation by extracting commonly used functionalities such
 as web IDEs, third-party integrations, and helper scripts into reusable
 components.
 
-The Registry is hosted service and it is not available for air-gapped
+The Registry is a hosted service and it is not available for air-gapped
 deployments.
 
-## Scale tests methodology
+## Scale-testing methodology
 
-Scaling Coder involves careful planning and testing to ensure it can handle more
-load without compromising service. This process encompasses infrastructure
-setup, traffic projections, and aggressive testing to identify and mitigate
-potential bottlenecks.
+Scaling Coder involves planning and testing to ensure it can handle more load
+without compromising service. This process encompasses infrastructure setup,
+traffic projections, and aggressive testing to identify and mitigate potential
+bottlenecks.
 
 A dedicated cluster for Coder is Kubernetes cluster specifically configured to
 host and manage Coder workloads. Kubernetes provides container orchestration
@@ -101,18 +101,21 @@ Our scale tests include the following stages:
 
 1. Prepare environment: create expected users and provision workspaces.
 
-2. Dashboard evaluation: verify the responsiveness and stability of Coder
-   dashboards under varying load conditions. This is achieved by simulating user
-   interactions using instances of headless Chromium browsers.
-
-3. SSH connections: establish user connections with agents, verifying their
+2. SSH connections: establish user connections with agents, verifying their
    ability to echo back received content.
+
+3. Web Terminal: verify the PTY connection used for communication with Web
+   Terminal.
 
 4. Workspace application traffic: assess the handling of user connections with
    specific workspace apps, confirming their capability to echo back received
    content effectively.
 
-5. Cleanup: delete workspaces and users created in step 1.
+5. Dashboard evaluation: verify the responsiveness and stability of Coder
+   dashboards under varying load conditions. This is achieved by simulating user
+   interactions using instances of headless Chromium browsers.
+
+6. Cleanup: delete workspaces and users created in step 1.
 
 ### Infrastructure and setup requirements
 
