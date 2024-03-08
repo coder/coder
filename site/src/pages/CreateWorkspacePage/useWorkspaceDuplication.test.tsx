@@ -34,7 +34,7 @@ async function performNavigation(
   getLocationSnapshot: GetLocationSnapshot,
 ) {
   await waitFor(() => expect(result.current.isDuplicationReady).toBe(true));
-  void act(() => result.current.duplicateWorkspace());
+  act(() => result.current.duplicateWorkspace());
 
   const templateName = MockWorkspace.template_name;
   return waitFor(() => {
@@ -49,7 +49,7 @@ describe(`${useWorkspaceDuplication.name}`, () => {
     expect(result.current.isDuplicationReady).toBe(false);
 
     for (let i = 0; i < 10; i++) {
-      void rerender({ workspace: undefined });
+      await rerender({ workspace: undefined });
       expect(result.current.isDuplicationReady).toBe(false);
     }
   });
