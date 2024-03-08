@@ -30,7 +30,7 @@ func TestCreateTarFromZip(t *testing.T) {
 
 	// Read a zip file we prepared earlier
 	ctx := testutil.Context(t, testutil.WaitShort)
-	zipBytes, err := os.ReadFile(filepath.Join(".", "testdata", "test.zip"))
+	zipBytes, err := os.ReadFile(filepath.Join("testdata", "test.zip"))
 	require.NoError(t, err, "failed to read sample zip file")
 	// Assert invariant
 	assertSampleZipFile(t, zipBytes)
@@ -59,7 +59,7 @@ func TestCreateZipFromTar(t *testing.T) {
 		t.Skip("skipping this test on non-Linux platform")
 	}
 
-	tarBytes, err := os.ReadFile(filepath.Join(".", "testdata", "test.tar"))
+	tarBytes, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
 	require.NoError(t, err, "failed to read sample tar file")
 
 	tr := tar.NewReader(bytes.NewReader(tarBytes))
