@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -318,7 +319,7 @@ func TestLabelsAggregation(t *testing.T) {
 		aggregateOn []string
 	}{
 		{
-			name: "label aggregations not specified, keep all (high cardinality, default behaviour)",
+			name: "label aggregations not specified, keep all (high cardinality, default behavior)",
 			given: []statCollection{
 				{
 					labels: testLabels,
@@ -561,6 +562,8 @@ func TestLabelsAggregation(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
