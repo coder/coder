@@ -262,6 +262,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
 				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
 				DERPOnly:               derpOnly.Value(),
+				BlockDirect:            cfg.DERP.Config.BlockDirect.Value(),
 				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
 			})
 			if err != nil {
