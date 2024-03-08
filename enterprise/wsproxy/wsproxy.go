@@ -251,6 +251,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		regResp.DERPForceWebSockets,
 		s.DialCoordinator,
+		false, // TODO: this will be covered in a subsequent pr.
 		s.TracerProvider,
 	)
 	if err != nil {
