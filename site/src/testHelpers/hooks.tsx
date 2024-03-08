@@ -88,28 +88,26 @@ export async function renderHookWithAuth<Result, Props>(
    *    and prevent any children from re-rendering (even if they would have new
    *    values).
    *
-   * Have to do a lot of work to side-step those issues, and make sure that
-   * we're not relying on internal React Router implementation details that
-   * could break at a moment's notice
+   * Have to do a lot of work to side-step those issues (best described as a
+   * "Super Mario warp pipe"), and make sure that we're not relying on internal
+   * React Router implementation details that could break at a moment's notice
    */
-  let escapedLocation!: Location; // Definite assignment via !
+  // Some of the let variables are defined with definite assignment (! operator)
+  let currentLocation!: Location;
   const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
-    escapedLocation = useLocation();
+    currentLocation = useLocation();
     return <>{children}</>;
   };
 
-  let forceUpdateRenderHookChildren!: () => void; // Definite assignment via !
+  let forceUpdateRenderHookChildren!: () => void;
   let currentRenderHookChildren: ReactNode = undefined;
 
   const InitialRoute: FC = () => {
     const [, forceRerender] = useReducer((b: boolean) => !b, false);
-    forceUpdateRenderHookChildren = () => act(() => forceRerender());
+    forceUpdateRenderHookChildren = () => act(forceRerender);
     return <LocationLeaker>{currentRenderHookChildren}</LocationLeaker>;
   };
 
-  /**
-   * Start of main setup
-   */
   const { routingOptions = {}, renderOptions = {} } = config;
   const {
     path = "/",
@@ -172,7 +170,7 @@ export async function renderHookWithAuth<Result, Props>(
     queryClient,
     unmount,
     rerender: async (newProps) => {
-      const currentPathname = escapedLocation.pathname;
+      const currentPathname = currentLocation.pathname;
       if (currentPathname !== path) {
         return;
       }
@@ -184,9 +182,9 @@ export async function renderHookWithAuth<Result, Props>(
     },
     getLocationSnapshot: () => {
       return {
-        pathname: escapedLocation.pathname,
-        search: new URLSearchParams(escapedLocation.search),
-        state: escapedLocation.state,
+        pathname: currentLocation.pathname,
+        search: new URLSearchParams(currentLocation.search),
+        state: currentLocation.state,
       };
     },
   } as const;
