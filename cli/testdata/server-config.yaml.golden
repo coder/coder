@@ -191,6 +191,11 @@ introspection:
     # Collect database metrics (may increase charges for metrics storage).
     # (default: false, type: bool)
     collect_db_metrics: false
+    # When collecting agent stats, aggregate metrics by a given set of comma-separated
+    # labels to reduce cardinality. Accepted values are template_name, agent_name,
+    # username, workspace_name.
+    # (default: <unset>, type: string-array)
+    aggregate_agent_stats_by: []
   pprof:
     # Serve pprof metrics on the address defined by pprof address.
     # (default: <unset>, type: bool)
