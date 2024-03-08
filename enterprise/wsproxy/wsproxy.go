@@ -75,6 +75,9 @@ type Options struct {
 	// DERPOnly determines whether this proxy only provides DERP and does not
 	// provide access to workspace apps/terminal.
 	DERPOnly bool
+	// BlockDirect controls the servertailnet of the proxy, forcing it from
+	// negotiating direct connections.
+	BlockDirect bool
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
@@ -251,7 +254,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		regResp.DERPForceWebSockets,
 		s.DialCoordinator,
-		false, // TODO: this will be covered in a subsequent pr.
+		opts.BlockDirect,
 		s.TracerProvider,
 	)
 	if err != nil {

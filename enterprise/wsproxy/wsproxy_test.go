@@ -615,6 +615,76 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 	})
 }
 
+func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
+	t.Parallel()
+
+	apptest.Run(t, false, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
+		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
+		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.Experiments = []string{
+			"*",
+		}
+
+		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
+		flushStats := func() {
+			proxyStatsCollectorFlushDone := make(chan struct{}, 1)
+			proxyStatsCollectorFlushCh <- proxyStatsCollectorFlushDone
+			<-proxyStatsCollectorFlushDone
+		}
+
+		if opts.PrimaryAppHost == "" {
+			opts.PrimaryAppHost = "*.primary.test.coder.com"
+		}
+		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues:         deploymentValues,
+				AppHostname:              opts.PrimaryAppHost,
+				IncludeProvisionerDaemon: true,
+				RealIPConfig: &httpmw.RealIPConfig{
+					TrustedOrigins: []*net.IPNet{{
+						IP:   net.ParseIP("127.0.0.1"),
+						Mask: net.CIDRMask(8, 32),
+					}},
+					TrustedHeaders: []string{
+						"CF-Connecting-IP",
+					},
+				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+
+		// Create the external proxy
+		if opts.DisableSubdomainApps {
+			opts.AppHost = ""
+		}
+		proxyAPI := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
+			Name:            "best-proxy",
+			AppHostname:     opts.AppHost,
+			DisablePathApps: opts.DisablePathApps,
+			FlushStats:      proxyStatsCollectorFlushCh,
+			BlockDirect:     true,
+		})
+
+		return &apptest.Deployment{
+			Options:        opts,
+			SDKClient:      client,
+			FirstUser:      user,
+			PathAppBaseURL: proxyAPI.Options.AccessURL,
+			FlushStats:     flushStats,
+		}
+	})
+}
+
 // createDERPClient creates a DERP client and spawns a goroutine that reads from
 // the client and sends the received packets to a channel.
 //
