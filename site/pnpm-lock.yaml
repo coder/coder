@@ -169,8 +169,8 @@ dependencies:
     specifier: npm:@leeoniya/ufuzzy@1.0.10
     version: /@leeoniya/ufuzzy@1.0.10
   undici:
-    specifier: 6.7.0
-    version: 6.7.0
+    specifier: 6.7.1
+    version: 6.7.1
   unique-names-generator:
     specifier: 4.7.1
     version: 4.7.1
@@ -2250,11 +2250,6 @@ packages:
   /@fal-works/esbuild-plugin-global-externals@2.1.2:
     resolution: {integrity: sha512-cEee/Z+I12mZcFJshKcCqC8tuX5hG3s+d+9nZ3LabqKF1vKdF41B92pJVCBggjAGORAeOzyyDDKrZwIkLffeOQ==}
     dev: true
-
-  /@fastify/busboy@2.1.1:
-    resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
-    engines: {node: '>=14'}
-    dev: false
 
   /@fastly/performance-observer-polyfill@2.0.0:
     resolution: {integrity: sha512-cQC4E6ReYY4Vud+eCJSCr1N0dSz+fk7xJlLiSgPFDHbnFLZo5DenazoersMt9D8JkEhl9Z5ZwJ/8apcjSrdb8Q==}
@@ -13495,11 +13490,9 @@ packages:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
     dev: true
 
-  /undici@6.7.0:
-    resolution: {integrity: sha512-IcWssIyDN1gk6Mcae44q04oRoWTKrW8OKz0effVK1xdWwAgMPnfpxhn9RXUSL5JlwSikO18R7Ibk7Nukz6kxWA==}
+  /undici@6.7.1:
+    resolution: {integrity: sha512-+Wtb9bAQw6HYWzCnxrPTMVEV3Q1QjYanI0E4q02ehReMuquQdLTEFEYbfs7hcImVYKcQkWSwT6buEmSVIiDDtQ==}
     engines: {node: '>=18.0'}
-    dependencies:
-      '@fastify/busboy': 2.1.1
     dev: false
 
   /unicode-canonical-property-names-ecmascript@2.0.0:

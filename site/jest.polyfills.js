@@ -9,7 +9,8 @@
  * Consider migrating to a more modern test runner if
  * you don't want to deal with this.
  */
-const { TextDecoder, TextEncoder, ReadableStream } = require("node:util");
+const { TextDecoder, TextEncoder } = require("node:util");
+const { ReadableStream } = require("stream/web");
 
 Object.defineProperties(globalThis, {
   TextDecoder: { value: TextDecoder },

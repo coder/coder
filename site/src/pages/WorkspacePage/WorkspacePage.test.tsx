@@ -197,7 +197,7 @@ describe("WorkspacePage", () => {
 
     // Actions
     const user = userEvent.setup();
-    await user.click(screen.getByTestId("workspace-httpart-button"));
+    await user.click(screen.getByTestId("workspace-restart-button"));
     const confirmButton = await screen.findByTestId("confirm-button");
     await user.click(confirmButton);
 

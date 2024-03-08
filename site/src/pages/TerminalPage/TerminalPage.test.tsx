@@ -2,7 +2,6 @@ import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import { TextDecoder, TextEncoder } from "util";
 import * as API from "api/api";
 import {
   MockUser,
@@ -28,10 +27,6 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-});
-
-Object.defineProperty(window, "TextEncoder", {
-  value: TextEncoder,
 });
 
 const renderTerminal = async (
