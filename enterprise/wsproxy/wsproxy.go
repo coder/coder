@@ -499,6 +499,9 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 				replicaErrs = append(replicaErrs, err.Error())
 			}
 		}
+
+		s.replicaErrMut.Lock()
+		defer s.replicaErrMut.Unlock()
 		s.replicaErr = ""
 		if len(replicaErrs) > 0 {
 			s.replicaErr = fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", "))
