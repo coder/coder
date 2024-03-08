@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
-import { useTab } from "hooks";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { AgentRow } from "modules/resources/AgentRow";
 import { HistorySidebar } from "./HistorySidebar";
 import type { WorkspacePermissions } from "./permissions";
@@ -88,13 +88,12 @@ export const Workspace: FC<WorkspaceProps> = ({
   const transitionStats =
     template !== undefined ? ActiveTransition(template, workspace) : undefined;
 
-  const sidebarOption = useTab("sidebar", "");
+  const sidebarOption = useSearchParamsKey({ key: "sidebar" });
   const setSidebarOption = (newOption: string) => {
-    const { set, value } = sidebarOption;
-    if (value === newOption) {
-      set("");
+    if (sidebarOption.value === newOption) {
+      sidebarOption.deleteValue();
     } else {
-      set(newOption);
+      sidebarOption.setValue(newOption);
     }
   };
 
