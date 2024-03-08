@@ -297,6 +297,8 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 }
 
 func TestLabelsAggregation(t *testing.T) {
+	t.Parallel()
+
 	type statCollection struct {
 		labels  prometheusmetrics.AgentMetricLabels
 		metrics []*agentproto.Stats_Metric
@@ -559,8 +561,6 @@ func TestLabelsAggregation(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Parallel()
-
 		t.Run(tc.name, func(t *testing.T) {
 			// given
 			registry := prometheus.NewRegistry()
