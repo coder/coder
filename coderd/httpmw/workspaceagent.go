@@ -33,6 +33,22 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 	return user
 }
 
+type LatestBuildContextKey struct{}
+
+func LatestBuildOptional(r *http.Request) (database.WorkspaceBuild, bool) {
+	user, ok := r.Context().Value(LatestBuildContextKey{}).(database.WorkspaceBuild)
+	return user, ok
+}
+
+// LatestBuild returns the Latest Build from the ExtractLatestBuild handler.
+func LatestBuild(r *http.Request) database.WorkspaceBuild {
+	user, ok := LatestBuildOptional(r)
+	if !ok {
+		panic("developer error: agent middleware not provided or was made optional")
+	}
+	return user
+}
+
 type ExtractWorkspaceAgentConfig struct {
 	DB database.Store
 	// Optional indicates whether the middleware should be optional.  If true, any
@@ -94,7 +110,11 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				return
 			}
 
-			ensureLatestBuild(ctx, opts.DB, rw, row.WorkspaceAgent)
+			//nolint:gocritic // System needs to be able to get latest builds.
+			build, ok := ensureLatestBuild(dbauthz.AsSystemRestricted(ctx), opts.DB, rw, row.WorkspaceAgent)
+			if !ok {
+				return
+			}
 
 			subject := rbac.Subject{
 				ID:     row.OwnerID.String(),
@@ -109,6 +129,7 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 			}.WithCachedASTValue()
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
+			ctx = context.WithValue(ctx, LatestBuildContextKey{}, build)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))

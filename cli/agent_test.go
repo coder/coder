@@ -48,7 +48,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 
 		require.Eventually(t, func() bool {
 			info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
