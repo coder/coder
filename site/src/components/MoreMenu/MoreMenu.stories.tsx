@@ -43,7 +43,9 @@ const Example: Story = {
     const canvas = within(canvasElement);
 
     await step("Open menu", async () => {
-      await userEvent.click(canvas.getByRole("button"));
+      await userEvent.click(
+        canvas.getByRole("button", { name: "More options" }),
+      );
       await waitFor(() =>
         Promise.all([
           expect(screen.getByText(/touch grass/i)).toBeInTheDocument(),
