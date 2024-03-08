@@ -3,7 +3,7 @@ import { visuallyHidden } from "@mui/utils";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { CodeExample } from "components/CodeExample/CodeExample";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 
@@ -15,7 +15,7 @@ const VISUALLY_HIDDEN_SPACE = " ";
 
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
   if (!sessionToken) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   return (

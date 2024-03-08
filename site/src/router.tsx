@@ -6,7 +6,7 @@ import {
   Outlet,
   Route,
 } from "react-router-dom";
-import { FullScreenLoader } from "./components/Loader/FullScreenLoader";
+import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -243,7 +243,7 @@ const ProvisionerDaemonsHealthPage = lazy(
 
 const RoutesWithSuspense = () => {
   return (
-    <Suspense fallback={<FullScreenLoader />}>
+    <Suspense fallback={<Loader fullscreen />}>
       <Outlet />
     </Suspense>
   );
