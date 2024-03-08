@@ -23,7 +23,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 
-		req, rtr := setup(t, db, uuid.New(), httpmw.ExtractWorkspaceAgent(
+		req, rtr := setup(t, db, uuid.New(), httpmw.ExtractWorkspaceAgentAndLatestBuild(
 			httpmw.ExtractWorkspaceAgentConfig{
 				DB:       db,
 				Optional: false,
@@ -42,7 +42,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		authToken := uuid.New()
-		req, rtr := setup(t, db, authToken, httpmw.ExtractWorkspaceAgent(
+		req, rtr := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
 			httpmw.ExtractWorkspaceAgentConfig{
 				DB:       db,
 				Optional: false,
