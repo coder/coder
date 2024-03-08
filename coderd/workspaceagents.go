@@ -956,24 +956,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	defer api.WebsocketWaitGroup.Done()
 	// The middleware only accept agents for resources on the latest build.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace agent resource.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace build job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	build := httpmw.LatestBuild(r)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
