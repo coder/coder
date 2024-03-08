@@ -58,12 +58,10 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 )
 
-var (
-	AcceptedMetricAggregationLabels = []string{
-		agentmetrics.TemplateNameLabel, agentmetrics.AgentNameLabel,
-		agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel,
-	}
-)
+var AcceptedMetricAggregationLabels = []string{
+	agentmetrics.TemplateNameLabel, agentmetrics.AgentNameLabel,
+	agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel,
+}
 
 // FeatureNames must be kept in-sync with the Feature enum above.
 var FeatureNames = []FeatureName{
@@ -955,7 +953,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Prometheus Aggregate Agent Stats By",
-			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %q.", AcceptedMetricAggregationLabels),
+			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %s.", strings.Join(AcceptedMetricAggregationLabels, ", ")),
 			Flag:        "prometheus-aggregate-agent-stats-by",
 			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
 			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
