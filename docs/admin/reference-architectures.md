@@ -54,7 +54,7 @@ leverage existing features shared with other templates, enhancing flexibility
 and consistency across deployments. Templates describe provisioning rules for
 infrastructure resources offered by cloud providers.
 
-### Proxy
+### Workspace Proxy
 
 A workspace proxy serves as a relay connection option for developers connecting
 to their workspace over SSH, a workspace app, or through port forwarding. It
@@ -67,7 +67,7 @@ handle dashboard connections or API calls.
 Provisioners in Coder execute Terraform during workspace and template builds.
 While the platform includes built-in provisioner daemons by default, there are
 advantages to employing external provisioners. These external daemons provide
-secure build environments, and reduce server load, improving performance and
+secure build environments and reduce server load, improving performance and
 scalability. Each provisioner can handle a single concurrent workspace build,
 allowing for efficient resource allocation and workload management.
 
@@ -94,8 +94,8 @@ A dedicated cluster for Coder is Kubernetes cluster specifically configured to
 host and manage Coder workloads. Kubernetes provides container orchestration
 capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
 across a distributed infrastructure. This ensures high availability, fault
-tolerance, and scalability for Coder deployments. The cluster can be deployed
-using the Helm chart.
+tolerance, and scalability for Coder deployments. Code is deployed on this
+cluster using the [Helm chart](../install/kubernetes#install-coder-with-helm).
 
 Our scale tests include the following stages:
 
@@ -133,7 +133,7 @@ The basic setup of scale tests environment involves:
 
 1. Scale tests runner (32 vCPU, 128 GB RAM)
 2. Coder: 2 replicas (4 vCPU, 16 GB RAM)
-3. Database: 1 replica (2 vCPU, 32 GB RAM)
+3. Database: 1 instance (2 vCPU, 32 GB RAM)
 4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
 
 The test is deemed successful if no crashes or restarts of `coderd` or other
