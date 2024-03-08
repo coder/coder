@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/model"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -107,8 +108,9 @@ var _ prometheus.Collector = new(MetricsAggregator)
 
 func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 	var (
-		baseLabelNames  []string = am.aggregateByLabels
+		baseLabelNames  = am.aggregateByLabels
 		baseLabelValues []string
+		extraLabels     = am.Labels
 	)
 
 	for _, label := range am.aggregateByLabels {
@@ -120,18 +122,16 @@ func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 		baseLabelValues = append(baseLabelValues, val)
 	}
 
-	labels := make([]string, 0, len(baseLabelNames)+len(am.Labels))
-	labelValues := make([]string, 0, len(baseLabelNames)+len(am.Labels))
+	labels := make([]string, 0, len(baseLabelNames)+len(extraLabels))
+	labelValues := make([]string, 0, len(baseLabelNames)+len(extraLabels))
 
 	labels = append(labels, baseLabelNames...)
 	labelValues = append(labelValues, baseLabelValues...)
 
-	for _, l := range am.Labels {
+	for _, l := range extraLabels {
 		labels = append(labels, l.Name)
 		labelValues = append(labelValues, l.Value)
 	}
-
-	//fmt.Printf(">>>>[%s] [%s] %s [%q] [%q]: %v\n", time.Now().Format(time.RFC3339Nano), am.Type, am.Name, labels, labelValues, am.Value)
 
 	desc := prometheus.NewDesc(am.Name, metricHelpForAgent, labels, nil)
 	valueType, err := asPrometheusValueType(am.Type)
@@ -237,50 +237,56 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 	}, nil
 }
 
-type MetricAggregator struct {
+// labelAggregator is used to control cardinality of collected Prometheus metrics by pre-aggregating series based on given labels.
+type labelAggregator struct {
 	aggregations map[string]float64
 	metrics      map[string]annotatedMetric
 }
 
-func NewMetricAggregator(size int) *MetricAggregator {
-	return &MetricAggregator{
+func newLabelAggregator(size int) *labelAggregator {
+	return &labelAggregator{
 		aggregations: make(map[string]float64, size),
 		metrics:      make(map[string]annotatedMetric, size),
 	}
 }
 
-func (a *MetricAggregator) Aggregate(am annotatedMetric, labels []string) error {
-	// if we already have an entry for this key, don't clone this am afresh - rather use the existing one
-	// this will be a bit more memory efficient
-	// ...do this after unit-test is written
-
-	clone := am.clone()
-
-	fields := make(map[string]string, len(labels))
+func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
+	// Use a LabelSet because it can give deterministic fingerprints of label combinations regardless of map ordering.
+	labelSet := make(model.LabelSet, len(labels))
 	labelValues := make([]string, 0, len(labels))
 
 	for _, label := range labels {
-		val, err := clone.getFieldByLabel(label)
+		val, err := am.getFieldByLabel(label)
 		if err != nil {
 			return err
 		}
 
-		fields[label] = val
+		labelSet[model.LabelName(label)] = model.LabelValue(val)
 		labelValues = append(labelValues, val)
 	}
 
-	key := fmt.Sprintf("%s:%v", clone.Stats_Metric.Name, fields)
+	// Memoize based on the metric name & the unique combination of labels.
+	key := fmt.Sprintf("%s:%v", am.Stats_Metric.Name, labelSet.FastFingerprint())
 
-	clone.aggregateByLabels = labels
-	a.aggregations[key] += clone.Value
+	// Aggregate the value based on the key.
+	a.aggregations[key] += am.Value
 
-	clone.Value = a.aggregations[key]
-	a.metrics[key] = clone
+	metric, found := a.metrics[key]
+	if !found {
+		// Take a copy of the given annotatedMetric because it may be manipulated later and contains pointers.
+		metric = am.clone()
+	}
+
+	// Store the metric.
+	metric.aggregateByLabels = labels
+	metric.Value = a.aggregations[key]
+
+	a.metrics[key] = metric
 
 	return nil
 }
 
-func (a *MetricAggregator) asMetrics() (out []annotatedMetric) {
+func (a *labelAggregator) toMetrics() (out []annotatedMetric) {
 	for _, am := range a.metrics {
 		out = append(out, am)
 	}
@@ -331,24 +337,25 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				// If custom aggregation labels have not been chosen, generate Prometheus metrics without any pre-aggregation.
 				// This results in higher cardinality, but may be desirable in larger deployments.
+				// Default behaviour.
 				if len(ma.aggregateByLabels) == 0 {
 					for _, m := range ma.store {
-						// Aggregate by high cardinality labels.
-						m.aggregateByLabels = agentMetricsLabels
+						// Aggregate by all available metrics.
+						m.aggregateByLabels = defaultAgentMetricsLabels
 						input = append(input, m)
 					}
 				} else {
 					// However, if custom aggregations have been chosen, we need to aggregate the values from the annotated
 					// metrics because we cannot register multiple metric series with the same labels.
-					aggregator := NewMetricAggregator(len(ma.store) * len(ma.aggregateByLabels))
+					la := newLabelAggregator(len(ma.store))
 
 					for _, m := range ma.store {
-						if err := aggregator.Aggregate(m, ma.aggregateByLabels); err != nil {
+						if err := la.aggregate(m, ma.aggregateByLabels); err != nil {
 							ma.log.Error(ctx, "can't aggregate labels", slog.F("labels", strings.Join(ma.aggregateByLabels, ",")), slog.Error(err))
 						}
 					}
 
-					input = aggregator.asMetrics()
+					input = la.toMetrics()
 				}
 
 				for _, m := range input {
@@ -395,7 +402,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 }
 
-var agentMetricsLabels = []string{agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, agentmetrics.AgentNameLabel, agentmetrics.TemplateNameLabel}
+var defaultAgentMetricsLabels = []string{agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, agentmetrics.AgentNameLabel, agentmetrics.TemplateNameLabel}
 
 // AgentMetricLabels are the labels used to decorate an agent's metrics.
 // This list should match the list of labels in agentMetricsLabels.
