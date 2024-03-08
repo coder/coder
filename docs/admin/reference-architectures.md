@@ -116,17 +116,17 @@ Our scale tests include the following stages:
 
 ### Infrastructure and setup requirements
 
-The scale tests runner
+The scale tests runner can distribute the workload to overlap single scenarios
+based on the workflow configuration:
 
-In a single workflow, the scale tests runner evenly spreads out the workload
-like this:
+|                      | T0  | T1  | T2  | T3  | T4  | T5  | T6  |
+| -------------------- | --- | --- | --- | --- | --- | --- | --- |
+| SSH connection       | X   | X   | X   | X   |     |     |     |
+| Web Terminal (PTY)   |     | X   | X   | X   | X   |     |     |
+| Workspace apps       |     |     | X   | X   | X   | X   |     |
+| Dashboard (headless) |     |     |     | X   | X   | X   | X   |
 
-- 80% of users open and utilize SSH connections.
-- 25% of users connect to the workspace using the Web Terminal.
-- 40% of users simulate traffic for workspace apps.
-- 20% of users interact with the Coder UI via a headless browser.
-
-This distribution closely mirrors natural user behavior, as observed among our
+This distribution closely mirrors natural user behavior observed among our
 customers.
 
 The basic setup of scale tests environment involves:
