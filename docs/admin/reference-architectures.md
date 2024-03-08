@@ -90,12 +90,13 @@ without compromising service. This process encompasses infrastructure setup,
 traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
 
-A dedicated cluster for Coder is Kubernetes cluster specifically configured to
-host and manage Coder workloads. Kubernetes provides container orchestration
-capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
-across a distributed infrastructure. This ensures high availability, fault
-tolerance, and scalability for Coder deployments. Code is deployed on this
-cluster using the [Helm chart](../install/kubernetes#install-coder-with-helm).
+A dedicated Kubernetes cluster for Coder is Kubernetes cluster specifically
+configured to host and manage Coder workloads. Kubernetes provides container
+orchestration capabilities, allowing Coder to efficiently deploy, scale, and
+manage workspaces across a distributed infrastructure. This ensures high
+availability, fault tolerance, and scalability for Coder deployments. Code is
+deployed on this cluster using the
+[Helm chart](../install/kubernetes#install-coder-with-helm).
 
 Our scale tests include the following stages:
 
