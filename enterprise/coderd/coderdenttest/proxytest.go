@@ -44,6 +44,9 @@ type ProxyOptions struct {
 	// region.
 	Token string
 
+	// ReplicaPingCallback is optional.
+	ReplicaPingCallback func(replicas []codersdk.Replica, err string)
+
 	// FlushStats is optional
 	FlushStats chan chan<- struct{}
 }
@@ -158,6 +161,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		DERPEnabled:            !options.DerpDisabled,
 		DERPOnly:               options.DerpOnly,
 		DERPServerRelayAddress: serverURL.String(),
+		ReplicaErrCallback:     options.ReplicaPingCallback,
 		StatsCollectorOptions:  statsCollectorOptions,
 		BlockDirect:            options.BlockDirect,
 	})
