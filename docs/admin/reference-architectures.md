@@ -116,6 +116,8 @@ Our scale tests include the following stages:
 
 ### Infrastructure and setup requirements
 
+The scale tests runner
+
 In a single workflow, the scale tests runner evenly spreads out the workload
 like this:
 
