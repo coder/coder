@@ -977,9 +977,8 @@ when required by your organization's security policy.`,
 
 				return nil
 			}),
-			Group:   &deploymentGroupIntrospectionPrometheus,
-			YAML:    "aggregate_agent_stats_by",
-			Default: strings.Join(AcceptedMetricAggregationLabels, ","),
+			Group: &deploymentGroupIntrospectionPrometheus,
+			YAML:  "aggregate_agent_stats_by",
 		},
 		{
 			Name:        "Prometheus Collect Database Metrics",
