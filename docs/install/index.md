@@ -2,7 +2,9 @@
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 
-There are several ways to install Coder. For production deployments with 50+ users, we recommend [installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on your local machine or on a VM:
+There are several ways to install Coder. For production deployments with 50+
+users, we recommend [installing on Kubernetes](./kubernetes.md). Otherwise, you
+can install Coder on your local machine or on a VM:
 
 <div class="tabs">
 
