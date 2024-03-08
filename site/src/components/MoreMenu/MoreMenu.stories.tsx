@@ -1,6 +1,8 @@
 import GrassIcon from "@mui/icons-material/Grass";
 import KitesurfingIcon from "@mui/icons-material/Kitesurfing";
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -8,8 +10,6 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "./MoreMenu";
-import { action } from "@storybook/addon-actions";
-import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 
 const meta: Meta<typeof MoreMenu> = {
   title: "components/MoreMenu",
@@ -27,11 +27,11 @@ const Example: Story = {
           <ThreeDotsButton />
         </MoreMenuTrigger>
         <MoreMenuContent>
-          <MoreMenuItem onClick={() => action("grass")}>
+          <MoreMenuItem onClick={action("grass")}>
             <GrassIcon />
             Touch grass
           </MoreMenuItem>
-          <MoreMenuItem onClick={() => action("water")}>
+          <MoreMenuItem onClick={action("water")}>
             <KitesurfingIcon />
             Touch water
           </MoreMenuItem>
@@ -44,10 +44,12 @@ const Example: Story = {
 
     await step("Open menu", async () => {
       await userEvent.click(canvas.getByRole("button"));
-      await waitFor(() => {
-        expect(screen.getByText(/touch grass/i)).toBeInTheDocument();
-        expect(screen.getByText(/touch water/i)).toBeInTheDocument();
-      });
+      await waitFor(() =>
+        Promise.all([
+          expect(screen.getByText(/touch grass/i)).toBeInTheDocument(),
+          expect(screen.getByText(/touch water/i)).toBeInTheDocument(),
+        ]),
+      );
     });
   },
 };
