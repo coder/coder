@@ -562,6 +562,8 @@ func TestLabelsAggregation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			// given
 			registry := prometheus.NewRegistry()
 			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
