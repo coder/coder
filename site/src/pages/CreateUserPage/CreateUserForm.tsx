@@ -1,20 +1,20 @@
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
 import Link from "@mui/material/Link";
-import { FormikContextType, useFormik } from "formik";
-import { FC } from "react";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { FormFooter } from "components/FormFooter/FormFooter";
+import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { FormFooter } from "components/FormFooter/FormFooter";
-import { FullPageForm } from "components/FullPageForm/FullPageForm";
-import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const Language = {
   emailLabel: "Email",

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import {
   archiveTemplateVersion,
@@ -8,10 +10,8 @@ import { getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { VersionsTable } from "./VersionsTable";
-import { useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
+import { VersionsTable } from "./VersionsTable";
 
 const TemplateVersionsPage = () => {
   const { template, permissions } = useTemplateLayoutContext();

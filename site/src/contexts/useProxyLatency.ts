@@ -1,7 +1,7 @@
-import { Region } from "api/typesGenerated";
-import { useEffect, useReducer, useState } from "react";
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
 import axios from "axios";
+import { useEffect, useReducer, useState } from "react";
+import type { Region } from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 
 const proxyIntervalSeconds = 30; // seconds

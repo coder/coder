@@ -1,5 +1,5 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 import { InlineMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { readableForegroundColor } from "utils/colors";

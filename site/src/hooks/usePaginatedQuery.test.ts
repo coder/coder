@@ -1,6 +1,5 @@
-import { renderHookWithAuth } from "testHelpers/hooks";
 import { waitFor } from "@testing-library/react";
-
+import { renderHookWithAuth } from "testHelpers/hooks";
 import {
   type PaginatedData,
   type UsePaginatedQueryOptions,

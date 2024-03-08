@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { Alert, AlertProps } from "components/Alert/Alert";
 import { type FC, useState } from "react";
+import { Alert, type AlertProps } from "components/Alert/Alert";
 import { docs } from "utils/docs";
 
 export const ErrorScriptAlert: FC = () => {

@@ -1,17 +1,17 @@
-import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
+import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import TableCell from "@mui/material/TableCell";
 import { type FC, useState } from "react";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "api/typesGenerated";
-import { type ThemeRole } from "theme/roles";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
+import type { ThemeRole } from "theme/roles";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
+import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {

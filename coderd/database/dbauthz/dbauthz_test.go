@@ -568,7 +568,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(o.ID).Asserts(o, rbac.ActionRead).Returns(o)
 	}))
 	s.Run("GetDefaultOrganization", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
+		o, _ := db.GetDefaultOrganization(context.Background())
 		check.Args().Asserts(o, rbac.ActionRead).Returns(o)
 	}))
 	s.Run("GetOrganizationByName", s.Subtest(func(db database.Store, check *expects) {
@@ -597,9 +597,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(u.ID).Asserts(a, rbac.ActionRead, b, rbac.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
+		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args().Asserts(a, rbac.ActionRead, b, rbac.ActionRead).Returns(slice.New(a, b))
+		check.Args().Asserts(def, rbac.ActionRead, a, rbac.ActionRead, b, rbac.ActionRead).Returns(slice.New(def, a, b))
 	}))
 	s.Run("GetOrganizationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1607,6 +1608,7 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
 			ShareLevel:  ps.ShareLevel,
+			Protocol:    ps.Protocol,
 		}).Asserts(ws, rbac.ActionUpdate).Returns(ps)
 	}))
 	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
@@ -1634,6 +1636,20 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteWorkspaceAgentPortSharesByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		t := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, TemplateID: t.ID})
+		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(t.ID).Asserts(t, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		t := dbgen.Template(s.T(), db, database.Template{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, TemplateID: t.ID})
+		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(t.ID).Asserts(t, rbac.ActionUpdate).Returns()
 	}))
 }
 

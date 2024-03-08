@@ -1,11 +1,35 @@
-import LinearProgress from "@mui/material/LinearProgress";
-import Tooltip from "@mui/material/Tooltip";
-import Link from "@mui/material/Link";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { useTheme } from "@emotion/react";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
-import { useQuery } from "react-query";
+import LinearProgress from "@mui/material/LinearProgress";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import chroma from "chroma-js";
+import {
+  subDays,
+  addWeeks,
+  format,
+  startOfDay,
+  startOfHour,
+  addHours,
+} from "date-fns";
+import {
+  type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
+  type ReactNode,
+  useId,
+} from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
+import { entitlements } from "api/queries/entitlements";
+import {
+  insightsTemplate,
+  insightsUserActivity,
+  insightsUserLatency,
+} from "api/queries/insights";
 import type {
   Entitlements,
   Template,
@@ -16,32 +40,10 @@ import type {
   UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { useTheme } from "@emotion/react";
-import {
-  type FC,
-  type HTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-  useId,
-} from "react";
-import chroma from "chroma-js";
-import {
-  subDays,
-  addWeeks,
-  format,
-  startOfDay,
-  startOfHour,
-  addHours,
-} from "date-fns";
-import { useSearchParams } from "react-router-dom";
-import "react-date-range/dist/styles.css";
-import "react-date-range/dist/theme/default.css";
-
 import {
   ActiveUsersTitle,
   ActiveUserChart,
 } from "components/ActiveUserChart/ActiveUserChart";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
   HelpTooltipTitle,
@@ -49,19 +51,14 @@ import {
   HelpTooltipContent,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { getLatencyColor } from "utils/latency";
 import { Loader } from "components/Loader/Loader";
-import {
-  insightsTemplate,
-  insightsUserActivity,
-  insightsUserLatency,
-} from "api/queries/insights";
-import { entitlements } from "api/queries/entitlements";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
+import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
+import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
-import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];

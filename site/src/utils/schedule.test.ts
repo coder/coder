@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import {
   deadlineExtensionMax,

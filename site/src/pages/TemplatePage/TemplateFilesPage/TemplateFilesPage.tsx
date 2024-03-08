@@ -1,11 +1,11 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {

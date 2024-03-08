@@ -1,7 +1,7 @@
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
-import tw from "../tailwindColors";
 import { components } from "../mui";
+import tw from "../tailwindColors";
 
 const muiTheme = createTheme({
   palette: {

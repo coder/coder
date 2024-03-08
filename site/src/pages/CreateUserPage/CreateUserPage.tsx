@@ -1,12 +1,12 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { pageTitle } from "utils/page";
 import { authMethods, createUser } from "api/queries/users";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { Margins } from "components/Margins/Margins";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Margins } from "components/Margins/Margins";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
 export const Language = {

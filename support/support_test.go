@@ -1,6 +1,7 @@
 package support_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -59,6 +60,10 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Workspace.BuildLogs)
 		require.NotNil(t, bun.Workspace.Agent)
 		require.NotEmpty(t, bun.Workspace.AgentStartupLogs)
+		require.NotEmpty(t, bun.Workspace.Template)
+		require.NotEmpty(t, bun.Workspace.TemplateVersion)
+		require.NotEmpty(t, bun.Workspace.TemplateFileBase64)
+		require.NotNil(t, bun.Workspace.Parameters)
 		require.NotEmpty(t, bun.Logs)
 	})
 
@@ -136,10 +141,27 @@ func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig
 }
 
 func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, db database.Store, user codersdk.CreateFirstUserResponse) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+	// This is a valid zip file
+	zipBytes := make([]byte, 22)
+	zipBytes[0] = 80
+	zipBytes[1] = 75
+	zipBytes[2] = 0o5
+	zipBytes[3] = 0o6
+	uploadRes, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipBytes))
+	require.NoError(t, err)
+
+	tv := dbfake.TemplateVersion(t, db).
+		FileID(uploadRes.ID).
+		Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).
+		Do()
 	wbr := dbfake.WorkspaceBuild(t, db, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+		TemplateID:     tv.Template.ID,
+	}).Resource().WithAgent().Do()
 	ws, err := client.Workspace(ctx, wbr.Workspace.ID)
 	require.NoError(t, err)
 	agt := ws.LatestBuild.Resources[0].Agents[0]

@@ -1,25 +1,26 @@
-import {
-  type FC,
-  type ReactElement,
-  type ReactNode,
-  cloneElement,
-  createContext,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  HTMLAttributes,
-} from "react";
 // This is used as base for the main Popover component
 // eslint-disable-next-line no-restricted-imports -- Read above
 import MuiPopover, {
   type PopoverProps as MuiPopoverProps,
 } from "@mui/material/Popover";
+import {
+  cloneElement,
+  createContext,
+  type FC,
+  type HTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
 type TriggerMode = "hover" | "click";
 
-type TriggerRef = React.RefObject<HTMLElement>;
+type TriggerRef = RefObject<HTMLElement>;
 
 type TriggerElement = ReactElement<{
   ref: TriggerRef;

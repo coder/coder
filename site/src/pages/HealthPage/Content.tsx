@@ -1,24 +1,25 @@
 /* eslint-disable jsx-a11y/heading-has-content -- infer from props */
-import {
-  ComponentProps,
-  HTMLAttributes,
-  ReactElement,
-  cloneElement,
-  forwardRef,
-} from "react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import { healthyColor } from "./healthyColor";
-import { docs } from "utils/docs";
 import { css } from "@emotion/css";
-import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
-import { HealthMessage, HealthSeverity } from "api/typesGenerated";
-import Link from "@mui/material/Link";
 import { useTheme } from "@emotion/react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import Link from "@mui/material/Link";
+import {
+  cloneElement,
+  type ComponentProps,
+  type FC,
+  forwardRef,
+  type HTMLAttributes,
+  type ReactElement,
+} from "react";
+import type { HealthCode, HealthSeverity } from "api/typesGenerated";
+import { docs } from "utils/docs";
+import { healthyColor } from "./healthyColor";
 
 const CONTENT_PADDING = 36;
 
-export const Header = (props: HTMLAttributes<HTMLDivElement>) => {
+export const Header: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   return (
     <header
       css={{
@@ -32,7 +33,7 @@ export const Header = (props: HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
-export const HeaderTitle = (props: HTMLAttributes<HTMLHeadingElement>) => {
+export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   return (
     <h2
       css={{
@@ -49,13 +50,12 @@ export const HeaderTitle = (props: HTMLAttributes<HTMLHeadingElement>) => {
   );
 };
 
-export const HealthIcon = ({
-  size,
-  severity,
-}: {
+interface HealthIconProps {
   size: number;
   severity: HealthSeverity;
-}) => {
+}
+
+export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
   const theme = useTheme();
   const color = healthyColor(theme, severity);
   const Icon = severity === "error" ? ErrorOutline : CheckCircleOutlined;
@@ -63,7 +63,11 @@ export const HealthIcon = ({
   return <Icon css={{ width: size, height: size, color }} />;
 };
 
-export const HealthyDot = ({ severity }: { severity: HealthSeverity }) => {
+interface HealthyDotProps {
+  severity: HealthSeverity;
+}
+
+export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
   const theme = useTheme();
 
   return (
@@ -78,7 +82,7 @@ export const HealthyDot = ({ severity }: { severity: HealthSeverity }) => {
   );
 };
 
-export const Main = (props: HTMLAttributes<HTMLDivElement>) => {
+export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   return (
     <main
       css={{
@@ -92,7 +96,7 @@ export const Main = (props: HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
-export const GridData = (props: HTMLAttributes<HTMLDivElement>) => {
+export const GridData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
   return (
     <div
       css={{
@@ -109,7 +113,7 @@ export const GridData = (props: HTMLAttributes<HTMLDivElement>) => {
   );
 };
 
-export const GridDataLabel = (props: HTMLAttributes<HTMLSpanElement>) => {
+export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
   const theme = useTheme();
   return (
     <span
@@ -123,7 +127,7 @@ export const GridDataLabel = (props: HTMLAttributes<HTMLSpanElement>) => {
   );
 };
 
-export const GridDataValue = (props: HTMLAttributes<HTMLSpanElement>) => {
+export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
   const theme = useTheme();
   return (
     <span
@@ -136,7 +140,7 @@ export const GridDataValue = (props: HTMLAttributes<HTMLSpanElement>) => {
   );
 };
 
-export const SectionLabel = (props: HTMLAttributes<HTMLHeadingElement>) => {
+export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = (props) => {
   return (
     <h4
       {...props}
@@ -186,8 +190,11 @@ type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
   value: boolean;
 };
 
-export const BooleanPill = (props: BooleanPillProps) => {
-  const { value, children, ...divProps } = props;
+export const BooleanPill: FC<BooleanPillProps> = ({
+  value,
+  children,
+  ...divProps
+}) => {
   const theme = useTheme();
   const color = value ? theme.palette.success.light : theme.palette.error.light;
 
@@ -209,9 +216,8 @@ export const BooleanPill = (props: BooleanPillProps) => {
 
 type LogsProps = { lines: string[] } & HTMLAttributes<HTMLDivElement>;
 
-export const Logs = (props: LogsProps) => {
+export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
   const theme = useTheme();
-  const { lines, ...divProps } = props;
 
   return (
     <div
@@ -241,14 +247,20 @@ export const Logs = (props: LogsProps) => {
   );
 };
 
-export const HealthMessageDocsLink = (msg: HealthMessage) => {
+interface HealthMessageDocsLinkProps {
+  code: HealthCode;
+}
+
+export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
+  code,
+}) => {
   return (
     <Link
-      href={docs(`/admin/healthcheck#${msg.code.toLocaleLowerCase()}`)}
+      href={docs(`/admin/healthcheck#${code.toLocaleLowerCase()}`)}
       target="_blank"
       rel="noreferrer"
     >
-      Docs for {msg.code}
+      Docs for {code}
     </Link>
   );
 };

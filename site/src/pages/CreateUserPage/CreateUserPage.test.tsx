@@ -1,11 +1,11 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Language as FormLanguage } from "./CreateUserForm";
 import { Language as FooterLanguage } from "components/FormFooter/FormFooter";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { Language as FormLanguage } from "./CreateUserForm";
 import { CreateUserPage } from "./CreateUserPage";
 
 const renderCreateUserPage = async () => {

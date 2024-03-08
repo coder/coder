@@ -1,13 +1,13 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import type { WorkspaceAgent } from "api/typesGenerated";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
   MockProxyLatencies,
   MockWorkspaceResource,
   MockWorkspaceResourceMultipleAgents,
 } from "testHelpers/entities";
-import { Resources } from "./Resources";
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import type { Meta, StoryObj } from "@storybook/react";
-import { type WorkspaceAgent } from "api/typesGenerated";
 import { AgentRowPreview } from "./AgentRowPreview";
+import { Resources } from "./Resources";
 
 const meta: Meta<typeof Resources> = {
   title: "modules/resources/Resources",

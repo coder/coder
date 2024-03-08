@@ -1,12 +1,12 @@
-import { FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import SettingsGroupPageView from "./SettingsGroupPageView";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { getErrorMessage } from "api/errors";
 import { group, patchGroup } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { getErrorMessage } from "api/errors";
+import { pageTitle } from "utils/page";
+import SettingsGroupPageView from "./SettingsGroupPageView";
 
 export const SettingsGroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };

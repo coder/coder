@@ -2,28 +2,29 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
 import { patchTemplateVersion, updateActiveTemplateVersion } from "api/api";
-import type {
-  PatchTemplateVersionRequest,
-  TemplateVersion,
-} from "api/typesGenerated";
+import { file, uploadFile } from "api/queries/files";
 import {
   createTemplateVersion,
   resources,
   templateByName,
+  templateByNameKey,
   templateVersionByName,
   templateVersionVariables,
 } from "api/queries/templates";
-import { file, uploadFile } from "api/queries/files";
-import { TarReader, TarWriter } from "utils/tar";
-import { FileTree, traverse } from "utils/filetree";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
+import type {
+  PatchTemplateVersionRequest,
+  TemplateVersion,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { type FileTree, traverse } from "utils/filetree";
+import { pageTitle } from "utils/page";
+import { TarReader, TarWriter } from "utils/tar";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 type Params = {
   version: string;
@@ -68,6 +69,11 @@ export const TemplateVersionEditorPage: FC = () => {
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
   const publishVersionMutation = useMutation({
     mutationFn: publishVersion,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(
+        templateByNameKey(orgId, templateName),
+      );
+    },
   });
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
@@ -114,7 +120,9 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree ? (
+      {!(templateQuery.data && templateVersionQuery.data && fileTree) ? (
+        <Loader fullscreen />
+      ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
@@ -179,16 +187,16 @@ export const TemplateVersionEditorPage: FC = () => {
               `/templates/${templateName}/workspace?${params.toString()}`,
             );
           }}
-          disablePreview={
-            templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status === "pending" ||
+          isBuilding={
             createTemplateVersionMutation.isLoading ||
-            uploadFileMutation.isLoading
+            uploadFileMutation.isLoading ||
+            templateVersionQuery.data.job.status === "running" ||
+            templateVersionQuery.data.job.status === "pending"
           }
-          disableUpdate={
-            templateVersionQuery.data.job.status !== "succeeded" ||
-            templateVersionQuery.data.name ===
-              lastSuccessfulPublishedVersion?.name
+          canPublish={
+            templateVersionQuery.data.job.status === "succeeded" &&
+            templateQuery.data.active_version_id !==
+              templateVersionQuery.data.id
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
@@ -217,8 +225,6 @@ export const TemplateVersionEditorPage: FC = () => {
             setProvisionerTags(tags);
           }}
         />
-      ) : (
-        <FullScreenLoader />
       )}
     </>
   );

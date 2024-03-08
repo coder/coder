@@ -1,9 +1,9 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockGithubAuthLink,
   MockGithubExternalProvider,
 } from "testHelpers/entities";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof ExternalAuthPageView> = {
   title: "pages/UserSettingsPage/ExternalAuthPageView",

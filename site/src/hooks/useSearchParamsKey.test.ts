@@ -1,6 +1,6 @@
-import { useSearchParamsKey } from "./useSearchParamsKey";
-import { renderHookWithAuth } from "testHelpers/hooks";
 import { act, waitFor } from "@testing-library/react";
+import { renderHookWithAuth } from "testHelpers/hooks";
+import { useSearchParamsKey } from "./useSearchParamsKey";
 
 /**
  * Tried to extract the setup logic into one place, but it got surprisingly
@@ -95,7 +95,7 @@ describe(useSearchParamsKey.name, () => {
   });
 
   describe("deleteValue method", () => {
-    it("Clears value for the given key from the state and URL when removeValue is called", async () => {
+    it("Clears value for the given key from the state and URL when called", async () => {
       const key = "blah";
       const initialValue = "cats";
 

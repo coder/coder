@@ -1,7 +1,5 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import type { ClibaseOption } from "api/typesGenerated";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
 import {
   Badges,
   DisabledBadge,
@@ -9,6 +7,8 @@ import {
   EnterpriseBadge,
 } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
+import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 

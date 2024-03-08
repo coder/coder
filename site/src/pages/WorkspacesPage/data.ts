@@ -1,13 +1,18 @@
-import { QueryKey, useMutation, useQuery, useQueryClient } from "react-query";
+import { useState } from "react";
+import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "react-query";
 import { getWorkspaces, updateWorkspaceVersion } from "api/api";
 import { getErrorMessage } from "api/errors";
-import {
+import type {
   Workspace,
   WorkspaceBuild,
   WorkspacesResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useState } from "react";
 
 type UseWorkspacesDataParams = {
   page: number;

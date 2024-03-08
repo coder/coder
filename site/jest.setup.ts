@@ -1,14 +1,14 @@
 import "@testing-library/jest-dom";
-import { cleanup } from "@testing-library/react";
-import crypto from "crypto";
-import { server } from "testHelpers/server";
 import "jest-location-mock";
-import { TextEncoder, TextDecoder } from "util";
+import { cleanup } from "@testing-library/react";
 import { Blob } from "buffer";
+import crypto from "crypto";
 import jestFetchMock from "jest-fetch-mock";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
-import { Region } from "api/typesGenerated";
 import { useMemo } from "react";
+import { TextEncoder, TextDecoder } from "util";
+import type { Region } from "api/typesGenerated";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { server } from "testHelpers/server";
 
 jestFetchMock.enableMocks();
 

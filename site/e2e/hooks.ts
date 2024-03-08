@@ -1,4 +1,4 @@
-import { Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 export const beforeCoderTest = async (page: Page) => {
   // eslint-disable-next-line no-console -- Show everything that was printed with console.log()

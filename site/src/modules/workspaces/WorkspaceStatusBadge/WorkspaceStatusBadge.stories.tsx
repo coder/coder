@@ -1,3 +1,5 @@
+import type { Meta, StoryObj } from "@storybook/react";
+import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockCanceledWorkspace,
   MockCancelingWorkspace,
@@ -15,8 +17,6 @@ import {
   MockAppearanceConfig,
 } from "testHelpers/entities";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const MockedAppearance = {
   config: MockAppearanceConfig,

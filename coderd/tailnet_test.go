@@ -303,6 +303,36 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		assert.Equal(t, expectedResponseCode, res.StatusCode)
 	})
+
+	t.Run("BlockEndpoints", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1, tailnettest.DisableSTUN)
+		a := agents[0]
+
+		require.True(t, serverTailnet.Conn().GetBlockEndpoints(), "expected BlockEndpoints to be set")
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp := serverTailnet.ReverseProxy(u, u, a.id)
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
 }
 
 type wrappedListener struct {
@@ -375,6 +405,7 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		func() *tailcfg.DERPMap { return derpMap },
 		false,
 		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
+		!derpMap.HasSTUN(),
 		trace.NewNoopTracerProvider(),
 	)
 	require.NoError(t, err)

@@ -1,6 +1,6 @@
 import {
   existsFile,
-  FileTree,
+  type FileTree,
   getFileContent,
   isFolder,
   moveFile,

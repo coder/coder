@@ -1,12 +1,12 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { templateExamples } from "api/queries/templates";
+import type { TemplateExample } from "api/typesGenerated";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
-import { TemplateExample } from "api/typesGenerated";
 
 const StarterTemplatesPage: FC = () => {
   const organizationId = useOrganizationId();

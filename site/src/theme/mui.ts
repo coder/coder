@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any
 -- we need to hack around the MUI types a little */
-import { type ThemeOptions } from "@mui/material/styles";
 // eslint-disable-next-line no-restricted-imports -- we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
+import type { ThemeOptions } from "@mui/material/styles";
 import {
   BODY_FONT_FAMILY,
   borderRadius,

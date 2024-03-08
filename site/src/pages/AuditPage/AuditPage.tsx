@@ -1,13 +1,13 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { pageTitle } from "utils/page";
 import { paginatedAudits } from "api/queries/audits";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
-import { useFilter } from "components/Filter/filter";
+import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { pageTitle } from "utils/page";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 

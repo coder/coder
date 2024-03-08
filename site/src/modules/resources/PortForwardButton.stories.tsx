@@ -1,4 +1,3 @@
-import { PortForwardButton } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
@@ -7,6 +6,7 @@ import {
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { PortForwardButton } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardButton> = {
   title: "modules/resources/PortForwardButton",

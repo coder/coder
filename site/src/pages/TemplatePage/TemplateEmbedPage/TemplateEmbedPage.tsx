@@ -4,19 +4,19 @@ import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { useQuery } from "react-query";
-import { getTemplateVersionRichParameters } from "api/api";
-import { Template, TemplateVersionParameter } from "api/typesGenerated";
-import { FormSection, VerticalForm } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useClipboard } from "hooks/useClipboard";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { getTemplateVersionRichParameters } from "api/api";
+import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { FormSection, VerticalForm } from "components/Form/Form";
+import { Loader } from "components/Loader/Loader";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useClipboard } from "hooks/useClipboard";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 
 type ButtonValues = Record<string, string>;
 

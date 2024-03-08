@@ -1,8 +1,10 @@
-import Button from "@mui/material/Button";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import { type FC } from "react";
+import Button from "@mui/material/Button";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import type { TemplateVersion } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -13,11 +15,9 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
-import type { TemplateVersion } from "api/typesGenerated";
-import { createDayString } from "utils/createDayString";
-import { TemplateVersionFiles } from "utils/templateVersion";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { createDayString } from "utils/createDayString";
+import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
   versionName: string;

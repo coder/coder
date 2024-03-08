@@ -1,9 +1,9 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import Divider from "@mui/material/Divider";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -23,8 +23,8 @@ import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { createDayString } from "utils/createDayString";
-import { OAuth2AppForm } from "./OAuth2AppForm";
 import { Header } from "../Header";
+import { OAuth2AppForm } from "./OAuth2AppForm";
 
 export type MutatingResource = {
   updateApp: boolean;

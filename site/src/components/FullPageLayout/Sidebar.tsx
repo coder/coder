@@ -1,5 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type ComponentProps, type FC, type HTMLAttributes } from "react";
+import type { ComponentProps, FC, HTMLAttributes } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 import { TopbarIconButton } from "./Topbar";
 
@@ -74,14 +74,17 @@ interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
   isActive: boolean;
 }
 
-export const SidebarIconButton: FC<SidebarIconButton> = (props) => {
+export const SidebarIconButton: FC<SidebarIconButton> = ({
+  isActive,
+  ...buttonProps
+}) => {
   return (
     <TopbarIconButton
       css={[
         { opacity: 0.75, "&:hover": { opacity: 1 } },
-        props.isActive && styles.activeSidebarIconButton,
+        isActive && styles.activeSidebarIconButton,
       ]}
-      {...props}
+      {...buttonProps}
     />
   );
 };

@@ -1,5 +1,5 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import { type FC, type PropsWithChildren, type ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 
 interface FullWidthPageHeaderProps {
   children?: ReactNode;

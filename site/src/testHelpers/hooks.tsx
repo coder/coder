@@ -1,31 +1,29 @@
 import {
-  type FC,
-  type PropsWithChildren,
-  type ReactNode,
-  useReducer,
-} from "react";
-
-import {
   type RenderHookOptions,
   type RenderHookResult,
   waitFor,
   renderHook,
   act,
 } from "@testing-library/react";
-
-import { QueryClient } from "react-query";
-import { AppProviders } from "App";
-import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
-  type RenderWithAuthOptions,
-  createTestQueryClient,
-} from "./renderHelpers";
+  type FC,
+  type PropsWithChildren,
+  type ReactNode,
+  useReducer,
+} from "react";
+import type { QueryClient } from "react-query";
 import {
   type Location,
   createMemoryRouter,
   RouterProvider,
   useLocation,
 } from "react-router-dom";
+import { AppProviders } from "App";
+import { RequireAuth } from "contexts/auth/RequireAuth";
+import {
+  type RenderWithAuthOptions,
+  createTestQueryClient,
+} from "./renderHelpers";
 
 export type RouterLocationSnapshot<TLocationState = unknown> = Readonly<{
   search: URLSearchParams;

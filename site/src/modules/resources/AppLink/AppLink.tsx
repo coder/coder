@@ -1,9 +1,9 @@
+import { useTheme } from "@emotion/react";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { type FC, useState } from "react";
-import { useTheme } from "@emotion/react";
 import { getApiKey } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";

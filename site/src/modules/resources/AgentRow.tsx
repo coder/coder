@@ -1,6 +1,6 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import { type Interpolation, type Theme } from "@emotion/react";
 import {
   type FC,
   useCallback,
@@ -10,8 +10,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
-import { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { xrayScan } from "api/queries/integrations";
 import type {
   Template,
   Workspace,
@@ -19,13 +21,14 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Stack } from "components/Stack/Stack";
+import { useProxy } from "contexts/ProxyContext";
 import {
-  Line,
+  type Line,
   logLineHeight,
 } from "modules/workspaces/WorkspaceBuildLogs/Logs";
-import { useProxy } from "contexts/ProxyContext";
-import { Stack } from "components/Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
+import { AgentLogs, useAgentLogs } from "./AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -34,10 +37,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { useQuery } from "react-query";
-import { xrayScan } from "api/queries/integrations";
 import { XRayScanAlert } from "./XRayScanAlert";
-import { AgentLogs, useAgentLogs } from "./AgentLogs";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're

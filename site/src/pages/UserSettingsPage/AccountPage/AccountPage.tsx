@@ -1,15 +1,15 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
+import { Stack } from "components/Stack/Stack";
 import { useAuth } from "contexts/auth/useAuth";
 import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { usePermissions } from "contexts/auth/usePermissions";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { Stack } from "components/Stack/Stack";
 import { Section } from "../Section";
-import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";
+import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
   const me = useMe();

@@ -1,8 +1,8 @@
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { DashboardLayout } from "./DashboardLayout";
 import { screen } from "@testing-library/react";
 import { rest } from "msw";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { DashboardLayout } from "./DashboardLayout";
 
 test("Show the new Coder version notification", async () => {
   server.use(

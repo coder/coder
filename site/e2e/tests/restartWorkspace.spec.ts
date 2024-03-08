@@ -6,10 +6,9 @@ import {
   echoResponsesWithParameters,
   verifyParameters,
 } from "../helpers";
-
-import { firstBuildOption, secondBuildOption } from "../parameters";
-import { RichParameter } from "../provisionerGenerated";
 import { beforeCoderTest } from "../hooks";
+import { firstBuildOption, secondBuildOption } from "../parameters";
+import type { RichParameter } from "../provisionerGenerated";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 

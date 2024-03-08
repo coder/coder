@@ -1,7 +1,7 @@
-import { type FC, type HTMLAttributes } from "react";
-import { type PaginationResultInfo } from "hooks/usePaginatedQuery";
-import { PaginationWidgetBase } from "./PaginationWidgetBase";
+import type { FC, HTMLAttributes } from "react";
+import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { PaginationHeader } from "./PaginationHeader";
+import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 export type PaginationResult = PaginationResultInfo & {
   isPreviousData: boolean;

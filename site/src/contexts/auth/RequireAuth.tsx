@@ -1,11 +1,11 @@
 import axios from "axios";
 import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { embedRedirect } from "utils/redirect";
 import { isApiError } from "api/errors";
+import { Loader } from "components/Loader/Loader";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { embedRedirect } from "utils/redirect";
 import { useAuth } from "./useAuth";
 
 export const RequireAuth: FC = () => {
@@ -43,7 +43,7 @@ export const RequireAuth: FC = () => {
   }, [isLoading, isSigningOut, isSignedIn, signOut]);
 
   if (isLoading || isSigningOut) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   if (isSignedOut) {

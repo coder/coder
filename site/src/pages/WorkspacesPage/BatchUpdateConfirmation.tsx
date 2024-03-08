@@ -1,19 +1,19 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useMemo, useState, useEffect } from "react";
 import { useQueries } from "react-query";
 import { getTemplateVersion } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { Stack } from "components/Stack/Stack";
 
 dayjs.extend(relativeTime);
 

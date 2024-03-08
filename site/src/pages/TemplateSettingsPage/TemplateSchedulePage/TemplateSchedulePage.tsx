@@ -1,14 +1,14 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { updateTemplateMeta } from "api/api";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { templateByNameKey } from "api/queries/templates";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
 

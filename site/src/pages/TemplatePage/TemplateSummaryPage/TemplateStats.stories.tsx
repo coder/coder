@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import { TemplateStats } from "./TemplateStats";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateStats> = {
   title: "pages/TemplatePage/TemplateStats",
