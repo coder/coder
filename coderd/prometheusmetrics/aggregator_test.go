@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog/sloggers/slogtest"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -324,23 +323,19 @@ func TestLabelsAggregation(t *testing.T) {
 				{
 					labels: testLabels,
 					metrics: []*agentproto.Stats_Metric{
-						{Name: "no_extra_labels", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
 					},
 				},
 				{
 					labels: testLabels,
 					metrics: []*agentproto.Stats_Metric{
-						{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: []*agentproto.Stats_Metric_Label{
-							{Name: "lizz", Value: "rizz"},
-						}},
+						{Name: "active_conns", Type: agentproto.Stats_Metric_GAUGE, Value: 4},
 					},
 				},
 			},
 			expected: []*agentproto.Stats_Metric{
-				{Name: "no_extra_labels", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
-				{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: append([]*agentproto.Stats_Metric_Label{
-					{Name: "lizz", Value: "rizz"},
-				}, commonLabels...)},
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
+				{Name: "active_conns", Type: agentproto.Stats_Metric_GAUGE, Value: 4, Labels: commonLabels},
 			},
 		},
 		{
@@ -483,6 +478,85 @@ func TestLabelsAggregation(t *testing.T) {
 					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
 				}},
 			},
+		},
+		{
+			name:        "extra labels are retained, even with label aggregations",
+			aggregateOn: []string{agentmetrics.UsernameLabel},
+			given: []statCollection{
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: []*agentproto.Stats_Metric_Label{
+							{Name: "lizz", Value: "rizz"},
+						}},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.UsernameLabel, Value: testUsername},
+				}},
+				{Name: "extra_label", Type: agentproto.Stats_Metric_COUNTER, Value: 27, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: "lizz", Value: "rizz"},
+					{Name: agentmetrics.UsernameLabel, Value: testUsername},
+				}},
+			},
+		},
+		{
+			// Both counters and gauges should have all their values summed to produce the correct output.
+			name:        "counters & gauges behave identically",
+			aggregateOn: []string{agentmetrics.TemplateNameLabel},
+			given: []statCollection{
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "username1",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+						{Name: "active_conns", Type: agentproto.Stats_Metric_GAUGE, Value: 3},
+					},
+				},
+				{
+					labels: prometheusmetrics.AgentMetricLabels{
+						Username:     "username2",
+						TemplateName: "template1",
+					},
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 2},
+						{Name: "active_conns", Type: agentproto.Stats_Metric_GAUGE, Value: 4},
+					},
+				},
+			},
+			expected: []*agentproto.Stats_Metric{
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 3, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
+				}},
+				{Name: "active_conns", Type: agentproto.Stats_Metric_GAUGE, Value: 7, Labels: []*agentproto.Stats_Metric_Label{
+					{Name: agentmetrics.TemplateNameLabel, Value: "template1"},
+				}},
+			},
+		},
+		{
+			// Scenario: validation fails and an invalid label is selected for aggregation.
+			name:        "invalid label aggregation",
+			aggregateOn: []string{"nonsense"},
+			given: []statCollection{
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+			},
+			// Nothing will be returned.
+			expected: []*agentproto.Stats_Metric{},
 		},
 	}
 
