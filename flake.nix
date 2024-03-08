@@ -26,6 +26,7 @@
           bat
           cairo
           curl
+          delve
           drpc.defaultPackage.${system}
           gcc
           gdk
