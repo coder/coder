@@ -156,7 +156,7 @@ export const BottomMessage: Story = {
     webSocket: [
       {
         event: "message",
-        // Copied and pasted this from browser
+        // This outputs text in the bottom left and right corners of the terminal.
         data: "\x1b[1000BLEFT\x1b[1000C\x1b[4DRIGHT",
       },
       {
