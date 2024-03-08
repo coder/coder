@@ -6,6 +6,7 @@ module.exports = {
     {
       displayName: "test",
       roots: ["<rootDir>"],
+      setupFiles: ["./jest.polyfills.js"],
       setupFilesAfterEnv: ["./jest.setup.ts"],
       extensionsToTreatAsEsm: [".ts"],
       transform: {
@@ -27,6 +28,9 @@ module.exports = {
         ],
       },
       testEnvironment: "jsdom",
+      testEnvironmentOptions: {
+        customExportConditions: [""],
+      },
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
       testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
       transformIgnorePatterns: [
