@@ -141,8 +141,9 @@ The basic setup of scale tests environment involves:
 3. Database: 1 instance (2 vCPU, 32 GB RAM)
 4. Provisioner: 50 instances (0.5 vCPU, 512 MB RAM)
 
-The test is deemed successful if no crashes or restarts of `coderd` or other
-internal errors were observed.
+The test is deemed successful if users did not experience interruptions in their
+workflows, `coderd` did not crash or require restarts, and no other internal
+errors were observed.
 
 ### Traffic Projections
 
