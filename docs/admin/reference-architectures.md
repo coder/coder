@@ -20,7 +20,7 @@ management, template definitions, insights, and deployment configuration.
 Coder, also known as _coderd_, is the main service recommended for deployment
 with multiple replicas to ensure high availability. It provides an API for
 managing workspaces and templates. Each _coderd_ replica has the capability to
-host multiple provisioners (`provisionerd`).
+host multiple [provisioners](#provisioner).
 
 ### User
 
@@ -52,7 +52,7 @@ administrators on top of Terraform, allowing for efficient management of
 infrastructure resources. Additionally, templates can utilize Coder modules to
 leverage existing features shared with other templates, enhancing flexibility
 and consistency across deployments. Templates describe provisioning rules for
-infrastructure resources offered by cloud providers.
+infrastructure resources offered by Terraform providers.
 
 ### Workspace Proxy
 
