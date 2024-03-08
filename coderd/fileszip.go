@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"strings"
 )
 
 func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
@@ -39,16 +38,10 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 	}
 	defer fileReader.Close()
 
-	mode := int64(0o644)
-	if strings.HasSuffix(file.Name, "/") {
-		// directory
-		mode = 0o755
-	}
-
 	err = tarWriter.WriteHeader(&tar.Header{
 		Name:    file.Name,
 		Size:    file.FileInfo().Size(),
-		Mode:    mode,
+		Mode:    int64(file.Mode()),
 		ModTime: file.Modified,
 		// Note: Zip archives do not store ownership information.
 		Uid: 1000,
