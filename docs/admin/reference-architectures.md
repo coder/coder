@@ -165,6 +165,7 @@ Provisionerd:
 
 Database:
 
-- Median CPU utilization: 80%.
-- Median memory utilization: 40%.
+- Median CPU utilization is 80%, with a significant portion dedicated to writing
+  metadata.
+- Memory utilization averages at 40%.
 - `write_ops_count` between 6.7 and 8.4 operations per second.
