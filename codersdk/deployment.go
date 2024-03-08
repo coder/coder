@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -952,10 +953,10 @@ when required by your organization's security policy.`,
 			YAML:        "collect_agent_stats",
 		},
 		{
-			Name:        "TODO",
-			Description: "TODO.",
+			Name:        "Prometheus Aggregate Agent Stats By",
+			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %q", AcceptedMetricAggregationLabels),
 			Flag:        "prometheus-aggregate-agent-stats-by",
-			Env:         "CODER_PROMETHEUS_AGGREGATE_BY_LABELS",
+			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
 			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
 				if value == nil {
 					return nil
