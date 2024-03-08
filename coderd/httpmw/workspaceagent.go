@@ -49,7 +49,7 @@ func LatestBuild(r *http.Request) database.WorkspaceBuild {
 	return user
 }
 
-type ExtractWorkspaceAgentConfig struct {
+type ExtractWorkspaceAgentAndLatestBuildConfig struct {
 	DB database.Store
 	// Optional indicates whether the middleware should be optional.  If true, any
 	// requests without the a token or with an invalid token will be allowed to
@@ -58,7 +58,7 @@ type ExtractWorkspaceAgentConfig struct {
 }
 
 // ExtractWorkspaceAgentAndLatestBuild requires authentication using a valid agent token.
-func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentConfig) func(http.Handler) http.Handler {
+func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuildConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
