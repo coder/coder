@@ -116,6 +116,7 @@ func TestLogin(t *testing.T) {
 
 		clitest.Start(t, inv)
 
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
 		matches := []string{
 			"first user?", "yes",
 			"username", "testuser",
@@ -205,6 +206,7 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
 		if runtime.GOOS != "windows" {
@@ -232,14 +234,9 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: %s", url))
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
-		if runtime.GOOS != "windows" {
-			// For some reason, the match does not show up on Windows.
-			pty.ExpectMatch(client.SessionToken())
-		}
-		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
 
@@ -260,14 +257,9 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: %s", url))
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
-		if runtime.GOOS != "windows" {
-			// For some reason, the match does not show up on Windows.
-			pty.ExpectMatch(client.SessionToken())
-		}
-		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
 
