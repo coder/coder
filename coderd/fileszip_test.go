@@ -58,26 +58,64 @@ func TestCreateZipFromTar(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("skipping this test on non-Linux platform")
 	}
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		tarBytes, err := os.ReadFile(filepath.Join(".", "testdata", "test.tar"))
+		require.NoError(t, err, "failed to read sample tar file")
 
-	tarBytes, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
-	require.NoError(t, err, "failed to read sample tar file")
+		tr := tar.NewReader(bytes.NewReader(tarBytes))
+		zipBytes, err := coderd.CreateZipFromTar(tr)
+		require.NoError(t, err)
 
-	tr := tar.NewReader(bytes.NewReader(tarBytes))
-	zipBytes, err := coderd.CreateZipFromTar(tr)
-	require.NoError(t, err)
+		assertSampleZipFile(t, zipBytes)
 
-	assertSampleZipFile(t, zipBytes)
+		tempDir := t.TempDir()
+		tempFilePath := filepath.Join(tempDir, "test.zip")
+		err = os.WriteFile(tempFilePath, zipBytes, 0o600)
+		require.NoError(t, err, "failed to write converted zip file")
 
-	tempDir := t.TempDir()
-	tempFilePath := filepath.Join(tempDir, "test.zip")
-	err = os.WriteFile(tempFilePath, zipBytes, 0o600)
-	require.NoError(t, err, "failed to write converted zip file")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		cmd := exec.CommandContext(ctx, "unzip", tempFilePath, "-d", tempDir)
+		require.NoError(t, cmd.Run(), "failed to extract converted zip file")
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	cmd := exec.CommandContext(ctx, "unzip", tempFilePath, "-d", tempDir)
-	require.NoError(t, cmd.Run(), "failed to extract converted zip file")
+		assertExtractedFiles(t, tempDir, false)
+	})
 
-	assertExtractedFiles(t, tempDir, false)
+	t.Run("MissingSlashInDirectoryHeader", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a tar archive containing a directory entry that has the directory
+		// mode bit set but the name is missing a trailing slash
+
+		var tarBytes bytes.Buffer
+		tw := tar.NewWriter(&tarBytes)
+		tw.WriteHeader(&tar.Header{
+			Name:     "dir",
+			Typeflag: tar.TypeDir,
+			Size:     0,
+		})
+		require.NoError(t, tw.Flush())
+		require.NoError(t, tw.Close())
+
+		// When: we convert this to a zip
+		tr := tar.NewReader(&tarBytes)
+		zipBytes, err := coderd.CreateZipFromTar(tr)
+		require.NoError(t, err)
+
+		// Then: the resulting zip should contain a corresponding directory
+		zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+		require.NoError(t, err)
+		for _, zf := range zr.File {
+			switch zf.Name {
+			case "dir":
+				require.Fail(t, "missing trailing slash in directory name")
+			case "dir/":
+				require.True(t, zf.Mode().IsDir(), "should be a directory")
+			default:
+				require.Fail(t, "unexpected file in archive")
+			}
+		}
+	})
 }
 
 // nolint:revive // this is a control flag but it's in a unit test
