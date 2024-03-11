@@ -1,10 +1,9 @@
 import {
-  render as tlRender,
+  render as testingLibraryRender,
   screen,
   waitFor,
-  renderHook,
 } from "@testing-library/react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
   createMemoryRouter,
@@ -19,7 +18,7 @@ import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSetti
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { MockUser } from "./entities";
 
-function createTestQueryClient() {
+export function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
   // are isolated and can't affect each other
   return new QueryClient({
@@ -40,7 +39,7 @@ export const renderWithRouter = (
   const queryClient = createTestQueryClient();
 
   return {
-    ...tlRender(
+    ...testingLibraryRender(
       <AppProviders queryClient={queryClient}>
         <RouterProvider router={router} />
       </AppProviders>,
@@ -103,79 +102,6 @@ export function renderWithAuth(
     user: MockUser,
     ...renderResult,
   };
-}
-
-type RenderHookWithAuthOptions<Props> = Partial<
-  Readonly<
-    Omit<RenderWithAuthOptions, "children"> & {
-      initialProps: Props;
-    }
-  >
->;
-
-/**
- * Custom version of renderHook that is aware of all our App providers.
- *
- * Had to do some nasty, cursed things in the implementation to make sure that
- * the tests using this function remained simple.
- *
- * @see {@link https://github.com/coder/coder/pull/10362#discussion_r1380852725}
- */
-export async function renderHookWithAuth<Result, Props>(
-  render: (initialProps: Props) => Result,
-  options: RenderHookWithAuthOptions<Props> = {},
-) {
-  const { initialProps, path = "/", route = "/", extraRoutes = [] } = options;
-  const queryClient = createTestQueryClient();
-
-  // Easy to miss – there's an evil definite assignment via the !
-  let escapedRouter!: ReturnType<typeof createMemoryRouter>;
-
-  const { result, rerender, unmount } = renderHook(render, {
-    initialProps,
-    wrapper: ({ children }) => {
-      /**
-       * Unfortunately, there isn't a way to define the router outside the
-       * wrapper while keeping it aware of children, meaning that we need to
-       * define the router as readonly state in the component instance. This
-       * ensures the value remains stable across all re-renders
-       */
-      // eslint-disable-next-line react-hooks/rules-of-hooks -- This is actually processed as a component; the linter just isn't aware of that
-      const [readonlyStatefulRouter] = useState(() => {
-        return createMemoryRouter(
-          [{ path, element: <>{children}</> }, ...extraRoutes],
-          { initialEntries: [route] },
-        );
-      });
-
-      /**
-       * Leaks the wrapper component's state outside React's render cycles.
-       */
-      escapedRouter = readonlyStatefulRouter;
-
-      return (
-        <AppProviders queryClient={queryClient}>
-          <RouterProvider router={readonlyStatefulRouter} />
-        </AppProviders>
-      );
-    },
-  });
-
-  /**
-   * This is necessary to get around some providers in AppProviders having
-   * conditional rendering and not always rendering their children immediately.
-   *
-   * The hook result won't actually exist until the children defined via wrapper
-   * render in full.
-   */
-  await waitFor(() => expect(result.current).not.toBe(null));
-
-  return {
-    result,
-    rerender,
-    unmount,
-    router: escapedRouter,
-  } as const;
 }
 
 export function renderWithTemplateSettingsLayout(
@@ -264,7 +190,7 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 };
 
 export const renderComponent = (component: React.ReactElement) => {
-  return tlRender(component, {
+  return testingLibraryRender(component, {
     wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
   });
 };

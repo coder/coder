@@ -13,6 +13,7 @@ import { WebLinksAddon } from "xterm-addon-web-links";
 import { WebglAddon } from "xterm-addon-webgl";
 import { deploymentConfig } from "api/queries/deployment";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import themes from "theme";
@@ -34,6 +35,8 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 
+type TerminalState = "connected" | "disconnected" | "initializing";
+
 const TerminalPage: FC = () => {
   // Maybe one day we'll support a light themed terminal, but terminal coloring
   // is notably a pain because of assumptions certain programs might make about your
@@ -45,9 +48,8 @@ const TerminalPage: FC = () => {
   const username = params.username.replace("@", "");
   const xtermRef = useRef<HTMLDivElement>(null);
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null);
-  const [terminalState, setTerminalState] = useState<
-    "connected" | "disconnected" | "initializing"
-  >("initializing");
+  const [terminalState, setTerminalState] =
+    useState<TerminalState>("initializing");
   const [searchParams] = useSearchParams();
   const isDebugging = searchParams.has("debug");
   // The reconnection token is a unique token that identifies
@@ -66,12 +68,6 @@ const TerminalPage: FC = () => {
     : undefined;
   const selectedProxy = proxy.proxy;
   const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
-
-  const lifecycleState = workspaceAgent?.lifecycle_state;
-  const prevLifecycleState = useRef(lifecycleState);
-  useEffect(() => {
-    prevLifecycleState.current = lifecycleState;
-  }, [lifecycleState]);
 
   const config = useQuery(deploymentConfig());
   const renderer = config.data?.config.web_terminal_renderer;
@@ -95,6 +91,7 @@ const TerminalPage: FC = () => {
   }, [handleWebLink]);
 
   // Create the terminal!
+  const fitAddonRef = useRef<FitAddon>();
   useEffect(() => {
     if (!xtermRef.current || config.isLoading) {
       return;
@@ -115,6 +112,7 @@ const TerminalPage: FC = () => {
       terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(new Unicode11Addon());
     terminal.unicode.activeVersion = "11";
@@ -303,11 +301,13 @@ const TerminalPage: FC = () => {
         </title>
       </Helmet>
       <div css={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-        {lifecycleState === "start_error" && <ErrorScriptAlert />}
-        {lifecycleState === "starting" && <LoadingScriptsAlert />}
-        {lifecycleState === "ready" &&
-          prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
-        {terminalState === "disconnected" && <DisconnectedAlert />}
+        <TerminalAlerts
+          agent={workspaceAgent}
+          state={terminalState}
+          onAlertChange={() => {
+            fitAddonRef.current?.fit();
+          }}
+        />
         <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
       </div>
 
@@ -325,6 +325,62 @@ const TerminalPage: FC = () => {
         </span>
       )}
     </ThemeOverride>
+  );
+};
+
+type TerminalAlertsProps = {
+  agent: WorkspaceAgent | undefined;
+  state: TerminalState;
+  onAlertChange: () => void;
+};
+
+const TerminalAlerts = ({
+  agent,
+  state,
+  onAlertChange,
+}: TerminalAlertsProps) => {
+  const lifecycleState = agent?.lifecycle_state;
+  const prevLifecycleState = useRef(lifecycleState);
+  useEffect(() => {
+    prevLifecycleState.current = lifecycleState;
+  }, [lifecycleState]);
+
+  // We want to observe the children of the wrapper to detect when the alert
+  // changes. So the terminal page can resize itself.
+  //
+  // Would it be possible to just always call fit() when this component
+  // re-renders instead of using an observer?
+  //
+  // This is a good question and the why this does not work is that the .fit()
+  // needs to run after the render so in this case, I just think the mutation
+  // observer is more reliable. I could use some hacky setTimeout inside of
+  // useEffect to do that, I guess, but I don't think it would be any better.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!wrapperRef.current) {
+      return;
+    }
+    const observer = new MutationObserver(onAlertChange);
+    observer.observe(wrapperRef.current, { childList: true });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [onAlertChange]);
+
+  return (
+    <div ref={wrapperRef}>
+      {state === "disconnected" ? (
+        <DisconnectedAlert />
+      ) : lifecycleState === "start_error" ? (
+        <ErrorScriptAlert />
+      ) : lifecycleState === "starting" ? (
+        <LoadingScriptsAlert />
+      ) : lifecycleState === "ready" &&
+        prevLifecycleState.current === "starting" ? (
+        <LoadedScriptsAlert />
+      ) : null}
+    </div>
   );
 };
 

@@ -64,11 +64,13 @@ export const FileUpload: FC<FileUploadProps> = ({
         {...fileDrop}
       >
         <Stack alignItems="center" spacing={1}>
-          {isUploading ? (
-            <CircularProgress size={32} />
-          ) : (
-            <UploadIcon css={styles.icon} />
-          )}
+          <div css={styles.iconWrapper}>
+            {isUploading ? (
+              <CircularProgress size={32} />
+            ) : (
+              <UploadIcon css={styles.icon} />
+            )}
+          </div>
 
           <Stack alignItems="center" spacing={0.5}>
             <span css={styles.title}>{title}</span>
@@ -153,6 +155,15 @@ const styles = {
   disabled: {
     pointerEvents: "none",
     opacity: 0.75,
+  },
+
+  // Used to maintain the size of icon and spinner
+  iconWrapper: {
+    width: 64,
+    height: 64,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   icon: {

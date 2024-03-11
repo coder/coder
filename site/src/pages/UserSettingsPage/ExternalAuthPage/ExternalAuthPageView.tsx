@@ -18,7 +18,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -52,7 +52,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   }
 
   if (isLoading || !auths) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   return (
