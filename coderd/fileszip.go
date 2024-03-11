@@ -39,9 +39,13 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 	defer fileReader.Close()
 
 	err = tarWriter.WriteHeader(&tar.Header{
-		Name: file.Name,
-		Size: file.FileInfo().Size(),
-		Mode: 0o644,
+		Name:    file.Name,
+		Size:    file.FileInfo().Size(),
+		Mode:    int64(file.Mode()),
+		ModTime: file.Modified,
+		// Note: Zip archives do not store ownership information.
+		Uid: 1000,
+		Gid: 1000,
 	})
 	if err != nil {
 		return err
