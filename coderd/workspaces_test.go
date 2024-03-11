@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1352,6 +1353,39 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// no match
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: "$$$$",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+	})
+	t.Run("IDs", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		alpha := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		bravo := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// full match
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s,%s", alpha.ID, bravo.ID),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "alpha workspace")
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "bravo workspace")
+
+		// no match
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s", uuid.NewString()),
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
