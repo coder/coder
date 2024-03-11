@@ -150,7 +150,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, agentmetrics.TemplateNameLabel, "template_version"}))
+	}, []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelTemplateName, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
-	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "status", "lifecycle_state", "tailnet_node"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "status", "lifecycle_state", "tailnet_node"}))
 	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "derp_region", "preferred"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "apps",
 		Help:      "Agent applications with statuses.",
-	}, []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, "app_name", "health"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "app_name", "health"}))
 	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
@@ -329,15 +329,13 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	}, nil
 }
 
-var DefaultAgentStatsLabels = []string{agentmetrics.AgentNameLabel, agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel}
-
 func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string) (func(), error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
 	}
 
 	if len(aggregateByLabels) == 0 {
-		aggregateByLabels = DefaultAgentStatsLabels
+		aggregateByLabels = agentmetrics.LabelAgentStats
 	}
 
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -469,11 +467,11 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					var labelValues []string
 					for _, label := range aggregateByLabels {
 						switch label {
-						case agentmetrics.UsernameLabel:
+						case agentmetrics.LabelUsername:
 							labelValues = append(labelValues, agentStat.Username)
-						case agentmetrics.WorkspaceNameLabel:
+						case agentmetrics.LabelWorkspaceName:
 							labelValues = append(labelValues, agentStat.WorkspaceName)
-						case agentmetrics.AgentNameLabel:
+						case agentmetrics.LabelAgentName:
 							labelValues = append(labelValues, agentStat.AgentName)
 						}
 					}

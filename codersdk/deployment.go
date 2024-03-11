@@ -58,11 +58,6 @@ const (
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 )
 
-var AcceptedMetricAggregationLabels = []string{
-	agentmetrics.TemplateNameLabel, agentmetrics.AgentNameLabel,
-	agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel,
-}
-
 // FeatureNames must be kept in-sync with the Feature enum above.
 var FeatureNames = []FeatureName{
 	FeatureUserLimit,
@@ -953,7 +948,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Prometheus Aggregate Agent Stats By",
-			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %s.", strings.Join(AcceptedMetricAggregationLabels, ", ")),
+			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %s.", strings.Join(agentmetrics.LabelAll, ", ")),
 			Flag:        "prometheus-aggregate-agent-stats-by",
 			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
 			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
@@ -961,22 +956,23 @@ when required by your organization's security policy.`,
 					return nil
 				}
 
-				acceptable := make(map[string]any, len(AcceptedMetricAggregationLabels))
-				for _, label := range AcceptedMetricAggregationLabels {
+				acceptable := make(map[string]any, len(agentmetrics.LabelAll))
+				for _, label := range agentmetrics.LabelAll {
 					acceptable[label] = nil
 				}
 
 				for _, label := range value.Value() {
 					if _, found := acceptable[label]; !found {
 						return xerrors.Errorf("%q is not a valid aggregation label; only one or more of %q are acceptable",
-							label, strings.Join(AcceptedMetricAggregationLabels, ", "))
+							label, strings.Join(agentmetrics.LabelAll, ", "))
 					}
 				}
 
 				return nil
 			}),
-			Group: &deploymentGroupIntrospectionPrometheus,
-			YAML:  "aggregate_agent_stats_by",
+			Group:   &deploymentGroupIntrospectionPrometheus,
+			YAML:    "aggregate_agent_stats_by",
+			Default: strings.Join(agentmetrics.LabelAll, ","),
 		},
 		{
 			Name:        "Prometheus Collect Database Metrics",

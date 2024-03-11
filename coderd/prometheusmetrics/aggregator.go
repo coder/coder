@@ -114,7 +114,7 @@ func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 		extraLabels     = am.Labels
 	)
 
-	for _, label := range am.aggregateByLabels {
+	for _, label := range baseLabelNames {
 		val, err := am.getFieldByLabel(label)
 		if err != nil {
 			return nil, err
@@ -147,13 +147,13 @@ func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
 func (am *annotatedMetric) getFieldByLabel(label string) (string, error) {
 	var labelVal string
 	switch label {
-	case agentmetrics.WorkspaceNameLabel:
+	case agentmetrics.LabelWorkspaceName:
 		labelVal = am.workspaceName
-	case agentmetrics.TemplateNameLabel:
+	case agentmetrics.LabelTemplateName:
 		labelVal = am.templateName
-	case agentmetrics.AgentNameLabel:
+	case agentmetrics.LabelAgentName:
 		labelVal = am.agentName
-	case agentmetrics.UsernameLabel:
+	case agentmetrics.LabelUsername:
 		labelVal = am.username
 	default:
 		return "", xerrors.Errorf("unexpected label: %q", label)
@@ -162,7 +162,7 @@ func (am *annotatedMetric) getFieldByLabel(label string) (string, error) {
 	return labelVal, nil
 }
 
-func (am *annotatedMetric) clone() annotatedMetric {
+func (am *annotatedMetric) shallowCopy() annotatedMetric {
 	stats := &agentproto.Stats_Metric{
 		Name:   am.Name,
 		Type:   am.Type,
@@ -273,7 +273,7 @@ func (a *labelAggregator) aggregate(am annotatedMetric, labels []string) error {
 	metric, found := a.metrics[key]
 	if !found {
 		// Take a copy of the given annotatedMetric because it may be manipulated later and contains pointers.
-		metric = am.clone()
+		metric = am.shallowCopy()
 	}
 
 	// Store the metric.
@@ -337,8 +337,9 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				// If custom aggregation labels have not been chosen, generate Prometheus metrics without any pre-aggregation.
 				// This results in higher cardinality, but may be desirable in larger deployments.
+				//
 				// Default behavior.
-				if len(ma.aggregateByLabels) == 0 {
+				if len(ma.aggregateByLabels) == len(agentmetrics.LabelAll) {
 					for _, m := range ma.store {
 						// Aggregate by all available metrics.
 						m.aggregateByLabels = defaultAgentMetricsLabels
@@ -402,7 +403,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 }
 
-var defaultAgentMetricsLabels = []string{agentmetrics.UsernameLabel, agentmetrics.WorkspaceNameLabel, agentmetrics.AgentNameLabel, agentmetrics.TemplateNameLabel}
+var defaultAgentMetricsLabels = []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelAgentName, agentmetrics.LabelTemplateName}
 
 // AgentMetricLabels are the labels used to decorate an agent's metrics.
 // This list should match the list of labels in agentMetricsLabels.
