@@ -11989,8 +11989,8 @@ WHERE
 			workspaces.template_id = ANY($6)
 		ELSE true
 	END
-  -- Filter by workspace_ids
-  AND CASE
+  	-- Filter by workspace_ids
+  	AND CASE
 		  WHEN array_length($7 :: uuid[], 1) > 0 THEN
 			  workspaces.id = ANY($7)
 		  ELSE true
