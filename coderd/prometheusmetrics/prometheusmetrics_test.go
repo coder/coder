@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"os"
 	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
