@@ -17,7 +17,7 @@ import type {
   TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
@@ -120,7 +120,9 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree ? (
+      {!(templateQuery.data && templateVersionQuery.data && fileTree) ? (
+        <Loader fullscreen />
+      ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
@@ -223,8 +225,6 @@ export const TemplateVersionEditorPage: FC = () => {
             setProvisionerTags(tags);
           }}
         />
-      ) : (
-        <FullScreenLoader />
       )}
     </>
   );

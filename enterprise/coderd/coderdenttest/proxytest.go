@@ -34,6 +34,7 @@ type ProxyOptions struct {
 	DisablePathApps bool
 	DerpDisabled    bool
 	DerpOnly        bool
+	BlockDirect     bool
 
 	// ProxyURL is optional
 	ProxyURL *url.URL
@@ -42,6 +43,9 @@ type ProxyOptions struct {
 	// created, and the proxy will become a replica of the existing proxy
 	// region.
 	Token string
+
+	// ReplicaPingCallback is optional.
+	ReplicaPingCallback func(replicas []codersdk.Replica, err string)
 
 	// FlushStats is optional
 	FlushStats chan chan<- struct{}
@@ -157,7 +161,9 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		DERPEnabled:            !options.DerpDisabled,
 		DERPOnly:               options.DerpOnly,
 		DERPServerRelayAddress: serverURL.String(),
+		ReplicaErrCallback:     options.ReplicaPingCallback,
 		StatsCollectorOptions:  statsCollectorOptions,
+		BlockDirect:            options.BlockDirect,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

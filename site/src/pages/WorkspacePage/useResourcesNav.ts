@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { useTab } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 
 export const resourceOptionValue = (resource: WorkspaceResource) => {
   return `${resource.type}_${resource.name}`;
@@ -14,8 +14,7 @@ export const resourceOptionValue = (resource: WorkspaceResource) => {
 // refactoring. Consider revisiting this solution in the future for a more
 // robust implementation.
 export const useResourcesNav = (resources: WorkspaceResource[]) => {
-  const resourcesNav = useTab("resources", "");
-
+  const resourcesNav = useSearchParamsKey({ key: "resources" });
   const isSelected = useCallback(
     (resource: WorkspaceResource) => {
       return resourceOptionValue(resource) === resourcesNav.value;
@@ -29,8 +28,9 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
       const hasResources = resources && resources.length > 0;
       const hasResourcesWithAgents =
         hasResources && resources[0].agents && resources[0].agents.length > 0;
+
       if (!hasSelectedResource && hasResourcesWithAgents) {
-        resourcesNav.set(resourceOptionValue(resources[0]));
+        resourcesNav.setValue(resourceOptionValue(resources[0]));
       }
     },
   );
@@ -40,7 +40,7 @@ export const useResourcesNav = (resources: WorkspaceResource[]) => {
 
   const select = useCallback(
     (resource: WorkspaceResource) => {
-      resourcesNav.set(resourceOptionValue(resource));
+      resourcesNav.setValue(resourceOptionValue(resource));
     },
     [resourcesNav],
   );

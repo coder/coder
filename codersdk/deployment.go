@@ -880,7 +880,8 @@ when required by your organization's security policy.`,
 			Env:   "CODER_BLOCK_DIRECT",
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
-			YAML:  "blockDirect",
+			YAML:  "blockDirect", Annotations: clibase.Annotations{}.
+				Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
