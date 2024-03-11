@@ -561,6 +561,23 @@ func TestLabelsAggregation(t *testing.T) {
 			// Nothing will be returned.
 			expected: []*agentproto.Stats_Metric{},
 		},
+		{
+			// Scenario: validation fails and an empty list is given for aggregation.
+			name:        "empty label aggregation list",
+			aggregateOn: []string{},
+			given: []statCollection{
+				{
+					labels: testLabels,
+					metrics: []*agentproto.Stats_Metric{
+						{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
+					},
+				},
+			},
+			// Default aggregation will be used.
+			expected: []*agentproto.Stats_Metric{
+				{Name: "user_counter", Type: agentproto.Stats_Metric_COUNTER, Value: 1, Labels: commonLabels},
+			},
+		},
 	}
 
 	for _, tc := range tests {
