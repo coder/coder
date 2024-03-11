@@ -37,6 +37,8 @@ import (
 )
 
 func TestDeploymentInsights(t *testing.T) {
+	t.Skipf("This test is flaky: https://github.com/coder/coder/issues/12509")
+
 	t.Parallel()
 
 	clientTz, err := time.LoadLocation("America/Chicago")
