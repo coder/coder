@@ -136,16 +136,28 @@ func (r *RootCmd) login() *clibase.Cmd {
 		useTokenForSession bool
 	)
 	cmd := &clibase.Cmd{
-		Use:        "login <url>",
+		Use:        "login [<url>]",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			rawURL := ""
+			var urlSource string
+
 			if len(inv.Args) == 0 {
 				rawURL = r.clientURL.String()
+				urlSource = "flag"
+				if rawURL != "" && rawURL == inv.Environ.Get(envURL) {
+					urlSource = "environment"
+				}
 			} else {
 				rawURL = inv.Args[0]
+				urlSource = "argument"
+			}
+
+			if url, err := r.createConfig().URL().Read(); rawURL == "" && err == nil {
+				urlSource = "config"
+				rawURL = url
 			}
 
 			if rawURL == "" {
@@ -187,6 +199,9 @@ func (r *RootCmd) login() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Attempting to authenticate with %s URL: '%s'\n", urlSource, serverURL)
+
 			if !hasFirstUser {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 

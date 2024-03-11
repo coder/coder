@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder login [flags] <url>
+  coder login [flags] [<url>]
 
   Authenticate with Coder deployment
 
