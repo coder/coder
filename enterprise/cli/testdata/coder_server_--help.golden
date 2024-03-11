@@ -124,6 +124,11 @@ INTROSPECTION / PROMETHEUS OPTIONS:
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
+      --prometheus-aggregate-agent-stats-by string-array, $CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY (default: agent_name,template_name,username,workspace_name)
+          When collecting agent stats, aggregate metrics by a given set of
+          comma-separated labels to reduce cardinality. Accepted values are
+          agent_name, template_name, username, workspace_name.
+
       --prometheus-collect-agent-stats bool, $CODER_PROMETHEUS_COLLECT_AGENT_STATS
           Collect agent stats (may increase charges for metrics storage).
 
