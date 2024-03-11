@@ -1,8 +1,13 @@
 package agentmetrics
 
 const (
-	TemplateNameLabel  = "template_name"
-	AgentNameLabel     = "agent_name"
-	UsernameLabel      = "username"
-	WorkspaceNameLabel = "workspace_name"
+	LabelAgentName     = "agent_name"
+	LabelUsername      = "username"
+	LabelTemplateName  = "template_name"
+	LabelWorkspaceName = "workspace_name"
+)
+
+var (
+	LabelAll        = []string{LabelAgentName, LabelTemplateName, LabelUsername, LabelWorkspaceName}
+	LabelAgentStats = []string{LabelAgentName, LabelUsername, LabelWorkspaceName}
 )
