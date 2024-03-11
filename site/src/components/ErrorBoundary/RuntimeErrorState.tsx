@@ -7,7 +7,7 @@ import { Helmet } from "react-helmet-async";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 
@@ -50,7 +50,9 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
       <Helmet>
         <title>Something went wrong...</title>
       </Helmet>
-      {!checkingError ? (
+      {checkingError ? (
+        <Loader fullscreen />
+      ) : (
         <Margins css={styles.root}>
           <div css={{ width: "100%" }}>
             <CoderIcon css={styles.logo} />
@@ -109,8 +111,6 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
             )}
           </div>
         </Margins>
-      ) : (
-        <FullScreenLoader />
       )}
     </>
   );

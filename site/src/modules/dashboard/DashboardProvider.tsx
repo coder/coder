@@ -17,7 +17,7 @@ import type {
   Experiments,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import { hslToHex, isHexColor, isHslColor } from "utils/colors";
 
 interface Appearance {
@@ -78,7 +78,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   }, []);
 
   if (isLoading) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   return (

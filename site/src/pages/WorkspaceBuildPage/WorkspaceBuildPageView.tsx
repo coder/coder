@@ -17,7 +17,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useTab } from "hooks";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 import {
@@ -51,14 +51,17 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   activeBuildNumber,
 }) => {
   const theme = useTheme();
-  const tab = useTab(LOGS_TAB_KEY, "build");
+  const tabState = useSearchParamsKey({
+    key: LOGS_TAB_KEY,
+    defaultValue: "build",
+  });
 
   if (!build) {
     return <Loader />;
   }
 
   const agents = build.resources.flatMap((r) => r.agents ?? []);
-  const selectedAgent = agents.find((a) => a.id === tab.value);
+  const selectedAgent = agents.find((a) => a.id === tabState.value);
 
   return (
     <DashboardFullPage>
@@ -141,7 +144,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Sidebar>
 
         <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
-          <Tabs active={tab.value}>
+          <Tabs active={tabState.value}>
             <TabsList>
               <TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
                 Build
@@ -187,7 +190,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
             </Alert>
           )}
 
-          {tab.value === "build" ? (
+          {tabState.value === "build" ? (
             <BuildLogsContent logs={logs} />
           ) : (
             <AgentLogsContent agent={selectedAgent!} />
