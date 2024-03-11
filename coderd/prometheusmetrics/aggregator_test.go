@@ -206,9 +206,11 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 
 		dtoLabels := asMetricAgentLabels(d.GetLabel())
 		// dto labels are sorted in alphabetical order.
-		sort.Slice(e.Labels, func(i, j int) bool {
+		sortFn := func(i, j int) bool {
 			return e.Labels[i].Name < e.Labels[j].Name
-		})
+		}
+		sort.Slice(e.Labels, sortFn)
+		sort.Slice(dtoLabels, sortFn)
 		require.Equal(t, e.Labels, dtoLabels, d.String())
 	}
 	return true
