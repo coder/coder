@@ -338,6 +338,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		aggregateByLabels = agentmetrics.LabelAgentStats
 	}
 
+	aggregateByLabels = filterInvalidLabels(aggregateByLabels)
+
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "prometheusmetrics",
@@ -513,4 +515,21 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		cancelFunc()
 		<-done
 	}, nil
+}
+
+// filterInvalidLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
+// which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
+// and therefore we have to exclude it from the list of acceptable labels.
+func filterInvalidLabels(labels []string) []string {
+	var out []string
+
+	for _, label := range labels {
+		if label == agentmetrics.LabelTemplateName {
+			continue
+		}
+
+		out = append(out, label)
+	}
+
+	return out
 }
