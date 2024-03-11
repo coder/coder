@@ -15,7 +15,6 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import { TemplateScheduleAutostart } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -32,6 +31,7 @@ import {
   type TemplateScheduleFormValues,
 } from "./formHelpers";
 import { ScheduleDialog } from "./ScheduleDialog";
+import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
   ActivityBumpHelperText,
   DefaultTTLHelperText,
@@ -535,10 +535,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
           {allowAdvancedScheduling && (
             <TemplateScheduleAutostart
-              allow_user_autostart={form.values.allow_user_autostart}
-              autostart_requirement_days_of_week={
-                form.values.autostart_requirement_days_of_week
-              }
+              enabled={Boolean(form.values.allow_user_autostart)}
+              value={form.values.autostart_requirement_days_of_week}
               isSubmitting={isSubmitting}
               onChange={async (
                 newDaysOfWeek: TemplateAutostartRequirementDaysValue[],

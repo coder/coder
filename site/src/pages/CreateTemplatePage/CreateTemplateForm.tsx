@@ -18,7 +18,7 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
+import { sortedDays } from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,

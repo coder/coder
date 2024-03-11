@@ -5,16 +5,16 @@ import { Stack } from "components/Stack/Stack";
 import type { TemplateAutostartRequirementDaysValue } from "utils/schedule";
 
 export interface TemplateScheduleAutostartProps {
-  allow_user_autostart?: boolean;
-  autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
+  enabled: boolean;
+  value: TemplateAutostartRequirementDaysValue[];
   isSubmitting: boolean;
-  onChange: (newDaysOfWeek: TemplateAutostartRequirementDaysValue[]) => void;
+  onChange: (value: TemplateAutostartRequirementDaysValue[]) => void;
 }
 
 export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
-  autostart_requirement_days_of_week,
+  value,
   isSubmitting,
-  allow_user_autostart,
+  enabled,
   onChange,
 }) => {
   return (
@@ -49,21 +49,13 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
             key={day.key}
             css={{ borderRadius: 0 }}
             // TODO: Adding a background color would also help
-            color={
-              autostart_requirement_days_of_week.includes(day.value)
-                ? "primary"
-                : "secondary"
-            }
-            disabled={isSubmitting || !allow_user_autostart}
+            color={value.includes(day.value) ? "primary" : "secondary"}
+            disabled={isSubmitting || !enabled}
             onClick={() => {
-              if (!autostart_requirement_days_of_week.includes(day.value)) {
-                onChange(autostart_requirement_days_of_week.concat(day.value));
+              if (!value.includes(day.value)) {
+                onChange(value.concat(day.value));
               } else {
-                onChange(
-                  autostart_requirement_days_of_week.filter(
-                    (obj) => obj !== day.value,
-                  ),
-                );
+                onChange(value.filter((obj) => obj !== day.value));
               }
             }}
           >
@@ -72,10 +64,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
         ))}
       </Stack>
       <FormHelperText>
-        <AutostartHelperText
-          allowed={allow_user_autostart}
-          days={autostart_requirement_days_of_week}
-        />
+        <AutostartHelperText allowed={enabled} days={value} />
       </FormHelperText>
     </Stack>
   );
