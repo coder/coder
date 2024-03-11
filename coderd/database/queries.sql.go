@@ -11989,16 +11989,22 @@ WHERE
 			workspaces.template_id = ANY($6)
 		ELSE true
 	END
+  	-- Filter by workspace_ids
+  	AND CASE
+		  WHEN array_length($7 :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY($7)
+		  ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			workspaces.name ILIKE '%' || $7 || '%'
+		WHEN $8 :: text != '' THEN
+			workspaces.name ILIKE '%' || $8 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $8 :: text != '' THEN
+		WHEN $9 :: text != '' THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -12010,7 +12016,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
-					$8 = (
+					$9 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -12021,7 +12027,7 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $10 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
@@ -12034,24 +12040,24 @@ WHERE
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $10 :: boolean != 'false' THEN
+		WHEN $11 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $11 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $11
+		  WHEN $12 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $12
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $12 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $12
+		  WHEN $13 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $13
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $13 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $13 :: boolean
+		  WHEN $14 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $14 :: boolean
 		  ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -12063,7 +12069,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $14 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $15 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -12072,11 +12078,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $16 :: integer > 0 THEN
-				$16
+			WHEN $17 :: integer > 0 THEN
+				$17
 		END
 	OFFSET
-		$15
+		$16
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
@@ -12111,7 +12117,7 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition -- latest_build_transition
 	WHERE
-		$17 :: boolean = true
+		$18 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -12134,6 +12140,7 @@ type GetWorkspacesParams struct {
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
 	TemplateName                          string       `db:"template_name" json:"template_name"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
+	WorkspaceIds                          []uuid.UUID  `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string       `db:"name" json:"name"`
 	HasAgent                              string       `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64        `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
@@ -12182,6 +12189,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
+		pq.Array(arg.WorkspaceIds),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,

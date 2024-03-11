@@ -204,6 +204,12 @@ WHERE
 			workspaces.template_id = ANY(@template_ids)
 		ELSE true
 	END
+  	-- Filter by workspace_ids
+  	AND CASE
+		  WHEN array_length(@workspace_ids :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY(@workspace_ids)
+		  ELSE true
+	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN

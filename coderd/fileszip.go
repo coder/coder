@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"strings"
 )
 
 func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
@@ -39,9 +40,13 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 	defer fileReader.Close()
 
 	err = tarWriter.WriteHeader(&tar.Header{
-		Name: file.Name,
-		Size: file.FileInfo().Size(),
-		Mode: 0o644,
+		Name:    file.Name,
+		Size:    file.FileInfo().Size(),
+		Mode:    int64(file.Mode()),
+		ModTime: file.Modified,
+		// Note: Zip archives do not store ownership information.
+		Uid: 1000,
+		Gid: 1000,
 	})
 	if err != nil {
 		return err
@@ -83,6 +88,12 @@ func WriteZipArchive(w io.Writer, tarReader *tar.Reader) error {
 			return err
 		}
 		zipHeader.Name = tarHeader.Name
+		// Some versions of unzip do not check the mode on a file entry and
+		// simply assume that entries with a trailing path separator (/) are
+		// directories, and that everything else is a file. Give them a hint.
+		if tarHeader.FileInfo().IsDir() && !strings.HasSuffix(tarHeader.Name, "/") {
+			zipHeader.Name += "/"
+		}
 
 		zipEntry, err := zipWriter.CreateHeader(zipHeader)
 		if err != nil {

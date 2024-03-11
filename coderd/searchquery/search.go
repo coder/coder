@@ -103,6 +103,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	}
 
 	parser := httpapi.NewQueryParamParser()
+	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
 	filter.OwnerUsername = parser.String(values, "", "owner")
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
