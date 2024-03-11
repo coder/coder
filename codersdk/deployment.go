@@ -956,19 +956,7 @@ when required by your organization's security policy.`,
 					return nil
 				}
 
-				acceptable := make(map[string]any, len(agentmetrics.LabelAll))
-				for _, label := range agentmetrics.LabelAll {
-					acceptable[label] = nil
-				}
-
-				for _, label := range value.Value() {
-					if _, found := acceptable[label]; !found {
-						return xerrors.Errorf("%q is not a valid aggregation label; only one or more of %q are acceptable",
-							label, strings.Join(agentmetrics.LabelAll, ", "))
-					}
-				}
-
-				return nil
+				return agentmetrics.ValidateAggregationLabels(value.Value())
 			}),
 			Group:   &deploymentGroupIntrospectionPrometheus,
 			YAML:    "aggregate_agent_stats_by",
