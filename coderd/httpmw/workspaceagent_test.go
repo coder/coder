@@ -69,7 +69,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			}),
 		)
 
-		// Create a newer agent
+		// Create a newer build
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: ws.OrganizationID,
 		})
