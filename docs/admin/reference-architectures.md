@@ -171,3 +171,51 @@ Database:
   metadata.
 - Memory utilization averages at 40%.
 - `write_ops_count` between 6.7 and 8.4 operations per second.
+
+## Hardware recommendation
+
+### Control plane
+
+When considering the control plane, it's essential to focus on node sizing,
+resource limits, and the number of replicas. We recommend referencing public
+cloud providers such as AWS, GCP, and Azure for guidance on optimal
+configurations. A reasonable approach involves using scaling formulas based on
+factors like CPU, memory, and the number of users.
+
+#### Up to 1,000 users
+
+The 1k architecture is designed to cover a wide range of workflows. While the
+minimum requirements specify 1 CPU core and 2 GB of memory per `coderd` replica,
+it is recommended to allocate additional resources to ensure deployment
+stability:
+
+| Users       | Configuration       | Replicas | GCP             | AWS        | Azure             |
+| ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
+| Up to 1,000 | 2 vCPU, 8 GB memory | 2        | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
+
+The memory consumption may increase with enabled agent stats collection by the
+Prometheus metrics aggregator (optional).
+
+#### Up to 2,000 users
+
+TODO
+
+#### Up to 3,000 users
+
+TODO
+
+#### Scaling formula
+
+reasonable ratio/formula: CPU x memory x users reasonable ratio/formula:
+provisionerd x users API latency/response time average number of HTTP requests
+advice:
+
+### Workspaces
+
+TODO
+
+### Database
+
+TODO
+
+###
