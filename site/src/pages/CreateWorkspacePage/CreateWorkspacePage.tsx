@@ -39,11 +39,14 @@ const CreateWorkspacePage: FC = () => {
   const me = useMe();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const mode = getWorkspaceMode(searchParams);
-  const customVersionId = searchParams.get("version") ?? undefined;
   const { experiments } = useDashboard();
 
+  const mode = getWorkspaceMode(searchParams);
+  const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = searchParams.get("name");
+  const disabledParams = searchParams.get("disable_params")?.split(",");
+  // `?mode=auto` is set, but a prerequisite was not met, and so has been disabled.
+  const [isAutoCreateTainted, setIsAutoCreateTainted] = useState(false);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -128,8 +131,21 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
+  const hasAllRequiredExternalAuth = Boolean(
+    !isLoadingExternalAuth &&
+      externalAuth?.every((auth) => auth.optional || auth.authenticated),
+  );
+
+  if (!isLoadingExternalAuth && !hasAllRequiredExternalAuth) {
+    // Prevent suddenly resuming auto-mode if the user connects to all of the required
+    // external auth providers.
+    setIsAutoCreateTainted(true);
+  }
   const autoStartReady =
-    mode === "auto" && (!autofillEnabled || userParametersQuery.isSuccess);
+    mode === "auto" &&
+    (!autofillEnabled || userParametersQuery.isSuccess) &&
+    hasAllRequiredExternalAuth &&
+    !isAutoCreateTainted;
   useEffect(() => {
     if (autoStartReady) {
       void automateWorkspaceCreation();
@@ -150,6 +166,7 @@ const CreateWorkspacePage: FC = () => {
         <CreateWorkspacePageView
           mode={mode}
           defaultName={defaultName}
+          disabledParams={disabledParams}
           defaultOwner={me}
           autofillParameters={autofillParameters}
           error={createWorkspaceMutation.error}
@@ -159,6 +176,7 @@ const CreateWorkspacePage: FC = () => {
           externalAuth={externalAuth ?? []}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
+          hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
           permissions={permissionsQuery.data as CreateWSPermissions}
           parameters={realizedParameters as TemplateVersionParameter[]}
           creatingWorkspace={createWorkspaceMutation.isLoading}

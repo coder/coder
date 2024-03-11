@@ -51,15 +51,17 @@ export const Language = {
 
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
+  defaultName?: string | null;
+  disabledParams?: string[];
   error: unknown;
   resetMutation: () => void;
-  defaultName?: string | null;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
   versionId?: string;
   externalAuth: TypesGen.TemplateVersionExternalAuth[];
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
+  hasAllRequiredExternalAuth: boolean;
   parameters: TypesGen.TemplateVersionParameter[];
   autofillParameters: AutofillBuildParameter[];
   permissions: CreateWSPermissions;
@@ -73,9 +75,10 @@ export interface CreateWorkspacePageViewProps {
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   mode,
+  defaultName,
+  disabledParams,
   error,
   resetMutation,
-  defaultName,
   defaultOwner,
   template,
   versionId,
@@ -90,8 +93,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onCancel,
 }) => {
   const [owner, setOwner] = useState(defaultOwner);
-  const [searchParams] = useSearchParams();
-  const disabledParamsList = searchParams?.get("disable_params")?.split(",");
   const requiresExternalAuth = externalAuth.some((auth) => !auth.authenticated);
   const [suggestedName, setSuggestedName] = useState(() =>
     generateWorkspaceName(),
@@ -285,7 +286,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 const parameterField = `rich_parameter_values.${index}`;
                 const parameterInputName = `${parameterField}.value`;
                 const isDisabled =
-                  disabledParamsList?.includes(
+                  disabledParams?.includes(
                     parameter.name.toLowerCase().replace(/ /g, "_"),
                   ) || creatingWorkspace;
 
