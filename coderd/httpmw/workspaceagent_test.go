@@ -62,7 +62,6 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		authToken1 := uuid.New()
-		authToken2 := uuid.New()
 		req, rtr, ws, tpv := setup(t, db, authToken1, httpmw.ExtractWorkspaceAgentAndLatestBuild(
 			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 				DB:       db,
@@ -74,7 +73,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: ws.OrganizationID,
 		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: job.ID,
 		})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
@@ -82,10 +81,6 @@ func TestWorkspaceAgent(t *testing.T) {
 			JobID:             job.ID,
 			TemplateVersionID: tpv.ID,
 			BuildNumber:       2,
-		})
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
-			AuthToken:  authToken2,
 		})
 
 		rw := httptest.NewRecorder()
