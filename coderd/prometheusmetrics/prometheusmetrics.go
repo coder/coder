@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/google/uuid"
@@ -22,13 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/tailnet"
-)
-
-const (
-	templateNameLabel  = "template_name"
-	agentNameLabel     = "agent_name"
-	usernameLabel      = "username"
-	workspaceNameLabel = "workspace_name"
 )
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
@@ -156,7 +150,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, templateNameLabel, "template_version"}))
+	}, []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelTemplateName, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -167,7 +161,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "status", "lifecycle_state", "tailnet_node"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "status", "lifecycle_state", "tailnet_node"}))
 	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
@@ -178,7 +172,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "derp_region", "preferred"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
@@ -189,7 +183,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "apps",
 		Help:      "Agent applications with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "app_name", "health"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "app_name", "health"}))
 	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
@@ -335,9 +329,13 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	}, nil
 }
 
-func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (func(), error) {
+func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string) (func(), error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
+	}
+
+	if len(aggregateByLabels) == 0 {
+		aggregateByLabels = agentmetrics.LabelAgentStats
 	}
 
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -357,7 +355,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "tx_bytes",
 		Help:      "Agent Tx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsTxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -368,7 +366,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "rx_bytes",
 		Help:      "Agent Rx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsRxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -379,7 +377,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_count",
 		Help:      "The number of established connections by agent",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsConnectionCountGauge)
 	if err != nil {
 		return nil, err
@@ -390,7 +388,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_median_latency_seconds",
 		Help:      "The median agent connection latency in seconds",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsConnectionMedianLatencyGauge)
 	if err != nil {
 		return nil, err
@@ -401,7 +399,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_jetbrains",
 		Help:      "The number of session established by JetBrains",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountJetBrainsGauge)
 	if err != nil {
 		return nil, err
@@ -412,7 +410,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_reconnecting_pty",
 		Help:      "The number of session established by reconnecting PTY",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountReconnectingPTYGauge)
 	if err != nil {
 		return nil, err
@@ -423,7 +421,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_ssh",
 		Help:      "The number of session established by SSH",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountSSHGauge)
 	if err != nil {
 		return nil, err
@@ -434,7 +432,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_vscode",
 		Help:      "The number of session established by VSCode",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountVSCodeGauge)
 	if err != nil {
 		return nil, err
@@ -466,16 +464,28 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 			} else {
 				for _, agentStat := range stats {
-					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					var labelValues []string
+					for _, label := range aggregateByLabels {
+						switch label {
+						case agentmetrics.LabelUsername:
+							labelValues = append(labelValues, agentStat.Username)
+						case agentmetrics.LabelWorkspaceName:
+							labelValues = append(labelValues, agentStat.WorkspaceName)
+						case agentmetrics.LabelAgentName:
+							labelValues = append(labelValues, agentStat.AgentName)
+						}
+					}
 
-					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), labelValues...)
+					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), labelValues...)
 
-					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
+					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
+
+					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), labelValues...)
+					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), labelValues...)
+					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), labelValues...)
+					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), labelValues...)
 				}
 
 				if len(stats) > 0 {
