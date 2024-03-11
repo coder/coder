@@ -9,4 +9,5 @@ const meta: Meta<typeof NotFoundPage> = {
 export default meta;
 type Story = StoryObj<typeof NotFoundPage>;
 
-export const Default: Story = {};
+const Example: Story = {};
+export { Example as NotFoundPage };
