@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"strings"
 )
 
 func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
