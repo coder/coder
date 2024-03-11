@@ -65,7 +65,9 @@ const (
 	varVerbose            = "verbose"
 	varOrganizationSelect = "organization"
 	varDisableDirect      = "disable-direct-connections"
-	notLoggedInMessage    = "You are not logged in. Try logging in using 'coder login <url>'."
+
+	notLoggedInMessage         = "You are not logged in. Try logging in using 'coder login <url>'."
+	notLoggedInURLSavedMessage = "You are not logged in. Try logging in using 'coder login'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -77,7 +79,10 @@ const (
 	envURL            = "CODER_URL"
 )
 
-var errUnauthenticated = xerrors.New(notLoggedInMessage)
+var (
+	errUnauthenticated         = xerrors.New(notLoggedInMessage)
+	errUnauthenticatedURLSaved = xerrors.New(notLoggedInURLSavedMessage)
+)
 
 func (r *RootCmd) Core() []*clibase.Cmd {
 	// Please re-sort this list alphabetically if you change it!
@@ -574,7 +579,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					if !allowTokenMissing {
-						return errUnauthenticated
+						return errUnauthenticatedURLSaved
 					}
 				} else if err != nil {
 					return err
