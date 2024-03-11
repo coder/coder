@@ -61,8 +61,8 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("Latest", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		authToken1 := uuid.New()
-		req, rtr, ws, tpv := setup(t, db, authToken1, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+		authToken := uuid.New()
+		req, rtr, ws, tpv := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
 			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 				DB:       db,
 				Optional: false,
@@ -84,7 +84,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 
 		rw := httptest.NewRecorder()
-		req.Header.Set(codersdk.SessionTokenHeader, authToken1.String())
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
 		rtr.ServeHTTP(rw, req)
 
 		//nolint:bodyclose // Closed in `t.Cleanup`
