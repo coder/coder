@@ -8,8 +8,8 @@ import (
 
 const (
 	LabelAgentName     = "agent_name"
-	LabelUsername      = "username"
 	LabelTemplateName  = "template_name"
+	LabelUsername      = "username"
 	LabelWorkspaceName = "workspace_name"
 )
 

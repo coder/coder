@@ -3,11 +3,14 @@ package agentmetrics_test
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 )
 
 func TestValidateAggregationLabels(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		labels      []string
@@ -36,6 +39,8 @@ func TestValidateAggregationLabels(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
