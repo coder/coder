@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,8 +13,6 @@ import (
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
@@ -258,11 +255,10 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable                clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address               clibase.HostPort    `json:"address" typescript:",notnull"`
-	CollectAgentStats     clibase.Bool        `json:"collect_agent_stats" typescript:",notnull"`
-	CollectDBMetrics      clibase.Bool        `json:"collect_db_metrics" typescript:",notnull"`
-	AggregateAgentStatsBy clibase.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address           clibase.HostPort `json:"address" typescript:",notnull"`
+	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics  clibase.Bool     `json:"collect_db_metrics" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -945,22 +941,6 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.CollectAgentStats,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "collect_agent_stats",
-		},
-		{
-			Name:        "Prometheus Aggregate Agent Stats By",
-			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %s.", strings.Join(agentmetrics.LabelAll, ", ")),
-			Flag:        "prometheus-aggregate-agent-stats-by",
-			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
-			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
-				if value == nil {
-					return nil
-				}
-
-				return agentmetrics.ValidateAggregationLabels(value.Value())
-			}),
-			Group:   &deploymentGroupIntrospectionPrometheus,
-			YAML:    "aggregate_agent_stats_by",
-			Default: strings.Join(agentmetrics.LabelAll, ","),
 		},
 		{
 			Name:        "Prometheus Collect Database Metrics",

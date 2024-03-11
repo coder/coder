@@ -188,15 +188,6 @@ introspection:
     # Collect agent stats (may increase charges for metrics storage).
     # (default: <unset>, type: bool)
     collect_agent_stats: false
-    # When collecting agent stats, aggregate metrics by a given set of comma-separated
-    # labels to reduce cardinality. Accepted values are agent_name, template_name,
-    # username, workspace_name.
-    # (default: agent_name,template_name,username,workspace_name, type: string-array)
-    aggregate_agent_stats_by:
-      - agent_name
-      - template_name
-      - username
-      - workspace_name
     # Collect database metrics (may increase charges for metrics storage).
     # (default: false, type: bool)
     collect_db_metrics: false
