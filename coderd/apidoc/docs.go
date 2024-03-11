@@ -10952,12 +10952,6 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
-                "aggregate_agent_stats_by": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "collect_agent_stats": {
                     "type": "boolean"
                 },

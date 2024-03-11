@@ -229,13 +229,13 @@ func enablePrometheus(
 	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
-		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
+		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
 		if err != nil {
 			return nil, xerrors.Errorf("register agent stats prometheus metric: %w", err)
 		}
 		afterCtx(ctx, closeAgentStatsFunc)
 
-		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
+		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0)
 		if err != nil {
 			return nil, xerrors.Errorf("can't initialize metrics aggregator: %w", err)
 		}
