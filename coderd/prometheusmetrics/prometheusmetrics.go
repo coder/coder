@@ -10,18 +10,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
-	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -338,7 +337,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		aggregateByLabels = agentmetrics.LabelAgentStats
 	}
 
-	aggregateByLabels = filterInvalidLabels(aggregateByLabels)
+	aggregateByLabels = filterAcceptableAgentLabels(aggregateByLabels)
 
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
@@ -517,18 +516,15 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	}, nil
 }
 
-// filterInvalidLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
+// filterAcceptableAgentLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
 // which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
 // and therefore we have to exclude it from the list of acceptable labels.
-func filterInvalidLabels(labels []string) []string {
-	var out []string
-
+func filterAcceptableAgentLabels(labels []string) []string {
+	out := make([]string, 0, len(labels))
 	for _, label := range labels {
-		if label == agentmetrics.LabelTemplateName {
-			continue
+		if label != agentmetrics.LabelTemplateName {
+			out = append(out, label)
 		}
-
-		out = append(out, label)
 	}
 
 	return out

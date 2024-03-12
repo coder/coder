@@ -15,12 +15,11 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/agentmetrics"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 

@@ -36,6 +36,10 @@ func TestValidateAggregationLabels(t *testing.T) {
 			labels:      []string{""},
 			expectedErr: true,
 		},
+		{
+			name:   "all valid entries",
+			labels: agentmetrics.LabelAll,
+		},
 	}
 
 	for _, tc := range tests {
