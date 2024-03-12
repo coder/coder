@@ -230,7 +230,7 @@ distance between users and the load balancer.
 
 **Node Autoscaling**
 
-We recommend to disable autoscaling for `coderd` nodes. Autoscaling can cause
+We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
 for more details.
 
