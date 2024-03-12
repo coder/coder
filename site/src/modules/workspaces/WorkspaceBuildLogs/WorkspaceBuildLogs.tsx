@@ -69,7 +69,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           time: log.created_at,
           output: log.output,
           level: log.log_level,
-          source_id: log.log_source,
+          sourceId: log.log_source,
         }));
         const duration = getStageDurationInSeconds(logs);
         const shouldDisplayDuration = duration !== undefined;

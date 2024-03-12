@@ -10,7 +10,7 @@ export interface Line {
   time: string;
   output: string;
   level: LogLevel;
-  source_id: string;
+  sourceId: string;
 }
 
 type LogLineProps = {

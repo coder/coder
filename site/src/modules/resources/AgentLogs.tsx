@@ -56,7 +56,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
               }
             );
           };
-          const logSource = getLogSource(log.source_id);
+          const logSource = getLogSource(log.sourceId);
 
           let assignedIcon = false;
           let icon: JSX.Element;
@@ -96,7 +96,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           let nextChangesSource = false;
           if (index < logs.length - 1) {
             nextChangesSource =
-              getLogSource(logs[index + 1].source_id).id !== log.source_id;
+              getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
           }
           // We don't want every line to repeat the icon, because
           // that is ugly and repetitive. This removes the icon
@@ -105,7 +105,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           // same source.
           if (
             index > 0 &&
-            getLogSource(logs[index - 1].source_id).id === log.source_id
+            getLogSource(logs[index - 1].sourceId).id === log.sourceId
           ) {
             icon = (
               <div
@@ -206,7 +206,7 @@ export const useAgentLogs = (
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
-            source_id: log.source_id,
+            sourceId: log.sourceId,
           }));
 
           if (!previousLogs) {

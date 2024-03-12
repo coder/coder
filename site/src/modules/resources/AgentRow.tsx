@@ -112,7 +112,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
-        source_id: "",
+        sourceId: "",
       });
     }
     return logs;
