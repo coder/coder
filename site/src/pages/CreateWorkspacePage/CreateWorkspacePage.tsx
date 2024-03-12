@@ -41,12 +41,10 @@ const CreateWorkspacePage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { experiments } = useDashboard();
 
-  const mode = getWorkspaceMode(searchParams);
   const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = searchParams.get("name");
   const disabledParams = searchParams.get("disable_params")?.split(",");
-  // `?mode=auto` is set, but a prerequisite was not met, and so has been disabled.
-  const [isAutoCreateTainted, setIsAutoCreateTainted] = useState(false);
+  const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -136,16 +134,25 @@ const CreateWorkspacePage: FC = () => {
       externalAuth?.every((auth) => auth.optional || auth.authenticated),
   );
 
-  if (!isLoadingExternalAuth && !hasAllRequiredExternalAuth) {
-    // Prevent suddenly resuming auto-mode if the user connects to all of the required
-    // external auth providers.
-    setIsAutoCreateTainted(true);
-  }
-  const autoStartReady =
+  let autoStartReady =
     mode === "auto" &&
     (!autofillEnabled || userParametersQuery.isSuccess) &&
-    hasAllRequiredExternalAuth &&
-    !isAutoCreateTainted;
+    hasAllRequiredExternalAuth;
+
+  // `mode=auto` was set, but a prequisite has failed, and so auto-mode should be abandoned.
+  if (
+    mode === "auto" &&
+    !isLoadingExternalAuth &&
+    !hasAllRequiredExternalAuth
+  ) {
+    // Prevent suddenly resuming auto-mode if the user connects to all of the required
+    // external auth providers.
+    setMode("form");
+    // Ensure this is always false, so that we don't ever let `automateWorkspaceCreation`
+    // fire when we're trying to disable it.
+    autoStartReady = false;
+  }
+
   useEffect(() => {
     if (autoStartReady) {
       void automateWorkspaceCreation();
