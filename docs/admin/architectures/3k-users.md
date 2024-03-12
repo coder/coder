@@ -13,6 +13,6 @@ purposes.
 
 ### Coderd nodes
 
-| Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
+| Users       | Node capacity        | Replicas | GCP             | AWS         | Azure             |
 | ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
 | Up to 3,000 | 8 vCPU, 32 GB memory | 4        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |

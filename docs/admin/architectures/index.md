@@ -205,27 +205,60 @@ this option enabled unless there are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.
 
-#### HTTP API latency
-
-API latency/response time average number of HTTP requests
-
-depending on database perf
-
-TODO
-
 #### Scaling formula
 
-reasonable ratio/formula: CPU x memory x users reasonable ratio/formula:
-provisionerd x users API latency/response time average number of HTTP requests
+When determining scaling requirements, consider the following factors:
 
-TODO
+- 1 vCPU x 2 GB memory x 250 users: A reasonable formula to determine resource
+  allocation based on the number of users and their expected usage patterns.
+- API latency/response time: Monitor API latency and response times to ensure
+  optimal performance under varying loads.
+- Average number of HTTP requests: Track the average number of HTTP requests to
+  gauge system usage and identify potential bottlenecks.
+
+**Node Autoscaling**
+
+We recommend to disable autoscaling for `coderd` nodes. Autoscaling can cause
+interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
+for more details.
 
 ### Workspaces
 
-TODO
+Assumptions:
+
+workspaces also run on the same Kubernetes cluster (recommend a different
+namespace/node pool)
+
+developers can pick between 4-8 CPU and 4-16 GB RAM workspaces (limits)
+
+developers have a resource quota of 16 GPU 32 GB RAM (2-maxed out workspaces).
+
+However, the Coder agent itself requires at minimum 0.1 CPU cores and 256 MB to
+run inside a workspace.
+
+web microservice development use case: resources are mostly underutilized but
+spike during builds
+
+Case study:
+
+Developers for up to 2000+ users architecture are in 2 regions (a different
+cluster) and are evenly split. In practice, this doesn’t change much besides the
+diagram and workspaces node pool autoscaling config as it still uses the central
+provisioner. Recommend multiple provisioner groups for zero-trust and
+multi-cloud use cases. Developers for up to 3000+ users architecture are also in
+an on-premises network. Document a provisioner running in a different cloud
+environment, and the zero-trust benefits of that.
+
+scaling formula
+
+provisionerd x users: Another formula to consider, focusing on the capacity of
+provisioner nodes relative to the number of workspace builds, triggered by
+users.
 
 ### Database
 
-TODO
+PostgreSQL database
+
+measure and document the impact of dbcrypt
 
 ###
