@@ -1,2 +1,3 @@
 deb [signed-by=/usr/share/keyrings/ansible.gpg] https://ppa.launchpadcontent.net/ansible/ansible/ubuntu focal main
 deb [signed-by=/usr/share/keyrings/neovim.gpg] https://ppa.launchpadcontent.net/neovim-ppa/stable/ubuntu focal main
+deb [signed-by=/usr/share/keyrings/git-core.gpg] https://ppa.launchpadcontent.net/git-core/ppa/ubuntu jammy main

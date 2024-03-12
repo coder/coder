@@ -17,3 +17,8 @@ Pin-Priority: 500
 Package: neovim-runtime
 Pin: origin ppa.launchpad.net
 Pin-Priority: 500
+
+# Git
+Package: git
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500

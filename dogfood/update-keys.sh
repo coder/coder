@@ -59,4 +59,8 @@ curl "${curl_flags[@]}" "https://apt.releases.hashicorp.com/gpg" |
 # GitHub CLI signing key
 curl "${curl_flags[@]}" "https://cli.github.com/packages/githubcli-archive-keyring.gpg" |
 	gpg "${gpg_flags[@]}" --output="github-cli.gpg"
+
+# Git-Core signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xE1DD270288B4E6030699E45FA1715D88E1DF1F24" |
+	gpg "${gpg_flags[@]}" --output="git-core.gpg"
 popd
