@@ -152,11 +152,11 @@ func assertBundleContents(t *testing.T, path string) {
 		case "workspace/build_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.Contains(t, string(bs), "provision done")
-		case "workspace/agent.json":
+		case "agent/agent.json":
 			var v codersdk.WorkspaceAgent
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "agent should not be empty")
-		case "workspace/agent_startup_logs.txt":
+		case "agent/startup_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.Contains(t, string(bs), "started up")
 		case "workspace/template.json":

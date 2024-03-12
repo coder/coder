@@ -25,6 +25,7 @@ type Bundle struct {
 	Deployment Deployment `json:"deployment"`
 	Network    Network    `json:"network"`
 	Workspace  Workspace  `json:"workspace"`
+	Agent      Agent      `json:"agent"`
 	Logs       []string   `json:"logs"`
 }
 
@@ -49,8 +50,11 @@ type Workspace struct {
 	TemplateVersion    codersdk.TemplateVersion           `json:"template_version"`
 	TemplateFileBase64 string                             `json:"template_file_base64"`
 	BuildLogs          []codersdk.ProvisionerJobLog       `json:"build_logs"`
-	Agent              codersdk.WorkspaceAgent            `json:"agent"`
-	AgentStartupLogs   []codersdk.WorkspaceAgentLog       `json:"startup_logs"`
+}
+
+type Agent struct {
+	Agent       codersdk.WorkspaceAgent      `json:"agent"`
+	StartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
 }
 
 // Deps is a set of dependencies for discovering information
@@ -170,7 +174,7 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 	return n
 }
 
-func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID, agentID uuid.UUID) Workspace {
+func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspaceID uuid.UUID) Workspace {
 	var (
 		w  Workspace
 		eg errgroup.Group
@@ -179,10 +183,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	if workspaceID == uuid.Nil {
 		log.Error(ctx, "no workspace id specified")
 		return w
-	}
-
-	if agentID == uuid.Nil {
-		log.Error(ctx, "no agent id specified")
 	}
 
 	// dependency, cannot fetch concurrently
@@ -199,15 +199,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	w.Workspace = ws
 
 	eg.Go(func() error {
-		agt, err := client.WorkspaceAgent(ctx, agentID)
-		if err != nil {
-			return xerrors.Errorf("fetch workspace agent: %w", err)
-		}
-		w.Agent = agt
-		return nil
-	})
-
-	eg.Go(func() error {
 		buildLogCh, closer, err := client.WorkspaceBuildLogsAfter(ctx, ws.LatestBuild.ID, 0)
 		if err != nil {
 			return xerrors.Errorf("fetch provisioner job logs: %w", err)
@@ -218,24 +209,6 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 			logs = append(w.BuildLogs, log)
 		}
 		w.BuildLogs = logs
-		return nil
-	})
-
-	eg.Go(func() error {
-		if len(w.Workspace.LatestBuild.Resources) == 0 {
-			log.Warn(ctx, "workspace build has no resources")
-			return nil
-		}
-		agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
-		if err != nil {
-			return xerrors.Errorf("fetch agent startup logs: %w", err)
-		}
-		defer closer.Close()
-		var logs []codersdk.WorkspaceAgentLog
-		for logChunk := range agentLogCh {
-			logs = append(w.AgentStartupLogs, logChunk...)
-		}
-		w.AgentStartupLogs = logs
 		return nil
 	})
 
@@ -296,6 +269,47 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	return w
 }
 
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Agent {
+	var (
+		a  Agent
+		eg errgroup.Group
+	)
+
+	if agentID == uuid.Nil {
+		log.Error(ctx, "no agent id specified")
+		return a
+	}
+
+	eg.Go(func() error {
+		agt, err := client.WorkspaceAgent(ctx, agentID)
+		if err != nil {
+			return xerrors.Errorf("fetch workspace agent: %w", err)
+		}
+		a.Agent = agt
+		return nil
+	})
+
+	eg.Go(func() error {
+		agentLogCh, closer, err := client.WorkspaceAgentLogsAfter(ctx, agentID, 0, false)
+		if err != nil {
+			return xerrors.Errorf("fetch agent startup logs: %w", err)
+		}
+		defer closer.Close()
+		var logs []codersdk.WorkspaceAgentLog
+		for logChunk := range agentLogCh {
+			logs = append(logs, logChunk...)
+		}
+		a.StartupLogs = logs
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		log.Error(ctx, "fetch agent information", slog.Error(err))
+	}
+
+	return a
+}
+
 // Run generates a support bundle with the given dependencies.
 func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	var b Bundle
@@ -337,13 +351,18 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID, d.AgentID)
+		wi := WorkspaceInfo(ctx, d.Client, d.Log, d.WorkspaceID)
 		b.Workspace = wi
 		return nil
 	})
 	eg.Go(func() error {
 		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
 		b.Network = ni
+		return nil
+	})
+	eg.Go(func() error {
+		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
+		b.Agent = ai
 		return nil
 	})
 

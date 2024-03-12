@@ -145,7 +145,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"network/netcheck_local.json":     src.Network.NetcheckLocal,
 		"network/netcheck_remote.json":    src.Network.NetcheckRemote,
 		"workspace/workspace.json":        src.Workspace.Workspace,
-		"workspace/agent.json":            src.Workspace.Agent,
+		"agent/agent.json":                src.Agent.Agent,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
@@ -167,12 +167,12 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	}
 
 	for k, v := range map[string]string{
-		"network/coordinator_debug.html":   src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":       src.Network.TailnetDebug,
-		"workspace/build_logs.txt":         humanizeBuildLogs(src.Workspace.BuildLogs),
-		"workspace/agent_startup_logs.txt": humanizeAgentLogs(src.Workspace.AgentStartupLogs),
-		"workspace/template_file.zip":      string(templateVersionBytes),
-		"logs.txt":                         strings.Join(src.Logs, "\n"),
+		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
+		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
+		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
+		"workspace/template_file.zip":    string(templateVersionBytes),
+		"logs.txt":                       strings.Join(src.Logs, "\n"),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
