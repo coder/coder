@@ -4,7 +4,6 @@ import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
