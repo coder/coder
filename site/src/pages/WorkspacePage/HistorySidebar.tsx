@@ -13,7 +13,7 @@ import {
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
+} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 
 interface HistorySidebarProps {
   workspace: Workspace;
