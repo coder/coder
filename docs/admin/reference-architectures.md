@@ -211,6 +211,10 @@ cloud providers such as AWS, GCP, and Azure for guidance on optimal
 configurations. A reasonable approach involves using scaling formulas based on
 factors like CPU, memory, and the number of users.
 
+While the minimum requirements specify 1 CPU core and 2 GB of memory per
+`coderd` replica, it is recommended to allocate additional resources to ensure
+deployment stability.
+
 **Notice about CPU and memory usage**
 
 The memory consumption may increase with enabled agent stats collection by the
@@ -220,23 +224,25 @@ Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
 this option enabled unless there are compelling reasons to disable it.
 
+Inactive users do not consume Coder resources.
+
 #### Up to 1,000 users
 
-While the minimum requirements specify 1 CPU core and 2 GB of memory per
-`coderd` replica, it is recommended to allocate additional resources to ensure
-deployment stability:
-
-| Users       | Configuration       | Replicas | GCP             | AWS        | Azure             |
+| Users       | Cluster capacity    | Replicas | GCP             | AWS        | Azure             |
 | ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
 | Up to 1,000 | 2 vCPU, 8 GB memory | 2        | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
 
 #### Up to 2,000 users
 
-TODO
+| Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
+| ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
+| Up to 2,000 | 4 vCPU, 16 GB memory | 2        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
 #### Up to 3,000 users
 
-TODO
+| Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
+| ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 4        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
 #### Scaling formula
 
