@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -148,10 +147,7 @@ func assertSanitizedWorkspace(t *testing.T, ws codersdk.Workspace) {
 	for _, res := range ws.LatestBuild.Resources {
 		for _, agt := range res.Agents {
 			for k, v := range agt.EnvironmentVariables {
-				kl := strings.ToLower(k)
-				if strings.Contains(kl, "secret") || strings.Contains(kl, "token") || strings.Contains(kl, "pass") {
-					assert.Empty(t, v, "environment variable %q not sanitized", k)
-				}
+				assert.Equal(t, "***REDACTED***", v, "environment variable %q not sanitized", k)
 			}
 		}
 	}
