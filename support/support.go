@@ -352,8 +352,8 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	return &b, nil
 }
 
-// sanitizeEnv modifies kvs in place and erases the values of keys containing
-// the strings "secret", "token", or "pass"
+// sanitizeEnv modifies kvs in place and replaces the values all non-empty keys
+// with the string ***REDACTED***
 func sanitizeEnv(kvs map[string]string) {
 	for k, v := range kvs {
 		if v != "" {
