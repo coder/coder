@@ -8,8 +8,8 @@ import {
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useAuthenticated } from "contexts/auth/useAuth";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 

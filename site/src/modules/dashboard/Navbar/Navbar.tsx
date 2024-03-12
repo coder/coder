@@ -1,6 +1,4 @@
 import type { FC } from "react";
-import { useAuth } from "contexts/auth/useAuth";
-import { useMe } from "contexts/auth/useMe";
 import { useAuthenticated } from "contexts/auth/useAuth";
 import { useProxy } from "contexts/ProxyContext";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -9,9 +7,7 @@ import { NavbarView } from "./NavbarView";
 
 export const Navbar: FC = () => {
   const { appearance, buildInfo } = useDashboard();
-  const { signOut } = useAuth();
-  const me = useMe();
-  const { permissions } = useAuthenticated();
+  const { user: me, permissions, signOut } = useAuthenticated();
   const featureVisibility = useFeatureVisibility();
   const canViewAuditLog =
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog);

@@ -20,7 +20,7 @@ export const useAuthenticated = () => {
     throw new Error("User is not authenticated.")
   }
 
-  return auth as  & {
+  return auth as AuthContextValue & {
     user: Exclude<AuthContextValue['user'], undefined>,
     permissions: Exclude<AuthContextValue['permissions'], undefined>,
   }

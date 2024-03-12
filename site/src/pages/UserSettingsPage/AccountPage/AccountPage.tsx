@@ -2,18 +2,15 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";
-import { useAuth } from "contexts/auth/useAuth";
-import { useMe } from "contexts/auth/useMe";
+import { useAuth, useAuthenticated } from "contexts/auth/useAuth";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useAuthenticated } from "contexts/auth/useAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
-  const me = useMe();
-  const { permissions } = useAuthenticated();
+  const { user: me, permissions } = useAuthenticated();
   const organizationId = useOrganizationId();
   const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
   const { entitlements } = useDashboard();

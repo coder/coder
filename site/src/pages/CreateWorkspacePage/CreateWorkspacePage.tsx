@@ -17,7 +17,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/useAuth";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -36,7 +36,7 @@ export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getWorkspaceMode(searchParams);

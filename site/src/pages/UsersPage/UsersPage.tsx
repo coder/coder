@@ -22,7 +22,6 @@ import { useFilter } from "components/Filter/filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/useAuth";
-import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -44,7 +43,7 @@ export const UsersPage: FC = () => {
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const { permissions } = useAuthenticated();
   const { updateUsers: canEditUsers, viewDeploymentValues } = permissions;
   const rolesQuery = useQuery(roles());
