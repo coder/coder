@@ -33,8 +33,8 @@ func Register(parentName string, dbURL string) (string, error) {
 
 	// create a new aws rds iam driver
 	d := newDriver(db.Driver(), sess, dbURL)
-	name := fmt.Sprintf("%s-awsrdsiam", parentDriver)
-	sql.Register(fmt.Sprintf("%s-awsrdsiam", parentDriver), d)
+	name := fmt.Sprintf("%s-awsrdsiam", parentName)
+	sql.Register(fmt.Sprintf("%s-awsrdsiam", parentName), d)
 
 	return name, nil
 }
@@ -57,7 +57,10 @@ func (d *AwsRdsIamDriver) Open(name string) (driver.Conn, error) {
 	}
 
 	// make connection
-	db, err := driver.
+	conn, err := d.parent.Open(nURL)
+	if err != nil {
+		return nil, xerrors.Errorf("opening connection: %w", err)
+	}
 
 	return conn, nil
 }
