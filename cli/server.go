@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsrdsiam"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -670,6 +671,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("escaping postgres URL: %w", err)
+				}
+
+				useAwsRdsIamAuth := true
+				if useAwsRdsIamAuth {
+					sqlDriver, err = awsrdsiam.Register(sqlDriver, dbURL)
+					if err != nil {
+						return xerrors.Errorf("register aws rds iam auth: %w", err)
+					}
 				}
 
 				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
