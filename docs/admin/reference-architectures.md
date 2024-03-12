@@ -215,7 +215,7 @@ While the minimum requirements specify 1 CPU core and 2 GB of memory per
 `coderd` replica, it is recommended to allocate additional resources to ensure
 deployment stability.
 
-**Notice about CPU and memory usage**
+#### CPU and memory usage
 
 The memory consumption may increase with enabled agent stats collection by the
 Prometheus metrics aggregator (optional).
@@ -225,6 +225,19 @@ traffic) can help prevent an increase in CPU usage. It is recommended to keep
 this option enabled unless there are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.
+
+#### HTTP API
+
+API latency/response time average number of HTTP requests
+
+TODO
+
+#### Scaling formula
+
+reasonable ratio/formula: CPU x memory x users reasonable ratio/formula:
+provisionerd x users API latency/response time average number of HTTP requests
+
+TODO
 
 #### Up to 1,000 users
 
@@ -243,12 +256,6 @@ Inactive users do not consume Coder resources.
 | Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
 | ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
 | Up to 3,000 | 8 vCPU, 32 GB memory | 4        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
-
-#### Scaling formula
-
-reasonable ratio/formula: CPU x memory x users reasonable ratio/formula:
-provisionerd x users API latency/response time average number of HTTP requests
-advice:
 
 ### Workspaces
 
