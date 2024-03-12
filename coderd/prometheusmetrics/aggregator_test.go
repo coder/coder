@@ -262,7 +262,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, nil)
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())

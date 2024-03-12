@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
+
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -451,7 +453,7 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, nil)
+	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
