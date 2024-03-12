@@ -156,8 +156,8 @@ Coder:
 
 - Median CPU usage for _coderd_: 3 vCPU, peaking at 3.7 vCPU during dashboard
   tests.
-- Median API request rate: 350 req/s during dashboard tests, 250 req/s during
-  Web Terminal and workspace apps tests.
+- Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web
+  Terminal and workspace apps tests.
 - 2000 agent API connections with latency: p90 at 60 ms, p95 at 220 ms.
 - on average 2400 Web Socket connections during dashboard tests.
 
@@ -205,9 +205,11 @@ this option enabled unless there are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.
 
-#### HTTP API
+#### HTTP API latency
 
 API latency/response time average number of HTTP requests
+
+depending on database perf
 
 TODO
 

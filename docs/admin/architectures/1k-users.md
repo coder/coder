@@ -4,6 +4,10 @@ The 1,000 users architecture is designed to cover a wide range of workflows.
 Examples of subjects that might utilize this architecture include medium-sized
 tech startups, educational units, or small to mid-sized enterprises.
 
+**Target load**: API: up to 180 RPS
+
+**High Availability**: non-essential for small deployments
+
 ## Hardware recommendations
 
 ### Coderd nodes

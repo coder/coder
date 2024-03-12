@@ -3,8 +3,11 @@
 The 3,000 users architecture targets large-scale enterprises, possibly with
 on-premises network and cloud deployments.
 
-Typically, such scale requires a fully-managed HA PostgreSQL service, and all
-Coder observability features enabled for operational purposes.
+**Target load**: API: up to 550 RPS
+
+**High Availability**: Typically, such scale requires a fully-managed HA
+PostgreSQL service, and all Coder observability features enabled for operational
+purposes.
 
 ## Hardware recommendations
 

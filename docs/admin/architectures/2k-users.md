@@ -8,8 +8,10 @@ seeking to accommodate their expanding user populations.
 Users can be evenly distributed between 2 regions or be attached to different
 clusters.
 
-The High Available mode is disabled in this setup, but administrators may
-consider enabling it.
+**Target load**: API: up to 300 RPS
+
+**High Availability**: The mode is _disabled_, but administrators may consider
+enabling it for deployment reliability.
 
 ## Hardware recommendations
 
