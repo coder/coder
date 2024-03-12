@@ -1,4 +1,4 @@
-# Reference architectures
+# Reference Architectures
 
 This document provides prescriptive solutions and reference architectures to
 support successful deployments of up to 2000 users and outlines at a high-level
@@ -174,32 +174,11 @@ Database:
 
 ## Available reference architectures
 
-### Up to 1,000 users
+[Up to 1,000 users](1k-users.md)
 
-The 1,000 users architecture is designed to cover a wide range of workflows.
-Examples of subjects that might utilize this architecture include medium-sized
-tech startups, educational units, or small to mid-sized enterprises.
+[Up to 2,000 users](2k-users.md)
 
-### Up to 2,000 users
-
-In the 2,000 users architecture, there is a moderate increase in traffic,
-suggesting a growing user base or expanding operations. This setup is
-well-suited for mid-sized companies experiencing growth or for universities
-seeking to accommodate their expanding user populations.
-
-Users can be evenly distributed between 2 regions or be attached to different
-clusters.
-
-The High Available mode is disabled in this setup, but administrators may
-consider enabling it.
-
-### Up to 3,000 users
-
-The 3,000 users architecture targets large-scale enterprises, possibly with
-on-premises network and cloud deployments.
-
-Typically, such scale requires a fully-managed HA PostgreSQL service, and all
-Coder observability features enabled for operational purposes.
+[Up to 3,000 users](3k-users.md)
 
 ## Hardware recommendation
 
@@ -238,24 +217,6 @@ reasonable ratio/formula: CPU x memory x users reasonable ratio/formula:
 provisionerd x users API latency/response time average number of HTTP requests
 
 TODO
-
-#### Up to 1,000 users
-
-| Users       | Cluster capacity    | Replicas | GCP             | AWS        | Azure             |
-| ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
-| Up to 1,000 | 2 vCPU, 8 GB memory | 2        | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
-
-#### Up to 2,000 users
-
-| Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
-| ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
-| Up to 2,000 | 4 vCPU, 16 GB memory | 2        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
-
-#### Up to 3,000 users
-
-| Users       | Cluster capacity     | Replicas | GCP             | AWS         | Azure             |
-| ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 4        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
 ### Workspaces
 
