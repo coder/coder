@@ -4,7 +4,6 @@ import type { LogLevel } from "api/typesGenerated";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
-export const LOG_LINE_HEIGHT = 20;
 
 export interface Line {
   time: string;
@@ -43,7 +42,7 @@ const styles = {
     fontSize: 13,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    height: LOG_LINE_HEIGHT,
+    height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
     padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,

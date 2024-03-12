@@ -21,7 +21,7 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { LOG_LINE_HEIGHT, type Line } from "components/Logs/LogLine";
+import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
@@ -35,6 +35,9 @@ import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { XRayScanAlert } from "./XRayScanAlert";
+
+// Approximate height of a log line. Used to control virtualized list height.
+export const AGENT_LOG_LINE_HEIGHT = 20;
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -151,7 +154,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       const distanceFromBottom =
         logListDivRef.current.scrollHeight -
         (props.scrollOffset + parent.clientHeight);
-      setBottomOfLogs(distanceFromBottom < LOG_LINE_HEIGHT);
+      setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
     },
     [logListDivRef],
   );
