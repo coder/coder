@@ -263,6 +263,8 @@ users.
 Mention that as users onboard, the autoscaling config should take care of
 ongoing workspaces
 
+0.25 cores and 256 MB per provisioner daemon
+
 ### Database
 
 PostgreSQL database
