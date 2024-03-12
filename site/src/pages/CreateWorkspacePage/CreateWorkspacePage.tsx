@@ -139,7 +139,7 @@ const CreateWorkspacePage: FC = () => {
     (!autofillEnabled || userParametersQuery.isSuccess) &&
     hasAllRequiredExternalAuth;
 
-  // `mode=auto` was set, but a prequisite has failed, and so auto-mode should be abandoned.
+  // `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
   if (
     mode === "auto" &&
     !isLoadingExternalAuth &&
