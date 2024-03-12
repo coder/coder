@@ -11,5 +11,6 @@
   },
   "dependencies": {
     "exec": "^0.2.1"
-  }
+  },
+  "packageManager": "pnpm@8.14.0+sha1.bb42032ff80dba5f9245bc1b03470d2fa0b7fb2f"
 }
