@@ -1,13 +1,15 @@
+/**
+ * @fileoverview This file is imported externally by things like vscode-coder so
+ * it must not import anything using aliases otherwise it will break when being
+ * imported by those external consumers.  For example, `utils/delay` must be
+ * imported using `../utils/delay` instead.
+ */
+
 import axios, { isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
-
-// This file is imported externally by things like vscode-coder so it must not
-// import anything using aliases otherwise it will break when being imported by
-// those external consumers.  For example, `utils/delay` must be imported using
-// `../utils/delay` instead.
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
