@@ -10,10 +10,8 @@ import {
 import { FixedSizeList as List } from "react-window";
 import * as API from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
-import {
-  LogLine,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
+import { LOG_LINE_HEIGHT } from "components/Logs/LogLine";
+import { AgentLogLine } from "./AgentLogLine";
 import type { LineWithID } from "./AgentRow";
 
 type AgentLogsProps = Omit<
@@ -39,7 +37,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
         ref={ref}
         css={styles.logs}
         itemCount={logs.length}
-        itemSize={logLineHeight}
+        itemSize={LOG_LINE_HEIGHT}
         {...listProps}
       >
         {({ index, style }) => {
@@ -149,7 +147,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           }
 
           return (
-            <LogLine
+            <AgentLogLine
               line={logs[index]}
               number={index + 1}
               maxNumber={logs.length}

@@ -21,12 +21,9 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { LOG_LINE_HEIGHT, type Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
-import {
-  type Line,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
 import { AgentLatency } from "./AgentLatency";
 import { AgentLogs, useAgentLogs } from "./AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
@@ -154,7 +151,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       const distanceFromBottom =
         logListDivRef.current.scrollHeight -
         (props.scrollOffset + parent.clientHeight);
-      setBottomOfLogs(distanceFromBottom < logLineHeight);
+      setBottomOfLogs(distanceFromBottom < LOG_LINE_HEIGHT);
     },
     [logListDivRef],
   );
