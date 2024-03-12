@@ -200,7 +200,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
+	storj.io/drpc v0.0.33
 	tailscale.com v1.46.1
 )
 
