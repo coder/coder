@@ -15,3 +15,7 @@ tech startups, educational units, or small to mid-sized enterprises.
 | Users       | Node capacity       | Replicas | GCP             | AWS        | Azure             |
 | ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
 | Up to 1,000 | 2 vCPU, 8 GB memory | 2        | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
+
+### Workspace nodes
+
+TODO

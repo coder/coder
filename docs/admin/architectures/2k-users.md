@@ -20,3 +20,13 @@ enabling it for deployment reliability.
 | Users       | Node capacity        | Replicas | GCP             | AWS         | Azure             |
 | ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
 | Up to 2,000 | 4 vCPU, 16 GB memory | 2        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
+
+### Workspace nodes
+
+TODO
+
+Developers for up to 2000+ users architecture are in 2 regions (a different
+cluster) and are evenly split. In practice, this doesn’t change much besides the
+diagram and workspaces node pool autoscaling config as it still uses the central
+provisioner. Recommend multiple provisioner groups for zero-trust and
+multi-cloud use cases.

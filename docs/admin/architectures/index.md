@@ -184,11 +184,11 @@ Database:
 
 ### Control plane
 
-When considering the control plane, it's essential to focus on node sizing,
-resource limits, and the number of replicas. We recommend referencing public
-cloud providers such as AWS, GCP, and Azure for guidance on optimal
-configurations. A reasonable approach involves using scaling formulas based on
-factors like CPU, memory, and the number of users.
+To ensure stability and reliability of the Coder control plane, it's essential
+to focus on node sizing, resource limits, and the number of replicas. We
+recommend referencing public cloud providers such as AWS, GCP, and Azure for
+guidance on optimal configurations. A reasonable approach involves using scaling
+formulas based on factors like CPU, memory, and the number of users.
 
 While the minimum requirements specify 1 CPU core and 2 GB of memory per
 `coderd` replica, it is recommended to allocate additional resources to ensure
@@ -209,7 +209,7 @@ Inactive users do not consume Coder resources.
 
 When determining scaling requirements, consider the following factors:
 
-- 1 vCPU x 2 GB memory x 250 users: A reasonable formula to determine resource
+- `1 vCPU x 2 GB memory x 250 users`: A reasonable formula to determine resource
   allocation based on the number of users and their expected usage patterns.
 - API latency/response time: Monitor API latency and response times to ensure
   optimal performance under varying loads.
@@ -236,36 +236,32 @@ for more details.
 
 ### Workspaces
 
-Assumptions:
+To determine workspace resource limits and keep the best developer experience
+for workspace users, administrators must be aware of a few assumptions.
 
-workspaces also run on the same Kubernetes cluster (recommend a different
-namespace/node pool)
+- Workspace pods run on the same Kubernetes cluster, but possible in a different
+  namespace or a node pool.
+- Workspace limits (per workspace user):
+  - Developers can choose between 4-8 vCPUs, and 4-16 GB memory.
+  - Evaluate the workspace utilization pattern. For instance, a regular web
+    development does not require high CPU capacity all the time, but only during
+    project builds or load tests.
+  - Minimum requirements for Coder agent running in an idle workspace are 0.1
+    vCPU and 256 MB.
 
-developers can pick between 4-8 CPU and 4-16 GB RAM workspaces (limits)
+#### Scaling formula
 
-developers have a resource quota of 16 GPU 32 GB RAM (2-maxed out workspaces).
-
-However, the Coder agent itself requires at minimum 0.1 CPU cores and 256 MB to
-run inside a workspace.
-
-web microservice development use case: resources are mostly underutilized but
-spike during builds
-
-Case study:
-
-Developers for up to 2000+ users architecture are in 2 regions (a different
-cluster) and are evenly split. In practice, this doesn’t change much besides the
-diagram and workspaces node pool autoscaling config as it still uses the central
-provisioner. Recommend multiple provisioner groups for zero-trust and
-multi-cloud use cases. Developers for up to 3000+ users architecture are also in
-an on-premises network. Document a provisioner running in a different cloud
-environment, and the zero-trust benefits of that.
-
-scaling formula
+TODO
 
 provisionerd x users: Another formula to consider, focusing on the capacity of
 provisioner nodes relative to the number of workspace builds, triggered by
 users.
+
+- Guidance for reasonable ratio of CPU limits/requests
+- Guidance for reasonable ratio for memory requests/limits
+
+Mention that as users onboard, the autoscaling config should take care of
+ongoing workspaces
 
 ### Database
 
