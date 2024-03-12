@@ -78,7 +78,7 @@ func New() database.Store {
 		},
 	}
 	// Always start with a default org. Matching migration 198.
-	_, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
 		Name:        "first-organization",
 		Description: "Builtin default organization.",
@@ -88,6 +88,12 @@ func New() database.Store {
 	if err != nil {
 		panic(xerrors.Errorf("failed to create default organization: %w", err))
 	}
+
+	_, err = q.InsertAllUsersGroup(context.Background(), defaultOrg.ID)
+	if err != nil {
+		panic(fmt.Errorf("failed to create default group: %w", err))
+	}
+
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
 	return q

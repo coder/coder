@@ -312,6 +312,16 @@ export type TemplateAutostopRequirementDaysValue =
   | "saturday"
   | "sunday";
 
+export const sortedDays = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as TemplateAutostartRequirementDaysValue[];
+
 export const calculateAutostopRequirementDaysValue = (
   value: TemplateAutostopRequirementDaysValue,
 ): Template["autostop_requirement"]["days_of_week"] => {
