@@ -8266,6 +8266,19 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if len(arg.WorkspaceIds) > 0 {
+			match := false
+			for _, id := range arg.WorkspaceIds {
+				if workspace.ID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
 		// If the filter exists, ensure the object is authorized.
 		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
 			continue

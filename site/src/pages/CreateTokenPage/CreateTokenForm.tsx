@@ -2,6 +2,7 @@ import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +21,8 @@ import {
   filterByMaxTokenLifetime,
   customLifetimeDay,
 } from "./utils";
+
+dayjs.extend(utc);
 
 interface CreateTokenFormProps {
   form: FormikContextType<CreateTokenData>;
