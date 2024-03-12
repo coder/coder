@@ -206,7 +206,7 @@ export const useAgentLogs = (
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
-            sourceId: log.sourceId,
+            sourceId: log.source_id,
           }));
 
           if (!previousLogs) {
