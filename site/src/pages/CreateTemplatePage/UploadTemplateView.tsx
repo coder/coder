@@ -21,7 +21,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   error,
 }) => {
   const navigate = useNavigate();
-  const { orgId: organizationId } = useAuthenticated();
+  const { orgId } = useAuthenticated();
 
   const dashboard = useDashboard();
   const formPermissions = getFormPermissions(dashboard.entitlements);
@@ -60,7 +60,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
       }}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          orgId,
           version: firstVersionFromFile(
             uploadedFile!.hash,
             formData.user_variable_values,

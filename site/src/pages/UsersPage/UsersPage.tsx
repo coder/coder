@@ -38,8 +38,8 @@ export const UsersPage: FC = () => {
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
 
-  const { orgId: organizationId } = useAuthenticated();
-  const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
+  const { orgId } = useAuthenticated();
+  const groupsByUserIdQuery = useQuery(groupsByUserId(orgId));
   const authMethodsQuery = useQuery(authMethods());
 
   const { user: me } = useAuthenticated();

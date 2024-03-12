@@ -9,8 +9,8 @@ import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
 const StarterTemplatesPage: FC = () => {
-  const { orgId: organizationId } = useAuthenticated();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const { orgId } = useAuthenticated();
+  const templateExamplesQuery = useQuery(templateExamples(orgId));
   const starterTemplatesByTag = templateExamplesQuery.data
     ? // Currently, the scratch template should not be displayed on the starter templates page.
       getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))

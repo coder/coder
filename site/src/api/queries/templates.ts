@@ -203,7 +203,7 @@ export const createTemplate = () => {
 };
 
 export type CreateTemplateOptions = {
-  organizationId: string;
+  orgId: string;
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
   onCreateVersion?: (version: TemplateVersion) => void;
@@ -212,12 +212,12 @@ export type CreateTemplateOptions = {
 
 const createTemplateFn = async (options: CreateTemplateOptions) => {
   const version = await API.createTemplateVersion(
-    options.organizationId,
+    options.orgId,
     options.version,
   );
   options.onCreateVersion?.(version);
   await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
-  return API.createTemplate(options.organizationId, {
+  return API.createTemplate(options.orgId, {
     ...options.template,
     template_version_id: version.id,
   });
@@ -255,21 +255,21 @@ export const templateFiles = (fileId: string) => {
 };
 
 export const previousTemplateVersion = (
-  organizationId: string,
+  orgId: string,
   templateName: string,
   versionName: string,
 ) => {
   return {
     queryKey: [
       "templateVersion",
-      organizationId,
+      orgId,
       templateName,
       versionName,
       "previous",
     ],
     queryFn: async () => {
       const result = await API.getPreviousTemplateVersionByName(
-        organizationId,
+        orgId,
         templateName,
         versionName,
       );

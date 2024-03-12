@@ -12,10 +12,10 @@ type GroupSortOrder = "asc" | "desc";
 
 const getGroupQueryKey = (groupId: string) => ["group", groupId];
 
-export const groups = (organizationId: string) => {
+export const groups = (orgId: string) => {
   return {
     queryKey: GROUPS_QUERY_KEY,
-    queryFn: () => API.getGroups(organizationId),
+    queryFn: () => API.getGroups(orgId),
   } satisfies UseQueryOptions<Group[]>;
 };
 
@@ -28,9 +28,9 @@ export const group = (groupId: string) => {
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
-export function groupsByUserId(organizationId: string) {
+export function groupsByUserId(orgId: string) {
   return {
-    ...groups(organizationId),
+    ...groups(orgId),
     select: (allGroups) => {
       // Sorting here means that nothing has to be sorted for the individual
       // user arrays later
@@ -54,9 +54,9 @@ export function groupsByUserId(organizationId: string) {
   } satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
-export function groupsForUser(organizationId: string, userId: string) {
+export function groupsForUser(orgId: string, userId: string) {
   return {
-    ...groups(organizationId),
+    ...groups(orgId),
     select: (allGroups) => {
       const groupsForUser = allGroups.filter((group) => {
         const groupMemberIds = group.members.map((member) => member.id);
@@ -89,10 +89,10 @@ export const groupPermissions = (groupId: string) => {
 export const createGroup = (queryClient: QueryClient) => {
   return {
     mutationFn: ({
-      organizationId,
+      orgId,
       ...request
-    }: CreateGroupRequest & { organizationId: string }) =>
-      API.createGroup(organizationId, request),
+    }: CreateGroupRequest & { orgId: string }) =>
+      API.createGroup(orgId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries(GROUPS_QUERY_KEY);
     },

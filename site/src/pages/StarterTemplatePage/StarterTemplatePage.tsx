@@ -9,8 +9,8 @@ import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const StarterTemplatePage: FC = () => {
   const { exampleId } = useParams() as { exampleId: string };
-  const { orgId: organizationId } = useAuthenticated();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const { orgId } = useAuthenticated();
+  const templateExamplesQuery = useQuery(templateExamples(orgId));
   const starterTemplate = templateExamplesQuery.data?.find(
     (example) => example.id === exampleId,
   );

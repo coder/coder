@@ -39,7 +39,7 @@ import {
 } from "./UserOrGroupAutocomplete";
 
 type AddTemplateUserOrGroupProps = {
-  organizationId: string;
+  orgId: string;
   templateID: string;
   isLoading: boolean;
   templateACL: TemplateACL | undefined;
@@ -161,7 +161,7 @@ const RoleSelect: FC<SelectProps> = (props) => {
 export interface TemplatePermissionsPageViewProps {
   templateACL: TemplateACL | undefined;
   templateID: string;
-  organizationId: string;
+  orgId: string;
   canUpdatePermissions: boolean;
   // User
   onAddUser: (
@@ -190,7 +190,7 @@ export const TemplatePermissionsPageView: FC<
 > = ({
   templateACL,
   canUpdatePermissions,
-  organizationId,
+  orgId,
   templateID,
   // User
   onAddUser,
@@ -222,7 +222,7 @@ export const TemplatePermissionsPageView: FC<
           <AddTemplateUserOrGroup
             templateACL={templateACL}
             templateID={templateID}
-            organizationId={organizationId}
+            orgId={orgId}
             isLoading={isAddingUser || isAddingGroup}
             onSubmit={(value, role, resetAutocomplete) =>
               "members" in value

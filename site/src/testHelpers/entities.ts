@@ -2274,11 +2274,11 @@ export const MockGroup: TypesGen.Group = {
   source: "user",
 };
 
-const everyOneGroup = (organizationId: string): TypesGen.Group => ({
-  id: organizationId,
+const everyOneGroup = (orgId: string): TypesGen.Group => ({
+  id: orgId,
   name: "Everyone",
   display_name: "",
-  organization_id: organizationId,
+  organization_id: orgId,
   members: [],
   avatar_url: "",
   quota_allowance: 0,

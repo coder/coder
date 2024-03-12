@@ -10,13 +10,13 @@ import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
   const { user: me, permissions } = useAuthenticated();
-  const { orgId: organizationId } = useAuthenticated();
+  const { orgId } = useAuthenticated();
   const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
   const { entitlements } = useDashboard();
 
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;
   const groupsQuery = useQuery({
-    ...groupsForUser(organizationId, me.id),
+    ...groupsForUser(orgId, me.id),
     enabled: hasGroupsFeature,
   });
 

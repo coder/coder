@@ -35,21 +35,21 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 type AutoCreateWorkspaceOptions = {
   templateName: string;
   versionId?: string;
-  organizationId: string;
+  orgId: string;
   defaultBuildParameters?: WorkspaceBuildParameter[];
   defaultName: string;
 };
 
 type CreateWorkspaceMutationVariables = CreateWorkspaceRequest & {
   userId: string;
-  organizationId: string;
+  orgId: string;
 };
 
 export const createWorkspace = (queryClient: QueryClient) => {
   return {
     mutationFn: async (variables: CreateWorkspaceMutationVariables) => {
-      const { userId, organizationId, ...req } = variables;
-      return API.createWorkspace(organizationId, userId, req);
+      const { userId, orgId, ...req } = variables;
+      return API.createWorkspace(orgId, userId, req);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(["workspaces"]);
@@ -62,7 +62,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
     mutationFn: async ({
       templateName,
       versionId,
-      organizationId,
+      orgId,
       defaultBuildParameters,
       defaultName,
     }: AutoCreateWorkspaceOptions) => {
@@ -72,13 +72,13 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
         templateVersionParameters = { template_version_id: versionId };
       } else {
         const template = await API.getTemplateByName(
-          organizationId,
+          orgId,
           templateName,
         );
         templateVersionParameters = { template_id: template.id };
       }
 
-      return API.createWorkspace(organizationId, "me", {
+      return API.createWorkspace(orgId, "me", {
         ...templateVersionParameters,
         name: defaultName,
         rich_parameter_values: defaultBuildParameters,

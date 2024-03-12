@@ -33,7 +33,7 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const { orgId: organizationId } = useAuthenticated();
+  const { orgId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
   const { user: me } = useAuthenticated();
   const navigate = useNavigate();
@@ -50,11 +50,11 @@ const CreateWorkspacePage: FC = () => {
   );
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const templateQuery = useQuery(templateByName(orgId, templateName));
 
   const permissionsQuery = useQuery(
     checkAuthorization({
-      checks: createWorkspaceChecks(organizationId),
+      checks: createWorkspaceChecks(orgId),
     }),
   );
   const realizedVersionId =
@@ -114,7 +114,7 @@ const CreateWorkspacePage: FC = () => {
       autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
-        organizationId,
+        orgId,
         defaultBuildParameters: autofillParameters,
         defaultName: defaultName ?? generateWorkspaceName(),
         versionId: realizedVersionId,
@@ -176,7 +176,7 @@ const CreateWorkspacePage: FC = () => {
             const workspace = await createWorkspaceMutation.mutateAsync({
               ...request,
               userId: owner.id,
-              organizationId,
+              orgId,
             });
             onCreateWorkspace(workspace);
           }}

@@ -39,12 +39,12 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
 
-  const { orgId: organizationId } = useAuthenticated();
-  const templatesQuery = useQuery(templates(organizationId, false));
+  const { orgId } = useAuthenticated();
+  const templatesQuery = useQuery(templates(orgId, false));
 
   const filterProps = useWorkspacesFilter({
     searchParamsResult,
-    organizationId,
+    orgId,
     onFilterChange: () => pagination.goToPage(1),
   });
 
@@ -141,13 +141,13 @@ export default WorkspacesPage;
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onFilterChange: () => void;
-  organizationId: string;
+  orgId: string;
 };
 
 const useWorkspacesFilter = ({
   searchParamsResult,
   onFilterChange,
-  organizationId,
+  orgId,
 }: UseWorkspacesFilterOptions) => {
   const filter = useFilter({
     fallbackFilter: "owner:me",
@@ -165,7 +165,7 @@ const useWorkspacesFilter = ({
   });
 
   const templateMenu = useTemplateFilterMenu({
-    orgId: organizationId,
+    orgId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),
