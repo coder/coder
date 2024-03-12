@@ -7,7 +7,6 @@ import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "contexts/auth/useAuth";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -40,7 +39,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
 
-  const organizationId = useOrganizationId();
+  const { orgId: organizationId } = useAuthenticated();
   const templatesQuery = useQuery(templates(organizationId, false));
 
   const filterProps = useWorkspacesFilter({

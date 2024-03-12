@@ -18,7 +18,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/useAuth";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
@@ -34,7 +33,7 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const organizationId = useOrganizationId();
+  const { orgId: organizationId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
   const { user: me } = useAuthenticated();
   const navigate = useNavigate();

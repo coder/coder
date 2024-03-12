@@ -34,6 +34,7 @@ export type AuthContextValue = {
   user: User | undefined;
   permissions: Permissions | undefined;
   authMethods: AuthMethods | undefined;
+  orgId: string | undefined;
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
@@ -121,6 +122,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         authMethods: authMethodsQuery.data,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
+        orgId: userQuery.data?.organization_ids[0],
       }}
     >
       {children}

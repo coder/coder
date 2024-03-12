@@ -9,7 +9,6 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/useAuth";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
@@ -21,7 +20,7 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const orgId = useOrganizationId();
+  const { orgId } = useAuthenticated();
 
   /**
    * Template version files

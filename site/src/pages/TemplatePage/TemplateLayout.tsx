@@ -17,7 +17,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/useAuth";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -74,7 +74,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const orgId = useOrganizationId();
+  const { orgId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],

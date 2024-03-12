@@ -22,7 +22,6 @@ import { useFilter } from "components/Filter/filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/useAuth";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
@@ -39,7 +38,7 @@ export const UsersPage: FC = () => {
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
 
-  const organizationId = useOrganizationId();
+  const { orgId: organizationId } = useAuthenticated();
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 

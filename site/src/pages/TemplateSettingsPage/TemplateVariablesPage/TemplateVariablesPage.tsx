@@ -16,7 +16,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/useAuth";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
@@ -26,7 +26,7 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const orgId = useOrganizationId();
+  const { orgId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
