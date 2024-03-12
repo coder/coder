@@ -16,6 +16,7 @@ gpg_flags=(
 )
 
 pushd "$PROJECT_ROOT/dogfood/files/usr/share/keyrings"
+
 # Upstream Docker signing key
 curl "${curl_flags[@]}" "https://download.docker.com/linux/ubuntu/gpg" |
 	gpg "${gpg_flags[@]}" --output="docker.gpg"
@@ -59,4 +60,13 @@ curl "${curl_flags[@]}" "https://apt.releases.hashicorp.com/gpg" |
 # GitHub CLI signing key
 curl "${curl_flags[@]}" "https://cli.github.com/packages/githubcli-archive-keyring.gpg" |
 	gpg "${gpg_flags[@]}" --output="github-cli.gpg"
+
+# Fish signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x59fda1ce1b84b3fad89366c027557f056dc33ca5" |
+	gpg "${gpg_flags[@]}" --output="fish-shell.gpg"
+
+# Helix signing key
+curl "${curl_flags[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x27642b9fd7f1a161fc2524e3355a4fa515d7c855" |
+	gpg "${gpg_flags[@]}" --output="helix.gpg"
+
 popd
