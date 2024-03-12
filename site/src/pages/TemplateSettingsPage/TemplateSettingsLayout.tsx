@@ -36,7 +36,7 @@ export const TemplateSettingsLayout: FC = () => {
         canUpdateTemplate: {
           object: {
             resource_type: "template",
-            resourceId: templateQuery.data?.id ?? "",
+            resource_id: templateQuery.data?.id ?? "",
           },
           action: "update",
         },

@@ -26,7 +26,7 @@ const templatePermissions = (
   canUpdateTemplate: {
     object: {
       resource_type: "template",
-      resourceId: templateId,
+      resource_id: templateId,
     },
     action: "update",
   },
