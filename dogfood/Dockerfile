@@ -96,22 +96,34 @@ COPY files /
 ARG DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update --quiet && apt-get install --yes \
+	ansible \
 	apt-transport-https \
 	apt-utils \
+	asciinema \
 	bash \
 	bash-completion \
 	bats \
 	bind9-dnsutils \
 	build-essential \
 	ca-certificates \
+	cargo \
 	cmake \
+	containerd.io \
 	crypto-policies \
 	curl \
+	docker-ce \
+	docker-ce-cli \
+	docker-compose-plugin \
 	fd-find \
 	file \
+	fish \
+	gettext-base \
 	git \
 	gnupg \
+	google-cloud-sdk \
+	google-cloud-sdk-datastore-emulator \
 	graphviz \
+	helix \
 	htop \
 	httpie \
 	inetutils-tools \
@@ -119,50 +131,39 @@ RUN apt-get update --quiet && apt-get install --yes \
 	iputils-ping \
 	iputils-tracepath \
 	jq \
+	kubectl \
 	language-pack-en \
 	less \
+	libssl-dev \
 	lsb-release \
 	man \
 	meld \
+	ncdu \
+	neovim \
 	net-tools \
 	openjdk-11-jdk-headless \
 	openssh-server \
 	openssl \
-	libssl-dev \
+	packer \
 	pkg-config \
+	postgresql-13 \
 	python3 \
 	python3-pip \
 	rsync \
+	screen \
 	shellcheck \
 	strace \
 	sudo \
 	tcptraceroute \
 	termshark \
 	traceroute \
+	unzip \
 	vim \
 	wget \
 	xauth \
 	zip \
-	ncdu \
-	cargo \
-	asciinema \
 	zsh \
-	ansible \
-	neovim \
-	google-cloud-sdk \
-	google-cloud-sdk-datastore-emulator \
-	kubectl \
-	postgresql-13 \
-	containerd.io \
-	docker-ce \
-	docker-ce-cli \
-	docker-compose-plugin \
-	packer \
-	fish \
-	unzip \
-	zstd \
-	screen \
-	gettext-base && \
+	zstd && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
 	# Configure FIPS-compliant policies
