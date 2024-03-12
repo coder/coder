@@ -22,11 +22,9 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import {
-  DormantStatusBadge,
-  WorkspaceStatusBadge,
-} from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
@@ -214,7 +212,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                           />
                         )}
                       {workspace.dormant_at && (
-                        <DormantStatusBadge workspace={workspace} />
+                        <WorkspaceDormantBadge workspace={workspace} />
                       )}
                     </div>
                   </TableCell>
