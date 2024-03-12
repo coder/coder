@@ -9,14 +9,19 @@ import (
 	"testing"
 	"time"
 
+	"tailscale.com/ipn/ipnstate"
+
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -37,7 +42,9 @@ func TestSupportBundle(t *testing.T) {
 		}).WithAgent().Do()
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
-		agt := ws.LatestBuild.Resources[0].Agents[0]
+		agt := agenttest.New(t, client.URL, r.AgentToken)
+		defer agt.Close()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 
 		// Insert a provisioner job log
 		_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
@@ -51,7 +58,7 @@ func TestSupportBundle(t *testing.T) {
 		require.NoError(t, err)
 		// Insert an agent log
 		_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-			AgentID:      agt.ID,
+			AgentID:      ws.LatestBuild.Resources[0].Agents[0].ID,
 			CreatedAt:    dbtime.Now(),
 			Output:       []string{"started up"},
 			Level:        []database.LogLevel{database.LogLevelInfo},
@@ -156,6 +163,25 @@ func assertBundleContents(t *testing.T, path string) {
 			var v codersdk.WorkspaceAgent
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "agent should not be empty")
+		case "agent/listening_ports.json":
+			var v codersdk.WorkspaceAgentListeningPortsResponse
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "agent listening ports should not be empty")
+		case "agent/logs.txt":
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "logs should not be empty")
+		case "agent/manifest.json":
+			var v agentsdk.Manifest
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "agent manifest should not be empty")
+		case "agent/peer_diagnostics.json":
+			var v *tailnet.PeerDiagnostics
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "peer diagnostics should not be empty")
+		case "agent/ping_result.json":
+			var v *ipnstate.PingResult
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "ping result should not be empty")
 		case "agent/startup_logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.Contains(t, string(bs), "started up")
@@ -178,7 +204,7 @@ func assertBundleContents(t *testing.T, path string) {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
 		default:
-			require.Failf(t, "unexpected file in bundle: %q", f.Name)
+			require.Failf(t, "unexpected file in bundle", f.Name)
 		}
 	}
 }

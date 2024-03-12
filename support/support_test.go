@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -64,6 +65,11 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Workspace.TemplateFileBase64)
 		require.NotNil(t, bun.Workspace.Parameters)
 		require.NotNil(t, bun.Agent.Agent)
+		require.NotNil(t, bun.Agent.ListeningPorts)
+		require.NotNil(t, bun.Agent.Logs)
+		require.NotNil(t, bun.Agent.Manifest)
+		require.NotNil(t, bun.Agent.PeerDiagnostics)
+		require.NotNil(t, bun.Agent.PingResult)
 		require.NotEmpty(t, bun.Agent.StartupLogs)
 		require.NotEmpty(t, bun.Logs)
 	})
@@ -199,6 +205,9 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 		OutputLength: 0o7,
 	})
 	require.NoError(t, err)
+
+	_ = agenttest.New(t, client.URL, wbr.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
 
 	return ws, agt
 }

@@ -1,14 +1,18 @@
 package support
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/ipn/ipnstate"
 
 	"github.com/google/uuid"
 
@@ -16,6 +20,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // Bundle is a set of information discovered about a deployment.
@@ -53,8 +59,13 @@ type Workspace struct {
 }
 
 type Agent struct {
-	Agent       codersdk.WorkspaceAgent      `json:"agent"`
-	StartupLogs []codersdk.WorkspaceAgentLog `json:"startup_logs"`
+	Agent           codersdk.WorkspaceAgent                        `json:"agent"`
+	ListeningPorts  *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
+	Logs            []byte                                         `json:"logs"`
+	Manifest        *agentsdk.Manifest                             `json:"manifest"`
+	PeerDiagnostics *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
+	PingResult      *ipnstate.PingResult                           `json:"ping_result"`
+	StartupLogs     []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
 }
 
 // Deps is a set of dependencies for discovering information
@@ -303,6 +314,72 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		return nil
 	})
 
+	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+		Logger:         log.Named("dial-agent"),
+		BlockEndpoints: false,
+	})
+	if err != nil {
+		log.Error(ctx, "dial agent", slog.Error(err))
+	} else {
+		defer conn.Close()
+		if !conn.AwaitReachable(ctx) {
+			log.Error(ctx, "timed out waiting for agent")
+		} else {
+			eg.Go(func() error {
+				_, _, pingRes, err := conn.Ping(ctx)
+				if err != nil {
+					return xerrors.Errorf("ping agent: %w", err)
+				}
+				a.PingResult = pingRes
+				return nil
+			})
+
+			eg.Go(func() error {
+				pds := conn.GetPeerDiagnostics()
+				a.PeerDiagnostics = &pds
+				return nil
+			})
+
+			eg.Go(func() error {
+				tokenBytes, err := runCmd(ctx, client, agentID, `echo $CODER_AGENT_TOKEN`)
+				if err != nil {
+					return xerrors.Errorf("failed to fetch agent token: %w", err)
+				}
+				token := string(bytes.TrimSpace(tokenBytes))
+				agentClient := agentsdk.New(client.URL)
+				agentClient.SetSessionToken(token)
+				manifestRes, err := agentClient.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
+				if err != nil {
+					return xerrors.Errorf("fetch manifest: %w", err)
+				}
+				defer manifestRes.Body.Close()
+				if err := json.NewDecoder(manifestRes.Body).Decode(&a.Manifest); err != nil {
+					return xerrors.Errorf("decode agent manifest: %w", err)
+				}
+
+				return nil
+			})
+
+			eg.Go(func() error {
+				logBytes, err := runCmd(ctx, client, agentID, `tail -n 1000 /tmp/coder-agent.log`)
+				if err != nil {
+					return xerrors.Errorf("tail /tmp/coder-agent.log: %w", err)
+				}
+				a.Logs = logBytes
+				return nil
+			})
+
+			eg.Go(func() error {
+				lps, err := conn.ListeningPorts(ctx)
+				if err != nil {
+					return xerrors.Errorf("get listening ports: %w", err)
+				}
+				a.ListeningPorts = &lps
+				return nil
+			})
+		}
+	}
+
 	if err := eg.Wait(); err != nil {
 		log.Error(ctx, "fetch agent information", slog.Error(err))
 	}
@@ -379,4 +456,42 @@ func sanitizeEnv(kvs map[string]string) {
 			kvs[k] = "***REDACTED***"
 		}
 	}
+}
+
+// TODO: use rpty instead? which is less liable to fail?
+func runCmd(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string) ([]byte, error) {
+	var err error
+	var closers []func() error
+	defer func() {
+		if err != nil {
+			for _, c := range closers {
+				if err2 := c(); err2 != nil {
+					err = errors.Join(err, err2)
+				}
+			}
+		}
+	}()
+	agentConn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{})
+	if err != nil {
+		return nil, xerrors.Errorf("dial workspace agent: %w", err)
+	}
+	closers = append(closers, agentConn.Close)
+
+	sshClient, err := agentConn.SSHClient(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get ssh client: %w", err)
+	}
+	closers = append(closers, sshClient.Close)
+
+	sshSession, err := sshClient.NewSession()
+	if err != nil {
+		return nil, xerrors.Errorf("new ssh session: %w", err)
+	}
+	closers = append(closers, sshSession.Close)
+
+	cmdBytes, err := sshSession.CombinedOutput(cmd)
+	if err != nil {
+		return nil, xerrors.Errorf("shell: %w", err)
+	}
+	return cmdBytes, err
 }
