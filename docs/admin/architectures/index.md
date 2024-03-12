@@ -216,6 +216,18 @@ When determining scaling requirements, consider the following factors:
 - Average number of HTTP requests: Track the average number of HTTP requests to
   gauge system usage and identify potential bottlenecks.
 
+**HTTP API latency**
+
+For a reliable Coder deployment dealing with medium to high loads, it's
+important that API calls for workspace/template queries and workspace build
+operations respond within 300 ms. However, API template insights calls, which
+involve browsing workspace agent stats and user activity data, may require more
+time.
+
+Also, if the Coder deployment expects traffic from developers spread across the
+globe, keep in mind that customer-facing latency might be higher because of the
+distance between users and the load balancer.
+
 **Node Autoscaling**
 
 We recommend to disable autoscaling for `coderd` nodes. Autoscaling can cause
