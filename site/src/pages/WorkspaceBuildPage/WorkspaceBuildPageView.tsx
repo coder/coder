@@ -23,7 +23,7 @@ import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
+} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
