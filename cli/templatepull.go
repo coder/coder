@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/codeclysm/extract/v3"
@@ -128,6 +129,17 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 			if dest == "" {
 				dest = templateName
+			}
+
+			clean, err := filepath.Abs(filepath.Clean(dest))
+			if err != nil {
+				cliui.Error(inv.Stderr, fmt.Sprintf("cleaning destination path %s failed: %q", dest, err))
+				return err
+			}
+
+			if dest != clean {
+				cliui.Warn(inv.Stderr, fmt.Sprintf("cleaning destination path from %s to %s", dest, clean))
+				dest = clean
 			}
 
 			err = os.MkdirAll(dest, 0o750)
