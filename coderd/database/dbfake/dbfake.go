@@ -95,6 +95,9 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Auth: &sdkproto.Agent_Token{
 			Token: b.agentToken,
 		},
+		Env: map[string]string{
+			"SECRET_TOKEN": "supersecret",
+		},
 	}}
 	for _, m := range mutations {
 		agents = m(agents)
