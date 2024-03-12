@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { AuthContext } from "./AuthProvider";
+import { AuthContext, type AuthContextValue } from "./AuthProvider";
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -10,3 +10,19 @@ export const useAuth = () => {
 
   return context;
 };
+
+
+
+export const useAuthenticated = () => {
+  const auth = useAuth()
+
+  if(!auth.user) {
+    throw new Error("User is not authenticated.")
+  }
+
+  return auth as  & {
+    user: Exclude<AuthContextValue['user'], undefined>,
+    permissions: Exclude<AuthContextValue['permissions'], undefined>,
+  }
+}
+

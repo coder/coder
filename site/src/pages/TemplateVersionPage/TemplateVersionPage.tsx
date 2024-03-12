@@ -9,7 +9,7 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/useAuth";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
@@ -43,7 +43,7 @@ export const TemplateVersionPage: FC = () => {
     enabled: Boolean(activeVersionQuery.data),
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const versionId = selectedVersionQuery.data?.id;
   const createWorkspaceUrl = useMemo(() => {
     const params = new URLSearchParams();

@@ -21,9 +21,9 @@ import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "components/Filter/filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
+import { useAuthenticated } from "contexts/auth/useAuth";
 import { useMe } from "contexts/auth/useMe";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
@@ -45,7 +45,8 @@ export const UsersPage: FC = () => {
   const authMethodsQuery = useQuery(authMethods());
 
   const me = useMe();
-  const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
+  const { permissions } = useAuthenticated();
+  const { updateUsers: canEditUsers, viewDeploymentValues } = permissions;
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
