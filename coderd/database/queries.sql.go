@@ -8695,6 +8695,8 @@ INNER JOIN workspaces
 WHERE
 	-- This should only match 1 agent, so 1 returned row or 0
 	workspace_agents.auth_token = $1
+AND
+	workspaces.deleted = FALSE
 `
 
 type GetWorkspaceAgentAndLatestBuildByAuthTokenRow struct {
