@@ -14,7 +14,7 @@ export const Language = {
 };
 
 export const CreateUserPage: FC = () => {
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createUserMutation = useMutation(createUser(queryClient));
@@ -38,7 +38,7 @@ export const CreateUserPage: FC = () => {
           navigate("/users");
         }}
         isLoading={createUserMutation.isLoading}
-        orgId={orgId}
+        organizationId={organizationId}
       />
     </Margins>
   );

@@ -36,10 +36,10 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { orgId } = useAuthenticated();
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const { organizationId } = useAuthenticated();
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
-    orgId,
+    organizationId,
     templateName,
     versionName,
   );
@@ -49,7 +49,7 @@ export const TemplateVersionEditorPage: FC = () => {
   });
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(orgId),
+    createTemplateVersion(organizationId),
   );
   const resourcesQuery = useQuery({
     ...resources(templateVersionQuery.data?.id ?? ""),
@@ -71,7 +71,7 @@ export const TemplateVersionEditorPage: FC = () => {
     mutationFn: publishVersion,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        templateByNameKey(orgId, templateName),
+        templateByNameKey(organizationId, templateName),
       );
     },
   });

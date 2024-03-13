@@ -38,8 +38,8 @@ const templatePermissions = (
   },
 });
 
-const fetchTemplate = async (orgId: string, templateName: string) => {
-  const template = await getTemplateByName(orgId, templateName);
+const fetchTemplate = async (organizationId: string, templateName: string) => {
+  const template = await getTemplateByName(organizationId, templateName);
   const [activeVersion, permissions] = await Promise.all([
     getTemplateVersion(template.active_version_id),
     checkAuthorization({
@@ -74,11 +74,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
-    queryFn: () => fetchTemplate(orgId, templateName),
+    queryFn: () => fetchTemplate(organizationId, templateName),
   });
   const location = useLocation();
   const paths = location.pathname.split("/");

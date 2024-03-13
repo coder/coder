@@ -79,6 +79,6 @@ export const useAuthenticated = () => {
   return auth as AuthContextValue & {
     user: Exclude<AuthContextValue["user"], undefined>;
     permissions: Exclude<AuthContextValue["permissions"], undefined>;
-    orgId: Exclude<AuthContextValue["orgId"], undefined>;
+    organizationId: Exclude<AuthContextValue["organizationId"], undefined>;
   };
 };

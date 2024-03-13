@@ -47,11 +47,11 @@ export const handlers = [
   }),
 
   // organizations
-  rest.get("/api/v2/organizations/:orgId", async (req, res, ctx) => {
+  rest.get("/api/v2/organizations/:organizationId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockOrganization));
   }),
   rest.get(
-    "api/v2/organizations/:orgId/templates/examples",
+    "api/v2/organizations/:organizationId/templates/examples",
     (req, res, ctx) => {
       return res(
         ctx.status(200),
@@ -60,13 +60,13 @@ export const handlers = [
     },
   ),
   rest.get(
-    "/api/v2/organizations/:orgId/templates/:templateId",
+    "/api/v2/organizations/:organizationId/templates/:templateId",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplate));
     },
   ),
   rest.get(
-    "/api/v2/organizations/:orgId/templates",
+    "/api/v2/organizations/:organizationId/templates",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([M.MockTemplate]));
     },
@@ -130,13 +130,13 @@ export const handlers = [
     },
   ),
   rest.get(
-    "api/v2/organizations/:orgId/templates/:templateName/versions/:templateVersionName",
+    "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion));
     },
   ),
   rest.get(
-    "api/v2/organizations/:orgId/templates/:templateName/versions/:templateVersionName/previous",
+    "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName/previous",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion2));
     },
@@ -170,7 +170,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json([M.MockOrganization]));
   }),
   rest.get(
-    "/api/v2/users/me/organizations/:orgId",
+    "/api/v2/users/me/organizations/:organizationId",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockOrganization));
     },
@@ -324,12 +324,12 @@ export const handlers = [
   }),
 
   // Groups
-  rest.get("/api/v2/organizations/:orgId/groups", (req, res, ctx) => {
+  rest.get("/api/v2/organizations/:organizationId/groups", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([MockGroup]));
   }),
 
   rest.post(
-    "/api/v2/organizations/:orgId/groups",
+    "/api/v2/organizations/:organizationId/groups",
     async (req, res, ctx) => {
       return res(ctx.status(201), ctx.json(M.MockGroup));
     },

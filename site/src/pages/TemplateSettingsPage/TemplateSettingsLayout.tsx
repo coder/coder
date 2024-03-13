@@ -27,9 +27,9 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const permissionsQuery = useQuery({
     ...checkAuthorization({
       checks: {

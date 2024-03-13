@@ -32,6 +32,6 @@ export const WithUpdatePermissions: Story = {
   args: {
     templateACL: MockTemplateACL,
     canUpdatePermissions: true,
-    orgId: MockOrganization.id,
+    organizationId: MockOrganization.id,
   },
 };

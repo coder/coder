@@ -13,7 +13,7 @@ import StarterTemplatesPage from "./StarterTemplatesPage";
 test("does not display the scratch template", async () => {
   server.use(
     rest.get(
-      "api/v2/organizations/:orgId/templates/examples",
+      "api/v2/organizations/:organizationId/templates/examples",
       (req, res, ctx) => {
         return res(
           ctx.status(200),

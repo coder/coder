@@ -25,7 +25,7 @@ export const WorkspacePage: FC = () => {
   };
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
 
   // Workspace
   const workspaceQueryOptions = workspaceByOwnerAndName(
@@ -37,7 +37,7 @@ export const WorkspacePage: FC = () => {
 
   // Template
   const templateQuery = useQuery({
-    ...templateByName(orgId, workspace?.template_name ?? ""),
+    ...templateByName(organizationId, workspace?.template_name ?? ""),
     enabled: workspace !== undefined,
   });
   const template = templateQuery.data;

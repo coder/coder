@@ -10,10 +10,10 @@ import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
-  const { orgId, permissions } = useAuthenticated();
+  const { organizationId, permissions } = useAuthenticated();
   const { createGroup: canCreateGroup } = permissions;
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const groupsQuery = useQuery(groups(orgId));
+  const groupsQuery = useQuery(groups(organizationId));
 
   useEffect(() => {
     if (groupsQuery.error) {

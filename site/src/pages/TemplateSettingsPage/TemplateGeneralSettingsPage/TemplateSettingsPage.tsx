@@ -15,7 +15,7 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
   const { entitlements, experiments } = useDashboard();
@@ -42,7 +42,7 @@ export const TemplateSettingsPage: FC = () => {
           //
           // we use data.name because an admin may have updated templateName to something new
           await queryClient.invalidateQueries(
-            templateByNameKey(orgId, data.name),
+            templateByNameKey(organizationId, data.name),
           );
         }
         displaySuccess("Template updated successfully");

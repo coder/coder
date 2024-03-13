@@ -7,10 +7,10 @@ import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
-  const { orgId, permissions } = useAuthenticated();
-  const templatesQuery = useQuery(templates(orgId));
+  const { organizationId, permissions } = useAuthenticated();
+  const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
-    ...templateExamples(orgId),
+    ...templateExamples(organizationId),
     enabled: permissions.createTemplates,
   });
   const error = templatesQuery.error || examplesQuery.error;

@@ -10,7 +10,7 @@ import CreateGroupPageView from "./CreateGroupPageView";
 export const CreateGroupPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const createGroupMutation = useMutation(createGroup(queryClient));
 
   return (
@@ -21,7 +21,7 @@ export const CreateGroupPage: FC = () => {
       <CreateGroupPageView
         onSubmit={async (data) => {
           const newGroup = await createGroupMutation.mutateAsync({
-            orgId,
+            organizationId,
             ...data,
           });
           navigate(`/groups/${newGroup.id}`);

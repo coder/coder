@@ -27,9 +27,9 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples(orgId));
+  const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const templateExample = templateExamplesQuery.data?.find(
     (e) => e.id === searchParams.get("exampleId")!,
   );
@@ -75,7 +75,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          orgId,
+          organizationId,
           version: firstVersionFromExample(
             templateExample!,
             formData.user_variable_values,

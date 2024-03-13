@@ -20,14 +20,14 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const selectedVersionQuery = useQuery(
-    templateVersionByName(orgId, templateName, versionName),
+    templateVersionByName(organizationId, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),

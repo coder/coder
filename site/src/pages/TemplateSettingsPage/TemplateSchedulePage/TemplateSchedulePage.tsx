@@ -16,7 +16,7 @@ const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
@@ -31,7 +31,7 @@ const TemplateSchedulePage: FC = () => {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries(
-          templateByNameKey(orgId, templateName),
+          templateByNameKey(organizationId, templateName),
         );
         displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion

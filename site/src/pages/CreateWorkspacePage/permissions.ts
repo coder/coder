@@ -1,9 +1,9 @@
-export const createWorkspaceChecks = (orgId: string) =>
+export const createWorkspaceChecks = (organizationId: string) =>
   ({
     createWorkspaceForUser: {
       object: {
         resource_type: "workspace",
-        organization_id: orgId,
+        organization_id: organizationId,
         owner_id: "*",
       },
       action: "create",

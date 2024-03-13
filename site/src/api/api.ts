@@ -207,10 +207,10 @@ export const getUsers = async (
 };
 
 export const getOrganization = async (
-  orgId: string,
+  organizationId: string,
 ): Promise<TypesGen.Organization> => {
   const response = await axios.get<TypesGen.Organization>(
-    `/api/v2/organizations/${orgId}`,
+    `/api/v2/organizations/${organizationId}`,
   );
   return response.data;
 };
@@ -236,7 +236,7 @@ export interface TemplateOptions {
 }
 
 export const getTemplates = async (
-  orgId: string,
+  organizationId: string,
   options?: TemplateOptions,
 ): Promise<TypesGen.Template[]> => {
   const params = {} as Record<string, string>;
@@ -248,7 +248,7 @@ export const getTemplates = async (
   }
 
   const response = await axios.get<TypesGen.Template[]>(
-    `/api/v2/organizations/${orgId}/templates`,
+    `/api/v2/organizations/${organizationId}/templates`,
     {
       params,
     },
@@ -257,11 +257,11 @@ export const getTemplates = async (
 };
 
 export const getTemplateByName = async (
-  orgId: string,
+  organizationId: string,
   name: string,
 ): Promise<TypesGen.Template> => {
   const response = await axios.get<TypesGen.Template>(
-    `/api/v2/organizations/${orgId}/templates/${name}`,
+    `/api/v2/organizations/${organizationId}/templates/${name}`,
   );
   return response.data;
 };
@@ -303,12 +303,12 @@ export const getTemplateVersions = async (
 };
 
 export const getTemplateVersionByName = async (
-  orgId: string,
+  organizationId: string,
   templateName: string,
   versionName: string,
 ): Promise<TypesGen.TemplateVersion> => {
   const response = await axios.get<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${orgId}/templates/${templateName}/versions/${versionName}`,
+    `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
   );
   return response.data;
 };
@@ -318,13 +318,13 @@ export type GetPreviousTemplateVersionByNameResponse =
   | undefined;
 
 export const getPreviousTemplateVersionByName = async (
-  orgId: string,
+  organizationId: string,
   templateName: string,
   versionName: string,
 ) => {
   try {
     const response = await axios.get<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${orgId}/templates/${templateName}/versions/${versionName}/previous`,
+      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
     );
     return response.data;
   } catch (error) {
@@ -343,11 +343,11 @@ export const getPreviousTemplateVersionByName = async (
 };
 
 export const createTemplateVersion = async (
-  orgId: string,
+  organizationId: string,
   data: TypesGen.CreateTemplateVersionRequest,
 ): Promise<TypesGen.TemplateVersion> => {
   const response = await axios.post<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${orgId}/templateversions`,
+    `/api/v2/organizations/${organizationId}/templateversions`,
     data,
   );
   return response.data;
@@ -372,11 +372,11 @@ export const getTemplateVersionRichParameters = async (
 };
 
 export const createTemplate = async (
-  orgId: string,
+  organizationId: string,
   data: TypesGen.CreateTemplateRequest,
 ): Promise<TypesGen.Template> => {
   const response = await axios.post(
-    `/api/v2/organizations/${orgId}/templates`,
+    `/api/v2/organizations/${organizationId}/templates`,
     data,
   );
   return response.data;
@@ -669,12 +669,12 @@ export const createUser = async (
 };
 
 export const createWorkspace = async (
-  orgId: string,
+  organizationId: string,
   userId = "me",
   workspace: TypesGen.CreateWorkspaceRequest,
 ): Promise<TypesGen.Workspace> => {
   const response = await axios.post<TypesGen.Workspace>(
-    `/api/v2/organizations/${orgId}/members/${userId}/workspaces`,
+    `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
     workspace,
   );
   return response.data;
@@ -1099,20 +1099,20 @@ export const getApplicationsHost =
   };
 
 export const getGroups = async (
-  orgId: string,
+  organizationId: string,
 ): Promise<TypesGen.Group[]> => {
   const response = await axios.get(
-    `/api/v2/organizations/${orgId}/groups`,
+    `/api/v2/organizations/${organizationId}/groups`,
   );
   return response.data;
 };
 
 export const createGroup = async (
-  orgId: string,
+  organizationId: string,
   data: TypesGen.CreateGroupRequest,
 ): Promise<TypesGen.Group> => {
   const response = await axios.post(
-    `/api/v2/organizations/${orgId}/groups`,
+    `/api/v2/organizations/${organizationId}/groups`,
     data,
   );
   return response.data;
@@ -1284,10 +1284,10 @@ export const updateAppearance = async (
 };
 
 export const getTemplateExamples = async (
-  orgId: string,
+  organizationId: string,
 ): Promise<TypesGen.TemplateExample[]> => {
   const response = await axios.get(
-    `/api/v2/organizations/${orgId}/templates/examples`,
+    `/api/v2/organizations/${organizationId}/templates/examples`,
   );
   return response.data;
 };

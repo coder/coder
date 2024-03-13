@@ -26,7 +26,7 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const { orgId } = useAuthenticated();
+  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,7 +50,7 @@ export const TemplateVariablesPage: FC = () => {
     mutateAsync: sendCreateAndBuildTemplateVersion,
     error: buildError,
     isLoading: isBuilding,
-  } = useMutation(createAndBuildTemplateVersion(orgId));
+  } = useMutation(createAndBuildTemplateVersion(organizationId));
   const {
     mutateAsync: sendUpdateActiveTemplateVersion,
     error: publishError,
