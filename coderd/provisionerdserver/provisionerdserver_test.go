@@ -1733,6 +1733,9 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	db := dbmem.New()
 	ps := pubsub.NewInMemory()
+	defOrg, err := db.GetDefaultOrganization(context.Background())
+	require.NoError(t, err, "default org not found")
+
 	deploymentValues := &codersdk.DeploymentValues{}
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
@@ -1780,13 +1783,14 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	pollDur = ov.acquireJobLongPollDuration
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
-		Name:         "test",
-		CreatedAt:    dbtime.Now(),
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Tags:         database.StringMap{},
-		LastSeenAt:   sql.NullTime{},
-		Version:      buildinfo.Version(),
-		APIVersion:   proto.CurrentVersion.String(),
+		Name:           "test",
+		CreatedAt:      dbtime.Now(),
+		Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:           database.StringMap{},
+		LastSeenAt:     sql.NullTime{},
+		Version:        buildinfo.Version(),
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defOrg.ID,
 	})
 	require.NoError(t, err)
 
@@ -1794,6 +1798,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		ov.ctx,
 		&url.URL{},
 		daemon.ID,
+		defOrg.ID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),

@@ -81,6 +81,7 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
 	ExternalAuthConfigs         []*externalauth.Config
@@ -134,6 +135,7 @@ func NewServer(
 	lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
+	organizationID uuid.UUID,
 	logger slog.Logger,
 	provisioners []database.ProvisionerType,
 	tags Tags,
@@ -188,6 +190,7 @@ func NewServer(
 		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
 		ExternalAuthConfigs:         options.ExternalAuthConfigs,

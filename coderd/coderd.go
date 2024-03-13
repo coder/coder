@@ -1271,6 +1271,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		api.ctx, // use the same ctx as the API
 		api.AccessURL,
 		daemon.ID,
+		defaultOrg.ID,
 		logger,
 		daemon.Provisioners,
 		provisionerdserver.Tags(daemon.Tags),
