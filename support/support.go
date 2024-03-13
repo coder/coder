@@ -45,8 +45,7 @@ type Deployment struct {
 type Network struct {
 	CoordinatorDebug string                                 `json:"coordinator_debug"`
 	TailnetDebug     string                                 `json:"tailnet_debug"`
-	NetcheckLocal    *codersdk.WorkspaceAgentConnectionInfo `json:"netcheck_local"`
-	NetcheckRemote   *codersdk.WorkspaceAgentConnectionInfo `json:"netcheck_remote"`
+	Netcheck         *codersdk.WorkspaceAgentConnectionInfo `json:"netcheck"`
 }
 
 type Workspace struct {
@@ -175,7 +174,7 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 		if err != nil {
 			return xerrors.Errorf("fetch agent conn info: %w", err)
 		}
-		n.NetcheckLocal = &connInfo
+		n.Netcheck = &connInfo
 		return nil
 	})
 

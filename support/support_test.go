@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Deployment.Experiments)
 		require.NotEmpty(t, bun.Network.CoordinatorDebug)
 		require.NotEmpty(t, bun.Network.TailnetDebug)
-		require.NotNil(t, bun.Network.NetcheckLocal)
+		require.NotNil(t, bun.Network.Netcheck)
 		require.NotNil(t, bun.Workspace.Workspace)
 		assertSanitizedWorkspace(t, bun.Workspace.Workspace)
 		require.NotEmpty(t, bun.Workspace.BuildLogs)

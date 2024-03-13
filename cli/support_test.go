@@ -148,10 +148,10 @@ func assertBundleContents(t *testing.T, path string) {
 		case "network/tailnet_debug.html":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
-		case "network/netcheck_local.json", "network/netcheck_remote.json":
-			// TODO: setup fake agent?
-			bs := readBytesFromZip(t, f)
-			require.NotEmpty(t, bs, "netcheck should not be empty")
+		case "network/netcheck.json":
+			var v codersdk.WorkspaceAgentConnectionInfo
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "connection info should not be empty")
 		case "workspace/workspace.json":
 			var v codersdk.Workspace
 			decodeJSONFromZip(t, f, &v)
