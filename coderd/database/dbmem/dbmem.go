@@ -4269,10 +4269,10 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 	defer q.mutex.RUnlock()
 
 	// map of build number -> row
-	rows := make(map[int32]database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow)
+	rows := []database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}
 
 	// We want to return the latest build number
-	var latestBuildNumber int32
+	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
 		// get the related workspace and user
@@ -4306,25 +4306,28 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 					row.Workspace.OwnerID = usr.ID
 
 					// Keep track of the latest build number
-					rows[build.BuildNumber] = row
-					if build.BuildNumber > latestBuildNumber {
-						latestBuildNumber = build.BuildNumber
+					rows = append(rows, row)
+					if build.BuildNumber > latestBuildNumber[ws.ID] {
+						latestBuildNumber[ws.ID] = build.BuildNumber
 					}
 				}
 			}
 		}
 	}
 
-	if len(rows) == 0 {
-		return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
+	for i := range rows {
+		if rows[i].WorkspaceAgent.AuthToken != authToken {
+			continue
+		}
+
+		if rows[i].WorkspaceBuildTable.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
+			continue
+		}
+
+		return rows[i], nil
 	}
 
-	if authToken != rows[latestBuildNumber].WorkspaceAgent.AuthToken {
-		return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
-	}
-
-	// Return the row related to the latest build
-	return rows[latestBuildNumber], nil
+	return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {

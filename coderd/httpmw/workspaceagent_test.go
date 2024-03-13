@@ -84,7 +84,6 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
-			AuthToken:  uuid.New(),
 		})
 
 		rw := httptest.NewRecorder()
