@@ -230,6 +230,8 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 
 // ToDir tests that 'templates pull' pulls down the active template
 // and writes it to the correct directory.
+//
+// nolint: tparallel // The subtests cannot be run in parallel; see the inner loop.
 func TestTemplatePull_ToDir(t *testing.T) {
 	t.Parallel()
 
@@ -270,7 +272,13 @@ func TestTemplatePull_ToDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use a different working directory to not interfere with actual directory when using relative paths.
 			newWD := t.TempDir()
+			cwd, err := os.Getwd()
+			require.NoError(t, err)
 			require.NoError(t, os.Chdir(newWD))
+
+			t.Cleanup(func() {
+				require.NoError(t, os.Chdir(cwd))
+			})
 
 			t.Cleanup(func() {
 				_ = os.RemoveAll(tc.givenPath)
