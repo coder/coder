@@ -204,14 +204,23 @@ func verifyCollectedMetrics(t *testing.T, expected []*agentproto.Stats_Metric, a
 			require.Failf(t, "unsupported type: %s", string(e.Type))
 		}
 
+		// make a copy of the expected labels because tests run in parallel and can cause data races
+		var expectedLabels []*agentproto.Stats_Metric_Label
+		for _, l := range e.Labels {
+			expectedLabels = append(expectedLabels, &agentproto.Stats_Metric_Label{
+				Name:  l.Name,
+				Value: l.Value,
+			})
+		}
+
 		dtoLabels := asMetricAgentLabels(d.GetLabel())
 		// dto labels are sorted in alphabetical order.
 		sortFn := func(i, j int) bool {
-			return e.Labels[i].Name < e.Labels[j].Name
+			return expectedLabels[i].Name < expectedLabels[j].Name
 		}
-		sort.Slice(e.Labels, sortFn)
+		sort.Slice(expectedLabels, sortFn)
 		sort.Slice(dtoLabels, sortFn)
-		require.Equal(t, e.Labels, dtoLabels, d.String())
+		require.Equal(t, expectedLabels, dtoLabels, d.String())
 	}
 	return true
 }
