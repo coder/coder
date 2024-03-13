@@ -170,6 +170,9 @@ func assertBundleContents(t *testing.T, path string) {
 		case "agent/logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
+		case "agent/magicsock.html":
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "agent magicsock should not be empty")
 		case "agent/manifest.json":
 			var v agentsdk.Manifest
 			decodeJSONFromZip(t, f, &v)

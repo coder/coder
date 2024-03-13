@@ -72,6 +72,7 @@ func TestRun(t *testing.T) {
 		require.NotNil(t, bun.Agent.Agent)
 		require.NotNil(t, bun.Agent.ListeningPorts)
 		require.NotNil(t, bun.Agent.Logs)
+		require.NotNil(t, bun.Agent.MagicsockHTML)
 		require.NotNil(t, bun.Agent.Manifest)
 		require.NotNil(t, bun.Agent.PeerDiagnostics)
 		require.NotNil(t, bun.Agent.PingResult)

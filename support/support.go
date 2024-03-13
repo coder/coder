@@ -62,6 +62,7 @@ type Agent struct {
 	Agent           codersdk.WorkspaceAgent                        `json:"agent"`
 	ListeningPorts  *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs            []byte                                         `json:"logs"`
+	MagicsockHTML   []byte                                         `json:"magicsock_html"`
 	Manifest        *agentsdk.Manifest                             `json:"manifest"`
 	PeerDiagnostics *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
 	PingResult      *ipnstate.PingResult                           `json:"ping_result"`
@@ -337,6 +338,15 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 			eg.Go(func() error {
 				pds := conn.GetPeerDiagnostics()
 				a.PeerDiagnostics = &pds
+				return nil
+			})
+
+			eg.Go(func() error {
+				msBytes, err := conn.DebugMagicsock(ctx)
+				if err != nil {
+					return xerrors.Errorf("get agent magicsock page: %w", err)
+				}
+				a.MagicsockHTML = msBytes
 				return nil
 			})
 
