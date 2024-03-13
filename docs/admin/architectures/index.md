@@ -300,7 +300,7 @@ onboard, the autoscaling configuration should account for ongoing workspaces.
 Scaling down workspace nodes to zero is not recommended, as it will result in
 longer wait times for workspace provisioning by users.
 
-### External database
+### Data plane: External database
 
 While running in production, Coder deployment requires an access to an external
 PostgreSQL database. Depending on the scale of the user-base, workspace
