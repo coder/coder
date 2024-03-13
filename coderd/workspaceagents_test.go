@@ -404,7 +404,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
 	t.Run("FailDeleted", func(t *testing.T) {
