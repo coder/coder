@@ -106,6 +106,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
     allowAdvancedScheduling,
   );
 
+  const isImmutable =
+    workspace.latest_build.status === "deleted" ||
+    workspace.latest_build.status === "deleting";
+
   return (
     <Topbar css={{ gridArea: "topbar" }}>
       <Tooltip title="Back to workspaces">
@@ -196,11 +200,13 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </Popover>
         </TopbarData>
 
-        <WorkspaceScheduleControls
-          workspace={workspace}
-          template={template}
-          canUpdateSchedule={canUpdateWorkspace}
-        />
+        {!isImmutable && (
+          <WorkspaceScheduleControls
+            workspace={workspace}
+            template={template}
+            canUpdateSchedule={canUpdateWorkspace}
+          />
+        )}
 
         {shouldDisplayDormantData && (
           <TopbarData>
@@ -247,36 +253,40 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           gap: 12,
         }}
       >
-        <WorkspaceNotifications
-          workspace={workspace}
-          template={template}
-          latestVersion={latestVersion}
-          permissions={permissions}
-          onRestartWorkspace={handleRestart}
-          onUpdateWorkspace={handleUpdate}
-          onActivateWorkspace={handleDormantActivate}
-        />
-        <WorkspaceStatusBadge workspace={workspace} />
-        <WorkspaceActions
-          workspace={workspace}
-          handleStart={handleStart}
-          handleStop={handleStop}
-          handleRestart={handleRestart}
-          handleDelete={handleDelete}
-          handleUpdate={handleUpdate}
-          handleCancel={handleCancel}
-          handleSettings={handleSettings}
-          handleRetry={handleRetry}
-          handleDebug={handleDebug}
-          handleChangeVersion={handleChangeVersion}
-          handleDormantActivate={handleDormantActivate}
-          handleToggleFavorite={handleToggleFavorite}
-          canDebug={canDebugMode}
-          canChangeVersions={canChangeVersions}
-          isUpdating={isUpdating}
-          isRestarting={isRestarting}
-          isOwner={isOwner}
-        />
+        {!isImmutable && (
+          <>
+            <WorkspaceNotifications
+              workspace={workspace}
+              template={template}
+              latestVersion={latestVersion}
+              permissions={permissions}
+              onRestartWorkspace={handleRestart}
+              onUpdateWorkspace={handleUpdate}
+              onActivateWorkspace={handleDormantActivate}
+            />
+            <WorkspaceStatusBadge workspace={workspace} />
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleRestart={handleRestart}
+              handleDelete={handleDelete}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+              handleSettings={handleSettings}
+              handleRetry={handleRetry}
+              handleDebug={handleDebug}
+              handleChangeVersion={handleChangeVersion}
+              handleDormantActivate={handleDormantActivate}
+              handleToggleFavorite={handleToggleFavorite}
+              canDebug={canDebugMode}
+              canChangeVersions={canChangeVersions}
+              isUpdating={isUpdating}
+              isRestarting={isRestarting}
+              isOwner={isOwner}
+            />
+          </>
+        )}
       </div>
     </Topbar>
   );
