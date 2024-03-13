@@ -236,15 +236,31 @@ for more details.
 
 ### Control plane: provisionerd
 
-TODO
+Each provisioner can run a single concurrent workspace build. For example,
+running 10 provisioner containers will allow 10 users to start workspaces at the
+same time.
+
+By default, the Coder server runs built-in provisioner daemons, but the
+_Enterprise_ Coder release allows for running external provisioners to separate
+the load caused by workspace provisioning on the `coderd` nodes.
 
 #### Scaling formula
 
-TODO
+When determining scaling requirements, consider the following factors:
+
+- `0.5 vCPU x 512 MB memory x concurrent workspace build`: A formula to
+  determine resource allocation based on the number of concurrent workspace
+  builds, and standard complexity of a Terraform template. _The rule of thumb_:
+  the more provisioners are free/available, the more concurrent workspace builds
+  can be performed.
 
 **Node Autoscaling**
 
-TODO
+Autoscaling provisioners is not an easy problem to solve unless it can be
+predicted when a number of concurrent workspace builds increases.
+
+We recommend disabling autoscaling and adjusting the number of provisioners to
+developer needs based on the workspace build queuing time.
 
 ### Data plane: Workspaces
 
@@ -278,6 +294,8 @@ ongoing workspaces
 0.25 cores and 256 MB per provisioner daemon
 
 ### Database
+
+TODO
 
 PostgreSQL database
 

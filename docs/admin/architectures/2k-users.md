@@ -23,20 +23,16 @@ enabling it for deployment reliability.
 
 ### Provisioner nodes
 
-TODO
+| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 2,000 | 8 vCPU, 32 GB memory | 4 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
-In practice, this doesn’t change much besides the diagram and workspaces node
-pool autoscaling config as it still uses the central provisioner. Recommend
-multiple provisioner groups for zero-trust and multi-cloud use cases.
+**Footnotes**:
 
-For example, to support 120 concurrent workspace builds:
-
-- Create a cluster/nodepool with 4 nodes, 8-core each (AWS: `t3.2xlarge` GCP:
-  `e2-highcpu-8`)
-- Run coderd with 4 replicas, 30 provisioner daemons each.
-  (`CODER_PROVISIONER_DAEMONS=30`)
-- Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use
-  up to 2 cores and 4 GB RAM
+- An external provisioner is deployed as Kubernetes pod.
+- It is not recommended to run provisioner daemons on `coderd` nodes.
+- Consider separating provisioners into different namespaces in favor of
+  zero-trust or multi-cloud deployments.
 
 ### Workspace nodes
 
@@ -44,12 +40,9 @@ For example, to support 120 concurrent workspace builds:
 | ----------- | -------------------- | -------- | ---------------- | ------------ | ----------------- |
 | Up to 2,000 | 8 vCPU, 32 GB memory | 128      | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
-**Assumptions**:
-
-- Workspace user needs 2 GB memory to perform
-
 **Footnotes**:
 
+- Assumed that a workspace user needs 2 GB memory to perform
 - Maximum number of Kubernetes pods per node: 256
 - Nodes can be distributed in 2 regions, not necessarily evenly split, depending
   on developer team sizes
