@@ -7,7 +7,7 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 

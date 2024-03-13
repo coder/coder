@@ -11,7 +11,7 @@ import {
 } from "api/queries/externalAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

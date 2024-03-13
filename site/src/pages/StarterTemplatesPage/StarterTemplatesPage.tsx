@@ -3,7 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { templateExamples } from "api/queries/templates";
 import type { TemplateExample } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";

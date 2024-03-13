@@ -3,6 +3,7 @@ import {
   type FC,
   type PropsWithChildren,
   useCallback,
+  useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "api/errors";
@@ -128,4 +129,14 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth should be used inside of <AuthProvider />");
+  }
+
+  return context;
 };

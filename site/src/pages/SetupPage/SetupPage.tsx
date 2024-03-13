@@ -15,7 +15,7 @@ export const SetupPage: FC = () => {
     isConfiguringTheFirstUser,
     isSignedIn,
     isSigningIn,
-  } = useAuth();
+  } = useAuthContext();
   const createFirstUserMutation = useMutation(createFirstUser());
   const setupIsComplete = !isConfiguringTheFirstUser;
   const navigate = useNavigate();

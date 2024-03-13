@@ -16,7 +16,7 @@ import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Latency } from "components/Latency/Latency";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdown } from "./UserDropdown/UserDropdown";

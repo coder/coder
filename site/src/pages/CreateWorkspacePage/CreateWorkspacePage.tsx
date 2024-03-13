@@ -17,7 +17,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";

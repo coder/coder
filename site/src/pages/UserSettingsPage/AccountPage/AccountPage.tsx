@@ -2,16 +2,17 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";
-import { useAuth, useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthContext } from "contexts/auth/AuthProvider";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
-  const { user: me, permissions } = useAuthenticated();
-  const { orgId } = useAuthenticated();
-  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
+  const { user: me, permissions, orgId } = useAuthenticated();
+  const { updateProfile, updateProfileError, isUpdatingProfile } =
+    useAuthContext();
   const { entitlements } = useDashboard();
 
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;

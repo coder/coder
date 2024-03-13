@@ -13,7 +13,7 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { USERS_LINK } from "modules/dashboard/Navbar/NavbarView";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 

@@ -8,7 +8,7 @@ import {
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 

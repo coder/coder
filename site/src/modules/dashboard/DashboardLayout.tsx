@@ -5,7 +5,7 @@ import Snackbar from "@mui/material/Snackbar";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
 import { dashboardContentBottomPadding } from "theme/constants";

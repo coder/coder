@@ -16,7 +16,7 @@ export const LoginPage: FC = () => {
     isSigningIn,
     authMethods,
     signInError,
-  } = useAuth();
+  } = useAuthContext();
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();

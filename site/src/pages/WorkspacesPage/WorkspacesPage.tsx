@@ -6,7 +6,7 @@ import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -39,7 +39,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
 
-  const { orgId } = useAuthenticated();
+  const { orgId, permissions } = useAuthenticated();
   const templatesQuery = useQuery(templates(orgId, false));
 
   const filterProps = useWorkspacesFilter({
@@ -62,7 +62,6 @@ const WorkspacesPage: FC = () => {
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
-  const { permissions } = useAuthenticated();
   const batchActions = useBatchActions({
     onSuccess: async () => {
       await refetch();

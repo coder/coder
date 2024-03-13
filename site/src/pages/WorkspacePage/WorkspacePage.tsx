@@ -10,7 +10,7 @@ import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";

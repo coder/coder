@@ -5,7 +5,7 @@ import { authMethods, updatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
 import {

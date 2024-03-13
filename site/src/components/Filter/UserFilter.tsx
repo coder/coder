@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { getUsers } from "api/api";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { useAuthenticated } from "contexts/auth/useAuth";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useProxy } from "contexts/ProxyContext";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "../useFeatureVisibility";
