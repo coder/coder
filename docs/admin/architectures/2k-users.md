@@ -36,13 +36,13 @@ enabling it for deployment reliability.
 
 ### Workspace nodes
 
-| Users       | Node capacity        | Replicas | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | -------- | ---------------- | ------------ | ----------------- |
-| Up to 2,000 | 8 vCPU, 32 GB memory | 128      | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 2,000 | 8 vCPU, 32 GB memory | 128 / 16 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
 - Assumed that a workspace user needs 2 GB memory to perform
-- Maximum number of Kubernetes pods per node: 256
+- Maximum number of Kubernetes workspace pods per node: 256
 - Nodes can be distributed in 2 regions, not necessarily evenly split, depending
   on developer team sizes

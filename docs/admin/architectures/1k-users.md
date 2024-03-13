@@ -16,10 +16,28 @@ tech startups, educational units, or small to mid-sized enterprises.
 | ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
 | Up to 1,000 | 2 vCPU, 8 GB memory | 2        | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
 
-### Workspace nodes
+**Footnotes**:
 
-TODO
+- For small deployments (ca. 100 users, 10 concurrent workspace builds), it is
+  acceptable to deploy provisioners on `coderd` nodes.
 
 ### Provisioner nodes
 
-TODO
+| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 1,000 | 8 vCPU, 32 GB memory | 2 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+
+**Footnotes**:
+
+- An external provisioner is deployed as Kubernetes pod.
+
+### Workspace nodes
+
+| Users       | Node capacity        | Replicas                | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ----------------------- | ---------------- | ------------ | ----------------- |
+| Up to 1,000 | 8 vCPU, 32 GB memory | 64 / 16 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+
+**Footnotes**:
+
+- Assumed that a workspace user needs 2 GB memory to perform
+- Maximum number of Kubernetes workspace pods per node: 256

@@ -17,10 +17,29 @@ purposes.
 | ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
 | Up to 3,000 | 8 vCPU, 32 GB memory | 4        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
+### Provisioner nodes
+
+| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 8 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+
+**Footnotes**:
+
+- An external provisioner is deployed as Kubernetes pod.
+- It is strongly discouraged to run provisioner daemons on `coderd` nodes.
+- Separate provisioners into different namespaces in favor of zero-trust or
+  multi-cloud deployments.
+
 ### Workspace nodes
 
-TODO
+| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 256 / 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
-Developers for up to 3000+ users architecture are also in an on-premises
-network. Document a provisioner running in a different cloud environment, and
-the zero-trust benefits of that.
+**Footnotes**:
+
+- Assumed that a workspace user needs 2 GB memory to perform
+- Maximum number of Kubernetes workspace pods per node: 256
+- As workspace nodes can be distributed between regions, on-premises networks
+  and cloud areas, consider different namespaces in favor of zero-trust or
+  multi-cloud deployments.

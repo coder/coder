@@ -270,12 +270,13 @@ for workspace users, administrators must be aware of a few assumptions.
 - Workspace pods run on the same Kubernetes cluster, but possible in a different
   namespace or a node pool.
 - Workspace limits (per workspace user):
-  - Developers can choose between 4-8 vCPUs, and 4-16 GB memory.
   - Evaluate the workspace utilization pattern. For instance, a regular web
     development does not require high CPU capacity all the time, but only during
     project builds or load tests.
-  - Minimum requirements for Coder agent running in an idle workspace are 0.1
-    vCPU and 256 MB.
+  - Evaluate minimal limits for single workspace. Include in the calculation
+    requirements for Coder agent running in an idle workspace - 0.1 vCPU and 256
+    MB. For instance, developers can choose between 0.5-8 vCPUs, and 1-16 GB
+    memory.
 
 #### Scaling formula
 
