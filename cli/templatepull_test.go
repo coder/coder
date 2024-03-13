@@ -257,7 +257,7 @@ func TestTemplatePull_ToDir(t *testing.T) {
 		},
 		{
 			name:      "directory traversal is acceptable",
-			givenPath: "../../../mytmpl",
+			givenPath: "../mytmpl",
 		},
 		{
 			name:      "empty path falls back to using template name",
