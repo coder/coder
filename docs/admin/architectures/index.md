@@ -248,11 +248,11 @@ the load caused by workspace provisioning on the `coderd` nodes.
 
 When determining scaling requirements, consider the following factors:
 
-- `0.5 vCPU x 512 MB memory x concurrent workspace build`: A formula to
-  determine resource allocation based on the number of concurrent workspace
-  builds, and standard complexity of a Terraform template. _The rule of thumb_:
-  the more provisioners are free/available, the more concurrent workspace builds
-  can be performed.
+- `1 vCPU x 1 GB memory x 2 concurrent workspace build`: A formula to determine
+  resource allocation based on the number of concurrent workspace builds, and
+  standard complexity of a Terraform template. _The rule of thumb_: the more
+  provisioners are free/available, the more concurrent workspace builds can be
+  performed.
 
 **Node Autoscaling**
 
@@ -281,17 +281,11 @@ for workspace users, administrators must be aware of a few assumptions.
 
 TODO
 
-provisionerd x users: Another formula to consider, focusing on the capacity of
-provisioner nodes relative to the number of workspace builds, triggered by
-users.
-
 - Guidance for reasonable ratio of CPU limits/requests
 - Guidance for reasonable ratio for memory requests/limits
 
 Mention that as users onboard, the autoscaling config should take care of
 ongoing workspaces
-
-0.25 cores and 256 MB per provisioner daemon
 
 ### Database
 
