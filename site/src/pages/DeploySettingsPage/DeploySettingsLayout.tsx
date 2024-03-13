@@ -6,8 +6,8 @@ import { deploymentConfig } from "api/queries/deployment";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { RequirePermission } from "contexts/auth/RequirePermission";
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {

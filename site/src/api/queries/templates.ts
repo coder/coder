@@ -139,7 +139,10 @@ export const templateVersionVariables = (versionId: string) => {
 export const createTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(organizationId, request);
+      const newVersion = await API.createTemplateVersion(
+        organizationId,
+        request,
+      );
       return newVersion;
     },
   };
@@ -148,7 +151,10 @@ export const createTemplateVersion = (organizationId: string) => {
 export const createAndBuildTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(organizationId, request);
+      const newVersion = await API.createTemplateVersion(
+        organizationId,
+        request,
+      );
       await waitBuildToBeFinished(newVersion);
       return newVersion;
     },

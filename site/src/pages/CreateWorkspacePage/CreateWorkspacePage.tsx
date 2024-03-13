@@ -33,9 +33,8 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const { organizationId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
-  const { user: me } = useAuthenticated();
+  const { user: me, organizationId } = useAuthenticated();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getWorkspaceMode(searchParams);
