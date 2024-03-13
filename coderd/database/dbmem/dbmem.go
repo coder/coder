@@ -4264,20 +4264,17 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	// map of build number -> row
-	rows := make(map[int32]database.GetWorkspaceAgentAndOwnerByAuthTokenRow)
+	rows := make(map[int32]database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow)
 
 	// We want to return the latest build number
 	var latestBuildNumber int32
 
 	for _, agt := range q.workspaceAgents {
-		if agt.AuthToken != authToken {
-			continue
-		}
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -4294,30 +4291,19 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					if ws.Deleted {
 						continue
 					}
-					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-					row.WorkspaceID = ws.ID
-					row.TemplateID = ws.TemplateID
+					row := database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{
+						Workspace: database.Workspace{
+							ID:         ws.ID,
+							TemplateID: ws.TemplateID,
+						},
+						WorkspaceAgent:      agt,
+						WorkspaceBuildTable: build,
+					}
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
-						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+						return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 					}
-					row.OwnerID = usr.ID
-					row.OwnerRoles = append(usr.RBACRoles, "member")
-					// We also need to get org roles for the user
-					row.OwnerName = usr.Username
-					row.WorkspaceAgent = agt
-					row.TemplateVersionID = build.TemplateVersionID
-					for _, mem := range q.organizationMembers {
-						if mem.UserID == usr.ID {
-							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
-						}
-					}
-					// And group memberships
-					for _, groupMem := range q.groupMembers {
-						if groupMem.UserID == usr.ID {
-							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
-						}
-					}
+					row.Workspace.OwnerID = usr.ID
 
 					// Keep track of the latest build number
 					rows[build.BuildNumber] = row
@@ -4330,7 +4316,11 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 	}
 
 	if len(rows) == 0 {
-		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+		return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
+	}
+
+	if authToken != rows[latestBuildNumber].WorkspaceAgent.AuthToken {
+		return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 	}
 
 	// Return the row related to the latest build

@@ -93,7 +93,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 			}
 
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			row, err := opts.DB.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
+			row, err := opts.DB.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
@@ -110,26 +110,30 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
-			//nolint:gocritic // System needs to be able to get latest builds.
-			build, ok := ensureLatestBuild(dbauthz.AsSystemRestricted(ctx), opts.DB, rw, row.WorkspaceAgent)
-			if !ok {
+			//nolint:gocritic // System needs to be able to get owner roles.
+			roles, err := opts.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), row.Workspace.OwnerID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error checking workspace agent authorization.",
+					Detail:  err.Error(),
+				})
 				return
 			}
 
 			subject := rbac.Subject{
-				ID:     row.OwnerID.String(),
-				Roles:  rbac.RoleNames(row.OwnerRoles),
-				Groups: row.OwnerGroups,
+				ID:     row.Workspace.OwnerID.String(),
+				Roles:  rbac.RoleNames(roles.Roles),
+				Groups: roles.Groups,
 				Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
-					WorkspaceID: row.WorkspaceID,
-					OwnerID:     row.OwnerID,
-					TemplateID:  row.TemplateID,
-					VersionID:   row.TemplateVersionID,
+					WorkspaceID: row.Workspace.ID,
+					OwnerID:     row.Workspace.OwnerID,
+					TemplateID:  row.Workspace.TemplateID,
+					VersionID:   row.WorkspaceBuildTable.TemplateVersionID,
 				}),
 			}.WithCachedASTValue()
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
-			ctx = context.WithValue(ctx, LatestBuildContextKey{}, build)
+			ctx = context.WithValue(ctx, LatestBuildContextKey{}, row.WorkspaceBuildTable)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))

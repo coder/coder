@@ -73,7 +73,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: ws.OrganizationID,
 		})
-		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: job.ID,
 		})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
@@ -81,6 +81,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			JobID:             job.ID,
 			TemplateVersionID: tpv.ID,
 			BuildNumber:       2,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			AuthToken:  uuid.New(),
 		})
 
 		rw := httptest.NewRecorder()
@@ -90,7 +94,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		//nolint:bodyclose // Closed in `t.Cleanup`
 		res := rw.Result()
 		t.Cleanup(func() { _ = res.Body.Close() })
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 }
 
