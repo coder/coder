@@ -250,7 +250,7 @@ When determining scaling requirements, consider the following factors:
 
 - `1 vCPU x 1 GB memory x 2 concurrent workspace build`: A formula to determine
   resource allocation based on the number of concurrent workspace builds, and
-  standard complexity of a Terraform template. _The rule of thumb_: the more
+  standard complexity of a Terraform template. _Rule of thumb_: the more
   provisioners are free/available, the more concurrent workspace builds can be
   performed.
 
@@ -280,13 +280,25 @@ for workspace users, administrators must be aware of a few assumptions.
 
 #### Scaling formula
 
-TODO
+When determining scaling requirements, consider the following factors:
 
-- Guidance for reasonable ratio of CPU limits/requests
-- Guidance for reasonable ratio for memory requests/limits
+- `1 vCPU x 2 GB memory x 1 workspace`: A formula to determine resource
+  allocation based on the minimal requirements for an idle workspace with a
+  running Coder agent and occasional CPU and memory bursts for building
+  projects.
 
-Mention that as users onboard, the autoscaling config should take care of
-ongoing workspaces
+**Node Autoscaling**
+
+Workspace nodes can be set to operate in autoscaling mode to mitigate the risk
+of prolonged high resource utilization.
+
+One approach is to scale up workspace nodes when total CPU usage or memory
+consumption reaches 80%. Another option is to scale based on metrics such as the
+number of workspaces or active users. It's important to note that as new users
+onboard, the autoscaling configuration should account for ongoing workspaces.
+
+Scaling down workspace nodes to zero is not recommended, as it will result in
+longer wait times for workspace provisioning by users.
 
 ### Database
 
