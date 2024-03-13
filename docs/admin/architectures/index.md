@@ -300,12 +300,36 @@ onboard, the autoscaling configuration should account for ongoing workspaces.
 Scaling down workspace nodes to zero is not recommended, as it will result in
 longer wait times for workspace provisioning by users.
 
-### Database
+### External database
 
-TODO
+While running in production, Coder deployment requires an access to an external
+PostgreSQL database. Depending on the scale of the user-base, workspace
+activity, and High Availability requirements, the amount of CPU and memory
+resources may differ.
 
-PostgreSQL database
+#### Scaling formula
 
-measure and document the impact of dbcrypt
+When determining scaling requirements, take into account the following
+considerations:
 
-###
+- `2 vCPU x 8 GB RAM x 512 GB storage`: A baseline for database requirements for
+  Coder deployment with less than 1000 users, and low activity level (30% active
+  users). This capacity should be sufficient to support 100 external
+  provisioners.
+- Allocate an additional CPU core to the database instance for every 1000 active
+  users.
+- Enable _High Availability_ mode for database engine for large scale
+  deployments.
+
+With enabled database encryption feature in Coder, consider allocating an
+additional CPU core to every `coderd` replica.
+
+#### Performance optimization guidelines
+
+We provide the following general recommendations for PostgreSQL settings:
+
+- Increase number of vCPU if CPU utilization or database latency is high.
+- Allocate extra GB memory if database performance is poor and CPU utilization
+  is low.
+- Utilize faster disk options such as SSDs or NVMe drives for optimal
+  performance enhancement.
