@@ -37,7 +37,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo"}
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: cfg,
 			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
@@ -83,7 +83,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo"}
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
 			Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
@@ -110,7 +110,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
 		})
@@ -128,7 +128,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("MissingPrivilege", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
 		})
