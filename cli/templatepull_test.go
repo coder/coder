@@ -230,8 +230,9 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 
 // ToDir tests that 'templates pull' pulls down the active template
 // and writes it to the correct directory.
-// nolint: paralleltest
 func TestTemplatePull_ToDir(t *testing.T) {
+	t.Parallel()
+
 	// Prevents the tests from running in parallel.
 	tmp := t.TempDir()
 	expectedDest := filepath.Join(tmp, "expected")
@@ -245,8 +246,12 @@ func TestTemplatePull_ToDir(t *testing.T) {
 			givenPath: filepath.Join(tmp, "actual"),
 		},
 		{
-			name:      "relative path is cleaned up",
+			name:      "relative path to specific dir is sanitized",
 			givenPath: "./pulltmp",
+		},
+		{
+			name:      "relative path to current dir is sanitized",
+			givenPath: ".",
 		},
 		{
 			name:      "directory traversal is acceptable",
@@ -261,7 +266,12 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 
+		// nolint: paralleltest // These tests all share expectedDest
 		t.Run(tc.name, func(t *testing.T) {
+			// Use a different working directory to not interfere with actual directory when using relative paths.
+			newWD := t.TempDir()
+			require.NoError(t, os.Chdir(newWD))
+
 			t.Cleanup(func() {
 				_ = os.RemoveAll(tc.givenPath)
 				_ = os.RemoveAll(expectedDest)

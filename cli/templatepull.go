@@ -133,12 +133,10 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 			clean, err := filepath.Abs(filepath.Clean(dest))
 			if err != nil {
-				cliui.Error(inv.Stderr, fmt.Sprintf("cleaning destination path %s failed: %q", dest, err))
-				return err
+				return xerrors.Errorf("cleaning destination path %s failed: %w", dest, err)
 			}
 
 			if dest != clean {
-				cliui.Warn(inv.Stderr, fmt.Sprintf("cleaning destination path from %s to %s", dest, clean))
 				dest = clean
 			}
 
