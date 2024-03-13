@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
@@ -14,7 +14,7 @@ export const Language = {
 };
 
 export const CreateUserPage: FC = () => {
-  const myOrgId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createUserMutation = useMutation(createUser(queryClient));
@@ -38,7 +38,7 @@ export const CreateUserPage: FC = () => {
           navigate("/users");
         }}
         isLoading={createUserMutation.isLoading}
-        myOrgId={myOrgId}
+        organizationId={organizationId}
       />
     </Margins>
   );

@@ -7,12 +7,12 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 
 export const SchedulePage: FC = () => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const queryClient = useQueryClient();
 
   const {

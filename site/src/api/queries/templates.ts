@@ -13,33 +13,33 @@ import type {
 import { delay } from "utils/delay";
 import { getTemplateVersionFiles } from "utils/templateVersion";
 
-export const templateByNameKey = (orgId: string, name: string) => [
-  orgId,
+export const templateByNameKey = (organizationId: string, name: string) => [
+  organizationId,
   "template",
   name,
   "settings",
 ];
 
 export const templateByName = (
-  orgId: string,
+  organizationId: string,
   name: string,
 ): QueryOptions<Template> => {
   return {
-    queryKey: templateByNameKey(orgId, name),
-    queryFn: async () => API.getTemplateByName(orgId, name),
+    queryKey: templateByNameKey(organizationId, name),
+    queryFn: async () => API.getTemplateByName(organizationId, name),
   };
 };
 
-const getTemplatesQueryKey = (orgId: string, deprecated?: boolean) => [
-  orgId,
+const getTemplatesQueryKey = (organizationId: string, deprecated?: boolean) => [
+  organizationId,
   "templates",
   deprecated,
 ];
 
-export const templates = (orgId: string, deprecated?: boolean) => {
+export const templates = (organizationId: string, deprecated?: boolean) => {
   return {
-    queryKey: getTemplatesQueryKey(orgId, deprecated),
-    queryFn: () => API.getTemplates(orgId, { deprecated }),
+    queryKey: getTemplatesQueryKey(organizationId, deprecated),
+    queryFn: () => API.getTemplates(organizationId, { deprecated }),
   };
 };
 
@@ -90,10 +90,10 @@ export const setGroupRole = (
   };
 };
 
-export const templateExamples = (orgId: string) => {
+export const templateExamples = (organizationId: string) => {
   return {
-    queryKey: [...getTemplatesQueryKey(orgId), "examples"],
-    queryFn: () => API.getTemplateExamples(orgId),
+    queryKey: [...getTemplatesQueryKey(organizationId), "examples"],
+    queryFn: () => API.getTemplateExamples(organizationId),
   };
 };
 
@@ -105,14 +105,14 @@ export const templateVersion = (versionId: string) => {
 };
 
 export const templateVersionByName = (
-  orgId: string,
+  organizationId: string,
   templateName: string,
   versionName: string,
 ) => {
   return {
-    queryKey: ["templateVersion", orgId, templateName, versionName],
+    queryKey: ["templateVersion", organizationId, templateName, versionName],
     queryFn: () =>
-      API.getTemplateVersionByName(orgId, templateName, versionName),
+      API.getTemplateVersionByName(organizationId, templateName, versionName),
   };
 };
 
@@ -136,19 +136,25 @@ export const templateVersionVariables = (versionId: string) => {
   };
 };
 
-export const createTemplateVersion = (orgId: string) => {
+export const createTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(orgId, request);
+      const newVersion = await API.createTemplateVersion(
+        organizationId,
+        request,
+      );
       return newVersion;
     },
   };
 };
 
-export const createAndBuildTemplateVersion = (orgId: string) => {
+export const createAndBuildTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(orgId, request);
+      const newVersion = await API.createTemplateVersion(
+        organizationId,
+        request,
+      );
       await waitBuildToBeFinished(newVersion);
       return newVersion;
     },

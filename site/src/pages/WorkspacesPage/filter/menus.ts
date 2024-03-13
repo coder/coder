@@ -10,8 +10,8 @@ import type { StatusOption, TemplateOption } from "./options";
 export const useTemplateFilterMenu = ({
   value,
   onChange,
-  orgId,
-}: { orgId: string } & Pick<
+  organizationId,
+}: { organizationId: string } & Pick<
   UseFilterMenuOptions<TemplateOption>,
   "value" | "onChange"
 >) => {
@@ -21,7 +21,7 @@ export const useTemplateFilterMenu = ({
     id: "template",
     getSelectedOption: async () => {
       // Show all templates including deprecated
-      const templates = await getTemplates(orgId);
+      const templates = await getTemplates(organizationId);
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
@@ -37,7 +37,7 @@ export const useTemplateFilterMenu = ({
     },
     getOptions: async (query) => {
       // Show all templates including deprecated
-      const templates = await getTemplates(orgId);
+      const templates = await getTemplates(organizationId);
       const filteredTemplates = templates.filter(
         (template) =>
           template.name.toLowerCase().includes(query.toLowerCase()) ||
