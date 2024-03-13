@@ -5,7 +5,7 @@ import Snackbar from "@mui/material/Snackbar";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
 import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
 import { dashboardContentBottomPadding } from "theme/constants";
@@ -15,7 +15,7 @@ import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 

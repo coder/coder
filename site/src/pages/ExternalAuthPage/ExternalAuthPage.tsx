@@ -11,13 +11,13 @@ import {
 } from "api/queries/externalAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
   const { provider } = useParams() as { provider: string };
   const [searchParams] = useSearchParams();
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const queryClient = useQueryClient();
   const externalAuthProviderOpts = externalAuthProvider(provider);
   const externalAuthProviderQuery = useQuery({

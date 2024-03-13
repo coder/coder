@@ -6,8 +6,7 @@ import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -40,7 +39,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
 
-  const organizationId = useOrganizationId();
+  const { organizationId, permissions } = useAuthenticated();
   const templatesQuery = useQuery(templates(organizationId, false));
 
   const filterProps = useWorkspacesFilter({
@@ -63,7 +62,6 @@ const WorkspacesPage: FC = () => {
   const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
-  const permissions = usePermissions();
   const batchActions = useBatchActions({
     onSuccess: async () => {
       await refetch();
@@ -156,7 +154,7 @@ const useWorkspacesFilter = ({
     onUpdate: onFilterChange,
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const canFilterByUser = permissions.viewDeploymentValues;
   const userMenu = useUserFilterMenu({
     value: filter.values.owner,
@@ -166,7 +164,7 @@ const useWorkspacesFilter = ({
   });
 
   const templateMenu = useTemplateFilterMenu({
-    orgId: organizationId,
+    organizationId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),

@@ -16,7 +16,7 @@ import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Latency } from "components/Latency/Latency";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
@@ -215,7 +215,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
   const latencies = proxyContextValue.proxyLatencies;
   const isLoadingLatencies = Object.keys(latencies).length === 0;
   const isLoading = proxyContextValue.isLoading || isLoadingLatencies;
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
 
   const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
     if (!refetchDate) {

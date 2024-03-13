@@ -3,13 +3,13 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { templateExamples } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const StarterTemplatePage: FC = () => {
   const { exampleId } = useParams() as { exampleId: string };
-  const organizationId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const starterTemplate = templateExamplesQuery.data?.find(
     (example) => example.id === exampleId,

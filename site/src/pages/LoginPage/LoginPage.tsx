@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "contexts/auth/useAuth";
+import { useAuthContext } from "contexts/auth/AuthProvider";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
@@ -16,7 +16,7 @@ export const LoginPage: FC = () => {
     isSigningIn,
     authMethods,
     signInError,
-  } = useAuth();
+  } = useAuthContext();
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();

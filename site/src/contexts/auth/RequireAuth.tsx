@@ -6,11 +6,11 @@ import { Loader } from "components/Loader/Loader";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { embedRedirect } from "utils/redirect";
-import { useAuth } from "./useAuth";
+import { type AuthContextValue, useAuthContext } from "./AuthProvider";
 
 export const RequireAuth: FC = () => {
   const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
-    useAuth();
+    useAuthContext();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const navigateTo = isHomePage
@@ -61,4 +61,24 @@ export const RequireAuth: FC = () => {
       </ProxyProvider>
     </DashboardProvider>
   );
+};
+
+export const useAuthenticated = () => {
+  const auth = useAuthContext();
+
+  if (!auth.user) {
+    throw new Error("User is not authenticated.");
+  }
+
+  if (!auth.permissions) {
+    throw new Error("Permissions are not available.");
+  }
+
+  // We can do some TS magic here but I would rather to be explicit on what
+  // values are not undefined when authenticated
+  return auth as AuthContextValue & {
+    user: Exclude<AuthContextValue["user"], undefined>;
+    permissions: Exclude<AuthContextValue["permissions"], undefined>;
+    organizationId: Exclude<AuthContextValue["organizationId"], undefined>;
+  };
 };

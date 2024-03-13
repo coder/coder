@@ -8,8 +8,7 @@ import {
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
@@ -21,14 +20,14 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const orgId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const selectedVersionQuery = useQuery(
-    templateVersionByName(orgId, templateName, versionName),
+    templateVersionByName(organizationId, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),
@@ -43,7 +42,7 @@ export const TemplateVersionPage: FC = () => {
     enabled: Boolean(activeVersionQuery.data),
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const versionId = selectedVersionQuery.data?.id;
   const createWorkspaceUrl = useMemo(() => {
     const params = new URLSearchParams();

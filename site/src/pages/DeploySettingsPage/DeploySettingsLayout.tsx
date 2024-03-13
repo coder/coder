@@ -6,8 +6,8 @@ import { deploymentConfig } from "api/queries/deployment";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
-import { usePermissions } from "contexts/auth/usePermissions";
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {
@@ -30,7 +30,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 
 export const DeploySettingsLayout: FC = () => {
   const deploymentConfigQuery = useQuery(deploymentConfig());
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
 
   return (
     <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
