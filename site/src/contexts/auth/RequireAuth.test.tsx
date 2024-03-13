@@ -2,12 +2,13 @@ import { renderHook, screen } from "@testing-library/react";
 import { rest } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
+import { MockPermissions, MockUser } from "testHelpers/entities";
 import {
   createTestQueryClient,
   renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { AuthProvider, useAuthContext } from "./AuthProvider";
+import { AuthContext, type AuthContextValue } from "./AuthProvider";
 import { useAuthenticated } from "./RequireAuth";
 
 describe("RequireAuth", () => {
@@ -32,37 +33,70 @@ describe("RequireAuth", () => {
   });
 });
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
-  return (
-    <QueryClientProvider client={createTestQueryClient()}>
-      <AuthProvider>{children}</AuthProvider>
-    </QueryClientProvider>
-  );
-};
+const createAuthWrapper = (override: Partial<AuthContextValue>) => {
+  const value = {
+    user: undefined,
+    isLoading: false,
+    isSignedOut: false,
+    isSigningOut: false,
+    isConfiguringTheFirstUser: false,
+    isSignedIn: false,
+    isSigningIn: false,
+    isUpdatingProfile: false,
+    permissions: undefined,
+    authMethods: undefined,
+    organizationId: undefined,
+    signInError: undefined,
+    updateProfileError: undefined,
+    signOut: jest.fn(),
+    signIn: jest.fn(),
+    updateProfile: jest.fn(),
+    ...override,
+  };
+  const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+    return (
+      <QueryClientProvider client={createTestQueryClient()}>
+        <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+      </QueryClientProvider>
+    );
+  };
 
-const RequireAuthWrapper: FC<PropsWithChildren> = ({ children }) => {
-  const { user } = useAuthContext();
-  return user ? <>{children}</> : null;
+  return Wrapper;
 };
 
 describe("useAuthenticated", () => {
-  it("throws an error if it is used outside of an authenticated context", () => {
+  it("throws an error if it is used outside of a context with user", () => {
     jest.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => {
-      renderHook(() => useAuthenticated(), { wrapper: Wrapper });
+      renderHook(() => useAuthenticated(), {
+        wrapper: createAuthWrapper({ user: undefined }),
+      });
     }).toThrow("User is not authenticated.");
 
     jest.restoreAllMocks();
   });
 
+  it("throws an error if it is used outside of a context with permissions", () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => {
+      renderHook(() => useAuthenticated(), {
+        wrapper: createAuthWrapper({ user: MockUser }),
+      });
+    }).toThrow("Permissions are not available.");
+
+    jest.restoreAllMocks();
+  });
+
   it("returns auth context values for authenticated context", () => {
-    renderHook(() => useAuthenticated(), {
-      wrapper: ({ children }) => (
-        <Wrapper>
-          <RequireAuthWrapper>{children}</RequireAuthWrapper>
-        </Wrapper>
-      ),
-    });
+    expect(() => {
+      renderHook(() => useAuthenticated(), {
+        wrapper: createAuthWrapper({
+          user: MockUser,
+          permissions: MockPermissions,
+        }),
+      });
+    }).not.toThrow();
   });
 });
