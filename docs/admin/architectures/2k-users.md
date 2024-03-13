@@ -46,3 +46,7 @@ enabling it for deployment reliability.
 - Maximum number of Kubernetes workspace pods per node: 256
 - Nodes can be distributed in 2 regions, not necessarily evenly split, depending
   on developer team sizes
+
+### Database nodes
+
+TODO

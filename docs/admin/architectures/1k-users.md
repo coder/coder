@@ -41,3 +41,7 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 - Assumed that a workspace user needs 2 GB memory to perform
 - Maximum number of Kubernetes workspace pods per node: 256
+
+### Database nodes
+
+TODO

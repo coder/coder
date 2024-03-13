@@ -43,3 +43,7 @@ purposes.
 - As workspace nodes can be distributed between regions, on-premises networks
   and cloud areas, consider different namespaces in favor of zero-trust or
   multi-cloud deployments.
+
+### Database nodes
+
+TODO
