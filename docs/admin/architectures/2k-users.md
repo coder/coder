@@ -21,25 +21,13 @@ enabling it for deployment reliability.
 | ----------- | -------------------- | -------- | --------------- | ----------- | ----------------- |
 | Up to 2,000 | 4 vCPU, 16 GB memory | 2        | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
-### Workspace nodes
-
-| Users       | Node capacity        | Replicas | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | -------- | ---------------- | ------------ | ----------------- |
-| Up to 2,000 | 8 vCPU, 32 GB memory | 2        | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
-
-TODO
-
-Max pods per node 256
-
-Developers for up to 2000+ users architecture are in 2 regions (a different
-cluster) and are evenly split. In practice, this doesn’t change much besides the
-diagram and workspaces node pool autoscaling config as it still uses the central
-provisioner. Recommend multiple provisioner groups for zero-trust and
-multi-cloud use cases.
-
 ### Provisioner nodes
 
 TODO
+
+In practice, this doesn’t change much besides the diagram and workspaces node
+pool autoscaling config as it still uses the central provisioner. Recommend
+multiple provisioner groups for zero-trust and multi-cloud use cases.
 
 For example, to support 120 concurrent workspace builds:
 
@@ -49,3 +37,19 @@ For example, to support 120 concurrent workspace builds:
   (`CODER_PROVISIONER_DAEMONS=30`)
 - Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use
   up to 2 cores and 4 GB RAM
+
+### Workspace nodes
+
+| Users       | Node capacity        | Replicas | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | -------- | ---------------- | ------------ | ----------------- |
+| Up to 2,000 | 8 vCPU, 32 GB memory | 128      | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+
+**Assumptions**:
+
+- Workspace user needs 2 GB memory to perform
+
+**Footnotes**:
+
+- Maximum number of Kubernetes pods per node: 256
+- Nodes can be distributed in 2 regions, not necessarily evenly split, depending
+  on developer team sizes

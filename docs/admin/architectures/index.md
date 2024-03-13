@@ -182,7 +182,7 @@ Database:
 
 ## Hardware recommendation
 
-### Control plane
+### Control plane: coderd
 
 To ensure stability and reliability of the Coder control plane, it's essential
 to focus on node sizing, resource limits, and the number of replicas. We
@@ -234,7 +234,19 @@ We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
 for more details.
 
-### Workspaces
+### Control plane: provisionerd
+
+TODO
+
+#### Scaling formula
+
+TODO
+
+**Node Autoscaling**
+
+TODO
+
+### Data plane: Workspaces
 
 To determine workspace resource limits and keep the best developer experience
 for workspace users, administrators must be aware of a few assumptions.
