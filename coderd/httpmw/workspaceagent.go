@@ -32,20 +32,20 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 	return user
 }
 
-type LatestBuildContextKey struct{}
+type latestBuildContextKey struct{}
 
-func LatestBuildOptional(r *http.Request) (database.WorkspaceBuild, bool) {
-	user, ok := r.Context().Value(LatestBuildContextKey{}).(database.WorkspaceBuild)
-	return user, ok
+func latestBuildOptional(r *http.Request) (database.WorkspaceBuild, bool) {
+	wb, ok := r.Context().Value(latestBuildContextKey{}).(database.WorkspaceBuild)
+	return wb, ok
 }
 
 // LatestBuild returns the Latest Build from the ExtractLatestBuild handler.
 func LatestBuild(r *http.Request) database.WorkspaceBuild {
-	user, ok := LatestBuildOptional(r)
+	wb, ok := latestBuildOptional(r)
 	if !ok {
 		panic("developer error: agent middleware not provided or was made optional")
 	}
-	return user
+	return wb
 }
 
 type ExtractWorkspaceAgentAndLatestBuildConfig struct {
@@ -127,12 +127,12 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					WorkspaceID: row.Workspace.ID,
 					OwnerID:     row.Workspace.OwnerID,
 					TemplateID:  row.Workspace.TemplateID,
-					VersionID:   row.WorkspaceBuildTable.TemplateVersionID,
+					VersionID:   row.WorkspaceBuild.TemplateVersionID,
 				}),
 			}.WithCachedASTValue()
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
-			ctx = context.WithValue(ctx, LatestBuildContextKey{}, row.WorkspaceBuildTable)
+			ctx = context.WithValue(ctx, latestBuildContextKey{}, row.WorkspaceBuild)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))

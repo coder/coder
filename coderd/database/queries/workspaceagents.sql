@@ -218,30 +218,30 @@ WHERE
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
-	sqlc.embed(workspace_builds)
+	sqlc.embed(workspace_build_with_user)
 FROM
 	-- Only get the latest build for each workspace
 	(
 	SELECT
 		workspace_id, MAX(build_number) as max_build_number
 	FROM
-		workspace_build_with_user AS workspace_builds
+		workspace_build_with_user
 	GROUP BY
 		workspace_id
 	) as latest_builds
 	-- Pull the workspace_build rows for returning
-INNER JOIN workspace_builds
-	ON workspace_builds.workspace_id = latest_builds.workspace_id
-	AND workspace_builds.build_number = latest_builds.max_build_number
+INNER JOIN workspace_build_with_user
+	ON workspace_build_with_user.workspace_id = latest_builds.workspace_id
+	AND workspace_build_with_user.build_number = latest_builds.max_build_number
 	-- For each latest build, grab the resources to relate to an agent
 INNER JOIN workspace_resources
-	ON workspace_resources.job_id = workspace_builds.job_id
+	ON workspace_resources.job_id = workspace_build_with_user.job_id
 	-- Agent <-> Resource is 1:1
 INNER JOIN workspace_agents
 	ON workspace_agents.resource_id = workspace_resources.id
 	-- We need the owner ID
 INNER JOIN workspaces
-	ON workspace_builds.workspace_id = workspaces.id
+	ON workspace_build_with_user.workspace_id = workspaces.id
 WHERE
 	-- This should only match 1 agent, so 1 returned row or 0
 	workspace_agents.auth_token = @auth_token

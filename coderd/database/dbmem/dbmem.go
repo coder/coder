@@ -69,7 +69,7 @@ func New() database.Store {
 			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
+			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
@@ -165,7 +165,7 @@ type data struct {
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
-	workspaceBuilds               []database.WorkspaceBuildTable
+	workspaceBuilds               []database.WorkspaceBuild
 	workspaceBuildParameters      []database.WorkspaceBuildParameter
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
@@ -536,7 +536,7 @@ func (q *FakeQuerier) templateVersionWithUserNoLock(tpl database.TemplateVersion
 	return withUser
 }
 
-func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuildTable) database.WorkspaceBuild {
+func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuild) database.WorkspaceBuild {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.InitiatorID {
@@ -2795,7 +2795,7 @@ func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuildTable
+		var lastBuild database.WorkspaceBuild
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
@@ -3482,7 +3482,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	defer q.mutex.RUnlock()
 
 	// WITH latest_workspace_builds ...
-	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuild)
 	for _, wb := range q.workspaceBuilds {
 		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
 			continue
@@ -4267,11 +4267,8 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-
-	// map of build number -> row
 	rows := []database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}
-
-	// We want to return the latest build number
+	// We want to return the latest build number for each workspace
 	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
@@ -4296,8 +4293,8 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 							ID:         ws.ID,
 							TemplateID: ws.TemplateID,
 						},
-						WorkspaceAgent:      agt,
-						WorkspaceBuildTable: build,
+						WorkspaceAgent: agt,
+						WorkspaceBuild: build,
 					}
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
@@ -4320,7 +4317,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 			continue
 		}
 
-		if rows[i].WorkspaceBuildTable.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
+		if rows[i].WorkspaceBuild.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
 			continue
 		}
 
@@ -6230,7 +6227,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceBuild := database.WorkspaceBuildTable{
+	workspaceBuild := database.WorkspaceBuild{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
