@@ -314,14 +314,21 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		return nil
 	})
 
-	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+	dialCtx, dialCancel := context.WithCancel(ctx)
+	defer dialCancel()
+	conn, err := client.DialWorkspaceAgent(dialCtx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger:         log.Named("dial-agent"),
 		BlockEndpoints: false,
 	})
 	if err != nil {
 		log.Error(ctx, "dial agent", slog.Error(err))
 	} else {
-		defer conn.Close()
+		defer func() {
+			if err := conn.Close(); err != nil {
+				log.Error(ctx, "failed to close agent connection", slog.Error(err))
+			}
+			<-conn.Closed()
+		}()
 		if !conn.AwaitReachable(ctx) {
 			log.Error(ctx, "timed out waiting for agent")
 		} else {
