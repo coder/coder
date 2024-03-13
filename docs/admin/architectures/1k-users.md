@@ -44,4 +44,6 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Database nodes
 
-TODO
+| Users       | Node capacity       | Replicas | Storage | GCP                | AWS           | Azure             |
+| ----------- | ------------------- | -------- | ------- | ------------------ | ------------- | ----------------- |
+| Up to 1,000 | 2 vCPU, 8 GB memory | 1        | 512 GB  | `db-custom-2-7680` | `db.t3.large` | `Standard_D2s_v3` |

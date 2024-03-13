@@ -111,7 +111,7 @@ For example, to support 120 concurrent workspace builds:
 | Kubernetes (GKE) | 3 cores   | 12 GB     | 1              | db-f1-micro      | 200   | 3                 | 200 simulated                         | `v0.24.1`     | Jun 26, 2023 |
 | Kubernetes (GKE) | 4 cores   | 8 GB      | 1              | db-custom-1-3840 | 1500  | 20                | 1,500 simulated                       | `v0.24.1`     | Jun 27, 2023 |
 | Kubernetes (GKE) | 2 cores   | 4 GB      | 1              | db-custom-1-3840 | 500   | 20                | 500 simulated                         | `v0.27.2`     | Jul 27, 2023 |
-| Kubernetes (GKE) | 2 cores   | 4 GB      | 2              | db-custom-2-7680 | 1000  | 20                | 1000 simulated                        | `v2.2.1`      | Oct 9, 2023  |
+| Kubernetes (GKE) | 2 cores   | 8 GB      | 2              | db-custom-2-7680 | 1000  | 20                | 1000 simulated                        | `v2.2.1`      | Oct 9, 2023  |
 
 > Note: a simulated connection reads and writes random data at 40KB/s per
 > connection.

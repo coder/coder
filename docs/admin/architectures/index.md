@@ -316,6 +316,8 @@ considerations:
   Coder deployment with less than 1000 users, and low activity level (30% active
   users). This capacity should be sufficient to support 100 external
   provisioners.
+- Storage size depends on user activity, workspace builds, log verbosity,
+  overhead on database encryption, etc.
 - Allocate an additional CPU core to the database instance for every 1000 active
   users.
 - Enable _High Availability_ mode for database engine for large scale

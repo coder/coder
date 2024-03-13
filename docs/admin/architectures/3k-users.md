@@ -46,4 +46,11 @@ purposes.
 
 ### Database nodes
 
-TODO
+| Users       | Node capacity        | Replicas | Storage | GCP                 | AWS             | Azure             |
+| ----------- | -------------------- | -------- | ------- | ------------------- | --------------- | ----------------- |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 2        | 1.5 TB  | `db-custom-8-30720` | `db.t3.2xlarge` | `Standard_D8s_v3` |
+
+**Footnotes**:
+
+- Consider adding more replicas if the workspace activity is higher than 1500
+  workspace builds per day.

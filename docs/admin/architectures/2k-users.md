@@ -49,4 +49,11 @@ enabling it for deployment reliability.
 
 ### Database nodes
 
-TODO
+| Users       | Node capacity        | Replicas | Storage | GCP                 | AWS            | Azure             |
+| ----------- | -------------------- | -------- | ------- | ------------------- | -------------- | ----------------- |
+| Up to 2,000 | 4 vCPU, 16 GB memory | 1        | 1 TB    | `db-custom-4-15360` | `db.t3.xlarge` | `Standard_D4s_v3` |
+
+**Footnotes**:
+
+- Consider adding more replicas if the workspace activity is higher than 500
+  workspace builds per day.
