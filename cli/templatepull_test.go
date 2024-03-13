@@ -263,10 +263,10 @@ func TestTemplatePull_ToDir(t *testing.T) {
 		},
 	}
 
+	// nolint: paralleltest // These tests all share expectedDest
 	for _, tc := range tests {
 		tc := tc
 
-		// nolint: paralleltest // These tests all share expectedDest
 		t.Run(tc.name, func(t *testing.T) {
 			// Use a different working directory to not interfere with actual directory when using relative paths.
 			newWD := t.TempDir()
