@@ -1,12 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import AnsiToHTML from "ansi-to-html";
 import { type FC, type ReactNode, useMemo } from "react";
-import {
-  type Line,
-  LogLine,
-  LogLinePrefix,
-  LogLineSpace,
-} from "components/Logs/LogLine";
+import { type Line, LogLine, LogLinePrefix } from "components/Logs/LogLine";
 
 const convert = new AnsiToHTML();
 
@@ -15,13 +10,13 @@ interface AgentLogLineProps {
   number: number;
   style: React.CSSProperties;
   sourceIcon: ReactNode;
-  maxNumber: number;
+  maxLineNumber: number;
 }
 
 export const AgentLogLine: FC<AgentLogLineProps> = ({
   line,
   number,
-  maxNumber,
+  maxLineNumber,
   sourceIcon,
   style,
 }) => {
@@ -35,12 +30,11 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
       <LogLinePrefix
         css={styles.number}
         style={{
-          minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
+          minWidth: `${maxLineNumber.toString().length - 1}em`,
         }}
       >
         {number}
       </LogLinePrefix>
-      <LogLineSpace />
       <span
         dangerouslySetInnerHTML={{
           __html: output,

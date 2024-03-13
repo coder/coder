@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { LogLine, LogLinePrefix, LogLineSpace } from "./LogLine";
+import { LogLine, LogLinePrefix } from "./LogLine";
 
 const meta: Meta<typeof LogLine> = {
   title: "components/Logs/LogLine",
@@ -11,7 +11,6 @@ const meta: Meta<typeof LogLine> = {
     children: (
       <>
         <LogLinePrefix>13:45:31.072</LogLinePrefix>
-        <LogLineSpace />
         <span>info: Starting build</span>
       </>
     ),

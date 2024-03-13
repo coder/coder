@@ -14,11 +14,11 @@ export interface Line {
 
 type LogLineProps = {
   level: LogLevel;
-} & HTMLAttributes<HTMLDivElement>;
+} & HTMLAttributes<HTMLPreElement>;
 
 export const LogLine: FC<LogLineProps> = ({ level, ...divProps }) => {
   return (
-    <div
+    <pre
       css={styles.line}
       className={`${level} ${divProps.className} logs-line`}
       {...divProps}
@@ -27,15 +27,12 @@ export const LogLine: FC<LogLineProps> = ({ level, ...divProps }) => {
 };
 
 export const LogLinePrefix: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-  return <span css={styles.prefix} {...props} />;
-};
-
-export const LogLineSpace: FC = () => {
-  return <span css={styles.space} />;
+  return <pre css={styles.prefix} {...props} />;
 };
 
 const styles = {
   line: (theme) => ({
+    margin: 0,
     wordBreak: "break-all",
     display: "flex",
     alignItems: "center",
@@ -43,8 +40,6 @@ const styles = {
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     height: "auto",
-    // Whitespace is significant in terminal output for alignment
-    whiteSpace: "pre",
     padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
 
     "&.error": {
@@ -74,16 +69,12 @@ const styles = {
       },
     },
   }),
-  space: {
-    userSelect: "none",
-    width: 24,
-    display: "block",
-    flexShrink: 0,
-  },
+
   prefix: (theme) => ({
     userSelect: "none",
-    whiteSpace: "pre",
+    margin: 0,
     display: "inline-block",
     color: theme.palette.text.secondary,
+    marginRight: 24,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -149,7 +149,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
             <AgentLogLine
               line={logs[index]}
               number={index + 1}
-              maxNumber={logs.length}
+              maxLineNumber={logs.length}
               style={style}
               sourceIcon={
                 <Tooltip
