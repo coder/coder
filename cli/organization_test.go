@@ -26,6 +26,8 @@ func TestCurrentOrganization(t *testing.T) {
 	// 1. The user is not a part of the default organization, but only belongs to one.
 	// 2. The user is connecting to an older Coder instance.
 	t.Run("no-default", func(t *testing.T) {
+		t.Parallel()
+
 		orgID := uuid.New()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]codersdk.Organization{
