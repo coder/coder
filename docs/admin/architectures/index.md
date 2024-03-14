@@ -196,7 +196,8 @@ on the workload size to ensure deployment stability.
 
 #### CPU and memory usage
 
-Enabling agent stats collection (optional) may increase memory consumption.
+Enabling [agent stats collection](../../cli.md#--prometheus-collect-agent-stats)
+(optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
