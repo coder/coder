@@ -200,7 +200,8 @@ Enabling agent stats collection (optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
-this option enabled unless there are compelling reasons to disable it.
+[this option enabled](../../cli.md#--disable-direct-connections) unless there
+are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.
 
