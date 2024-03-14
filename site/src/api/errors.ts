@@ -34,7 +34,7 @@ export const isApiError = (err: unknown): err is ApiError => {
 export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
   return (
     typeof err === "object" &&
-    err != null &&
+    err !== null &&
     "message" in err &&
     typeof err.message === "string" &&
     (!("detail" in err) ||
