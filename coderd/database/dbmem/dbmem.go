@@ -803,6 +803,9 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	defer q.mutex.Unlock()
 
 	for index, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.OrganizationID != arg.OrganizationID {
+			continue
+		}
 		if provisionerJob.StartedAt.Valid {
 			continue
 		}

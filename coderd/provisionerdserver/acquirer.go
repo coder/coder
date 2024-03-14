@@ -121,6 +121,7 @@ func (a *Acquirer) AcquireJob(
 		case <-clearance:
 			logger.Debug(ctx, "got clearance to call database")
 			job, err := a.store.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: organization,
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,
