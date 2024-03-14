@@ -1737,28 +1737,13 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	// Cap to the last 10 MB of the log file.
-	start, err := f.Seek(10*1024*1024, io.SeekEnd)
-	if err != nil {
-		a.logger.Error(r.Context(), "seek agent log file", slog.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "seek log file: %s", err)
-		return
-	}
-	if start < 0 {
-		start = 0
-	}
-	bs := make([]byte, 10*1024*1024)
-	_, err = f.ReadAt(bs, start)
+	// Limit to 10MB.
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
 	if err != nil && !errors.Is(err, io.EOF) {
 		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "read log file: %s", err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, bytes.NewReader(bs))
 }
 
 func (a *agent) HTTPDebug() http.Handler {

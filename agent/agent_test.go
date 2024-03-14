@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -1974,6 +1975,11 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 func TestAgent_DebugServer(t *testing.T) {
 	t.Parallel()
 
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "coder-agent.log")
+	randLogStr, err := cryptorand.String(32)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
@@ -1982,6 +1988,7 @@ func TestAgent_DebugServer(t *testing.T) {
 		o.ExchangeToken = func(context.Context) (string, error) {
 			return "token", nil
 		}
+		o.LogDir = logDir
 	})
 
 	awaitReachableCtx := testutil.Context(t, testutil.WaitLong)
@@ -2111,6 +2118,7 @@ func TestAgent_DebugServer(t *testing.T) {
 		resBody, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.NotEmpty(t, string(resBody))
+		require.Contains(t, string(resBody), randLogStr)
 	})
 }
 
