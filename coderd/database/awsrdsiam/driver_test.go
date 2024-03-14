@@ -25,7 +25,7 @@ func TestDriver(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	sqlDriver, err := awsrdsiam.Register("postgres")
+	sqlDriver, err := awsrdsiam.Register(ctx, "postgres")
 	require.NoError(t, err)
 
 	db, err := cli.ConnectToPostgres(ctx, slogtest.Make(t, nil), sqlDriver, url)

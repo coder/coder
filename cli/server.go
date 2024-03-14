@@ -674,7 +674,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 
 				if codersdk.PostgresAuth(vals.PostgresAuth) == codersdk.PostgresAuthAWSRDSIAM {
-					sqlDriver, err = awsrdsiam.Register(sqlDriver)
+					sqlDriver, err = awsrdsiam.Register(inv.Context(), sqlDriver)
 					if err != nil {
 						return xerrors.Errorf("register aws rds iam auth: %w", err)
 					}

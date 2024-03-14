@@ -66,7 +66,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 			sqlDriver := "postgres"
 			if codersdk.PostgresAuth(newUserPgAuth) == codersdk.PostgresAuthAWSRDSIAM {
-				sqlDriver, err = awsrdsiam.Register(sqlDriver)
+				sqlDriver, err = awsrdsiam.Register(inv.Context(), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("register aws rds iam auth: %w", err)
 				}
