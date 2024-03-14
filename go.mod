@@ -247,9 +247,8 @@ require (
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c // indirect
-	github.com/aws/aws-sdk-go v1.50.36
-	github.com/aws/aws-sdk-go-v2 v1.25.3 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.26.1 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.25.3
+	github.com/aws/aws-sdk-go-v2/config v1.26.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.12 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.4.3
