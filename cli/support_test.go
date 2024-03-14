@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"io"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -42,7 +44,12 @@ func TestSupportBundle(t *testing.T) {
 		}).WithAgent().Do()
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
-		agt := agenttest.New(t, client.URL, r.AgentToken)
+		tempDir := t.TempDir()
+		logPath := filepath.Join(tempDir, "coder-agent.log")
+		require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
+		agt := agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
+			o.LogDir = tempDir
+		})
 		defer agt.Close()
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 

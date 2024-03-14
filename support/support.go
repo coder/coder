@@ -356,19 +356,11 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 			})
 
 			eg.Go(func() error {
-				tokenBytes, err := runCmd(ctx, client, agentID, `echo $CODER_AGENT_TOKEN`)
-				if err != nil {
-					return xerrors.Errorf("failed to fetch agent token: %w", err)
-				}
-				token := string(bytes.TrimSpace(tokenBytes))
-				agentClient := agentsdk.New(client.URL)
-				agentClient.SetSessionToken(token)
-				manifestRes, err := agentClient.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
+				manifestRes, err := conn.DebugManifest(ctx)
 				if err != nil {
 					return xerrors.Errorf("fetch manifest: %w", err)
 				}
-				defer manifestRes.Body.Close()
-				if err := json.NewDecoder(manifestRes.Body).Decode(&a.Manifest); err != nil {
+				if err := json.NewDecoder(bytes.NewReader(manifestRes)).Decode(&a.Manifest); err != nil {
 					return xerrors.Errorf("decode agent manifest: %w", err)
 				}
 
@@ -376,9 +368,9 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 			})
 
 			eg.Go(func() error {
-				logBytes, err := runCmd(ctx, client, agentID, `tail -n 1000 /tmp/coder-agent.log`)
+				logBytes, err := conn.DebugLogs(ctx)
 				if err != nil {
-					return xerrors.Errorf("tail /tmp/coder-agent.log: %w", err)
+					return xerrors.Errorf("fetch coder agent logs: %w", err)
 				}
 				a.Logs = logBytes
 				return nil
@@ -471,31 +463,4 @@ func sanitizeEnv(kvs map[string]string) {
 			kvs[k] = "***REDACTED***"
 		}
 	}
-}
-
-// TODO: use rpty instead? which is less liable to fail?
-func runCmd(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string) ([]byte, error) {
-	agentConn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{})
-	if err != nil {
-		return nil, xerrors.Errorf("dial workspace agent: %w", err)
-	}
-	defer agentConn.Close()
-
-	sshClient, err := agentConn.SSHClient(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get ssh client: %w", err)
-	}
-	defer sshClient.Close()
-
-	sshSession, err := sshClient.NewSession()
-	if err != nil {
-		return nil, xerrors.Errorf("new ssh session: %w", err)
-	}
-	defer sshSession.Close()
-
-	cmdBytes, err := sshSession.CombinedOutput(cmd)
-	if err != nil {
-		return nil, xerrors.Errorf("shell: %w", err)
-	}
-	return cmdBytes, err
 }

@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -212,7 +215,12 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	})
 	require.NoError(t, err)
 
-	_ = agenttest.New(t, client.URL, wbr.AgentToken)
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "coder-agent.log")
+	require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
+	_ = agenttest.New(t, client.URL, wbr.AgentToken, func(o *agent.Options) {
+		o.LogDir = tempDir
+	})
 	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
 
 	return ws, agt
