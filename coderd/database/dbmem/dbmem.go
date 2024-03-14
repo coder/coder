@@ -69,7 +69,7 @@ func New() database.Store {
 			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
+			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
@@ -171,7 +171,7 @@ type data struct {
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
-	workspaceBuilds               []database.WorkspaceBuildTable
+	workspaceBuilds               []database.WorkspaceBuild
 	workspaceBuildParameters      []database.WorkspaceBuildParameter
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
@@ -542,7 +542,7 @@ func (q *FakeQuerier) templateVersionWithUserNoLock(tpl database.TemplateVersion
 	return withUser
 }
 
-func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuildTable) database.WorkspaceBuild {
+func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuild) database.WorkspaceBuild {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.InitiatorID {
@@ -2801,7 +2801,7 @@ func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuildTable
+		var lastBuild database.WorkspaceBuild
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
@@ -3488,7 +3488,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	defer q.mutex.RUnlock()
 
 	// WITH latest_workspace_builds ...
-	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuild)
 	for _, wb := range q.workspaceBuilds {
 		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
 			continue
@@ -4270,20 +4270,14 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-
-	// map of build number -> row
-	rows := make(map[int32]database.GetWorkspaceAgentAndOwnerByAuthTokenRow)
-
-	// We want to return the latest build number
-	var latestBuildNumber int32
+	rows := []database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}
+	// We want to return the latest build number for each workspace
+	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
-		if agt.AuthToken != authToken {
-			continue
-		}
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -4300,47 +4294,43 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					if ws.Deleted {
 						continue
 					}
-					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-					row.WorkspaceID = ws.ID
-					row.TemplateID = ws.TemplateID
+					row := database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{
+						Workspace: database.Workspace{
+							ID:         ws.ID,
+							TemplateID: ws.TemplateID,
+						},
+						WorkspaceAgent: agt,
+						WorkspaceBuild: build,
+					}
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
-						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+						return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 					}
-					row.OwnerID = usr.ID
-					row.OwnerRoles = append(usr.RBACRoles, "member")
-					// We also need to get org roles for the user
-					row.OwnerName = usr.Username
-					row.WorkspaceAgent = agt
-					row.TemplateVersionID = build.TemplateVersionID
-					for _, mem := range q.organizationMembers {
-						if mem.UserID == usr.ID {
-							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
-						}
-					}
-					// And group memberships
-					for _, groupMem := range q.groupMembers {
-						if groupMem.UserID == usr.ID {
-							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
-						}
-					}
+					row.Workspace.OwnerID = usr.ID
 
 					// Keep track of the latest build number
-					rows[build.BuildNumber] = row
-					if build.BuildNumber > latestBuildNumber {
-						latestBuildNumber = build.BuildNumber
+					rows = append(rows, row)
+					if build.BuildNumber > latestBuildNumber[ws.ID] {
+						latestBuildNumber[ws.ID] = build.BuildNumber
 					}
 				}
 			}
 		}
 	}
 
-	if len(rows) == 0 {
-		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+	for i := range rows {
+		if rows[i].WorkspaceAgent.AuthToken != authToken {
+			continue
+		}
+
+		if rows[i].WorkspaceBuild.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
+			continue
+		}
+
+		return rows[i], nil
 	}
 
-	// Return the row related to the latest build
-	return rows[latestBuildNumber], nil
+	return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -6243,7 +6233,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceBuild := database.WorkspaceBuildTable{
+	workspaceBuild := database.WorkspaceBuild{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
