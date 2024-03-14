@@ -297,14 +297,16 @@ number of workspaces or active users. It's important to note that as new users
 onboard, the autoscaling configuration should account for ongoing workspaces.
 
 Scaling down workspace nodes to zero is not recommended, as it will result in
-longer wait times for workspace provisioning by users.
+longer wait times for workspace provisioning by users. However, this may be
+necessary for workspaces with special resource requirements (e.g. GPUs) that
+incur significant cost overheads.
 
 ### Data plane: External database
 
-While running in production, Coder deployment requires an access to an external
-PostgreSQL database. Depending on the scale of the user-base, workspace
-activity, and High Availability requirements, the amount of CPU and memory
-resources may differ.
+While running in production, Coder requires a access to an external PostgreSQL
+database. Depending on the scale of the user-base, workspace activity, and High
+Availability requirements, the amount of CPU and memory resources required by
+Coder's database may differ.
 
 #### Scaling formula
 
@@ -322,8 +324,8 @@ considerations:
 - Enable _High Availability_ mode for database engine for large scale
   deployments.
 
-With enabled database encryption feature in Coder, consider allocating an
-additional CPU core to every `coderd` replica.
+If you enable [database encryption](../encryption.md) in Coder, consider
+allocating an additional CPU core to every `coderd` replica.
 
 #### Performance optimization guidelines
 
