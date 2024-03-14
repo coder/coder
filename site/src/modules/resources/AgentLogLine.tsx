@@ -36,6 +36,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
         {number}
       </LogLinePrefix>
       <span
+        // Output contains HTML to represent ANSI-code formatting
         dangerouslySetInnerHTML={{
           __html: output,
         }}
