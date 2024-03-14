@@ -2093,7 +2093,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
 		})
-		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
+		check.Args(database.AcquireProvisionerJobParams{OrganizationID: j.OrganizationID, Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
 			Asserts( /*rbac.ResourceSystem, rbac.ActionUpdate*/ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
