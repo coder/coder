@@ -11,16 +11,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type AwsRdsIamDriver struct {
+type awsRdsIamDriver struct {
 	parent driver.Driver
 	sess   *session.Session
-	dbURL  string
 }
 
-var _ driver.Driver = &AwsRdsIamDriver{}
+var _ driver.Driver = &awsRdsIamDriver{}
 
 // Register initializes and registers our aws rds iam wrapped database driver.
-func Register(parentName string, dbURL string) (string, error) {
+func Register(parentName string) (string, error) {
 	sess, err := session.NewSession()
 	if err != nil {
 		return "", xerrors.Errorf("creating aws session: %w", err)
@@ -32,7 +31,7 @@ func Register(parentName string, dbURL string) (string, error) {
 	}
 
 	// create a new aws rds iam driver
-	d := newDriver(db.Driver(), sess, dbURL)
+	d := newDriver(db.Driver(), sess)
 	name := fmt.Sprintf("%s-awsrdsiam", parentName)
 	sql.Register(fmt.Sprintf("%s-awsrdsiam", parentName), d)
 
@@ -40,16 +39,15 @@ func Register(parentName string, dbURL string) (string, error) {
 }
 
 // newDriver will create a new *AwsRdsIamDriver using the environment aws session.
-func newDriver(parentDriver driver.Driver, sess *session.Session, dbURL string) *AwsRdsIamDriver {
-	return &AwsRdsIamDriver{
+func newDriver(parentDriver driver.Driver, sess *session.Session) *awsRdsIamDriver {
+	return &awsRdsIamDriver{
 		parent: parentDriver,
 		sess:   sess,
-		dbURL:  dbURL,
 	}
 }
 
 // Open creates a new connection to the database using the provided name.
-func (d *AwsRdsIamDriver) Open(name string) (driver.Conn, error) {
+func (d *awsRdsIamDriver) Open(name string) (driver.Conn, error) {
 	// set password with signed aws authentication token for the rds instance
 	nURL, err := getAuthenticatedURL(d.sess, name)
 	if err != nil {

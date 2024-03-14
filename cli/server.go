@@ -673,9 +673,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("escaping postgres URL: %w", err)
 				}
 
-				useAwsRdsIamAuth := true
-				if useAwsRdsIamAuth {
-					sqlDriver, err = awsrdsiam.Register(sqlDriver, dbURL)
+				if codersdk.PostgresAuth(vals.PostgresAuth) == codersdk.PostgresAuthAWSRDSIAM {
+					sqlDriver, err = awsrdsiam.Register(sqlDriver)
 					if err != nil {
 						return xerrors.Errorf("register aws rds iam auth: %w", err)
 					}
