@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -476,34 +475,23 @@ func sanitizeEnv(kvs map[string]string) {
 
 // TODO: use rpty instead? which is less liable to fail?
 func runCmd(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, cmd string) ([]byte, error) {
-	var err error
-	var closers []func() error
-	defer func() {
-		if err != nil {
-			for _, c := range closers {
-				if err2 := c(); err2 != nil {
-					err = errors.Join(err, err2)
-				}
-			}
-		}
-	}()
 	agentConn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
 	}
-	closers = append(closers, agentConn.Close)
+	defer agentConn.Close()
 
 	sshClient, err := agentConn.SSHClient(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("get ssh client: %w", err)
 	}
-	closers = append(closers, sshClient.Close)
+	defer sshClient.Close()
 
 	sshSession, err := sshClient.NewSession()
 	if err != nil {
 		return nil, xerrors.Errorf("new ssh session: %w", err)
 	}
-	closers = append(closers, sshSession.Close)
+	defer sshSession.Close()
 
 	cmdBytes, err := sshSession.CombinedOutput(cmd)
 	if err != nil {
