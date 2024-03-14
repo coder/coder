@@ -19,7 +19,7 @@ import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSetti
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { MockUser } from "./entities";
 
-function createTestQueryClient() {
+export function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
   // are isolated and can't affect each other
   return new QueryClient({
