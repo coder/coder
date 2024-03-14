@@ -3,6 +3,16 @@ import AnsiToHTML from "ansi-to-html";
 import { type FC, type ReactNode, useMemo } from "react";
 import { type Line, LogLine, LogLinePrefix } from "components/Logs/LogLine";
 
+// Logs are stored as the Line interface to make rendering
+// much more efficient. Instead of mapping objects each time, we're
+// able to just pass the array of logs to the component.
+export interface LineWithID extends Line {
+  id: number;
+}
+
+// Approximate height of a log line. Used to control virtualized list height.
+export const AGENT_LOG_LINE_HEIGHT = 20;
+
 const convert = new AnsiToHTML();
 
 interface AgentLogLineProps {
