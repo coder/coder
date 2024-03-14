@@ -304,6 +304,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user_roles_default": ["string"],
       "username_field": "string"
     },
+    "pg_auth": "string",
     "pg_connection_url": "string",
     "pprof": {
       "address": {

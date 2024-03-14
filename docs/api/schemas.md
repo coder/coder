@@ -2519,6 +2519,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "user_roles_default": ["string"],
       "username_field": "string"
     },
+    "pg_auth": "string",
     "pg_connection_url": "string",
     "pprof": {
       "address": {
@@ -2888,6 +2889,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "user_roles_default": ["string"],
     "username_field": "string"
   },
+  "pg_auth": "string",
   "pg_connection_url": "string",
   "pprof": {
     "address": {
@@ -3030,6 +3032,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
+| `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |

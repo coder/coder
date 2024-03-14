@@ -12,6 +12,37 @@ coder server create-admin-user [flags]
 
 ## Options
 
+<<<<<<< HEAD
+=======
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsrdsiam]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+
+### --email
+
+|             |                           |
+| ----------- | ------------------------- |
+| Type        | <code>string</code>       |
+| Environment | <code>$CODER_EMAIL</code> |
+
+The email of the new user. If not specified, you will be prompted via stdin.
+
+### --password
+
+|             |                              |
+| ----------- | ---------------------------- |
+| Type        | <code>string</code>          |
+| Environment | <code>$CODER_PASSWORD</code> |
+
+The password of the new user. If not specified, you will be prompted via stdin.
+
+>>>>>>> dbea003a8 (make gen)
 ### --postgres-url
 
 |             |                                       |

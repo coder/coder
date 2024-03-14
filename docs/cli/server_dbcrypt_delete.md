@@ -16,6 +16,16 @@ coder server dbcrypt delete [flags]
 
 ## Options
 
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsrdsiam]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+
 ### --postgres-url
 
 |             |                                                            |

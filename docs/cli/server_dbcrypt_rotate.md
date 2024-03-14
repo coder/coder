@@ -12,6 +12,7 @@ coder server dbcrypt rotate [flags]
 
 ## Options
 
+<<<<<<< HEAD
 ### --postgres-url
 
 |             |                                       |
@@ -20,6 +21,17 @@ coder server dbcrypt rotate [flags]
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 The connection URL for the Postgres database.
+=======
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsrdsiam]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+>>>>>>> dbea003a8 (make gen)
 
 ### --new-key
 
