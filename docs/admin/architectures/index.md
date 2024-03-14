@@ -221,11 +221,12 @@ For a reliable Coder deployment dealing with medium to high loads, it's
 important that API calls for workspace/template queries and workspace build
 operations respond within 300 ms. However, API template insights calls, which
 involve browsing workspace agent stats and user activity data, may require more
-time.
+time. Moreover, Coder API exposes WebSocket long-lived connections for Web
+Terminal (bidirectional), and Workspace events/logs (unidirectional).
 
-Also, if the Coder deployment expects traffic from developers spread across the
-globe, keep in mind that customer-facing latency might be higher because of the
-distance between users and the load balancer.
+If the Coder deployment expects traffic from developers spread across the globe,
+be aware that customer-facing latency might be higher because of the distance
+between users and the load balancer.
 
 **Node Autoscaling**
 
