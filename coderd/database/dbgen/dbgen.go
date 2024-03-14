@@ -387,6 +387,12 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
 	t.Helper()
 
+	var defOrgID uuid.UUID
+	if orig.OrganizationID == uuid.Nil {
+		defOrg, _ := db.GetDefaultOrganization(genCtx)
+		defOrgID = defOrg.ID
+	}
+
 	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -401,7 +407,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		OrganizationID: takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
 		InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 		Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
 		StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
