@@ -235,55 +235,56 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 func TestTemplatePull_ToDir(t *testing.T) {
 	t.Parallel()
 
-	// Prevents the tests from running in parallel.
-	tmp := t.TempDir()
-	expectedDest := filepath.Join(tmp, "expected")
-
 	tests := []struct {
-		name      string
-		givenPath string
+		name           string
+		destPath       string
+		useDefaultDest bool
 	}{
 		{
-			name:      "absolute path works",
-			givenPath: filepath.Join(tmp, "actual"),
+			name:           "absolute path works",
+			useDefaultDest: true,
 		},
 		{
-			name:      "relative path to specific dir is sanitized",
-			givenPath: "./pulltmp",
+			name:     "relative path to specific dir is sanitized",
+			destPath: "./pulltmp",
 		},
 		{
-			name:      "relative path to current dir is sanitized",
-			givenPath: ".",
+			name:     "relative path to current dir is sanitized",
+			destPath: ".",
 		},
 		{
-			name:      "directory traversal is acceptable",
-			givenPath: "../mytmpl",
+			name:     "directory traversal is acceptable",
+			destPath: "../mytmpl",
 		},
 		{
-			name:      "empty path falls back to using template name",
-			givenPath: "",
+			name:     "empty path falls back to using template name",
+			destPath: "",
 		},
 	}
 
-	// nolint: paralleltest // These tests all share expectedDest
+	// nolint: paralleltest // These tests change the current working dir, and is therefore unsuitable for parallelisation.
 	for _, tc := range tests {
 		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
-			// Use a different working directory to not interfere with actual directory when using relative paths.
-			newWD := t.TempDir()
 			cwd, err := os.Getwd()
 			require.NoError(t, err)
-			require.NoError(t, os.Chdir(newWD))
-
 			t.Cleanup(func() {
 				require.NoError(t, os.Chdir(cwd))
 			})
 
-			t.Cleanup(func() {
-				_ = os.RemoveAll(tc.givenPath)
-				_ = os.RemoveAll(expectedDest)
-			})
+			dir := t.TempDir()
+
+			// Change working directory so that relative path tests don't affect the original working directory.
+			newWd := filepath.Join(dir, "new-cwd")
+			require.NoError(t, os.MkdirAll(newWd, 0o750))
+			require.NoError(t, os.Chdir(newWd))
+
+			expectedDest := filepath.Join(dir, "expected")
+			actualDest := tc.destPath
+			if tc.useDefaultDest {
+				actualDest = filepath.Join(dir, "actual")
+			}
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -316,7 +317,13 @@ func TestTemplatePull_ToDir(t *testing.T) {
 			err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
 			require.NoError(t, err)
 
-			inv, root := clitest.New(t, "templates", "pull", template.Name, tc.givenPath)
+			ents, _ := os.ReadDir(actualDest)
+			if len(ents) > 0 {
+				t.Logf("%s is not empty", actualDest)
+				t.FailNow()
+			}
+
+			inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 			clitest.SetupConfig(t, templateAdmin, root)
 
 			ptytest.New(t).Attach(inv)
@@ -324,7 +331,7 @@ func TestTemplatePull_ToDir(t *testing.T) {
 			require.NoError(t, inv.Run())
 
 			// Validate behaviour of choosing template name in the absence of an output path argument.
-			destPath := tc.givenPath
+			destPath := actualDest
 			if destPath == "" {
 				destPath = template.Name
 			}
