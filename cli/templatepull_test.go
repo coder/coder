@@ -231,10 +231,8 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 // ToDir tests that 'templates pull' pulls down the active template
 // and writes it to the correct directory.
 //
-// nolint: tparallel // The subtests cannot be run in parallel; see the inner loop.
+// nolint: paralleltest // The subtests cannot be run in parallel; see the inner loop.
 func TestTemplatePull_ToDir(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name           string
 		destPath       string
