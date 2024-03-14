@@ -51,10 +51,10 @@ func TestViewSubsetTemplateVersion(t *testing.T) {
 	}
 }
 
-// TestViewSubsetWorkspaceBuild ensures WorkspaceBuild is a subset of WorkspaceBuild
+// TestViewSubsetWorkspaceBuild ensures WorkspaceBuildTable is a subset of WorkspaceBuild
 func TestViewSubsetWorkspaceBuild(t *testing.T) {
 	t.Parallel()
-	table := reflect.TypeOf(database.WorkspaceBuild{})
+	table := reflect.TypeOf(database.WorkspaceBuildTable{})
 	joined := reflect.TypeOf(database.WorkspaceBuild{})
 
 	tableFields := allFields(table)
