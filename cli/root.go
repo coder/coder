@@ -749,7 +749,7 @@ func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.C
 		return org.IsDefault
 	})
 	if index < 0 {
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder org set <org>' to select an organization to use")
 	}
 
 	return orgs[index], nil
