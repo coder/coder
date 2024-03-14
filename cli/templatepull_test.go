@@ -265,13 +265,13 @@ func TestTemplatePull_ToDir(t *testing.T) {
 		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
 			cwd, err := os.Getwd()
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, os.Chdir(cwd))
 			})
-
-			dir := t.TempDir()
 
 			// Change working directory so that relative path tests don't affect the original working directory.
 			newWd := filepath.Join(dir, "new-cwd")
