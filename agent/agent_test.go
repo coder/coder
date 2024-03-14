@@ -2088,22 +2088,6 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NotNil(t, v)
 	})
 
-	t.Run("Token", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/token", nil)
-		require.NoError(t, err)
-
-		res, err := srv.Client().Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		defer res.Body.Close()
-		resBody, err := io.ReadAll(res.Body)
-		require.NoError(t, err)
-		require.Equal(t, "token", string(resBody))
-	})
-
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 

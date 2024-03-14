@@ -1714,18 +1714,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, r *http.Request) {
-	tok := a.sessionToken.Load()
-	if tok == nil {
-		a.logger.Error(r.Context(), "no session token in-memory")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "no session token in-memory")
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, *tok)
-}
-
 func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	logPath := filepath.Join(a.logDir, "coder-agent.log")
 	f, err := os.Open(logPath)
@@ -1753,7 +1741,6 @@ func (a *agent) HTTPDebug() http.Handler {
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
-	r.Get("/debug/token", a.HandleHTTPDebugToken)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
