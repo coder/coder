@@ -136,9 +136,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				return xerrors.Errorf("cleaning destination path %s failed: %w", dest, err)
 			}
 
-			if dest != clean {
-				dest = clean
-			}
+			dest = clean
 
 			err = os.MkdirAll(dest, 0o750)
 			if err != nil {
