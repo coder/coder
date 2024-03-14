@@ -36,6 +36,8 @@ func (a *agent) apiHandler() http.Handler {
 		cacheDuration: cacheDuration,
 	}
 	r.Get("/api/v0/listening-ports", lp.handler)
+	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
+	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 
 	return r
 }

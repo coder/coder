@@ -1660,52 +1660,50 @@ func (a *agent) isClosed() bool {
 	return a.hardCtx.Err() != nil
 }
 
+func (a *agent) requireNetwork() (*tailnet.Conn, bool) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	return a.network, a.network != nil
+}
+
+func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
+	network, ok := a.requireNetwork()
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("network is not ready yet"))
+		return
+	}
+	network.MagicsockServeHTTPDebug(w, r)
+}
+
+func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *http.Request) {
+	state := chi.URLParam(r, "state")
+	stateBool, err := strconv.ParseBool(state)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
+		return
+	}
+
+	network, ok := a.requireNetwork()
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("network is not ready yet"))
+		return
+	}
+
+	network.MagicsockSetDebugLoggingEnabled(stateBool)
+	a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
+}
+
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
-	requireNetwork := func(w http.ResponseWriter) (*tailnet.Conn, bool) {
-		a.closeMutex.Lock()
-		network := a.network
-		a.closeMutex.Unlock()
-
-		if network == nil {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("network is not ready yet"))
-			return nil, false
-		}
-
-		return network, true
-	}
-
-	r.Get("/debug/magicsock", func(w http.ResponseWriter, r *http.Request) {
-		network, ok := requireNetwork(w)
-		if !ok {
-			return
-		}
-		network.MagicsockServeHTTPDebug(w, r)
-	})
-
-	r.Get("/debug/magicsock/debug-logging/{state}", func(w http.ResponseWriter, r *http.Request) {
-		state := chi.URLParam(r, "state")
-		stateBool, err := strconv.ParseBool(state)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
-			return
-		}
-
-		network, ok := requireNetwork(w)
-		if !ok {
-			return
-		}
-
-		network.MagicsockSetDebugLoggingEnabled(stateBool)
-		a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
-	})
-
+	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
+	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
