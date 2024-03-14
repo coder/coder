@@ -1642,7 +1642,6 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
-			YAML:        "pgConnectionURL",
 		},
 		{
 			Name:        "Postgres Auth",

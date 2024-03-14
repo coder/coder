@@ -411,18 +411,9 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
-# URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded
-# from Maven (https://repo1.maven.org/maven2) and store all data in the config
-# root. Access the built-in database with "coder server postgres-builtin-url".
-# (default: <unset>, type: string)
-pgConnectionURL: ""
 # Type of auth to use when connecting to postgres.
 # (default: password, type: enum[password\|awsrdsiam])
-pgAuth:
-  choices:
-    - password
-    - awsrdsiam
-  value: password
+pgAuth: password
 # The algorithm to use for generating ssh keys. Accepted values are "ed25519",
 # "ecdsa", or "rsa4096".
 # (default: ed25519, type: string)
