@@ -23,9 +23,9 @@ enabling it for deployment reliability.
 
 ### Provisioner nodes
 
-| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 2,000 | 8 vCPU, 32 GB memory | 4 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 2,000 | 8 vCPU, 32 GB memory | 4 nodes / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 

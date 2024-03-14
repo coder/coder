@@ -23,9 +23,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Provisioner nodes
 
-| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 1,000 | 8 vCPU, 32 GB memory | 2 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 1,000 | 8 vCPU, 32 GB memory | 2 nodes / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -39,7 +39,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 **Footnotes**:
 
-- Assumed that a workspace user needs 2 GB memory to perform
+- Assumed that a workspace user needs at minimum 2 GB memory to perform. We
+  recommend against over-provisioning memory for developer workloads, as this my
+  lead to OOMKiller invocations.
 - Maximum number of Kubernetes workspace pods per node: 256
 
 ### Database nodes

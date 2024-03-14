@@ -32,9 +32,9 @@ purposes.
 
 ### Workspace nodes
 
-| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 256 / 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
+| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
+| Up to 3,000 | 8 vCPU, 32 GB memory | 256 nodes / 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
