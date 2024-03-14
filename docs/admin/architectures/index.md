@@ -227,7 +227,8 @@ Terminal (bidirectional), and Workspace events/logs (unidirectional).
 
 If the Coder deployment expects traffic from developers spread across the globe,
 be aware that customer-facing latency might be higher because of the distance
-between users and the load balancer.
+between users and the load balancer. Fortunately, the latency can be improved
+with a deployment of Coder [workspace proxies](../workspace-proxies.md).
 
 **Node Autoscaling**
 
