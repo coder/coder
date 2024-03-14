@@ -1699,9 +1699,10 @@ func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *h
 	_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 }
 
-func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, _ *http.Request) {
+func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) {
 	sdkManifest := a.manifest.Load()
 	if sdkManifest == nil {
+		a.logger.Error(r.Context(), "no manifest in-memory")
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "no manifest in-memory")
 		return
@@ -1713,9 +1714,10 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, _ *http.Request) 
 	}
 }
 
-func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, _ *http.Request) {
+func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, r *http.Request) {
 	tok := a.sessionToken.Load()
 	if tok == nil {
+		a.logger.Error(r.Context(), "no session token in-memory")
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "no session token in-memory")
 		return
@@ -1724,17 +1726,21 @@ func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, _ *http.Request) {
 	_, _ = fmt.Fprintf(w, *tok)
 }
 
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, _ *http.Request) {
-	f, err := os.Open(filepath.Join(a.logDir, "coder-agent.log"))
+func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
+	logPath := filepath.Join(a.logDir, "coder-agent.log")
+	f, err := os.Open(logPath)
 	if err != nil {
+		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
 		return
 	}
+	defer f.Close()
 
 	// Cap to the last 10 MB of the log file.
 	start, err := f.Seek(10*1024*1024, io.SeekEnd)
 	if err != nil {
+		a.logger.Error(r.Context(), "seek agent log file", slog.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "seek log file: %s", err)
 		return
@@ -1745,6 +1751,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, _ *http.Request) {
 	bs := make([]byte, 10*1024*1024)
 	_, err = f.ReadAt(bs, start)
 	if err != nil && !errors.Is(err, io.EOF) {
+		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "read log file: %s", err)
 		return
