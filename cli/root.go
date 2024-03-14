@@ -749,7 +749,14 @@ func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.C
 		return org.IsDefault
 	})
 	if index < 0 {
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
+		if len(orgs) == 1 {
+			// If there is no "isDefault", but only 1 org is present. We can just
+			// assume the single organization is correct. This is mainly a helper
+			// for cli hitting an old instance, or a user that belongs to a single
+			// org that is not the default.
+			return orgs[0], nil
+		}
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder org set <org>' to select an organization to use")
 	}
 
 	return orgs[index], nil
