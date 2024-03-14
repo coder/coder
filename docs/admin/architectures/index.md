@@ -196,8 +196,7 @@ deployment stability.
 
 #### CPU and memory usage
 
-The memory consumption may increase with enabled agent stats collection by the
-Prometheus metrics aggregator (optional).
+Enabling agent stats collection (optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
@@ -267,12 +266,12 @@ developer needs based on the workspace build queuing time.
 To determine workspace resource limits and keep the best developer experience
 for workspace users, administrators must be aware of a few assumptions.
 
-- Workspace pods run on the same Kubernetes cluster, but possible in a different
-  namespace or a node pool.
+- Workspace pods run on the same Kubernetes cluster, but possibly in a different
+  namespace or on a separate set of nodes.
 - Workspace limits (per workspace user):
-  - Evaluate the workspace utilization pattern. For instance, a regular web
-    development does not require high CPU capacity all the time, but only during
-    project builds or load tests.
+  - Evaluate the workspace utilization pattern. For instance, web application
+    development does not require high CPU capacity at all times, but will spike
+    during builds or testing.
   - Evaluate minimal limits for single workspace. Include in the calculation
     requirements for Coder agent running in an idle workspace - 0.1 vCPU and 256
     MB. For instance, developers can choose between 0.5-8 vCPUs, and 1-16 GB
