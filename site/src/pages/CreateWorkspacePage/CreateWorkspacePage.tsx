@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getUserParameters } from "api/api";
+import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
   richParameters,
@@ -43,6 +44,8 @@ const CreateWorkspacePage: FC = () => {
   const defaultName = searchParams.get("name");
   const disabledParams = searchParams.get("disable_params")?.split(",");
   const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+  const [autoCreateError, setAutoCreateError] =
+    useState<ApiErrorResponse | null>(null);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -132,7 +135,7 @@ const CreateWorkspacePage: FC = () => {
       externalAuth?.every((auth) => auth.optional || auth.authenticated),
   );
 
-  let autoStartReady =
+  let autoCreateReady =
     mode === "auto" &&
     (!autofillEnabled || userParametersQuery.isSuccess) &&
     hasAllRequiredExternalAuth;
@@ -148,14 +151,24 @@ const CreateWorkspacePage: FC = () => {
     setMode("form");
     // Ensure this is always false, so that we don't ever let `automateWorkspaceCreation`
     // fire when we're trying to disable it.
-    autoStartReady = false;
+    autoCreateReady = false;
+    // Show an error message to explain _why_ the workspace was not created automatically.
+    const subject =
+      externalAuth?.length === 1
+        ? "an external authentication provider that is"
+        : "external authentication providers that are";
+    setAutoCreateError({
+      message: `This template requires ${subject} not connected.`,
+      detail:
+        "Auto-creation has been disabled. Please connect all required external authentication providers before continuing.",
+    });
   }
 
   useEffect(() => {
-    if (autoStartReady) {
+    if (autoCreateReady) {
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, autoStartReady]);
+  }, [automateWorkspaceCreation, autoCreateReady]);
 
   return (
     <>
@@ -163,9 +176,7 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle(title)}</title>
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData ||
-      isLoadingExternalAuth ||
-      autoCreateWorkspaceMutation.isLoading ? (
+      {isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
@@ -174,7 +185,7 @@ const CreateWorkspacePage: FC = () => {
           disabledParams={disabledParams}
           defaultOwner={me}
           autofillParameters={autofillParameters}
-          error={createWorkspaceMutation.error}
+          error={createWorkspaceMutation.error || autoCreateError}
           resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
           versionId={realizedVersionId}
