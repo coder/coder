@@ -1669,7 +1669,7 @@ func (a *agent) requireNetwork() (*tailnet.Conn, bool) {
 func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
 	network, ok := a.requireNetwork()
 	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("network is not ready yet"))
 		return
 	}
@@ -1687,7 +1687,7 @@ func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *h
 
 	network, ok := a.requireNetwork()
 	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("network is not ready yet"))
 		return
 	}
