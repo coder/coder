@@ -65,7 +65,7 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 	return ptr
 }
 
-func cTestAcquireJob_LongPoll(t *testing.T) {
+func TestAcquireJob_LongPoll(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
 	srv, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Microsecond})
