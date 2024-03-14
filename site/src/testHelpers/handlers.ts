@@ -220,7 +220,7 @@ export const handlers = [
     return HttpResponse.json(M.MockBuilds);
   }),
   http.get("/api/v2/workspaces/:workspaceId/port-share", () => {
-    return HttpResponse.json(M.MockSharedPortsResponse)
+    return HttpResponse.json(M.MockSharedPortsResponse);
   }),
   http.get(
     "/api/v2/users/:username/workspace/:workspaceName/builds/:buildNumber",
@@ -361,6 +361,4 @@ export const handlers = [
   http.get("/api/v2/integrations/jfrog/xray-scan", () => {
     return new HttpResponse(null, { status: 404 });
   }),
-
-
 ];
