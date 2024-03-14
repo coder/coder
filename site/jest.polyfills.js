@@ -10,7 +10,7 @@
  * you don't want to deal with this.
  */
 const { TextDecoder, TextEncoder } = require("node:util");
-const { ReadableStream } = require("stream/web");
+const { ReadableStream } = require("node:stream/web");
 
 Object.defineProperties(globalThis, {
   TextDecoder: { value: TextDecoder },

@@ -1,7 +1,7 @@
 import "testHelpers/localStorage";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http } from "msw";
+import { http, HttpResponse } from "msw";
 import type { Region } from "api/typesGenerated";
 import {
   MockPrimaryWorkspaceProxy,
@@ -352,22 +352,14 @@ describe("ProxyContextSelection", () => {
 
       // Mock the API response
       server.use(
-        http.get("/api/v2/regions", async () => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              regions: regions,
-            }),
-          );
-        }),
-        http.get("/api/v2/workspaceproxies", async () => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              regions: regions,
-            }),
-          );
-        }),
+        http.get("/api/v2/regions", () =>
+          HttpResponse.json({
+            regions,
+          }),
+        ),
+        http.get("/api/v2/workspaceproxies", async () =>
+          HttpResponse.json({ regions }),
+        ),
       );
 
       TestingComponent();
