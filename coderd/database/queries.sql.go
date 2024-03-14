@@ -3941,15 +3941,7 @@ WHERE
 			provisioner_jobs AS nested
 		WHERE
 			nested.started_at IS NULL
-			AND CASE
-				-- For backwards compatibility, the old provisionerd api did
-				-- not take organization_id as a parameter. In the future if
-				-- we scope provisioner auth to a given org, we can apply
-				-- this argument for the caller.
-				WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid
-				THEN nested.organization_id = $3
-				ELSE TRUE
-			END
+			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
 			AND CASE
