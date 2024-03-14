@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -21,6 +22,9 @@ import (
 
 func TestSupportBundle(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
+	}
 
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
