@@ -191,8 +191,8 @@ guidance on optimal configurations. A reasonable approach involves using scaling
 formulas based on factors like CPU, memory, and the number of users.
 
 While the minimum requirements specify 1 CPU core and 2 GB of memory per
-`coderd` replica, it is recommended to allocate additional resources to ensure
-deployment stability.
+`coderd` replica, it is recommended to allocate additional resources depending
+on the workload size to ensure deployment stability.
 
 #### CPU and memory usage
 
@@ -332,7 +332,8 @@ allocating an additional CPU core to every `coderd` replica.
 We provide the following general recommendations for PostgreSQL settings:
 
 - Increase number of vCPU if CPU utilization or database latency is high.
-- Allocate extra GB memory if database performance is poor and CPU utilization
-  is low.
+- Allocate extra memory if database performance is poor and CPU utilization is
+  low. For maximum performance, the entire database should be able to fit in
+  RAM.
 - Utilize faster disk options such as SSDs or NVMe drives for optimal
   performance enhancement.
