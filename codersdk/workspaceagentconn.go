@@ -372,6 +372,39 @@ func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error)
 	return bs, nil
 }
 
+// DebugManifest returns the agent's in-memory manifest. Unfortunately this must
+// be returns as a []byte to avoid an import cycle.
+func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/manifest", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
+// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
+func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)

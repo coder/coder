@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -1974,11 +1975,21 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 func TestAgent_DebugServer(t *testing.T) {
 	t.Parallel()
 
+	logDir := t.TempDir()
+	logPath := filepath.Join(logDir, "coder-agent.log")
+	randLogStr, err := cryptorand.String(32)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
-	}, 0)
+	}, 0, func(c *agenttest.Client, o *agent.Options) {
+		o.ExchangeToken = func(context.Context) (string, error) {
+			return "token", nil
+		}
+		o.LogDir = logDir
+	})
 
 	awaitReachableCtx := testutil.Context(t, testutil.WaitLong)
 	ok := conn.AwaitReachable(awaitReachableCtx)
@@ -2058,6 +2069,56 @@ func TestAgent_DebugServer(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, string(resBody), `invalid state "blah", must be a boolean`)
 		})
+	})
+
+	t.Run("Manifest", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var v agentsdk.Manifest
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&v))
+		require.NotNil(t, v)
+	})
+
+	t.Run("Token", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/token", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, "token", string(resBody))
+	})
+
+	t.Run("Logs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.NotEmpty(t, string(resBody))
+		require.Contains(t, string(resBody), randLogStr)
 	})
 }
 

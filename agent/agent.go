@@ -1699,11 +1699,61 @@ func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *h
 	_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 }
 
+func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) {
+	sdkManifest := a.manifest.Load()
+	if sdkManifest == nil {
+		a.logger.Error(r.Context(), "no manifest in-memory")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "no manifest in-memory")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
+	}
+}
+
+func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, r *http.Request) {
+	tok := a.sessionToken.Load()
+	if tok == nil {
+		a.logger.Error(r.Context(), "no session token in-memory")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "no session token in-memory")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, *tok)
+}
+
+func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
+	logPath := filepath.Join(a.logDir, "coder-agent.log")
+	f, err := os.Open(logPath)
+	if err != nil {
+		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
+		return
+	}
+	defer f.Close()
+
+	// Limit to 10MB.
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
+	if err != nil && !errors.Is(err, io.EOF) {
+		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
+		return
+	}
+}
+
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
+	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
+	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
+	r.Get("/debug/token", a.HandleHTTPDebugToken)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
