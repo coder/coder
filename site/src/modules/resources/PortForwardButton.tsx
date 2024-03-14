@@ -205,9 +205,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   const canSharePortsPublic =
     canSharePorts && template.max_port_share_level === "public";
 
-  const publicMenuItem = canSharePortsPublic ? (
-    <MenuItem value="public">Public</MenuItem>
-  ) : (
+  const disabledPublicMenuItem = (
     <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
       {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
       <div>
@@ -443,7 +441,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                           <MenuItem value="authenticated">
                             Authenticated
                           </MenuItem>
-                          {publicMenuItem}
+                          {canSharePortsPublic ? (
+                            <MenuItem value="public">Public</MenuItem>
+                          ) : (
+                            disabledPublicMenuItem
+                          )}
                         </Select>
                       </FormControl>
                       <Button
@@ -508,7 +510,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     label="Sharing Level"
                   >
                     <MenuItem value="authenticated">Authenticated</MenuItem>
-                    {publicMenuItem}
+                    {canSharePortsPublic ? (
+                      <MenuItem value="public">Public</MenuItem>
+                    ) : (
+                      disabledPublicMenuItem
+                    )}
                   </TextField>
                   <LoadingButton
                     variant="contained"

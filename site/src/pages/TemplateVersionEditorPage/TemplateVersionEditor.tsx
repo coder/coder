@@ -182,9 +182,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   }, [buildLogs]);
 
-  useLeaveSiteWarning(canPublish);
+  useLeaveSiteWarning(dirty);
 
-  const canBuild = !isBuilding && dirty;
+  const canBuild = !isBuilding;
 
   return (
     <>

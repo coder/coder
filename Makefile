@@ -428,7 +428,7 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go lint/ts lint/helm lint/site-icons
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons
 .PHONY: lint
 
 lint/site-icons:
@@ -446,6 +446,10 @@ lint/go:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver
 	golangci-lint run
 .PHONY: lint/go
+
+lint/examples:
+	go run ./scripts/examplegen/main.go -lint
+.PHONY: lint/examples
 
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
 lint/shellcheck: $(SHELL_SRC_FILES)

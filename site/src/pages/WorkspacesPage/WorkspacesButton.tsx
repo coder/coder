@@ -11,13 +11,13 @@ import {
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
-import { SearchEmpty, searchStyles } from "components/Menu/Search";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { SearchEmpty, searchStyles } from "components/Search/Search";
 import { SearchBox } from "./WorkspacesSearchBox";
 
 const ICON_SIZE = 18;

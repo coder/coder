@@ -10952,6 +10952,12 @@ const docTemplate = `{
                 "address": {
                     "$ref": "#/definitions/clibase.HostPort"
                 },
+                "aggregate_agent_stats_by": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "collect_agent_stats": {
                     "type": "boolean"
                 },
@@ -12573,6 +12579,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "schedule": {
+                    "description": "Schedule is expected to be of the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `\nExample: ` + "`" + `CRON_TZ=US/Central 30 9 * * 1-5` + "`" + ` represents 0930 in the timezone US/Central\non weekdays (Mon-Fri). ` + "`" + `CRON_TZ` + "`" + ` defaults to UTC if not present.",
                     "type": "string"
                 }
             }

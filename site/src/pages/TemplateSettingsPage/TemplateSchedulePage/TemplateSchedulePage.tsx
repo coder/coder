@@ -6,7 +6,7 @@ import { updateTemplateMeta } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -16,7 +16,7 @@ const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const orgId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
@@ -31,7 +31,7 @@ const TemplateSchedulePage: FC = () => {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries(
-          templateByNameKey(orgId, templateName),
+          templateByNameKey(organizationId, templateName),
         );
         displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion

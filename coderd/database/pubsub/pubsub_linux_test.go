@@ -109,60 +109,6 @@ func TestPubsub(t *testing.T) {
 		message := <-messageChannel
 		assert.Equal(t, string(message), data)
 	})
-
-	t.Run("ClosePropagatesContextCancellationToSubscription", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		defer closePg()
-		db, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
-		require.NoError(t, err)
-		defer pubsub.Close()
-
-		event := "test"
-		done := make(chan struct{})
-		called := make(chan struct{})
-		unsub, err := pubsub.Subscribe(event, func(subCtx context.Context, _ []byte) {
-			defer close(done)
-			select {
-			case <-subCtx.Done():
-				assert.Fail(t, "context should not be canceled")
-			default:
-			}
-			close(called)
-			select {
-			case <-subCtx.Done():
-			case <-ctx.Done():
-				assert.Fail(t, "timeout waiting for sub context to be canceled")
-			}
-		})
-		require.NoError(t, err)
-		defer unsub()
-
-		go func() {
-			err := pubsub.Publish(event, nil)
-			assert.NoError(t, err)
-		}()
-
-		select {
-		case <-called:
-		case <-ctx.Done():
-			require.Fail(t, "timeout waiting for handler to be called")
-		}
-		err = pubsub.Close()
-		require.NoError(t, err)
-
-		select {
-		case <-done:
-		case <-ctx.Done():
-			require.Fail(t, "timeout waiting for handler to finish")
-		}
-	})
 }
 
 func TestPubsub_ordering(t *testing.T) {

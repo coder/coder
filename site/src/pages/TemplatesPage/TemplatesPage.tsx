@@ -2,14 +2,12 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { templateExamples, templates } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
-  const organizationId = useOrganizationId();
-  const permissions = usePermissions();
+  const { organizationId, permissions } = useAuthenticated();
   const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),

@@ -191,6 +191,11 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 		log.Error(ctx, "fetch workspace", slog.Error(err), slog.F("workspace_id", workspaceID))
 		return w
 	}
+	for _, res := range ws.LatestBuild.Resources {
+		for _, agt := range res.Agents {
+			sanitizeEnv(agt.EnvironmentVariables)
+		}
+	}
 	w.Workspace = ws
 
 	eg.Go(func() error {
@@ -345,4 +350,14 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	_ = eg.Wait()
 
 	return &b, nil
+}
+
+// sanitizeEnv modifies kvs in place and replaces the values all non-empty keys
+// with the string ***REDACTED***
+func sanitizeEnv(kvs map[string]string) {
+	for k, v := range kvs {
+		if v != "" {
+			kvs[k] = "***REDACTED***"
+		}
+	}
 }

@@ -91,4 +91,4 @@ resources associated with the workspace.
 
 ## Next steps
 
-- [Your first template](./tutorial.md)
+- [Your first template](../templates/tutorial.md)

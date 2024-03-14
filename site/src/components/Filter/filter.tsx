@@ -34,7 +34,7 @@ import {
   SearchEmpty,
   SearchInput,
   searchStyles,
-} from "components/Menu/Search";
+} from "components/Search/Search";
 import { useDebouncedFunction } from "hooks/debounce";
 import type { useFilterMenu } from "./menu";
 import type { BaseOption } from "./options";
@@ -612,7 +612,7 @@ function SearchMenu<TOption extends BaseOption>({
         <SearchInput
           autoFocus
           value={query}
-          ref={searchInputRef}
+          $$ref={searchInputRef}
           onChange={(e) => {
             onQueryChange(e.target.value);
           }}

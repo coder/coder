@@ -119,7 +119,7 @@ func TestLogout(t *testing.T) {
 		go func() {
 			defer close(logoutChan)
 			err = logout.Run()
-			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
+			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login'.")
 		}()
 
 		<-logoutChan

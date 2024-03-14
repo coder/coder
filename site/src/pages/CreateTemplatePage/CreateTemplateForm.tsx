@@ -18,7 +18,6 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -26,9 +25,10 @@ import {
   onChangeTrimmed,
   templateDisplayNameValidator,
 } from "utils/formUtils";
-import type {
-  TemplateAutostartRequirementDaysValue,
-  TemplateAutostopRequirementDaysValue,
+import {
+  sortedDays,
+  type TemplateAutostartRequirementDaysValue,
+  type TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";

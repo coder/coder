@@ -57,6 +57,7 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Network.TailnetDebug)
 		require.NotNil(t, bun.Network.NetcheckLocal)
 		require.NotNil(t, bun.Workspace.Workspace)
+		assertSanitizedWorkspace(t, bun.Workspace.Workspace)
 		require.NotEmpty(t, bun.Workspace.BuildLogs)
 		require.NotNil(t, bun.Workspace.Agent)
 		require.NotEmpty(t, bun.Workspace.AgentStartupLogs)
@@ -92,6 +93,7 @@ func TestRun(t *testing.T) {
 		require.NotEmpty(t, bun.Network.CoordinatorDebug)
 		require.NotEmpty(t, bun.Network.TailnetDebug)
 		require.NotNil(t, bun.Workspace)
+		assertSanitizedWorkspace(t, bun.Workspace.Workspace)
 		require.NotEmpty(t, bun.Logs)
 	})
 
@@ -136,6 +138,17 @@ func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig
 	for _, opt := range dc.Options {
 		if opt.Annotations.IsSet("secret") {
 			assert.Empty(t, opt.Value.String())
+		}
+	}
+}
+
+func assertSanitizedWorkspace(t *testing.T, ws codersdk.Workspace) {
+	t.Helper()
+	for _, res := range ws.LatestBuild.Resources {
+		for _, agt := range res.Agents {
+			for k, v := range agt.EnvironmentVariables {
+				assert.Equal(t, "***REDACTED***", v, "environment variable %q not sanitized", k)
+			}
 		}
 	}
 }

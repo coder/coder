@@ -742,6 +742,17 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 The bind address to serve prometheus metrics.
 
+### --prometheus-aggregate-agent-stats-by
+
+|             |                                                                |
+| ----------- | -------------------------------------------------------------- |
+| Type        | <code>string-array</code>                                      |
+| Environment | <code>$CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY</code>        |
+| YAML        | <code>introspection.prometheus.aggregate_agent_stats_by</code> |
+| Default     | <code>agent_name,template_name,username,workspace_name</code>  |
+
+When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are agent_name, template_name, username, workspace_name.
+
 ### --prometheus-collect-agent-stats
 
 |             |                                                           |

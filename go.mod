@@ -33,7 +33,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240214140224-3788ab894ba1
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240312053019-86ba201e56df
 
 // Fixes a race-condition in coder/wgtunnel.
 // Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
@@ -107,7 +107,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
-	github.com/fergusstrange/embedded-postgres v1.25.0
+	github.com/fergusstrange/embedded-postgres v1.26.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.0.0-20220402123239-6a3042f4b71a
 	github.com/gliderlabs/ssh v0.3.4
@@ -115,7 +115,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.9.0
 	github.com/go-chi/render v1.0.1
-	github.com/go-jose/go-jose/v3 v3.0.1
+	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-logr/logr v1.4.1
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.19.0
@@ -180,14 +180,14 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.20.0
+	golang.org/x/crypto v0.21.0
 	golang.org/x/exp v0.0.0-20231219180239-dc181d75b848
 	golang.org/x/mod v0.15.0
 	golang.org/x/net v0.21.0
 	golang.org/x/oauth2 v0.17.0
 	golang.org/x/sync v0.6.0
-	golang.org/x/sys v0.17.0
-	golang.org/x/term v0.17.0
+	golang.org/x/sys v0.18.0
+	golang.org/x/term v0.18.0
 	golang.org/x/text v0.14.0
 	golang.org/x/tools v0.18.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
@@ -200,7 +200,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
+	storj.io/drpc v0.0.33
 	tailscale.com v1.46.1
 )
 

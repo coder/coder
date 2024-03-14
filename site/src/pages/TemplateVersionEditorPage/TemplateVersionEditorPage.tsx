@@ -17,8 +17,8 @@ import type {
   TemplateVersion,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { Loader } from "components/Loader/Loader";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
@@ -36,10 +36,10 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const orgId = useOrganizationId();
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const { organizationId } = useAuthenticated();
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
-    orgId,
+    organizationId,
     templateName,
     versionName,
   );
@@ -49,7 +49,7 @@ export const TemplateVersionEditorPage: FC = () => {
   });
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(orgId),
+    createTemplateVersion(organizationId),
   );
   const resourcesQuery = useQuery({
     ...resources(templateVersionQuery.data?.id ?? ""),
@@ -71,7 +71,7 @@ export const TemplateVersionEditorPage: FC = () => {
     mutationFn: publishVersion,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        templateByNameKey(orgId, templateName),
+        templateByNameKey(organizationId, templateName),
       );
     },
   });
@@ -120,7 +120,9 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree ? (
+      {!(templateQuery.data && templateVersionQuery.data && fileTree) ? (
+        <Loader fullscreen />
+      ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
@@ -223,8 +225,6 @@ export const TemplateVersionEditorPage: FC = () => {
             setProvisionerTags(tags);
           }}
         />
-      ) : (
-        <FullScreenLoader />
       )}
     </>
   );

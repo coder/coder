@@ -3,12 +3,12 @@ import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { updateAppearanceSettings } from "api/queries/users";
 import { Stack } from "components/Stack/Stack";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import { AppearanceForm } from "./AppearanceForm";
 
 export const AppearancePage: FC = () => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const queryClient = useQueryClient();
   const updateAppearanceSettingsMutation = useMutation(
     updateAppearanceSettings("me", queryClient),

@@ -3,6 +3,7 @@ import {
   type FC,
   type PropsWithChildren,
   useCallback,
+  useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "api/errors";
@@ -34,6 +35,7 @@ export type AuthContextValue = {
   user: User | undefined;
   permissions: Permissions | undefined;
   authMethods: AuthMethods | undefined;
+  organizationId: string | undefined;
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
@@ -121,9 +123,20 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         authMethods: authMethodsQuery.data,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
+        organizationId: userQuery.data?.organization_ids[0],
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth should be used inside of <AuthProvider />");
+  }
+
+  return context;
 };

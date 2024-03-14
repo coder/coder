@@ -25,7 +25,7 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -57,7 +57,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   }
 
   // Owner
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const isOwner = me.roles.find((role) => role.name === "owner") !== undefined;
 
   // Debug mode
