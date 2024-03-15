@@ -338,8 +338,7 @@ allocating an additional CPU core to every `coderd` replica.
 We provide the following general recommendations for PostgreSQL settings:
 
 - Increase number of vCPU if CPU utilization or database latency is high.
-- Allocate extra memory if database performance is poor and CPU utilization is
-  low. For maximum performance, the entire database should be able to fit in
-  RAM.
+- Allocate extra memory if database performance is poor, CPU utilization is low,
+  and memory utilization is high.
 - Utilize faster disk options (higher IOPS) such as SSDs or NVMe drives for
   optimal performance enhancement and possibly reduce database load.
