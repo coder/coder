@@ -223,9 +223,10 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-  auth = "azure-instance-identity"
+  arch  = "amd64"
+  os    = "linux"
+  auth  = "azure-instance-identity"
+  count = data.coder_workspace.me.transition == "start" ? 1 : 0
 
   metadata {
     key          = "cpu"
@@ -267,7 +268,7 @@ locals {
 
   userdata = templatefile("cloud-config.yaml.tftpl", {
     username    = "coder" # Ensure this user/group does not exist in your VM image
-    init_script = base64encode(coder_agent.main.init_script)
+    init_script = base64encode(try(coder_agent.main[0].init_script, ""))
     hostname    = lower(data.coder_workspace.me.name)
   })
 }
