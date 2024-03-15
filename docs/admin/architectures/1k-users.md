@@ -12,9 +12,9 @@ tech startups, educational units, or small to mid-sized enterprises.
 
 ### Coderd nodes
 
-| Users       | Node capacity       | Replicas | GCP             | AWS        | Azure             |
-| ----------- | ------------------- | -------- | --------------- | ---------- | ----------------- |
-| Up to 1,000 | 2 vCPU, 8 GB memory | 1-2      | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
+| Users       | Node capacity       | Replicas            | GCP             | AWS        | Azure             |
+| ----------- | ------------------- | ------------------- | --------------- | ---------- | ----------------- |
+| Up to 1,000 | 2 vCPU, 8 GB memory | 1-2 / 1 coderd each | `n1-standard-2` | `t3.large` | `Standard_D2s_v3` |
 
 **Footnotes**:
 
