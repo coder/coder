@@ -9,6 +9,11 @@ on-premises network and cloud deployments.
 PostgreSQL service, and all Coder observability features enabled for operational
 purposes.
 
+**Observability**: Deploy monitoring solutions to gather Prometheus metrics and
+visualize them with Grafana to gain detailed insights into infrastructure and
+application behavior. This allows operators to respond quickly to incidents and
+continuously improve the reliability and performance of the platform.
+
 ## Hardware recommendations
 
 ### Coderd nodes
