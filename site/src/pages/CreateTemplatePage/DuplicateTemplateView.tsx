@@ -10,7 +10,7 @@ import {
 } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
@@ -24,7 +24,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const [searchParams] = useSearchParams();
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),

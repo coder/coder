@@ -404,7 +404,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
 	t.Run("FailDeleted", func(t *testing.T) {
@@ -488,7 +488,7 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
 	//nolint: gocritic // testing
-	ao, err := db.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	ao, err := db.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
 	require.NoError(t, err)
 
 	//nolint: bodyclose // closed by ReadBodyAsError

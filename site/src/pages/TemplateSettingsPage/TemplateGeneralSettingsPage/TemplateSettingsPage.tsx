@@ -6,7 +6,7 @@ import { updateTemplateMeta } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -15,7 +15,7 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const orgId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
   const { entitlements, experiments } = useDashboard();
@@ -42,7 +42,7 @@ export const TemplateSettingsPage: FC = () => {
           //
           // we use data.name because an admin may have updated templateName to something new
           await queryClient.invalidateQueries(
-            templateByNameKey(orgId, data.name),
+            templateByNameKey(organizationId, data.name),
           );
         }
         displaySuccess("Template updated successfully");

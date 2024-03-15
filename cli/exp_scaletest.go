@@ -890,7 +890,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) (err error) {
 			ctx := inv.Context()
 
-			notifyCtx, stop := signal.NotifyContext(ctx, InterruptSignals...) // Checked later.
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
 			defer stop()
 			ctx = notifyCtx
 

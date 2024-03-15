@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -12,7 +12,7 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 export const TemplatePermissionsPage: FC = () => {
-  const organizationId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const templateACLQuery = useQuery(templateACL(template.id));

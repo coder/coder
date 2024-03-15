@@ -17,7 +17,7 @@ jest.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
 test("displays the template files even when there is no previous version", async () => {
   server.use(
     rest.get(
-      "/api/v2/organizations/:orgId/templates/:template/versions/:version/previous",
+      "/api/v2/organizations/:organizationId/templates/:template/versions/:version/previous",
       (req, res, ctx) => {
         return res(ctx.status(404));
       },

@@ -4,7 +4,7 @@ import { useMutation } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
 import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
-import { useAuth } from "contexts/auth/useAuth";
+import { useAuthContext } from "contexts/auth/AuthProvider";
 import { pageTitle } from "utils/page";
 import { SetupPageView } from "./SetupPageView";
 
@@ -15,7 +15,7 @@ export const SetupPage: FC = () => {
     isConfiguringTheFirstUser,
     isSignedIn,
     isSigningIn,
-  } = useAuth();
+  } = useAuthContext();
   const createFirstUserMutation = useMutation(createFirstUser());
   const setupIsComplete = !isConfiguringTheFirstUser;
   const navigate = useNavigate();

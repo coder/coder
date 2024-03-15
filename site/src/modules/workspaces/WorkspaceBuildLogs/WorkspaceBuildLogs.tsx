@@ -2,8 +2,8 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import dayjs from "dayjs";
 import { type FC, Fragment, type HTMLAttributes } from "react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
+import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "components/Logs/Logs";
 import { BODY_FONT_FAMILY, MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "./Logs";
 
 const Language = {
   seconds: "seconds",
@@ -69,7 +69,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           time: log.created_at,
           output: log.output,
           level: log.log_level,
-          source_id: log.log_source,
+          sourceId: log.log_source,
         }));
         const duration = getStageDurationInSeconds(logs);
         const shouldDisplayDuration = duration !== undefined;

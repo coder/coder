@@ -13,13 +13,14 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { usePermissions } from "contexts/auth/usePermissions";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { USERS_LINK } from "modules/dashboard/Navbar/NavbarView";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export const UsersLayout: FC = () => {
+  const { permissions } = useAuthenticated();
   const { createUser: canCreateUser, createGroup: canCreateGroup } =
-    usePermissions();
+    permissions;
   const navigate = useNavigate();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const location = useLocation();

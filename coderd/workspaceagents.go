@@ -954,13 +954,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
+	// The middleware only accept agents for resources on the latest build.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	build, ok := ensureLatestBuild(ctx, api.Database, api.Logger, rw, workspaceAgent)
-	if !ok {
-		return
-	}
+	build := httpmw.LatestBuild(r)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {

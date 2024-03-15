@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { getUsers } from "api/api";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
@@ -18,7 +18,7 @@ export const useUserFilterMenu = ({
   UseFilterMenuOptions<UserOption>,
   "value" | "onChange" | "enabled"
 >) => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
 
   const addMeAsFirstOption = (options: UserOption[]) => {
     options = options.filter((option) => option.value !== me.username);

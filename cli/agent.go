@@ -18,10 +18,8 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"tailscale.com/util/clientmetric"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/expfmt"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -125,7 +123,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Cmd {
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
-					reaper.WithCatchSignals(InterruptSignals...),
+					reaper.WithCatchSignals(StopSignals...),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
@@ -144,7 +142,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Cmd {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the
@@ -315,7 +313,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Cmd {
 				ModifiedProcesses: nil,
 			})
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
+			prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
 
 			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
@@ -500,27 +499,4 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
-}
-
-func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-
-		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
-		clientmetric.WritePrometheusExpositionFormat(w)
-
-		metricFamilies, err := prometheusRegistry.Gather()
-		if err != nil {
-			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
-			return
-		}
-
-		for _, metricFamily := range metricFamilies {
-			_, err = expfmt.MetricFamilyToText(w, metricFamily)
-			if err != nil {
-				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
-				return
-			}
-		}
-	})
 }

@@ -11,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/batchstats"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +20,14 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/agentmetrics"
+	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -451,7 +451,7 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

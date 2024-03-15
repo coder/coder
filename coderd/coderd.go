@@ -902,7 +902,7 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 					DB:       options.Database,
 					Optional: false,
 				}))

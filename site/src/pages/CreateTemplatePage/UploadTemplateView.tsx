@@ -7,7 +7,7 @@ import {
   JobError,
   templateVersionVariables,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
@@ -21,7 +21,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   error,
 }) => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
 
   const dashboard = useDashboard();
   const formPermissions = getFormPermissions(dashboard.entitlements);

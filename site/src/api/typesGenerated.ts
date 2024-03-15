@@ -925,6 +925,7 @@ export interface PrometheusConfig {
   readonly address: string;
   readonly collect_agent_stats: boolean;
   readonly collect_db_metrics: boolean;
+  readonly aggregate_agent_stats_by: string[];
 }
 
 // From codersdk/deployment.go
