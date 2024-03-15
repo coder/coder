@@ -10,8 +10,11 @@ import {
 import { FixedSizeList as List } from "react-window";
 import * as API from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
-import { AgentLogLine } from "./AgentLogLine";
-import { AGENT_LOG_LINE_HEIGHT, type LineWithID } from "./AgentRow";
+import {
+  AGENT_LOG_LINE_HEIGHT,
+  AgentLogLine,
+  type LineWithID,
+} from "./AgentLogLine";
 
 type AgentLogsProps = Omit<
   ComponentProps<typeof List>,
