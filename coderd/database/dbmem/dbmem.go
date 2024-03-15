@@ -91,7 +91,7 @@ func New() database.Store {
 
 	_, err = q.InsertAllUsersGroup(context.Background(), defaultOrg.ID)
 	if err != nil {
-		panic(fmt.Errorf("failed to create default group: %w", err))
+		panic(xerrors.Errorf("failed to create default group: %w", err))
 	}
 
 	q.defaultProxyDisplayName = "Default"
