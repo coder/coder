@@ -25,7 +25,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])

@@ -88,8 +88,10 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
-			defer notifyStop()
+			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, agpl.StopSignalsNoInterrupt...)
+			defer stopCancel()
+			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
+			defer interruptCancel()
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
 			if err != nil {
@@ -212,10 +214,17 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				Metrics:        metrics,
 			})
 
+			waitForProvisionerJobs := false
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
+					"Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit",
+				))
+				waitForProvisionerJobs = true
+			case <-interruptCtx.Done():
+				exitErr = interruptCtx.Err()
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
@@ -225,7 +234,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			err = srv.Shutdown(ctx)
+			err = srv.Shutdown(ctx, waitForProvisionerJobs)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
 			}

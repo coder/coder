@@ -142,7 +142,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.StopSignals...)
 			defer notifyStop()
 
 			// Clean up idle connections at the end, e.g.
