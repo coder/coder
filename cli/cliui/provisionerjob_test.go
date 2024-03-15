@@ -40,12 +40,12 @@ func TestProvisionerJob(t *testing.T) {
 			close(test.Logs)
 			test.JobMutex.Unlock()
 		}()
-		test.PTY.ExpectMatch("Queued")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
 		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Queued")
-		test.PTY.ExpectMatch("Running")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+		test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
 		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Running")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
 	})
 
 	t.Run("Stages", func(t *testing.T) {
@@ -71,9 +71,9 @@ func TestProvisionerJob(t *testing.T) {
 			close(test.Logs)
 			test.JobMutex.Unlock()
 		}()
-		test.PTY.ExpectMatch("Queued")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
 		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Queued")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
 		test.PTY.ExpectMatch("Something")
 		test.Next <- struct{}{}
 		test.PTY.ExpectMatch("Something")
@@ -104,11 +104,11 @@ func TestProvisionerJob(t *testing.T) {
 			close(test.Logs)
 			test.JobMutex.Unlock()
 		}()
-		test.PTY.ExpectMatch("Queued")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
 		test.Next <- struct{}{}
 		test.PTY.ExpectMatch("Gracefully canceling")
 		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Queued")
+		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
 	})
 }
 
