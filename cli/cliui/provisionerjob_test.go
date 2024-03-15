@@ -2,8 +2,10 @@ package cliui_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"sync"
 	"testing"
@@ -77,6 +79,70 @@ func TestProvisionerJob(t *testing.T) {
 		test.PTY.ExpectMatch("Something")
 		test.Next <- struct{}{}
 		test.PTY.ExpectMatch("Something")
+	})
+
+	t.Run("Queue Position", func(t *testing.T) {
+		t.Parallel()
+
+		stage := cliui.ProvisioningStateQueued
+
+		tests := []struct {
+			name     string
+			queuePos int
+			expected string
+		}{
+			{
+				name:     "first",
+				queuePos: 0,
+				expected: fmt.Sprintf("%s$", stage),
+			},
+			{
+				name:     "next",
+				queuePos: 1,
+				expected: fmt.Sprintf(`%s %s$`, stage, regexp.QuoteMeta("(next)")),
+			},
+			{
+				name:     "other",
+				queuePos: 4,
+				expected: fmt.Sprintf(`%s %s$`, stage, regexp.QuoteMeta("(position: 4)")),
+			},
+		}
+
+		for _, tc := range tests {
+			tc := tc
+
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				test := newProvisionerJob(t)
+				test.JobMutex.Lock()
+				test.Job.QueuePosition = tc.queuePos
+				test.Job.QueueSize = tc.queuePos
+				test.JobMutex.Unlock()
+
+				go func() {
+					<-test.Next
+					test.JobMutex.Lock()
+					test.Job.Status = codersdk.ProvisionerJobRunning
+					now := dbtime.Now()
+					test.Job.StartedAt = &now
+					test.JobMutex.Unlock()
+					<-test.Next
+					test.JobMutex.Lock()
+					test.Job.Status = codersdk.ProvisionerJobSucceeded
+					now = dbtime.Now()
+					test.Job.CompletedAt = &now
+					close(test.Logs)
+					test.JobMutex.Unlock()
+				}()
+				test.PTY.ExpectRegexMatch(tc.expected)
+				test.Next <- struct{}{}
+				test.PTY.ExpectMatch(cliui.ProvisioningStateQueued) // step completed
+				test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+				test.Next <- struct{}{}
+				test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+			})
+		}
 	})
 
 	// This cannot be ran in parallel because it uses a signal.
