@@ -40,7 +40,6 @@ func (a *agent) apiHandler() http.Handler {
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
-	r.Get("/debug/token", a.HandleHTTPDebugToken)
 
 	return r
 }
