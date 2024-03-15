@@ -385,7 +385,7 @@ export const MockLogs = [
   {
     id: 3295780,
     level: "info",
-    output: "🥳 Installation comlete! ",
+    output: "🥳 Installation complete! ",
     time: "2024-03-14T11:31:06.494535Z",
     sourceId: "f0df7490-1be9-4722-96b6-45037b011c93",
   },
