@@ -175,6 +175,7 @@ func assertSanitizedAgent(t *testing.T, agt codersdk.WorkspaceAgent) {
 		assert.Equal(t, "***REDACTED***", v, "agent %q environment variable %q not sanitized", agt.Name, k)
 	}
 }
+
 func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, db database.Store, user codersdk.CreateFirstUserResponse) (codersdk.Workspace, codersdk.WorkspaceAgent) {
 	// This is a valid zip file
 	zipBytes := make([]byte, 22)
