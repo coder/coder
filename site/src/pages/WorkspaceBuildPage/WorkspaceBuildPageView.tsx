@@ -1,32 +1,32 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 import type {
   ProvisionerJobLog,
   WorkspaceAgent,
   WorkspaceBuild,
 } from "api/typesGenerated";
-import { Link } from "react-router-dom";
-import { displayWorkspaceBuildDuration } from "utils/workspace";
-import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { Alert } from "components/Alert/Alert";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
+import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { Alert } from "components/Alert/Alert";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
-import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useTab } from "hooks";
-import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 
 export const LOGS_TAB_KEY = "logs";
 
@@ -51,14 +51,17 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   activeBuildNumber,
 }) => {
   const theme = useTheme();
-  const tab = useTab(LOGS_TAB_KEY, "build");
+  const tabState = useSearchParamsKey({
+    key: LOGS_TAB_KEY,
+    defaultValue: "build",
+  });
 
   if (!build) {
     return <Loader />;
   }
 
   const agents = build.resources.flatMap((r) => r.agents ?? []);
-  const selectedAgent = agents.find((a) => a.id === tab.value);
+  const selectedAgent = agents.find((a) => a.id === tabState.value);
 
   return (
     <DashboardFullPage>
@@ -141,7 +144,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Sidebar>
 
         <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
-          <Tabs active={tab.value}>
+          <Tabs active={tabState.value}>
             <TabsList>
               <TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
                 Build
@@ -187,7 +190,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
             </Alert>
           )}
 
-          {tab.value === "build" ? (
+          {tabState.value === "build" ? (
             <BuildLogsContent logs={logs} />
           ) : (
             <AgentLogsContent agent={selectedAgent!} />

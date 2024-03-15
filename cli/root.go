@@ -34,10 +34,10 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/serpent"
 )
 
 var (
@@ -51,20 +51,23 @@ var (
 )
 
 const (
-	varURL              = "url"
-	varToken            = "token"
-	varAgentToken       = "agent-token"
-	varAgentTokenFile   = "agent-token-file"
-	varAgentURL         = "agent-url"
-	varHeader           = "header"
-	varHeaderCommand    = "header-command"
-	varNoOpen           = "no-open"
-	varNoVersionCheck   = "no-version-warning"
-	varNoFeatureWarning = "no-feature-warning"
-	varForceTty         = "force-tty"
-	varVerbose          = "verbose"
-	varDisableDirect    = "disable-direct-connections"
-	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
+	varURL                = "url"
+	varToken              = "token"
+	varAgentToken         = "agent-token"
+	varAgentTokenFile     = "agent-token-file"
+	varAgentURL           = "agent-url"
+	varHeader             = "header"
+	varHeaderCommand      = "header-command"
+	varNoOpen             = "no-open"
+	varNoVersionCheck     = "no-version-warning"
+	varNoFeatureWarning   = "no-feature-warning"
+	varForceTty           = "force-tty"
+	varVerbose            = "verbose"
+	varOrganizationSelect = "organization"
+	varDisableDirect      = "disable-direct-connections"
+
+	notLoggedInMessage         = "You are not logged in. Try logging in using 'coder login <url>'."
+	notLoggedInURLSavedMessage = "You are not logged in. Try logging in using 'coder login'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -76,7 +79,10 @@ const (
 	envURL            = "CODER_URL"
 )
 
-var errUnauthenticated = xerrors.New(notLoggedInMessage)
+var (
+	errUnauthenticated         = xerrors.New(notLoggedInMessage)
+	errUnauthenticatedURLSaved = xerrors.New(notLoggedInURLSavedMessage)
+)
 
 func (r *RootCmd) Core() []*serpent.Cmd {
 	// Please re-sort this list alphabetically if you change it!
@@ -94,6 +100,7 @@ func (r *RootCmd) Core() []*serpent.Cmd {
 		r.tokens(),
 		r.users(),
 		r.version(defaultVersionInfo),
+		r.organizations(),
 
 		// Workspace Commands
 		r.autoupdate(),
@@ -121,6 +128,7 @@ func (r *RootCmd) Core() []*serpent.Cmd {
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 		r.expCmd(),
+		r.support(),
 	}
 }
 
@@ -434,6 +442,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:          varOrganizationSelect,
+			FlagShorthand: "z",
+			Env:           "CODER_ORGANIZATION",
+			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
+			Value:         serpent.StringOf(&r.organizationSelect),
+			Group:         globalGroup,
+		},
+		{
 			Flag: "version",
 			// This was requested by a customer to assist with their migration.
 			// They have two Coder CLIs, and want to tell the difference by running
@@ -444,25 +460,31 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 		},
 	}
 
+	err := cmd.PrepareAll()
+	if err != nil {
+		return nil, err
+	}
+
 	return cmd, nil
 }
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL      *url.URL
-	token          string
-	globalConfig   string
-	header         []string
-	headerCommand  string
-	agentToken     string
-	agentTokenFile string
-	agentURL       *url.URL
-	forceTTY       bool
-	noOpen         bool
-	verbose        bool
-	versionFlag    bool
-	disableDirect  bool
-	debugHTTP      bool
+	clientURL          *url.URL
+	token              string
+	globalConfig       string
+	header             []string
+	headerCommand      string
+	agentToken         string
+	agentTokenFile     string
+	agentURL           *url.URL
+	forceTTY           bool
+	noOpen             bool
+	verbose            bool
+	organizationSelect string
+	versionFlag        bool
+	disableDirect      bool
+	debugHTTP          bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -557,7 +579,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					if !allowTokenMissing {
-						return errUnauthenticated
+						return errUnauthenticatedURLSaved
 					}
 				} else if err != nil {
 					return err
@@ -693,14 +715,44 @@ func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+func CurrentOrganization(r *RootCmd, inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+	conf := r.createConfig()
+	selected := r.organizationSelect
+	if selected == "" && conf.Organization().Exists() {
+		org, err := conf.Organization().Read()
+		if err != nil {
+			return codersdk.Organization{}, xerrors.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
+		}
+		selected = org
+	}
+
+	// Verify the org exists and the user is a member
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
-		return codersdk.Organization{}, nil
+		return codersdk.Organization{}, err
 	}
-	// For now, we won't use the config to set this.
-	// Eventually, we will support changing using "coder switch <org>"
-	return orgs[0], nil
+
+	// User manually selected an organization
+	if selected != "" {
+		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
+			return org.Name == selected || org.ID.String() == selected
+		})
+
+		if index < 0 {
+			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization?", selected)
+		}
+		return orgs[index], nil
+	}
+
+	// User did not select an organization, so use the default.
+	index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
+		return org.IsDefault
+	})
+	if index < 0 {
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
+	}
+
+	return orgs[index], nil
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
@@ -890,7 +942,7 @@ func (r *RootCmd) Verbosef(inv *serpent.Invocation, fmtStr string, args ...inter
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func DumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context, name string) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return
@@ -945,7 +997,11 @@ func DumpHandler(ctx context.Context) {
 		if err != nil {
 			dir = os.TempDir()
 		}
-		fpath := filepath.Join(dir, fmt.Sprintf("coder-agent-%s.dump", time.Now().Format("2006-01-02T15:04:05.000Z")))
+		// Make the time filesystem-safe, for example ":" is not
+		// permitted on many filesystems. Note that Z here only appends
+		// Z to the string, it does not actually change the time zone.
+		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
+		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 
 		f, err := os.Create(fpath)
@@ -1156,8 +1212,12 @@ func formatRunCommandError(err *serpent.RunCommandError, opts *formatOpts) strin
 func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
-		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
-		_, _ = str.WriteString("\n")
+		// If all these fields are empty, then do not print this information.
+		// This can occur if the error is being used outside the api.
+		if !(err.Method() == "" && err.URL() == "" && err.StatusCode() == 0) {
+			_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+			_, _ = str.WriteString("\n")
+		}
 	}
 	// Always include this trace. Users can ignore this.
 	if from != "" {

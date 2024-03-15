@@ -4,19 +4,19 @@ import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { useQuery } from "react-query";
-import { getTemplateVersionRichParameters } from "api/api";
-import { Template, TemplateVersionParameter } from "api/typesGenerated";
-import { FormSection, VerticalForm } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useClipboard } from "hooks/useClipboard";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { getTemplateVersionRichParameters } from "api/api";
+import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { FormSection, VerticalForm } from "components/Form/Form";
+import { Loader } from "components/Loader/Loader";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useClipboard } from "hooks/useClipboard";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 
 type ButtonValues = Record<string, string>;
 
@@ -47,19 +47,26 @@ interface TemplateEmbedPageViewProps {
   templateParameters?: TemplateVersionParameter[];
 }
 
+function getClipboardCopyContent(
+  templateName: string,
+  buttonValues: ButtonValues | undefined,
+): string {
+  const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+  const createWorkspaceUrl = `${deploymentUrl}/templates/${templateName}/workspace`;
+  const createWorkspaceParams = new URLSearchParams(buttonValues);
+  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
+
+  return `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
+}
+
 export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   template,
   templateParameters,
 }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
-    undefined,
-  );
-  const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
-  const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`;
-  const createWorkspaceParams = new URLSearchParams(buttonValues);
-  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
-  const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
-  const clipboard = useClipboard(buttonMkdCode);
+  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
+  const clipboard = useClipboard({
+    textToCopy: getClipboardCopyContent(template.name, buttonValues),
+  });
 
   // template parameters is async so we need to initialize the values after it
   // is loaded
@@ -173,11 +180,15 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
               <Button
                 css={{ borderRadius: 999 }}
                 startIcon={
-                  clipboard.isCopied ? <CheckOutlined /> : <FileCopyOutlined />
+                  clipboard.showCopiedSuccess ? (
+                    <CheckOutlined />
+                  ) : (
+                    <FileCopyOutlined />
+                  )
                 }
                 variant="contained"
                 onClick={clipboard.copyToClipboard}
-                disabled={clipboard.isCopied}
+                disabled={clipboard.showCopiedSuccess}
               >
                 Copy button code
               </Button>

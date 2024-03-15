@@ -40,7 +40,7 @@ func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, nam
 		p.ID = uuid.New()
 	}
 	// SingleTailnetTunnelAuth allows connections to arbitrary peers
-	p.reqs, p.resps = coord.Coordinate(p.ctx, p.ID, name, tailnet.SingleTailnetTunnelAuth{})
+	p.reqs, p.resps = coord.Coordinate(p.ctx, p.ID, name, tailnet.SingleTailnetCoordinateeAuth{})
 	return p
 }
 

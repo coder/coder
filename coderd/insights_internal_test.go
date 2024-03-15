@@ -81,13 +81,13 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			wantOk: false,
 		},
 		{
-			name: "Today (hour round up)",
+			name: "Today hour round up",
 			args: args{
 				startTime: today.Format(layout),
 				endTime:   thisHourRoundUp.Format(layout),
 			},
 			wantStartTime: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC),
-			wantEndTime:   time.Date(today.Year(), today.Month(), thisHourRoundUp.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
+			wantEndTime:   time.Date(thisHourRoundUp.Year(), thisHourRoundUp.Month(), thisHourRoundUp.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
 			wantOk:        true,
 		},
 		{

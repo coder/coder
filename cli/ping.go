@@ -135,6 +135,8 @@ func (r *RootCmd) ping() *serpent.Cmd {
 				)
 
 				if n == int(pingNum) {
+					diags := conn.GetPeerDiagnostics()
+					cliui.PeerDiagnostics(inv.Stdout, diags)
 					return nil
 				}
 			}

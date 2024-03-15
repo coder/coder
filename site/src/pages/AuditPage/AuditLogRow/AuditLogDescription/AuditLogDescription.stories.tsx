@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AuditLogDescription } from "./AuditLogDescription";
 import {
   MockAuditLog,
   MockAuditLogSuccessfulLogin,
@@ -7,6 +6,7 @@ import {
   MockAuditLogWithWorkspaceBuild,
   MockWorkspaceCreateAuditLogForDifferentOwner,
 } from "testHelpers/entities";
+import { AuditLogDescription } from "./AuditLogDescription";
 
 const meta: Meta<typeof AuditLogDescription> = {
   title: "pages/AuditPage/AuditLogDescription",

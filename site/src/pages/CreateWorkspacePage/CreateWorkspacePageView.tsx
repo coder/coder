@@ -1,36 +1,22 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
+import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
-import { FormikContextType, useFormik } from "formik";
+import TextField from "@mui/material/TextField";
+import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
-import {
-  getFormHelpers,
-  nameValidator,
-  onChangeTrimmed,
-} from "utils/formUtils";
+import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import {
   FormFields,
   FormSection,
   FormFooter,
   HorizontalForm,
 } from "components/Form/Form";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import {
-  AutofillBuildParameter,
-  AutofillSource,
-  getInitialRichParameterValues,
-  useValidationSchemaForRichParameters,
-} from "utils/richParameters";
-import { ExternalAuthButton } from "./ExternalAuthButton";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Stack } from "components/Stack/Stack";
-import { Alert } from "components/Alert/Alert";
 import { Margins } from "components/Margins/Margins";
-import { Avatar } from "components/Avatar/Avatar";
 import {
   PageHeader,
   PageHeaderTitle,
@@ -38,12 +24,25 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { Stack } from "components/Stack/Stack";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import {
+  type AutofillBuildParameter,
+  getInitialRichParameterValues,
+  useValidationSchemaForRichParameters,
+} from "utils/richParameters";
+import type {
   CreateWorkspaceMode,
   ExternalAuthPollingState,
 } from "./CreateWorkspacePage";
-import { CreateWSPermissions } from "./permissions";
+import { ExternalAuthButton } from "./ExternalAuthButton";
+import type { CreateWSPermissions } from "./permissions";
 
 export const Language = {
   duplicationWarning:
@@ -137,15 +136,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
     error,
   );
 
-  const autofillSources = useMemo(() => {
-    return autofillParameters.reduce(
-      (acc, param) => {
-        acc[param.name] = param.source;
-        return acc;
-      },
-      {} as Record<string, AutofillSource>,
-    );
-  }, [autofillParameters]);
+  const autofillByName = useMemo(
+    () =>
+      Object.fromEntries(
+        autofillParameters.map((param) => [param.name, param]),
+      ),
+    [autofillParameters],
+  );
 
   const hasAllRequiredExternalAuth = externalAuth.every(
     (auth) => auth.optional || auth.authenticated,
@@ -301,9 +298,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                         value,
                       });
                     }}
-                    autofillSource={autofillSources[parameter.name]}
                     key={parameter.name}
                     parameter={parameter}
+                    parameterAutofill={autofillByName[parameter.name]}
                     disabled={isDisabled}
                   />
                 );
@@ -330,6 +327,7 @@ const styles = {
     lineHeight: "inherit",
     fontSize: "inherit",
     height: "unset",
+    minWidth: "unset",
   }),
   hasDescription: {
     paddingBottom: 16,

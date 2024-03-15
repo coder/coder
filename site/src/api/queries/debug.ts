@@ -1,6 +1,6 @@
+import type { QueryClient, UseMutationOptions } from "react-query";
 import * as API from "api/api";
-import { HealthSettings, UpdateHealthSettings } from "api/typesGenerated";
-import { QueryClient, UseMutationOptions } from "react-query";
+import type { HealthSettings, UpdateHealthSettings } from "api/typesGenerated";
 
 export const HEALTH_QUERY_KEY = ["health"];
 export const HEALTH_QUERY_SETTINGS_KEY = ["health", "settings"];

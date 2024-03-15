@@ -1,9 +1,8 @@
 import { screen } from "@testing-library/react";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
-import { ProxyContextValue } from "contexts/ProxyContext";
-import { action } from "@storybook/addon-actions";
 
 const proxyContextValue: ProxyContextValue = {
   proxy: {
@@ -14,15 +13,13 @@ const proxyContextValue: ProxyContextValue = {
   isLoading: false,
   isFetched: true,
   setProxy: jest.fn(),
-  clearProxy: action("clearProxy"),
+  clearProxy: jest.fn(),
   refetchProxyLatencies: jest.fn(),
   proxyLatencies: {},
 };
 
 describe("NavbarView", () => {
-  const noop = () => {
-    return;
-  };
+  const noop = jest.fn();
 
   it("workspaces nav link has the correct href", async () => {
     renderWithAuth(

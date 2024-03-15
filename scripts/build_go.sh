@@ -38,8 +38,9 @@ sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
+debug=0
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto,debug -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -76,6 +77,10 @@ while true; do
 		boringcrypto=1
 		shift
 		;;
+	--debug)
+		debug=1
+		shift
+		;;
 	--)
 		shift
 		break
@@ -102,10 +107,12 @@ if [[ "$sign_darwin" == 1 ]]; then
 fi
 
 ldflags=(
-	-s
-	-w
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
+# Disable deubgger information if not building a binary for debuggers.
+if [[ "$debug" == 0 ]]; then
+	ldflags+=(-s -w)
+fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
@@ -121,6 +128,11 @@ if [[ "$agpl" == 1 ]]; then
 	ldflags+=(-X "'github.com/coder/coder/v2/buildinfo.agpl=true'")
 fi
 build_args+=(-ldflags "${ldflags[*]}")
+
+# Disable optimizations if building a binary for debuggers.
+if [[ "$debug" == 1 ]]; then
+	build_args+=(-gcflags "all=-N -l")
+fi
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then

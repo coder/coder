@@ -1,7 +1,7 @@
 import Link from "@mui/material/Link";
-import { FileUpload } from "components/FileUpload/FileUpload";
-import { FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { FileUpload } from "components/FileUpload/FileUpload";
 
 export interface TemplateUploadProps {
   isUploading: boolean;
@@ -18,7 +18,7 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
 }) => {
   const description = (
     <>
-      The template has to be a .tar file. You can also use our{" "}
+      The template has to be a .tar or .zip file. You can also use our{" "}
       <Link
         component={RouterLink}
         to="/starter-templates"
@@ -42,8 +42,7 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
       removeLabel="Remove file"
       title="Upload template"
       description={description}
-      extension=".tar"
-      fileTypeRequired="application/x-tar"
+      extensions={["tar", "zip"]}
     />
   );
 };

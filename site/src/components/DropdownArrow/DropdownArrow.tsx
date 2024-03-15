@@ -1,7 +1,7 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
 
 interface ArrowProps {
   margin?: boolean;

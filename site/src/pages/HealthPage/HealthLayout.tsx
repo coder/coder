@@ -1,22 +1,22 @@
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import CircularProgress from "@mui/material/CircularProgress";
-import ReplayIcon from "@mui/icons-material/Replay";
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
 import { cx } from "@emotion/css";
 import { useTheme } from "@emotion/react";
+import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
+import ReplayIcon from "@mui/icons-material/Replay";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import kebabCase from "lodash/fp/kebabCase";
 import { type FC, Suspense } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router-dom";
-import kebabCase from "lodash/fp/kebabCase";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
-import { type ClassName, useClassName } from "hooks/useClassName";
-import { pageTitle } from "utils/page";
-import { createDayString } from "utils/createDayString";
-import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { Loader } from "components/Loader/Loader";
+import { type ClassName, useClassName } from "hooks/useClassName";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { createDayString } from "utils/createDayString";
+import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
 
 export const HealthLayout: FC = () => {

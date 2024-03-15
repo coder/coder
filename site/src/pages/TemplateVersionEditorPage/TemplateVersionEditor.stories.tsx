@@ -30,7 +30,6 @@ const meta: Meta<typeof TemplateVersionEditor> = {
     template: MockTemplate,
     templateVersion: MockTemplateVersion,
     defaultFileTree: MockTemplateVersionFileTree,
-    onPreview: action("onPreview"),
     onPublish: action("onPublish"),
     onConfirmPublish: action("onConfirmPublish"),
     onCancelPublish: action("onCancelPublish"),

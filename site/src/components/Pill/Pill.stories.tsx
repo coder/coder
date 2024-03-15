@@ -1,6 +1,6 @@
-import { Pill, PillSpinner } from "./Pill";
-import type { Meta, StoryObj } from "@storybook/react";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import type { Meta, StoryObj } from "@storybook/react";
+import { Pill, PillSpinner } from "./Pill";
 
 const meta: Meta<typeof Pill> = {
   title: "components/Pill",

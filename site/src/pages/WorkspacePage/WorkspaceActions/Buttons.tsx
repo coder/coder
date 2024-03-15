@@ -1,22 +1,20 @@
-import Tooltip from "@mui/material/Tooltip";
-import ButtonGroup from "@mui/material/ButtonGroup";
+import BlockIcon from "@mui/icons-material/Block";
+import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import ReplayIcon from "@mui/icons-material/Replay";
-import BlockIcon from "@mui/icons-material/Block";
-import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import RetryIcon from "@mui/icons-material/BuildOutlined";
-import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
+import ReplayIcon from "@mui/icons-material/Replay";
 import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
-import { type FC } from "react";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { BuildParametersPopover } from "./BuildParametersPopover";
 
-interface ActionButtonProps {
+export interface ActionButtonProps {
   loading?: boolean;
   handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   disabled?: boolean;
@@ -84,6 +82,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
         {loading ? <>Starting&hellip;</> : "Start"}
       </TopbarButton>
       <BuildParametersPopover
+        label="Start with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}
@@ -141,6 +140,7 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </TopbarButton>
       <BuildParametersPopover
+        label="Restart with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}
@@ -171,24 +171,6 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   return (
     <TopbarButton startIcon={<OutlinedBlockIcon />} disabled>
       {label}
-    </TopbarButton>
-  );
-};
-
-type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
-  debug?: boolean;
-};
-
-export const RetryButton: FC<RetryButtonProps> = ({
-  handleAction,
-  debug = false,
-}) => {
-  return (
-    <TopbarButton
-      startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
-      onClick={() => handleAction()}
-    >
-      Retry{debug && " (Debug)"}
     </TopbarButton>
   );
 };

@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1355,6 +1357,39 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
 	})
+	t.Run("IDs", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		alpha := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		bravo := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// full match
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s,%s", alpha.ID, bravo.ID),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "alpha workspace")
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "bravo workspace")
+
+		// no match
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s", uuid.NewString()),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+	})
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1727,19 +1762,19 @@ func TestOffsetLimit(t *testing.T) {
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-	// empty finds all workspaces
+	// Case 1: empty finds all workspaces
 	ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 3)
 
-	// offset 1 finds 2 workspaces
+	// Case 2: offset 1 finds 2 workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 2)
 
-	// offset 1 limit 1 finds 1 workspace
+	// Case 3: offset 1 limit 1 finds 1 workspace
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 		Limit:  1,
@@ -1747,12 +1782,19 @@ func TestOffsetLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 1)
 
-	// offset 3 finds no workspaces
+	// Case 4: offset 3 finds no workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 3,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 0)
+	require.Equal(t, ws.Count, 3) // can't find workspaces, but count is non-zero
+
+	// Case 5: offset out of range
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: math.MaxInt32 + 1, // Potential risk: pq: OFFSET must not be negative
+	})
+	require.Error(t, err)
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {

@@ -1,6 +1,6 @@
 # Authentication
 
-[OIDC with Coder Sequence Diagram](https://raw.githubusercontent.com/coder/coder/138ee55abb3635cb2f3d12661f8caef2ca9d0961/docs/images/oidc-sequence-diagram.svg).
+![OIDC with Coder Sequence Diagram](../images/oidc-sequence-diagram.svg).
 
 By default, Coder is accessible via password authentication. Coder does not
 recommend using password authentication in production, and recommends using an

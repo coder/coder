@@ -1,8 +1,8 @@
-import { type FC } from "react";
-import { TemplateAutostartRequirementDaysValue } from "utils/schedule";
 import Button from "@mui/material/Button";
-import { Stack } from "components/Stack/Stack";
 import FormHelperText from "@mui/material/FormHelperText";
+import type { FC } from "react";
+import { Stack } from "components/Stack/Stack";
+import type { TemplateAutostartRequirementDaysValue } from "utils/schedule";
 
 export interface TemplateScheduleAutostartProps {
   allow_user_autostart?: boolean;

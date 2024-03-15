@@ -1,7 +1,7 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import CircularProgress, {
   type CircularProgressProps,
 } from "@mui/material/CircularProgress";
-import { type Interpolation, type Theme } from "@emotion/react";
 import {
   type FC,
   forwardRef,

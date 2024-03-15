@@ -1,15 +1,15 @@
+import { screen } from "@testing-library/react";
 import {
   MockTemplate,
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
-import { AgentRow, AgentRowProps } from "./AgentRow";
-import { DisplayAppNameMap } from "./AppLink/AppLink";
-import { screen } from "@testing-library/react";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
+import { AgentRow, type AgentRowProps } from "./AgentRow";
+import { DisplayAppNameMap } from "./AppLink/AppLink";
 
 jest.mock("modules/resources/AgentMetadata", () => {
   const AgentMetadata = () => <></>;

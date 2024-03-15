@@ -909,79 +909,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 
-		t.Run("PortSharingNoShare", func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userAppClient := appDetails.AppClient(t)
-			userAppClient.SetSessionToken(userClient.SessionToken())
-
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		})
-
-		t.Run("PortSharingAuthenticatedOK", func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			// we are shadowing the parent since we are changing the state
-			appDetails := setupProxyTest(t, nil)
-
-			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
-			require.NoError(t, err)
-			// set the port we have to be shared with authenticated users
-			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
-				AgentName:  proxyTestAgentName,
-				Port:       int32(port),
-				ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
-			})
-			require.NoError(t, err)
-
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userAppClient := appDetails.AppClient(t)
-			userAppClient.SetSessionToken(userClient.SessionToken())
-
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-		})
-
-		t.Run("PortSharingPublicOK", func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			// we are shadowing the parent since we are changing the state
-			appDetails := setupProxyTest(t, nil)
-
-			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
-			require.NoError(t, err)
-			// set the port we have to be shared with public
-			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
-				AgentName:  proxyTestAgentName,
-				Port:       int32(port),
-				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
-			})
-			require.NoError(t, err)
-
-			publicAppClient := appDetails.AppClient(t)
-			publicAppClient.SetSessionToken("")
-
-			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-		})
-
 		t.Run("ProxyError", func(t *testing.T) {
 			t.Parallel()
 
@@ -1116,6 +1043,108 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				// doesn't match.
 				require.NotContains(t, string(body), proxyTestAppBody)
 			})
+		})
+	})
+
+	t.Run("PortSharing", func(t *testing.T) {
+		t.Run("NoShare", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			appDetails := setupProxyTest(t, nil)
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		})
+
+		t.Run("AuthenticatedOK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			appDetails := setupProxyTest(t, nil)
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			// set the port we have to be shared with authenticated users
+			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelAuthenticated,
+				Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+			})
+			require.NoError(t, err)
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
+		t.Run("PublicOK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			appDetails := setupProxyTest(t, nil)
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			// set the port we have to be shared with public
+			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+				Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+			})
+			require.NoError(t, err)
+
+			publicAppClient := appDetails.AppClient(t)
+			publicAppClient.SetSessionToken("")
+
+			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
+		t.Run("HTTPS", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			appDetails := setupProxyTest(t, &DeploymentOptions{
+				ServeHTTPS: true,
+			})
+			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
+			require.NoError(t, err)
+			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+				AgentName:  proxyTestAgentName,
+				Port:       int32(port),
+				ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+				Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTPS,
+			})
+			require.NoError(t, err)
+
+			publicAppClient := appDetails.AppClient(t)
+			publicAppClient.SetSessionToken("")
+
+			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 		})
 	})
 

@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
 import { SSHKeysPageView } from "./SSHKeysPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SSHKeysPageView> = {
   title: "pages/UserSettingsPage/SSHKeysPageView",

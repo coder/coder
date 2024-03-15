@@ -1,4 +1,4 @@
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import { displayDormantDeletion } from "./dormant";
 

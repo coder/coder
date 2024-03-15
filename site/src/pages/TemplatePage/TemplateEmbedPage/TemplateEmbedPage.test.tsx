@@ -1,17 +1,17 @@
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import TemplateEmbedPage from "./TemplateEmbedPage";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import * as API from "api/api";
 import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
 import {
   MockTemplate,
   MockTemplateVersionParameter1 as parameter1,
   MockTemplateVersionParameter2 as parameter2,
 } from "testHelpers/entities";
-import * as API from "api/api";
-import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers";
+import TemplateEmbedPage from "./TemplateEmbedPage";
 
 test("Users can fill the parameters and copy the open in coder url", async () => {
   jest

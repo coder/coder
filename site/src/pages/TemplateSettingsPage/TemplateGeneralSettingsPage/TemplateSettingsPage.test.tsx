@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
-import { UpdateTemplateMeta } from "api/typesGenerated";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { MockTemplate } from "testHelpers/entities";
 import {

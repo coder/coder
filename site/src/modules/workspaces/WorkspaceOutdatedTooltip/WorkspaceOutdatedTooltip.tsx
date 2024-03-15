@@ -1,10 +1,10 @@
-import RefreshIcon from "@mui/icons-material/Refresh";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import Skeleton from "@mui/material/Skeleton";
-import Link from "@mui/material/Link";
-import { type FC } from "react";
-import { useQuery } from "react-query";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import Link from "@mui/material/Link";
+import Skeleton from "@mui/material/Skeleton";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
@@ -87,11 +87,7 @@ export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
           <div css={styles.bold}>Message</div>
           <div>
             {activeVersion ? (
-              activeVersion.message === "" ? (
-                "No message"
-              ) : (
-                activeVersion.message
-              )
+              activeVersion.message || "No message"
             ) : (
               <Skeleton variant="text" height={20} width={150} />
             )}

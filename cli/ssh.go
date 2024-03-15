@@ -563,7 +563,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		if !autostart {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be started")
 		}
 		// Autostart the workspace for the user.
 		// For some failure modes, return a better message.
@@ -579,7 +579,7 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It cannot be in any pending or failed state.
 		if workspace.LatestBuild.Status != codersdk.WorkspaceStatusStopped {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{},
-				xerrors.Errorf("workspace must be in start transition to ssh, was unable to autostart as the last build job is %q, expected %q",
+				xerrors.Errorf("workspace must be started; was unable to autostart as the last build job is %q, expected %q",
 					workspace.LatestBuild.Status,
 					codersdk.WorkspaceStatusStopped,
 				)
@@ -876,6 +876,7 @@ type closerStack struct {
 	closed  bool
 	logger  slog.Logger
 	err     error
+	wg      sync.WaitGroup
 }
 
 func newCloserStack(ctx context.Context, logger slog.Logger) *closerStack {
@@ -893,10 +894,13 @@ func (c *closerStack) close(err error) {
 	c.Lock()
 	if c.closed {
 		c.Unlock()
+		c.wg.Wait()
 		return
 	}
 	c.closed = true
 	c.err = err
+	c.wg.Add(1)
+	defer c.wg.Done()
 	c.Unlock()
 
 	for i := len(c.closers) - 1; i >= 0; i-- {

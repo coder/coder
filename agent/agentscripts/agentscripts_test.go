@@ -69,12 +69,18 @@ func TestEnv(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	testutil.Go(t, func() {
+	done := testutil.Go(t, func() {
 		err := runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 			return true
 		})
 		assert.NoError(t, err)
 	})
+	defer func() {
+		select {
+		case <-ctx.Done():
+		case <-done:
+		}
+	}()
 
 	var log []agentsdk.Log
 	for {

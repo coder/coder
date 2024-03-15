@@ -1,12 +1,30 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
+import Checkbox from "@mui/material/Checkbox";
+import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import {
   WorkspaceAppSharingLevels,
   type Template,
   type UpdateTemplateMeta,
 } from "api/typesGenerated";
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import { type FC } from "react";
+import { EnterpriseBadge } from "components/Badges/Badges";
+import {
+  FormFields,
+  FormSection,
+  HorizontalForm,
+  FormFooter,
+} from "components/Form/Form";
+import {
+  HelpTooltip,
+  HelpTooltipContent,
+  HelpTooltipText,
+  HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
+import { IconField } from "components/IconField/IconField";
+import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
@@ -14,24 +32,6 @@ import {
   onChangeTrimmed,
   iconValidator,
 } from "utils/formUtils";
-import * as Yup from "yup";
-import { IconField } from "components/IconField/IconField";
-import {
-  FormFields,
-  FormSection,
-  HorizontalForm,
-  FormFooter,
-} from "components/Form/Form";
-import { Stack } from "components/Stack/Stack";
-import Checkbox from "@mui/material/Checkbox";
-import {
-  HelpTooltip,
-  HelpTooltipContent,
-  HelpTooltipText,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { EnterpriseBadge } from "components/Badges/Badges";
-import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =

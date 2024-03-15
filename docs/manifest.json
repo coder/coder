@@ -1061,6 +1061,11 @@
           "path": "./guides/image-pull-secret.md"
         },
         {
+          "title": "Postgres SSL",
+          "description": "Configure Coder to connect to Postgres over SSL",
+          "path": "./guides/postgres-ssl.md"
+        },
+        {
           "title": "Azure Federation",
           "description": "Federating Coder to Azure",
           "path": "./guides/azure-federation.md"

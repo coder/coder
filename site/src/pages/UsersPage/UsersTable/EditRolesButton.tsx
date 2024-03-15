@@ -1,11 +1,9 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
-import { EditSquare } from "components/Icons/EditSquare";
-import { type FC } from "react";
-import { Stack } from "components/Stack/Stack";
-import Checkbox from "@mui/material/Checkbox";
+import type { Interpolation, Theme } from "@emotion/react";
 import UserIcon from "@mui/icons-material/PersonOutline";
-import { Role } from "api/typesGenerated";
+import Checkbox from "@mui/material/Checkbox";
+import IconButton from "@mui/material/IconButton";
+import type { FC } from "react";
+import type { Role } from "api/typesGenerated";
 import {
   HelpTooltip,
   HelpTooltipContent,
@@ -13,11 +11,13 @@ import {
   HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { EditSquare } from "components/Icons/EditSquare";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 
 const roleDescriptions: Record<string, string> = {

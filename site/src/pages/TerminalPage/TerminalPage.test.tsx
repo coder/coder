@@ -1,20 +1,20 @@
-import { waitFor } from "@testing-library/react";
 import "jest-canvas-mock";
+import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { rest } from "msw";
+import { TextDecoder, TextEncoder } from "util";
+import * as API from "api/api";
 import {
   MockUser,
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
-import { TextDecoder, TextEncoder } from "util";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import TerminalPage, { Language } from "./TerminalPage";
-import * as API from "api/api";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,

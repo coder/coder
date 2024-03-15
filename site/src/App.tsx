@@ -1,13 +1,14 @@
-import { QueryClient, QueryClientProvider } from "react-query";
-import { type FC, type ReactNode, useEffect, useState } from "react";
-import { HelmetProvider } from "react-helmet-async";
-import { AppRouter } from "./AppRouter";
-import { ThemeProvider } from "./contexts/ThemeProvider";
-import { AuthProvider } from "./contexts/auth/AuthProvider";
-import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
-import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { type FC, type ReactNode, useEffect, useState } from "react";
+import { HelmetProvider } from "react-helmet-async";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { RouterProvider } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
+import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
+import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { ThemeProvider } from "./contexts/ThemeProvider";
+import { router } from "./router";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +62,7 @@ export const App: FC = () => {
   return (
     <AppProviders>
       <ErrorBoundary>
-        <AppRouter />
+        <RouterProvider router={router} />
       </ErrorBoundary>
     </AppProviders>
   );

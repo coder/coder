@@ -1,17 +1,17 @@
+import { screen } from "@testing-library/react";
+import * as API from "api/api";
+import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { MockTemplate } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
+import { timeZones } from "utils/timeZones";
 import {
   Language,
   ttlShutdownAt,
   validationSchema,
-  WorkspaceScheduleFormValues,
   WorkspaceScheduleForm,
-  WorkspaceScheduleFormProps,
+  type WorkspaceScheduleFormProps,
+  type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
-import { timeZones } from "utils/timeZones";
-import * as API from "api/api";
-import { MockTemplate } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
-import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { screen } from "@testing-library/react";
 
 const valid: WorkspaceScheduleFormValues = {
   autostartEnabled: true,

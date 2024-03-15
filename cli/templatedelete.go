@@ -32,7 +32,7 @@ func (r *RootCmd) templateDelete() *serpent.Cmd {
 				templates     = []codersdk.Template{}
 			)
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}

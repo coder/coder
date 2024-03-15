@@ -13,15 +13,14 @@
  * It might not make sense to test this hook until the underlying design
  * problems are fixed.
  */
-import { type MouseEventHandler } from "react";
 import { type CSSObject, useTheme } from "@emotion/react";
-
+import type { TableRowProps } from "@mui/material/TableRow";
+import type { MouseEventHandler } from "react";
 import {
   type ClickableAriaRole,
   type UseClickableResult,
   useClickable,
 } from "./useClickable";
-import { type TableRowProps } from "@mui/material/TableRow";
 
 type UseClickableTableRowResult<
   TRole extends ClickableAriaRole = ClickableAriaRole,

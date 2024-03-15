@@ -8,7 +8,7 @@ import {
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
 import * as api from "./api";
-import * as TypesGen from "./typesGenerated";
+import type * as TypesGen from "./typesGenerated";
 
 describe("api.ts", () => {
   describe("login", () => {

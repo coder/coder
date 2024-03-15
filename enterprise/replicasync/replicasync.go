@@ -3,6 +3,7 @@ package replicasync
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -265,45 +266,35 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		},
 	}
 	defer client.CloseIdleConnections()
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	failed := make([]string, 0)
-	for _, peer := range m.Regional() {
-		wg.Add(1)
+
+	peers := m.Regional()
+	errs := make(chan error, len(peers))
+	for _, peer := range peers {
 		go func(peer database.Replica) {
-			defer wg.Done()
-			ra, err := url.Parse(peer.RelayAddress)
+			err := PingPeerReplica(ctx, client, peer.RelayAddress)
 			if err != nil {
-				m.logger.Warn(ctx, "could not parse relay address",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
+				m.logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
+					slog.F("replica_hostname", peer.Hostname),
+					slog.F("replica_relay_address", peer.RelayAddress),
+					slog.Error(err),
+				)
 				return
 			}
-			target, err := ra.Parse("/derp/latency-check")
-			if err != nil {
-				m.logger.Warn(ctx, "could not resolve /derp/latency-check endpoint",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
-				return
-			}
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
-			if err != nil {
-				m.logger.Warn(ctx, "create http request for relay probe",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
-				return
-			}
-			res, err := client.Do(req)
-			if err != nil {
-				mu.Lock()
-				failed = append(failed, fmt.Sprintf("relay %s (%s): %s", peer.Hostname, peer.RelayAddress, err))
-				mu.Unlock()
-				return
-			}
-			_ = res.Body.Close()
+			errs <- nil
 		}(peer)
 	}
-	wg.Wait()
+
+	replicaErrs := make([]string, 0, len(peers))
+	for i := 0; i < len(peers); i++ {
+		err := <-errs
+		if err != nil {
+			replicaErrs = append(replicaErrs, err.Error())
+		}
+	}
 	replicaError := ""
-	if len(failed) > 0 {
-		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(failed, ", "))
+	if len(replicaErrs) > 0 {
+		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", "))
 	}
 
 	databaseLatency, err := m.db.Ping(ctx)
@@ -359,6 +350,32 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.self = replica
 	if m.callback != nil {
 		go m.callback()
+	}
+	return nil
+}
+
+// PingPeerReplica pings a peer replica over it's internal relay address to
+// ensure it's reachable and alive for health purposes.
+func PingPeerReplica(ctx context.Context, client http.Client, relayAddress string) error {
+	ra, err := url.Parse(relayAddress)
+	if err != nil {
+		return xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
+	}
+	target, err := ra.Parse("/derp/latency-check")
+	if err != nil {
+		return xerrors.Errorf("parse latency-check URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return xerrors.Errorf("create request: %w", err)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return xerrors.Errorf("do probe: %w", err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return xerrors.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 	return nil
 }
@@ -465,4 +482,30 @@ func (m *Manager) Close() error {
 		return xerrors.Errorf("publish replica update: %w", err)
 	}
 	return nil
+}
+
+// CreateDERPMeshTLSConfig creates a TLS configuration for connecting to peers
+// in the DERP mesh over private networking. It overrides the ServerName to be
+// the expected public hostname of the peer, and trusts all of the TLS server
+// certificates used by this replica (as we expect all replicas to use the same
+// TLS certificates).
+func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate) (*tls.Config, error) {
+	meshRootCA := x509.NewCertPool()
+	for _, certificate := range tlsCertificates {
+		for _, certificatePart := range certificate.Certificate {
+			parsedCert, err := x509.ParseCertificate(certificatePart)
+			if err != nil {
+				return nil, xerrors.Errorf("parse certificate %s: %w", parsedCert.Subject.CommonName, err)
+			}
+			meshRootCA.AddCert(parsedCert)
+		}
+	}
+
+	// This TLS configuration trusts the built-in TLS certificates and forces
+	// the server name to be the public hostname.
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    meshRootCA,
+		ServerName: hostname,
+	}, nil
 }

@@ -1,5 +1,5 @@
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import { type FC, type HTMLAttributes } from "react";
+import type { FC, HTMLAttributes } from "react";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 
@@ -16,12 +16,14 @@ export const CopyableValue: FC<CopyableValueProps> = ({
   children,
   ...attrs
 }) => {
-  const { isCopied, copyToClipboard } = useClipboard(value);
+  const { showCopiedSuccess, copyToClipboard } = useClipboard({
+    textToCopy: value,
+  });
   const clickableProps = useClickable<HTMLSpanElement>(copyToClipboard);
 
   return (
     <Tooltip
-      title={isCopied ? "Copied!" : "Click to copy"}
+      title={showCopiedSuccess ? "Copied!" : "Click to copy"}
       placement={placement}
       PopperProps={PopperProps}
     >

@@ -21,10 +21,10 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 // New creates a CLI instance with a configuration pointed to a
@@ -141,6 +141,10 @@ func extractTar(t *testing.T, data []byte, directory string) {
 // Start runs the command in a goroutine and cleans it up when the test
 // completed.
 func Start(t *testing.T, inv *serpent.Invocation) {
+	StartWithAssert(t, inv, nil)
+}
+
+func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(t *testing.T, err error)) { //nolint:revive
 	t.Helper()
 
 	closeCh := make(chan struct{})
@@ -155,6 +159,12 @@ func Start(t *testing.T, inv *serpent.Invocation) {
 	go func() {
 		defer close(closeCh)
 		err := waiter.Wait()
+
+		if assertCallback != nil {
+			assertCallback(t, err)
+			return
+		}
+
 		switch {
 		case errors.Is(err, context.Canceled):
 			return

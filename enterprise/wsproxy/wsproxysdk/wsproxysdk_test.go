@@ -182,7 +182,7 @@ func TestDialCoordinator(t *testing.T) {
 		// avoid blocking
 		reqs := make(chan *proto.CoordinateRequest, 100)
 		resps := make(chan *proto.CoordinateResponse, 100)
-		mCoord.EXPECT().Coordinate(gomock.Any(), proxyID, gomock.Any(), agpl.SingleTailnetTunnelAuth{}).
+		mCoord.EXPECT().Coordinate(gomock.Any(), proxyID, gomock.Any(), agpl.SingleTailnetCoordinateeAuth{}).
 			Times(1).
 			Return(reqs, resps)
 

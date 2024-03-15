@@ -1,7 +1,7 @@
 import set from "lodash/set";
-import { FileTree } from "./filetree";
-import { TarFileTypeCodes, TarReader } from "./tar";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import type { FileTree } from "./filetree";
+import { TarFileTypeCodes, TarReader } from "./tar";
 
 // Content by filename
 export type TemplateVersionFiles = Record<string, string>;

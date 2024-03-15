@@ -9,9 +9,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
-	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) templateVersions() *serpent.Cmd {
@@ -93,7 +93,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Cmd {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

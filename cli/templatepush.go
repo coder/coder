@@ -46,7 +46,7 @@ func (r *RootCmd) templatePush() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
 
-			organization, err := CurrentOrganization(inv, client)
+			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
 			}

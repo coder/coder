@@ -1,10 +1,10 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
   type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import CloseIcon from "@mui/icons-material/Close";
-import { type FC } from "react";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { FC } from "react";
 import { type ClassName, useClassName } from "hooks/useClassName";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";

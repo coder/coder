@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField";
+import { type ChangeEvent, type FC, useState } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
-import { type ChangeEvent, type FC, useState } from "react";
 import { type FileTree, isFolder, validatePath } from "utils/filetree";
 
 interface CreateFileDialogProps {

@@ -898,6 +898,64 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	}
 }
 
+type PortShareProtocol string
+
+const (
+	PortShareProtocolHttp  PortShareProtocol = "http"
+	PortShareProtocolHttps PortShareProtocol = "https"
+)
+
+func (e *PortShareProtocol) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PortShareProtocol(s)
+	case string:
+		*e = PortShareProtocol(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PortShareProtocol: %T", src)
+	}
+	return nil
+}
+
+type NullPortShareProtocol struct {
+	PortShareProtocol PortShareProtocol `json:"port_share_protocol"`
+	Valid             bool              `json:"valid"` // Valid is true if PortShareProtocol is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPortShareProtocol) Scan(value interface{}) error {
+	if value == nil {
+		ns.PortShareProtocol, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PortShareProtocol.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPortShareProtocol) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PortShareProtocol), nil
+}
+
+func (e PortShareProtocol) Valid() bool {
+	switch e {
+	case PortShareProtocolHttp,
+		PortShareProtocolHttps:
+		return true
+	}
+	return false
+}
+
+func AllPortShareProtocolValues() []PortShareProtocol {
+	return []PortShareProtocol{
+		PortShareProtocolHttp,
+		PortShareProtocolHttps,
+	}
+}
+
 // Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
 type ProvisionerJobStatus string
 
@@ -1149,19 +1207,21 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization    ResourceType = "organization"
-	ResourceTypeTemplate        ResourceType = "template"
-	ResourceTypeTemplateVersion ResourceType = "template_version"
-	ResourceTypeUser            ResourceType = "user"
-	ResourceTypeWorkspace       ResourceType = "workspace"
-	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
-	ResourceTypeApiKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
-	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
-	ResourceTypeLicense         ResourceType = "license"
-	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin    ResourceType = "convert_login"
-	ResourceTypeHealthSettings  ResourceType = "health_settings"
+	ResourceTypeOrganization            ResourceType = "organization"
+	ResourceTypeTemplate                ResourceType = "template"
+	ResourceTypeTemplateVersion         ResourceType = "template_version"
+	ResourceTypeUser                    ResourceType = "user"
+	ResourceTypeWorkspace               ResourceType = "workspace"
+	ResourceTypeGitSshKey               ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                  ResourceType = "api_key"
+	ResourceTypeGroup                   ResourceType = "group"
+	ResourceTypeWorkspaceBuild          ResourceType = "workspace_build"
+	ResourceTypeLicense                 ResourceType = "license"
+	ResourceTypeWorkspaceProxy          ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin            ResourceType = "convert_login"
+	ResourceTypeHealthSettings          ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1213,7 +1273,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
-		ResourceTypeHealthSettings:
+		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret:
 		return true
 	}
 	return false
@@ -1234,6 +1296,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceProxy,
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
+		ResourceTypeOauth2ProviderApp,
+		ResourceTypeOauth2ProviderAppSecret,
 	}
 }
 
@@ -1902,7 +1966,8 @@ type ProvisionerDaemon struct {
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
 	// The API version of the provisioner daemon
-	APIVersion string `db:"api_version" json:"api_version"`
+	APIVersion     string    `db:"api_version" json:"api_version"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type ProvisionerJob struct {
@@ -2306,10 +2371,11 @@ type WorkspaceAgentMetadatum struct {
 }
 
 type WorkspaceAgentPortShare struct {
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
+	AgentName   string            `db:"agent_name" json:"agent_name"`
+	Port        int32             `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
+	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
 type WorkspaceAgentScript struct {

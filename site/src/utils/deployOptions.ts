@@ -1,11 +1,11 @@
-import { SerpentGroup, SerpentOption } from "api/typesGenerated";
 import { useMemo } from "react";
+import type { SerpentGroup, ClibaseOption } from "api/typesGenerated";
 
 const deploymentOptions = (
-  options: SerpentOption[],
+  options: ClibaseOption[],
   ...names: string[]
-): SerpentOption[] => {
-  const found: SerpentOption[] = [];
+): ClibaseOption[] => {
+  const found: ClibaseOption[] = [];
   for (const name of names) {
     const option = options.find((o) => o.name === name);
     if (option) {
@@ -18,9 +18,9 @@ const deploymentOptions = (
 };
 
 export const useDeploymentOptions = (
-  options: SerpentOption[],
+  options: ClibaseOption[],
   ...names: string[]
-): SerpentOption[] => {
+): ClibaseOption[] => {
   return useMemo(() => deploymentOptions(options, ...names), [options, names]);
 };
 

@@ -112,6 +112,31 @@ func ProtoFromMetadataDescription(d codersdk.WorkspaceAgentMetadataDescription) 
 	}
 }
 
+func ProtoFromMetadataResult(r codersdk.WorkspaceAgentMetadataResult) *proto.WorkspaceAgentMetadata_Result {
+	return &proto.WorkspaceAgentMetadata_Result{
+		CollectedAt: timestamppb.New(r.CollectedAt),
+		Age:         r.Age,
+		Value:       r.Value,
+		Error:       r.Error,
+	}
+}
+
+func MetadataResultFromProto(r *proto.WorkspaceAgentMetadata_Result) codersdk.WorkspaceAgentMetadataResult {
+	return codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: r.GetCollectedAt().AsTime(),
+		Age:         r.GetAge(),
+		Value:       r.GetValue(),
+		Error:       r.GetError(),
+	}
+}
+
+func MetadataFromProto(m *proto.Metadata) Metadata {
+	return Metadata{
+		Key:                          m.GetKey(),
+		WorkspaceAgentMetadataResult: MetadataResultFromProto(m.GetResult()),
+	}
+}
+
 func AgentScriptsFromProto(protoScripts []*proto.WorkspaceAgentScript) ([]codersdk.WorkspaceAgentScript, error) {
 	ret := make([]codersdk.WorkspaceAgentScript, len(protoScripts))
 	for i, protoScript := range protoScripts {

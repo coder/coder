@@ -1,12 +1,11 @@
-import { type Group } from "api/typesGenerated";
-import { type Meta, type StoryObj } from "@storybook/react";
-
-import { AccountUserGroups } from "./AccountUserGroups";
+import type { Meta, StoryObj } from "@storybook/react";
+import type { Group } from "api/typesGenerated";
 import {
   MockGroup as MockGroup1,
   MockUser,
   mockApiError,
 } from "testHelpers/entities";
+import { AccountUserGroups } from "./AccountUserGroups";
 
 const MockGroup2: Group = {
   ...MockGroup1,

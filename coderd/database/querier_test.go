@@ -506,20 +506,11 @@ func TestDefaultOrg(t *testing.T) {
 	db := database.New(sqlDB)
 	ctx := context.Background()
 
-	// Should start with 0 orgs
+	// Should start with the default org
 	all, err := db.GetOrganizations(ctx)
 	require.NoError(t, err)
-	require.Len(t, all, 0)
-
-	org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
-		ID:          uuid.New(),
-		Name:        "default",
-		Description: "",
-		CreatedAt:   dbtime.Now(),
-		UpdatedAt:   dbtime.Now(),
-	})
-	require.NoError(t, err)
-	require.True(t, org.IsDefault, "first org should always be default")
+	require.Len(t, all, 1)
+	require.True(t, all[0].IsDefault, "first org should always be default")
 }
 
 type tvArgs struct {

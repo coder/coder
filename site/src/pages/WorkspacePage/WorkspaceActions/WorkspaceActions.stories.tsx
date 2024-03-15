@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
 
@@ -70,6 +70,13 @@ export const Outdated: Story = {
 export const Failed: Story = {
   args: {
     workspace: Mocks.MockFailedWorkspace,
+  },
+};
+
+export const FailedWithDebug: Story = {
+  args: {
+    workspace: Mocks.MockFailedWorkspace,
+    canDebug: true,
   },
 };
 

@@ -1,18 +1,18 @@
-import { type FC } from "react";
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import AccountIcon from "@mui/icons-material/Person";
 import AppearanceIcon from "@mui/icons-material/Brush";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
+import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import AccountIcon from "@mui/icons-material/Person";
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import type { FC } from "react";
 import type { User } from "api/typesGenerated";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { GitIcon } from "components/Icons/GitIcon";
 import {
   Sidebar as BaseSidebar,
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { GitIcon } from "components/Icons/GitIcon";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 
 interface SidebarProps {

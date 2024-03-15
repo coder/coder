@@ -2,16 +2,16 @@ import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
-import TemplateVersionPageView from "./TemplateVersionPageView";
 import {
   templateByName,
   templateFiles,
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
+import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { usePermissions } from "contexts/auth/usePermissions";
+import { pageTitle } from "utils/page";
+import TemplateVersionPageView from "./TemplateVersionPageView";
 
 type Params = {
   version: string;

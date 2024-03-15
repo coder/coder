@@ -1,6 +1,6 @@
 import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useInfiniteQuery } from "react-query";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import type { Workspace } from "api/typesGenerated";

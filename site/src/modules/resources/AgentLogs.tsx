@@ -1,20 +1,20 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import { FixedSizeList as List } from "react-window";
-import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import {
-  LogLine,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
-import {
-  ComponentProps,
+  type ComponentProps,
   forwardRef,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import { LineWithID } from "./AgentRow";
-import { Interpolation, Theme } from "@emotion/react";
+import { FixedSizeList as List } from "react-window";
 import * as API from "api/api";
+import type { WorkspaceAgentLogSource } from "api/typesGenerated";
+import {
+  LogLine,
+  logLineHeight,
+} from "modules/workspaces/WorkspaceBuildLogs/Logs";
+import type { LineWithID } from "./AgentRow";
 
 type AgentLogsProps = Omit<
   ComponentProps<typeof List>,

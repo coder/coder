@@ -24,7 +24,9 @@ func (e EnhancedExternalAuthProvider) Git() bool {
 		EnhancedExternalAuthProviderGitLab,
 		EnhancedExternalAuthProviderBitBucketCloud,
 		EnhancedExternalAuthProviderBitBucketServer,
-		EnhancedExternalAuthProviderAzureDevops:
+		EnhancedExternalAuthProviderAzureDevops,
+		EnhancedExternalAuthProviderAzureDevopsEntra,
+		EnhancedExternalAuthProviderGitea:
 		return true
 	default:
 		return false
@@ -33,14 +35,17 @@ func (e EnhancedExternalAuthProvider) Git() bool {
 
 const (
 	EnhancedExternalAuthProviderAzureDevops EnhancedExternalAuthProvider = "azure-devops"
-	EnhancedExternalAuthProviderGitHub      EnhancedExternalAuthProvider = "github"
-	EnhancedExternalAuthProviderGitLab      EnhancedExternalAuthProvider = "gitlab"
+	// Authenticate to ADO using an app registration in Entra ID
+	EnhancedExternalAuthProviderAzureDevopsEntra EnhancedExternalAuthProvider = "azure-devops-entra"
+	EnhancedExternalAuthProviderGitHub           EnhancedExternalAuthProvider = "github"
+	EnhancedExternalAuthProviderGitLab           EnhancedExternalAuthProvider = "gitlab"
 	// EnhancedExternalAuthProviderBitBucketCloud is the Bitbucket Cloud provider.
 	// Not to be confused with the self-hosted 'EnhancedExternalAuthProviderBitBucketServer'
 	EnhancedExternalAuthProviderBitBucketCloud  EnhancedExternalAuthProvider = "bitbucket-cloud"
 	EnhancedExternalAuthProviderBitBucketServer EnhancedExternalAuthProvider = "bitbucket-server"
 	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
 	EnhancedExternalAuthProviderJFrog           EnhancedExternalAuthProvider = "jfrog"
+	EnhancedExternalAuthProviderGitea           EnhancedExternalAuthProvider = "gitea"
 )
 
 type ExternalAuth struct {

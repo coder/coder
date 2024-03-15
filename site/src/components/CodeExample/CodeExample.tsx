@@ -1,8 +1,8 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import { visuallyHidden } from "@mui/utils";
 import { type FC, type KeyboardEvent, type MouseEvent, useRef } from "react";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { CopyButton } from "../CopyButton/CopyButton";
-import { visuallyHidden } from "@mui/utils";
 
 export interface CodeExampleProps {
   code: string;
@@ -23,7 +23,11 @@ export const CodeExample: FC<CodeExampleProps> = ({
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const triggerButton = (event: KeyboardEvent | MouseEvent) => {
-    if (event.target !== buttonRef.current) {
+    const clickTriggeredOutsideButton =
+      event.target instanceof HTMLElement &&
+      !buttonRef.current?.contains(event.target);
+
+    if (clickTriggeredOutsideButton) {
       buttonRef.current?.click();
     }
   };

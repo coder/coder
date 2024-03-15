@@ -1,7 +1,7 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
-import { displayDormantDeletion } from "utils/dormant";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { displayDormantDeletion } from "utils/dormant";
 
 interface DormantDeletionTextProps {
   workspace: Workspace;

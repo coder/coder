@@ -3,8 +3,8 @@ import {
   displaySuccess,
   isNotificationTextPrefixed,
   MsgType,
-  NotificationMsg,
-  NotificationTextPrefixed,
+  type NotificationMsg,
+  type NotificationTextPrefixed,
   SnackbarEventType,
 } from "./utils";
 

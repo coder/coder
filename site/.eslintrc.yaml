@@ -52,9 +52,6 @@ overrides:
       testing-library/prefer-screen-queries: "off"
 root: true
 rules:
-  "@typescript-eslint/brace-style":
-    ["error", "1tbs", { "allowSingleLine": false }]
-  "@typescript-eslint/method-signature-style": ["error", "property"]
   # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
   "@typescript-eslint/no-misused-promises": "off"
   # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
@@ -75,6 +72,14 @@ rules:
   "@typescript-eslint/restrict-template-expressions": "off"
   # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
   "@typescript-eslint/unbound-method": "off"
+
+  "@typescript-eslint/brace-style":
+    ["error", "1tbs", { "allowSingleLine": false }]
+  "@typescript-eslint/consistent-type-imports":
+    - error
+    - fixStyle: inline-type-imports
+  "@typescript-eslint/method-signature-style": ["error", "property"]
+  "@typescript-eslint/no-import-type-side-effects": "error"
   # We're disabling the `no-namespace` rule to use a pattern of defining an interface,
   # and then defining functions that operate on that data via namespace. This is helpful for
   # dealing with immutable objects. This is a common pattern that shows up in some other
@@ -104,6 +109,13 @@ rules:
   import/no-named-as-default: "off"
   import/no-named-as-default-member: "off"
   import/prefer-default-export: "off"
+  import/order:
+    - error
+    - groups: [["builtin", "external"], "internal", "parent"]
+      newlines-between: never
+      alphabetize:
+        order: asc
+        caseInsensitive: true
   jest/no-focused-tests: "error"
   jsx-a11y/label-has-for: "off"
   jsx-a11y/no-autofocus: "off"

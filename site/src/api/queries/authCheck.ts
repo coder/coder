@@ -1,5 +1,5 @@
-import { AuthorizationRequest } from "api/typesGenerated";
 import * as API from "api/api";
+import type { AuthorizationRequest } from "api/typesGenerated";
 
 export const AUTHORIZATION_KEY = "authorization";
 

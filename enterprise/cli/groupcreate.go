@@ -29,7 +29,7 @@ func (r *RootCmd) groupCreate() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
-			org, err := agpl.CurrentOrganization(inv, client)
+			org, err := agpl.CurrentOrganization(&r.RootCmd, inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

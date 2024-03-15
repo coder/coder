@@ -45,7 +45,8 @@ func (RootCmd) errorExample() *serpent.Cmd {
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
 	//nolint:errorlint,forcetypeassert
-	apiErrorNoHelper := apiError.(*codersdk.Error)
+	cpy := *apiError.(*codersdk.Error)
+	apiErrorNoHelper := &cpy
 	apiErrorNoHelper.Helper = ""
 
 	// Some flags
@@ -94,7 +95,6 @@ func (RootCmd) errorExample() *serpent.Cmd {
 					)
 				},
 			},
-
 			{
 				Use: "validation",
 				Options: serpent.OptionSet{
@@ -111,6 +111,16 @@ func (RootCmd) errorExample() *serpent.Cmd {
 				},
 				Handler: func(i *serpent.Invocation) error {
 					_, _ = fmt.Fprint(i.Stdout, "Try setting the --magic-word flag\n")
+					return nil
+				},
+			},
+			{
+				Use: "arg-required <required>",
+				Middleware: serpent.Chain(
+					serpent.RequireNArgs(1),
+				),
+				Handler: func(i *serpent.Invocation) error {
+					_, _ = fmt.Fprint(i.Stdout, "Try running this without an argument\n")
 					return nil
 				},
 			},

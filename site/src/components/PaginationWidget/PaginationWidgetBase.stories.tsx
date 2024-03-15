@@ -1,5 +1,5 @@
-import { PaginationWidgetBase } from "./PaginationWidgetBase";
 import type { Meta, StoryObj } from "@storybook/react";
+import { PaginationWidgetBase } from "./PaginationWidgetBase";
 
 const meta: Meta<typeof PaginationWidgetBase> = {
   title: "components/PaginationWidgetBase",

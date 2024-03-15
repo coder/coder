@@ -350,6 +350,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("PSK_daily_cost", func(t *testing.T) {
 		t.Parallel()
+		const provPSK = `provisionersftw`
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			UserWorkspaceQuota: 10,
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -358,7 +359,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					codersdk.FeatureTemplateRBAC:               1,
 				},
 			},
-			ProvisionerDaemonPSK: "provisionersftw",
+			ProvisionerDaemonPSK: provPSK,
 		})
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -397,7 +398,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				Tags: map[string]string{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				},
-				PreSharedKey: "provisionersftw",
+				PreSharedKey: provPSK,
 			})
 		}, &provisionerd.Options{
 			Logger:    logger.Named("provisionerd"),
@@ -480,7 +481,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
@@ -514,7 +515,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
@@ -548,7 +549,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Error(t, err)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
 
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)

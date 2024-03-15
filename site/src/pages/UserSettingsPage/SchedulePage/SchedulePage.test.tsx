@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { SchedulePage } from "./SchedulePage";
-import { server } from "testHelpers/server";
-import { MockUser } from "testHelpers/entities";
 import { rest } from "msw";
+import { MockUser } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import { SchedulePage } from "./SchedulePage";
 
 const fillForm = async ({
   hour,

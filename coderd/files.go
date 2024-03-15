@@ -175,7 +175,6 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 		if file.Mimetype != codersdk.ContentTypeTar {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only .tar files can be converted to .zip format",
-				Detail:  err.Error(),
 			})
 			return
 		}
@@ -192,7 +191,6 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported conversion format.",
-			Detail:  err.Error(),
 		})
 	}
 }

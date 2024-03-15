@@ -202,7 +202,8 @@ func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool 
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	defaultOrg := dbgen.Organization(t, db, database.Organization{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -216,21 +217,24 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Name:         "external-0",
 		Provisioners: []database.ProvisionerType{"echo"},
 		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
-		CreatedAt:    now.Add(-14 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-7 * 24 * time.Hour).Add(time.Minute)},
-		Version:      "1.0.0",
-		APIVersion:   proto.CurrentVersion.String(),
+		CreatedAt:    now.AddDate(0, 0, -14),
+		// Note: adding an hour and a minute to account for DST variations
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.AddDate(0, 0, -7).Add(61 * time.Minute)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 		// Provisioner daemon created 8 days ago, and checked in last time an hour after creation.
-		Name:         "external-1",
-		Provisioners: []database.ProvisionerType{"echo"},
-		Tags:         database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
-		CreatedAt:    now.Add(-8 * 24 * time.Hour),
-		LastSeenAt:   sql.NullTime{Valid: true, Time: now.Add(-8 * 24 * time.Hour).Add(time.Hour)},
-		Version:      "1.0.0",
-		APIVersion:   proto.CurrentVersion.String(),
+		Name:           "external-1",
+		Provisioners:   []database.ProvisionerType{"echo"},
+		Tags:           database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		CreatedAt:      now.AddDate(0, 0, -8),
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.AddDate(0, 0, -8).Add(time.Hour)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -241,9 +245,10 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 			provisionersdk.TagOwner: uuid.NewString(),
 		},
-		CreatedAt:  now.Add(-9 * 24 * time.Hour),
-		Version:    "1.0.0",
-		APIVersion: proto.CurrentVersion.String(),
+		CreatedAt:      now.AddDate(0, 0, -9),
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -254,10 +259,11 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 			provisionersdk.TagOwner: uuid.NewString(),
 		},
-		CreatedAt:  now.Add(-6 * 24 * time.Hour),
-		LastSeenAt: sql.NullTime{Valid: true, Time: now.Add(-6 * 24 * time.Hour)},
-		Version:    "1.0.0",
-		APIVersion: proto.CurrentVersion.String(),
+		CreatedAt:      now.AddDate(0, 0, -6),
+		LastSeenAt:     sql.NullTime{Valid: true, Time: now.AddDate(0, 0, -6)},
+		Version:        "1.0.0",
+		APIVersion:     proto.CurrentVersion.String(),
+		OrganizationID: defaultOrg.ID,
 	})
 	require.NoError(t, err)
 
@@ -271,11 +277,18 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		if err != nil {
 			return false
 		}
+
+		daemonNames := make([]string, 0, len(daemons))
+		for _, d := range daemons {
+			daemonNames = append(daemonNames, d.Name)
+		}
+		t.Logf("found %d daemons: %v", len(daemons), daemonNames)
+
 		return containsProvisionerDaemon(daemons, "external-0") &&
 			!containsProvisionerDaemon(daemons, "external-1") &&
 			!containsProvisionerDaemon(daemons, "alice-provisioner") &&
 			containsProvisionerDaemon(daemons, "bob-provisioner")
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitShort, testutil.IntervalSlow)
 }
 
 func containsProvisionerDaemon(daemons []database.ProvisionerDaemon, name string) bool {

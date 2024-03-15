@@ -107,6 +107,11 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		}
 		// Use unix paths in the tar archive.
 		header.Name = filepath.ToSlash(rel)
+		// tar.FileInfoHeader() will do this, but filepath.Rel() calls filepath.Clean()
+		// which strips trailing path separators for directories.
+		if fileInfo.IsDir() {
+			header.Name += "/"
+		}
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}

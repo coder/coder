@@ -1,6 +1,6 @@
-import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
-import { SerpentGroup } from "api/typesGenerated";
+import type { SerpentGroup } from "api/typesGenerated";
+import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const group: SerpentGroup = {
   name: "Introspection",

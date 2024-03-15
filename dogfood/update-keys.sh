@@ -37,7 +37,7 @@ curl "${curl_flags[@]}" "https://www.postgresql.org/media/keys/ACCC4CF8.asc" |
 	gpg "${gpg_flags[@]}" --output="postgresql.gpg"
 
 # NodeSource signing key
-curl "${curl_flags[@]}" "https://deb.nodesource.com/gpgkey/nodesource.gpg.key" |
+curl "${curl_flags[@]}" "https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key" |
 	gpg "${gpg_flags[@]}" --output="nodesource.gpg"
 
 # Yarnpkg signing key

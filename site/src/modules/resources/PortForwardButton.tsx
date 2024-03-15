@@ -1,22 +1,39 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import CircularProgress from "@mui/material/CircularProgress";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import SensorsIcon from "@mui/icons-material/Sensors";
+import LoadingButton from "@mui/lab/LoadingButton";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import FormControl from "@mui/material/FormControl";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
-import { docs } from "utils/docs";
+import * as Yup from "yup";
 import { getAgentListeningPorts } from "api/api";
 import {
-  WorkspaceAppSharingLevels,
+  deleteWorkspacePortShare,
+  upsertWorkspacePortShare,
+  workspacePortShares,
+} from "api/queries/workspaceportsharing";
+import {
   type Template,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
-  UpsertWorkspaceAgentPortShareRequest,
+  type UpsertWorkspaceAgentPortShareRequest,
+  type WorkspaceAgentPortShareProtocol,
+  WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
-import { portForwardURL } from "utils/portForward";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import {
   HelpTooltipLink,
   HelpTooltipText,
@@ -27,26 +44,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import Stack from "@mui/material/Stack";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import TextField from "@mui/material/TextField";
-import SensorsIcon from "@mui/icons-material/Sensors";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import CloseIcon from "@mui/icons-material/Close";
-import {
-  deleteWorkspacePortShare,
-  upsertWorkspacePortShare,
-  workspacePortShares,
-} from "api/queries/workspaceportsharing";
+import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import * as Yup from "yup";
-import { FormikContextType, useFormik } from "formik";
+import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { LoadingButton } from "@mui/lab";
+import { portForwardURL } from "utils/portForward";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -109,7 +111,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 
 const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
-    port: Yup.number().required().min(0).max(65535),
+    port: Yup.number().required().min(9).max(65535),
     share_level: Yup.string().required().oneOf(WorkspaceAppSharingLevels),
   });
 
@@ -162,6 +164,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     initialValues: {
       agent_name: agent.name,
       port: undefined,
+      protocol: "http",
       share_level: "authenticated",
     },
     validationSchema,
@@ -201,6 +204,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     !(portSharingControlsEnabled && template.max_port_share_level === "owner");
   const canSharePortsPublic =
     canSharePorts && template.max_port_share_level === "public";
+
+  const disabledPublicMenuItem = (
+    <Tooltip title="This workspace template does not allow sharing ports with unauthenticated users.">
+      {/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+      <div>
+        <MenuItem value="public" disabled>
+          Public
+        </MenuItem>
+      </div>
+    </Tooltip>
+  );
 
   return (
     <>
@@ -245,7 +259,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             name="portNumber"
             type="number"
             placeholder="Connect to port..."
-            min={0}
+            min={9}
             max={65535}
             required
             css={styles.newPortInput}
@@ -325,6 +339,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                         await upsertSharedPortMutation.mutateAsync({
                           agent_name: agent.name,
                           port: port.port,
+                          protocol: "http",
                           share_level: "authenticated",
                         });
                         await sharedPortsQuery.refetch();
@@ -384,8 +399,31 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                       )}
                       {label}
                     </Link>
+                    <FormControl size="small" css={styles.protocolFormControl}>
+                      <Select
+                        css={styles.shareLevelSelect}
+                        value={share.protocol}
+                        onChange={async (event) => {
+                          await upsertSharedPortMutation.mutateAsync({
+                            agent_name: agent.name,
+                            port: share.port,
+                            protocol: event.target
+                              .value as WorkspaceAgentPortShareProtocol,
+                            share_level: share.share_level,
+                          });
+                          await sharedPortsQuery.refetch();
+                        }}
+                      >
+                        <MenuItem value="http">HTTP</MenuItem>
+                        <MenuItem value="https">HTTPS</MenuItem>
+                      </Select>
+                    </FormControl>
+
                     <Stack direction="row" justifyContent="flex-end">
-                      <FormControl size="small">
+                      <FormControl
+                        size="small"
+                        css={styles.shareLevelFormControl}
+                      >
                         <Select
                           css={styles.shareLevelSelect}
                           value={share.share_level}
@@ -393,6 +431,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                             await upsertSharedPortMutation.mutateAsync({
                               agent_name: agent.name,
                               port: share.port,
+                              protocol: share.protocol,
                               share_level: event.target
                                 .value as WorkspaceAgentPortShareLevel,
                             });
@@ -402,12 +441,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                           <MenuItem value="authenticated">
                             Authenticated
                           </MenuItem>
-                          <MenuItem
-                            value="public"
-                            disabled={!canSharePortsPublic}
-                          >
-                            Public
-                          </MenuItem>
+                          {canSharePortsPublic ? (
+                            <MenuItem value="public">Public</MenuItem>
+                          ) : (
+                            disabledPublicMenuItem
+                          )}
                         </Select>
                       </FormControl>
                       <Button
@@ -453,6 +491,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     value={form.values.port}
                   />
                   <TextField
+                    {...getFieldHelpers("protocol")}
+                    disabled={isSubmitting}
+                    fullWidth
+                    select
+                    value={form.values.protocol}
+                    label="Protocol"
+                  >
+                    <MenuItem value="http">HTTP</MenuItem>
+                    <MenuItem value="https">HTTPS</MenuItem>
+                  </TextField>
+                  <TextField
                     {...getFieldHelpers("share_level")}
                     disabled={isSubmitting}
                     fullWidth
@@ -461,9 +510,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     label="Sharing Level"
                   >
                     <MenuItem value="authenticated">Authenticated</MenuItem>
-                    <MenuItem value="public" disabled={!canSharePortsPublic}>
-                      Public
-                    </MenuItem>
+                    {canSharePortsPublic ? (
+                      <MenuItem value="public">Public</MenuItem>
+                    ) : (
+                      disabledPublicMenuItem
+                    )}
                   </TextField>
                   <LoadingButton
                     variant="contained"
@@ -486,7 +537,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 const classNames = {
   paper: (css, theme) => css`
     padding: 0;
-    width: 304px;
+    width: 404px;
     color: ${theme.palette.text.secondary};
     margin-top: 4px;
   `,
@@ -515,6 +566,7 @@ const styles = {
     paddingTop: 8,
     paddingBottom: 8,
     fontWeight: 500,
+    minWidth: 80,
   }),
 
   portNumber: (theme) => ({
@@ -562,5 +614,14 @@ const styles = {
     appearance: "textfield",
     display: "block",
     width: "100%",
+  }),
+  sharedPortLink: () => ({
+    minWidth: 80,
+  }),
+  protocolFormControl: () => ({
+    minWidth: 90,
+  }),
+  shareLevelFormControl: () => ({
+    minWidth: 140,
   }),
 } satisfies Record<string, Interpolation<Theme>>;

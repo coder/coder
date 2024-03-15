@@ -1,6 +1,6 @@
-import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
-import { SerpentGroup, SerpentOption } from "api/typesGenerated";
+import type { SerpentGroup, ClibaseOption } from "api/typesGenerated";
+import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const group: SerpentGroup = {
   name: "Networking",
@@ -62,15 +62,15 @@ export const NoTLS = {
       {
         name: "SSH Keygen Algorithm",
         value: "1234",
-      } as SerpentOption,
+      } as ClibaseOption,
       {
         name: "Disable Owner Workspace Access",
         value: false,
-      } as SerpentOption,
+      } as ClibaseOption,
       {
         name: "Secure Auth Cookie",
         value: "1234",
-      } as SerpentOption,
+      } as ClibaseOption,
     ],
   },
 };

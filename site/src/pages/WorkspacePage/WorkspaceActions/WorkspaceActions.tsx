@@ -1,8 +1,20 @@
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import Divider from "@mui/material/Divider";
 import { type FC, type ReactNode, Fragment } from "react";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { TopbarIconButton } from "components/FullPageLayout/Topbar";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+} from "components/MoreMenu/MoreMenu";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
 import { mustUpdateWorkspace } from "utils/workspace";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import {
   CancelButton,
   DisabledButton,
@@ -11,23 +23,11 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
-  RetryButton,
   FavoriteButton,
 } from "./Buttons";
-
-import Divider from "@mui/material/Divider";
-import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
-import HistoryIcon from "@mui/icons-material/HistoryOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import {
-  MoreMenu,
-  MoreMenuContent,
-  MoreMenuItem,
-  MoreMenuTrigger,
-} from "components/MoreMenu/MoreMenu";
-import { TopbarIconButton } from "components/FullPageLayout/Topbar";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
+import { DebugButton } from "./DebugButton";
+import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -40,14 +40,14 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
-  handleRetry: () => void;
-  handleRetryDebug: () => void;
+  handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
   isRestarting: boolean;
   children?: ReactNode;
   canChangeVersions: boolean;
-  canRetryDebug: boolean;
+  canDebug: boolean;
   isOwner: boolean;
 }
 
@@ -62,13 +62,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleRetry,
-  handleRetryDebug,
+  handleDebug,
   handleChangeVersion,
   handleDormantActivate,
   isUpdating,
   isRestarting,
   canChangeVersions,
-  canRetryDebug,
+  canDebug,
   isOwner,
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
@@ -76,7 +76,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
     workspace,
-    canRetryDebug,
+    canDebug,
   );
   const showCancel =
     canCancel &&
@@ -132,8 +132,20 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     pending: <DisabledButton label="Pending..." />,
     activate: <ActivateButton handleAction={handleDormantActivate} />,
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
-    retry: <RetryButton handleAction={handleRetry} />,
-    retryDebug: <RetryButton debug handleAction={handleRetryDebug} />,
+    retry: (
+      <RetryButton
+        handleAction={handleRetry}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
+    debug: (
+      <DebugButton
+        handleAction={handleDebug}
+        workspace={workspace}
+        enableBuildParameters={workspace.latest_build.transition === "start"}
+      />
+    ),
     toggleFavorite: (
       <FavoriteButton
         workspaceID={workspace.id}

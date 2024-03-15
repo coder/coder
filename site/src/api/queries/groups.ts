@@ -1,7 +1,7 @@
-import { QueryClient, UseQueryOptions } from "react-query";
+import type { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import { checkAuthorization } from "api/api";
-import {
+import type {
   CreateGroupRequest,
   Group,
   PatchGroupRequest,

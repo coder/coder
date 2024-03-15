@@ -1,9 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import * as API from "api/api";
-import * as AccountForm from "./AccountForm";
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import { AccountPage } from "./AccountPage";
 import { mockApiError } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import * as AccountForm from "./AccountForm";
+import { AccountPage } from "./AccountPage";
 
 const newData = {
   username: "user",
@@ -29,12 +29,12 @@ describe("AccountPage", () => {
         Promise.resolve({
           id: userId,
           email: "user@coder.com",
-          created_at: new Date().toString(),
+          created_at: new Date().toISOString(),
           status: "active",
           organization_ids: ["123"],
           roles: [],
           avatar_url: "",
-          last_seen_at: new Date().toString(),
+          last_seen_at: new Date().toISOString(),
           login_type: "password",
           theme_preference: "",
           ...data,

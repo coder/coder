@@ -1,7 +1,7 @@
+import { css, type Interpolation, type Theme } from "@emotion/react";
+import Check from "@mui/icons-material/Check";
 import IconButton from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
-import Check from "@mui/icons-material/Check";
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import { forwardRef, type ReactNode } from "react";
 import { useClipboard } from "hooks/useClipboard";
 import { FileCopyIcon } from "../Icons/FileCopyIcon";
@@ -32,7 +32,9 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
       buttonStyles,
       tooltipTitle = Language.tooltipTitle,
     } = props;
-    const { isCopied, copyToClipboard } = useClipboard(text);
+    const { showCopiedSuccess, copyToClipboard } = useClipboard({
+      textToCopy: text,
+    });
 
     return (
       <Tooltip title={tooltipTitle} placement="top">
@@ -45,7 +47,7 @@ export const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
             variant="text"
             onClick={copyToClipboard}
           >
-            {isCopied ? (
+            {showCopiedSuccess ? (
               <Check css={styles.copyIcon} />
             ) : (
               <FileCopyIcon css={styles.copyIcon} />

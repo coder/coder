@@ -1,11 +1,11 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
-import { pageTitle } from "utils/page";
 import { createFirstUser } from "api/queries/users";
+import { Loader } from "components/Loader/Loader";
 import { useAuth } from "contexts/auth/useAuth";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { pageTitle } from "utils/page";
 import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
@@ -21,7 +21,7 @@ export const SetupPage: FC = () => {
   const navigate = useNavigate();
 
   if (isLoading) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   // If the user is logged in, navigate to the app

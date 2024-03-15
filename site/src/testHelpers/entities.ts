@@ -1,15 +1,15 @@
+import range from "lodash/range";
 import {
   withDefaultFeatures,
   type GetLicensesResponse,
   type DeploymentConfig,
 } from "api/api";
-import { FieldError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
-import range from "lodash/range";
+import type { FieldError } from "api/errors";
+import type * as TypesGen from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
-import { TemplateVersionFiles } from "utils/templateVersion";
-import { FileTree } from "utils/filetree";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import type { FileTree } from "utils/filetree";
+import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
@@ -2591,7 +2591,17 @@ export const MockHealth: TypesGen.HealthcheckReport = {
                 "derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
               ],
             ],
-            client_errs: [[], []],
+            client_errs: [
+              ["recv derp message: derphttp.Client closed"],
+              [
+                "connect to derp: derphttp.Client.Connect connect to <https://sao-paulo.fly.dev.coder.com/derp>: context deadline exceeded: read tcp 10.44.1.150:59546-&gt;149.248.214.149:443: use of closed network connection",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "connect to derp: derphttp.Client closed",
+                "couldn't connect after 5 tries, last error: couldn't connect after 5 tries, last error: derphttp.Client closed",
+              ],
+            ],
             stun: {
               Enabled: false,
               CanSTUN: false,
@@ -3266,18 +3276,21 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
       agent_name: "a-workspace-agent",
       port: 4000,
       share_level: "authenticated",
+      protocol: "http",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
-      port: 8080,
+      port: 65535,
       share_level: "authenticated",
+      protocol: "https",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
       port: 8081,
       share_level: "public",
+      protocol: "http",
     },
   ],
 };

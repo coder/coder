@@ -1,6 +1,6 @@
-import { SerpentGroup } from "api/typesGenerated";
-import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import type { SerpentGroup } from "api/typesGenerated";
+import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const oidcGroup: SerpentGroup = {
   name: "OIDC",

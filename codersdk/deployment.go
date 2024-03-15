@@ -880,7 +880,8 @@ when required by your organization's security policy.`,
 			Env:   "CODER_BLOCK_DIRECT",
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
-			YAML:  "blockDirect",
+			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
+				Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Force WebSockets",
@@ -1408,7 +1409,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonPSK",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// RateLimit settings
 		{

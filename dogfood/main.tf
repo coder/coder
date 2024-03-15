@@ -19,6 +19,7 @@ locals {
     "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"     = "tcp://hildegard-sydney-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-jnb"        = "tcp://siegfried-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -76,6 +77,11 @@ data "coder_parameter" "region" {
     name  = "São Paulo"
     value = "sa-saopaulo"
   }
+  option {
+    icon  = "/emojis/1f1ff-1f1e6.png"
+    name  = "Johannesburg"
+    value = "za-jnb"
+  }
 }
 
 provider "docker" {
@@ -126,7 +132,7 @@ module "code-server" {
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.2"
+  version        = "1.0.6"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir

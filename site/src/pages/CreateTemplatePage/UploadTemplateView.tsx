@@ -1,25 +1,24 @@
+import type { FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import { useNavigate } from "react-router-dom";
+import { uploadFile } from "api/queries/files";
 import {
   templateVersionLogs,
   JobError,
-  createTemplate,
   templateVersionVariables,
 } from "api/queries/templates";
-import { uploadFile } from "api/queries/files";
 import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
+import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
-import { Template } from "api/typesGenerated";
-import { FC } from "react";
 
-type UploadTemplateViewProps = {
-  onSuccess: (template: Template) => void;
-};
-
-export const UploadTemplateView: FC<UploadTemplateViewProps> = ({
-  onSuccess,
+export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
+  onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
+  isCreating,
+  error,
 }) => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
@@ -30,29 +29,28 @@ export const UploadTemplateView: FC<UploadTemplateViewProps> = ({
   const uploadFileMutation = useMutation(uploadFile());
   const uploadedFile = uploadFileMutation.data;
 
-  const createTemplateMutation = useMutation(createTemplate());
-  const createError = createTemplateMutation.error;
-  const isJobError = createError instanceof JobError;
+  const isJobError = error instanceof JobError;
   const templateVersionLogsQuery = useQuery({
-    ...templateVersionLogs(isJobError ? createError.version.id : ""),
+    ...templateVersionLogs(isJobError ? error.version.id : ""),
     enabled: isJobError,
   });
 
   const missedVariables = useQuery({
-    ...templateVersionVariables(isJobError ? createError.version.id : ""),
+    ...templateVersionVariables(isJobError ? error.version.id : ""),
     enabled:
-      isJobError &&
-      createError.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+      isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
   });
 
   return (
     <CreateTemplateForm
       {...formPermissions}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
+      variablesSectionRef={variablesSectionRef}
       variables={missedVariables.data}
-      error={createTemplateMutation.error}
-      isSubmitting={createTemplateMutation.isLoading}
+      error={error}
+      isSubmitting={isCreating}
       onCancel={() => navigate(-1)}
-      jobError={isJobError ? createError.job.error : undefined}
+      jobError={isJobError ? error.job.error : undefined}
       logs={templateVersionLogsQuery.data}
       upload={{
         onUpload: uploadFileMutation.mutateAsync,
@@ -61,7 +59,7 @@ export const UploadTemplateView: FC<UploadTemplateViewProps> = ({
         file: uploadFileMutation.variables,
       }}
       onSubmit={async (formData) => {
-        const template = await createTemplateMutation.mutateAsync({
+        await onCreateTemplate({
           organizationId,
           version: firstVersionFromFile(
             uploadedFile!.hash,
@@ -69,7 +67,6 @@ export const UploadTemplateView: FC<UploadTemplateViewProps> = ({
           ),
           template: newTemplate(formData),
         });
-        onSuccess(template);
       }}
     />
   );

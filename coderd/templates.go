@@ -57,10 +57,11 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionDelete,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: template.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -123,16 +124,18 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		apiKey                             = httpmw.APIKey(r)
 		auditor                            = *api.Auditor.Load()
 		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionCreate,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
+			OrganizationID: organization.ID,
 		})
 		templateVersionAudit, commitTemplateVersionAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: organization.ID,
 		})
 	)
 	defer commitTemplateAudit()
@@ -542,10 +545,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		auditor           = *api.Auditor.Load()
 		portSharer        = *api.PortSharer.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: template.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -692,6 +696,21 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		groupACL := template.GroupACL
 		if req.DisableEveryoneGroupAccess {
 			delete(groupACL, template.OrganizationID.String())
+		}
+
+		if template.MaxPortSharingLevel != maxPortShareLevel {
+			switch maxPortShareLevel {
+			case database.AppSharingLevelOwner:
+				err = tx.DeleteWorkspaceAgentPortSharesByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("delete workspace agent port shares by template: %w", err)
+				}
+			case database.AppSharingLevelAuthenticated:
+				err = tx.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("reduce workspace agent share level to authenticated by template: %w", err)
+				}
+			}
 		}
 
 		var err error

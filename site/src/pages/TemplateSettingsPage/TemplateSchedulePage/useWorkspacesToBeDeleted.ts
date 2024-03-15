@@ -1,7 +1,7 @@
 import { compareAsc } from "date-fns";
-import { Workspace, Template } from "api/typesGenerated";
-import { TemplateScheduleFormValues } from "./formHelpers";
+import type { Workspace, Template } from "api/typesGenerated";
 import { useWorkspacesData } from "pages/WorkspacesPage/data";
+import type { TemplateScheduleFormValues } from "./formHelpers";
 
 export const useWorkspacesToGoDormant = (
   template: Template,

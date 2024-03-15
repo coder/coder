@@ -70,6 +70,14 @@ func (r Root) PostgresPort() File {
 // File provides convenience methods for interacting with *os.File.
 type File string
 
+func (f File) Exists() bool {
+	if f == "" {
+		return false
+	}
+	_, err := os.Stat(string(f))
+	return err == nil
+}
+
 // Delete deletes the file.
 func (f File) Delete() error {
 	if f == "" {

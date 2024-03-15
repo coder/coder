@@ -82,7 +82,6 @@ type Client struct {
 	t                  testing.TB
 	logger             slog.Logger
 	agentID            uuid.UUID
-	metadata           map[string]agentsdk.Metadata
 	coordinator        tailnet.Coordinator
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
@@ -109,11 +108,10 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	c.t.Cleanup(c.LastWorkspaceAgent)
 	serveCtx, cancel := context.WithCancel(ctx)
 	c.t.Cleanup(cancel)
-	auth := tailnet.AgentTunnelAuth{}
 	streamID := tailnet.StreamID{
 		Name: "agenttest",
 		ID:   c.agentID,
-		Auth: auth,
+		Auth: tailnet.AgentCoordinateeAuth{ID: c.agentID},
 	}
 	serveCtx = tailnet.WithStreamID(serveCtx, streamID)
 	go func() {
@@ -131,22 +129,7 @@ func (c *Client) GetStartup() <-chan *agentproto.Startup {
 }
 
 func (c *Client) GetMetadata() map[string]agentsdk.Metadata {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return maps.Clone(c.metadata)
-}
-
-func (c *Client) PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.metadata == nil {
-		c.metadata = make(map[string]agentsdk.Metadata)
-	}
-	for _, md := range req.Metadata {
-		c.metadata[md.Key] = md
-		c.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
-	}
-	return nil
+	return c.fakeAgentAPI.GetMetadata()
 }
 
 func (c *Client) GetStartupLogs() []agentsdk.Log {
@@ -186,6 +169,7 @@ type FakeAgentAPI struct {
 	appHealthCh     chan *agentproto.BatchUpdateAppHealthRequest
 	logsCh          chan<- *agentproto.BatchCreateLogsRequest
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
+	metadata        map[string]agentsdk.Metadata
 
 	getServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 }
@@ -254,9 +238,24 @@ func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateSt
 	return req.GetStartup(), nil
 }
 
-func (*FakeAgentAPI) BatchUpdateMetadata(context.Context, *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
-	// TODO implement me
-	panic("implement me")
+func (f *FakeAgentAPI) GetMetadata() map[string]agentsdk.Metadata {
+	f.Lock()
+	defer f.Unlock()
+	return maps.Clone(f.metadata)
+}
+
+func (f *FakeAgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+	if f.metadata == nil {
+		f.metadata = make(map[string]agentsdk.Metadata)
+	}
+	for _, md := range req.Metadata {
+		smd := agentsdk.MetadataFromProto(md)
+		f.metadata[md.Key] = smd
+		f.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
+	}
+	return &agentproto.BatchUpdateMetadataResponse{}, nil
 }
 
 func (f *FakeAgentAPI) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {

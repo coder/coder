@@ -1,30 +1,30 @@
-import { expect, Page } from "@playwright/test";
-import { ChildProcess, exec, spawn } from "child_process";
+import { expect, type Page } from "@playwright/test";
+import axios from "axios";
+import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
-import path from "path";
 import express from "express";
-import { TarWriter } from "utils/tar";
-import {
-  Agent,
-  App,
-  AppSharingLevel,
-  Response,
-  ParseComplete,
-  PlanComplete,
-  ApplyComplete,
-  Resource,
-  RichParameter,
-} from "./provisionerGenerated";
-import { prometheusPort, agentPProfPort } from "./constants";
-import { port } from "./playwright.config";
+import capitalize from "lodash/capitalize";
+import path from "path";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
-import {
+import type {
   WorkspaceBuildParameter,
   UpdateTemplateMeta,
 } from "api/typesGenerated";
-import axios from "axios";
-import capitalize from "lodash/capitalize";
+import { TarWriter } from "utils/tar";
+import { prometheusPort, agentPProfPort } from "./constants";
+import { port } from "./playwright.config";
+import {
+  Agent,
+  type App,
+  AppSharingLevel,
+  type ParseComplete,
+  type PlanComplete,
+  type ApplyComplete,
+  type Resource,
+  Response,
+  type RichParameter,
+} from "./provisionerGenerated";
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.

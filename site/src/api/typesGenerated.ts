@@ -1504,6 +1504,7 @@ export interface UpsertWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/users.go
@@ -1762,6 +1763,7 @@ export interface WorkspaceAgentPortShare {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/workspaceagentportshare.go
@@ -2003,16 +2005,20 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
   | "azure-devops"
+  | "azure-devops-entra"
   | "bitbucket-cloud"
   | "bitbucket-server"
+  | "gitea"
   | "github"
   | "gitlab"
   | "jfrog"
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
+  "azure-devops-entra",
   "bitbucket-cloud",
   "bitbucket-server",
+  "gitea",
   "github",
   "gitlab",
   "jfrog",
@@ -2249,6 +2255,8 @@ export type ResourceType =
   | "group"
   | "health_settings"
   | "license"
+  | "oauth2_provider_app"
+  | "oauth2_provider_app_secret"
   | "organization"
   | "template"
   | "template_version"
@@ -2263,6 +2271,8 @@ export const ResourceTypes: ResourceType[] = [
   "group",
   "health_settings",
   "license",
+  "oauth2_provider_app",
+  "oauth2_provider_app_secret",
   "organization",
   "template",
   "template_version",
@@ -2342,6 +2352,11 @@ export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
   "owner",
   "public",
 ];
+
+// From codersdk/workspaceagentportshare.go
+export type WorkspaceAgentPortShareProtocol = "http" | "https";
+export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] =
+  ["http", "https"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";

@@ -90,7 +90,6 @@ type Options struct {
 
 type Client interface {
 	ConnectRPC(ctx context.Context) (drpc.Conn, error)
-	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
 
@@ -298,7 +297,6 @@ func (a *agent) init() {
 // may be happening, but regardless after the intermittent
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop() {
-	go a.reportMetadataUntilGracefulShutdown()
 	go a.manageProcessPriorityUntilGracefulShutdown()
 
 	// need to keep retrying up to the hardCtx so that we can send graceful shutdown-related
@@ -405,9 +403,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 	fn()
 }
 
-func (a *agent) reportMetadataUntilGracefulShutdown() {
-	// metadata reporting can cease as soon as we start gracefully shutting down.
-	ctx := a.gracefulCtx
+func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 	tickerDone := make(chan struct{})
 	collectDone := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -567,51 +563,55 @@ func (a *agent) reportMetadataUntilGracefulShutdown() {
 	var (
 		updatedMetadata = make(map[string]*codersdk.WorkspaceAgentMetadataResult)
 		reportTimeout   = 30 * time.Second
-		reportSemaphore = make(chan struct{}, 1)
+		reportError     = make(chan error, 1)
+		reportInFlight  = false
+		aAPI            = proto.NewDRPCAgentClient(conn)
 	)
-	reportSemaphore <- struct{}{}
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case mr := <-metadataResults:
 			// This can overwrite unsent values, but that's fine because
 			// we're only interested about up-to-date values.
 			updatedMetadata[mr.key] = mr.result
 			continue
-		case <-report:
-			if len(updatedMetadata) > 0 {
-				select {
-				case <-reportSemaphore:
-				default:
-					// If there's already a report in flight, don't send
-					// another one, wait for next tick instead.
-					continue
-				}
-
-				metadata := make([]agentsdk.Metadata, 0, len(updatedMetadata))
-				for key, result := range updatedMetadata {
-					metadata = append(metadata, agentsdk.Metadata{
-						Key:                          key,
-						WorkspaceAgentMetadataResult: *result,
-					})
-					delete(updatedMetadata, key)
-				}
-
-				go func() {
-					ctx, cancel := context.WithTimeout(ctx, reportTimeout)
-					defer func() {
-						cancel()
-						reportSemaphore <- struct{}{}
-					}()
-
-					err := a.client.PostMetadata(ctx, agentsdk.PostMetadataRequest{Metadata: metadata})
-					if err != nil {
-						a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
-					}
-				}()
+		case err := <-reportError:
+			a.logger.Debug(ctx, "batch update metadata complete", slog.Error(err))
+			if err != nil {
+				return xerrors.Errorf("failed to report metadata: %w", err)
 			}
+			reportInFlight = false
+		case <-report:
+			if len(updatedMetadata) == 0 {
+				continue
+			}
+			if reportInFlight {
+				// If there's already a report in flight, don't send
+				// another one, wait for next tick instead.
+				a.logger.Debug(ctx, "skipped metadata report tick because report is in flight")
+				continue
+			}
+			metadata := make([]*proto.Metadata, 0, len(updatedMetadata))
+			for key, result := range updatedMetadata {
+				pr := agentsdk.ProtoFromMetadataResult(*result)
+				metadata = append(metadata, &proto.Metadata{
+					Key:    key,
+					Result: pr,
+				})
+				delete(updatedMetadata, key)
+			}
+
+			reportInFlight = true
+			go func() {
+				a.logger.Debug(ctx, "batch updating metadata")
+				ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+				defer cancel()
+
+				_, err := aAPI.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{Metadata: metadata})
+				reportError <- err
+			}()
 		}
 	}
 }
@@ -782,6 +782,9 @@ func (a *agent) run() (retErr error) {
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
 	connMan.start("report lifecycle", gracefulShutdownBehaviorRemain, a.reportLifecycle)
+
+	// metadata reporting can cease as soon as we start gracefully shutting down
+	connMan.start("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
 	// channels to sync goroutines below
 	//  handle manifest

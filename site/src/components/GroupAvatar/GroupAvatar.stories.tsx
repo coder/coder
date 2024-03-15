@@ -1,5 +1,5 @@
-import { GroupAvatar } from "./GroupAvatar";
 import type { Meta, StoryObj } from "@storybook/react";
+import { GroupAvatar } from "./GroupAvatar";
 
 const meta: Meta<typeof GroupAvatar> = {
   title: "components/GroupAvatar",

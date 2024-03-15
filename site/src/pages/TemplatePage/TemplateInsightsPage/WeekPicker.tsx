@@ -3,9 +3,9 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { type FC, useState, useRef } from "react";
-import { DateRangeValue } from "./DateRange";
 import { differenceInWeeks } from "date-fns";
+import { type FC, useState, useRef } from "react";
+import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
 
 // There is no point in showing the period > 6 months. We prune stats older than

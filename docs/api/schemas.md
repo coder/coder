@@ -5113,21 +5113,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value              |
-| ------------------ |
-| `template`         |
-| `template_version` |
-| `user`             |
-| `workspace`        |
-| `workspace_build`  |
-| `git_ssh_key`      |
-| `api_key`          |
-| `group`            |
-| `license`          |
-| `convert_login`    |
-| `health_settings`  |
-| `workspace_proxy`  |
-| `organization`     |
+| Value                        |
+| ---------------------------- |
+| `template`                   |
+| `template_version`           |
+| `user`                       |
+| `workspace`                  |
+| `workspace_build`            |
+| `git_ssh_key`                |
+| `api_key`                    |
+| `group`                      |
+| `license`                    |
+| `convert_login`              |
+| `health_settings`            |
+| `workspace_proxy`            |
+| `organization`               |
+| `oauth2_provider_app`        |
+| `oauth2_provider_app_secret` |
 
 ## codersdk.Response
 
@@ -6291,9 +6293,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description |
-| ---------- | ------ | -------- | ------------ | ----------- |
-| `schedule` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| ---------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schedule` | string | false    |              | Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>` Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present. |
 
 ## codersdk.UpdateWorkspaceDormancy
 
@@ -6357,17 +6359,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_name": "string",
   "port": 0,
+  "protocol": "http",
   "share_level": "owner"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                           | Required | Restrictions | Description |
-| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `agent_name`  | string                                                                         | false    |              |             |
-| `port`        | integer                                                                        | false    |              |             |
-| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
+| Name          | Type                                                                                 | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`  | string                                                                               | false    |              |             |
+| `port`        | integer                                                                              | false    |              |             |
+| `protocol`    | [codersdk.WorkspaceAgentPortShareProtocol](#codersdkworkspaceagentportshareprotocol) | false    |              |             |
+| `share_level` | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
+
+#### Enumerated Values
+
+| Property      | Value           |
+| ------------- | --------------- |
+| `protocol`    | `http`          |
+| `protocol`    | `https`         |
+| `share_level` | `owner`         |
+| `share_level` | `authenticated` |
+| `share_level` | `public`        |
 
 ## codersdk.User
 
@@ -7323,6 +7337,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_name": "string",
   "port": 0,
+  "protocol": "http",
   "share_level": "owner",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -7330,12 +7345,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type                                                                           | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `agent_name`   | string                                                                         | false    |              |             |
-| `port`         | integer                                                                        | false    |              |             |
-| `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |             |
-| `workspace_id` | string                                                                         | false    |              |             |
+| Name           | Type                                                                                 | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `agent_name`   | string                                                                               | false    |              |             |
+| `port`         | integer                                                                              | false    |              |             |
+| `protocol`     | [codersdk.WorkspaceAgentPortShareProtocol](#codersdkworkspaceagentportshareprotocol) | false    |              |             |
+| `share_level`  | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel)       | false    |              |             |
+| `workspace_id` | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property      | Value           |
+| ------------- | --------------- |
+| `protocol`    | `http`          |
+| `protocol`    | `https`         |
+| `share_level` | `owner`         |
+| `share_level` | `authenticated` |
+| `share_level` | `public`        |
 
 ## codersdk.WorkspaceAgentPortShareLevel
 
@@ -7353,6 +7379,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `authenticated` |
 | `public`        |
 
+## codersdk.WorkspaceAgentPortShareProtocol
+
+```json
+"http"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+| ------- |
+| `http`  |
+| `https` |
+
 ## codersdk.WorkspaceAgentPortShares
 
 ```json
@@ -7361,6 +7402,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "agent_name": "string",
       "port": 0,
+      "protocol": "http",
       "share_level": "owner",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
     }

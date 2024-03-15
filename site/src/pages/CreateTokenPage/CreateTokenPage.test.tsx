@@ -1,11 +1,11 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import * as API from "api/api";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { CreateTokenPage } from "./CreateTokenPage";
-import * as API from "api/api";
-import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 describe("TokenPage", () => {
   it("shows the success modal", async () => {

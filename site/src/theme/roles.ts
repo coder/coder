@@ -55,10 +55,10 @@ export interface Role {
 
   /** A set of more saturated colors to make things stand out */
   fill: {
-    /** A saturated color for use as a background, or for text or icons on a neutral background */
+    /** A saturated color for use as a background, or icons on a neutral background */
     solid: string;
 
-    /** A color for outlining an area using the solid background color, or for an outlined icon */
+    /** A color for outlining an area using the solid background color, or for text or for an outlined icon */
     outline: string;
 
     /** A color for text when using the `solid` background color */

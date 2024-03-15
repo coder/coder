@@ -269,6 +269,3 @@ func Test_RequestValidate(t *testing.T) {
 		})
 	}
 }
-
-// getDatabase is tested heavily in auth_test.go, so we don't have specific
-// tests for it here.

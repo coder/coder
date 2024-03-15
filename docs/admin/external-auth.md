@@ -23,6 +23,7 @@ application. The following providers are supported:
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
+- [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 
 Example callback URL:
 `https://coder.example.com/external-auth/primary-github/callback`. Use an
@@ -106,6 +107,47 @@ CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
+```
+
+### Azure DevOps (via Entra ID)
+
+Azure DevOps (via Entra ID) requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
+CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
+```
+
+> Note: Your app registration in Entra ID requires the `vso.code_write` scope
+
+### GitLab self-managed
+
+GitLab self-managed requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
+CODER_EXTERNAL_AUTH_0_TYPE=gitlab
+# This value is the "Application ID"
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://gitlab.company.org/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.company.org/oauth/authorize"
+CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
+CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
+```
+
+### Gitea
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="gitea"
+CODER_EXTERNAL_AUTH_0_TYPE=gitea
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+# If self managed, set the Auth URL to your Gitea instance
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
 ### Self-managed git providers

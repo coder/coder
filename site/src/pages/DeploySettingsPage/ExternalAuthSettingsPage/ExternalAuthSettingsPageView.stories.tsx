@@ -1,5 +1,5 @@
-import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
   title: "pages/DeploySettingsPage/ExternalAuthSettingsPageView",

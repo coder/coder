@@ -1,9 +1,9 @@
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import { type FC, useState } from "react";
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
 const Language = {

@@ -1,6 +1,6 @@
-import { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react";
 import ExternalAuthPageView, {
-  ExternalAuthPageViewProps,
+  type ExternalAuthPageViewProps,
 } from "./ExternalAuthPageView";
 
 export default {
@@ -46,6 +46,27 @@ DeviceUnauthenticated.args = {
     interval: 5,
     user_code: "ABCD-EFGH",
     verification_uri: "",
+  },
+};
+
+export const Device429Error = Template.bind({});
+Device429Error.args = {
+  externalAuth: {
+    display_name: "GitHub",
+    authenticated: false,
+    device: true,
+    installations: [],
+    app_install_url: "",
+    app_installable: false,
+  },
+  // This is intentionally undefined.
+  // If we get a 429 on the first /device call, then this
+  // is undefined with a 429 error.
+  externalAuthDevice: undefined,
+  deviceExchangeError: {
+    message: "Failed to authorize device.",
+    detail:
+      "rate limit hit, unable to authorize device. please try again later",
   },
 };
 

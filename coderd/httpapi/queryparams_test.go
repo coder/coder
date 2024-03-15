@@ -236,6 +236,50 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.Int)
 	})
 
+	t.Run("PositiveInt32", func(t *testing.T) {
+		t.Parallel()
+		expParams := []queryParamTestCase[int32]{
+			{
+				QueryParam: "valid_integer",
+				Value:      "100",
+				Expected:   100,
+			},
+			{
+				QueryParam: "empty",
+				Value:      "",
+				Expected:   0,
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Default:    5,
+				Expected:   5,
+			},
+			{
+				QueryParam:            "negative",
+				Value:                 "-1",
+				Expected:              0,
+				Default:               5,
+				ExpectedErrorContains: "must be a valid 32-bit positive integer",
+			},
+			{
+				QueryParam:            "invalid_integer",
+				Value:                 "bogus",
+				Expected:              0,
+				ExpectedErrorContains: "must be a valid 32-bit positive integer",
+			},
+			{
+				QueryParam:            "max_int_plus_one",
+				Value:                 "2147483648",
+				Expected:              0,
+				ExpectedErrorContains: "must be a valid 32-bit positive integer",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.PositiveInt32)
+	})
+
 	t.Run("UInt", func(t *testing.T) {
 		t.Parallel()
 		expParams := []queryParamTestCase[uint64]{
