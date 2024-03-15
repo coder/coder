@@ -320,6 +320,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		Logger:         log.Named("dial-agent"),
 		BlockEndpoints: false,
 	})
+	// nolint: nestif
 	if err != nil {
 		log.Error(ctx, "dial agent", slog.Error(err))
 	} else {
