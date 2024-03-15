@@ -90,7 +90,7 @@ export const WorkspacesPageView = ({
   // Let's say the user has 5 workspaces, but tried to hit page 100, which does
   // not exist. In this case, the page is not valid and we want to show a better
   // error message.
-  const invalidPageNumber = page > 1 && workspaces?.length === 0;
+  const invalidPageNumber = page !== 1 && workspaces?.length === 0;
 
   return (
     <Margins>
