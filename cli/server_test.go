@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -1605,7 +1606,7 @@ func TestServer_Production(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
-func TestServer_Shutdown(t *testing.T) {
+func TestServer_InterruptShutdown(t *testing.T) {
 	t.Skip("This test issues an interrupt signal which will propagate to the test runner.")
 
 	if runtime.GOOS == "windows" {
@@ -1635,6 +1636,46 @@ func TestServer_Shutdown(t *testing.T) {
 	// We cannot send more signals here, because it's possible Coder
 	// has already exited, which could cause the test to fail due to interrupt.
 	err = <-serverErr
+	require.NoError(t, err)
+}
+
+func TestServer_GracefulShutdown(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// Sending interrupt signal isn't supported on Windows!
+		t.SkipNow()
+	}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	root, cfg := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--provisioner-daemons", "1",
+		"--cache-dir", t.TempDir(),
+	)
+	var stopFunc context.CancelFunc
+	root = root.WithTestSignalNotifyContext(t, func(parent context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+		if !reflect.DeepEqual(cli.StopSignalsNoInterrupt, signals) {
+			return context.WithCancel(ctx)
+		}
+		var ctx context.Context
+		ctx, stopFunc = context.WithCancel(parent)
+		return ctx, stopFunc
+	})
+	serverErr := make(chan error, 1)
+	pty := ptytest.New(t).Attach(root)
+	go func() {
+		serverErr <- root.WithContext(ctx).Run()
+	}()
+	_ = waitAccessURL(t, cfg)
+	// It's fair to assume `stopFunc` isn't nil here, because the server
+	// has started and access URL is propagated.
+	stopFunc()
+	pty.ExpectMatch("waiting for provisioner jobs to complete")
+	err := <-serverErr
 	require.NoError(t, err)
 }
 

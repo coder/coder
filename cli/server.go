@@ -337,7 +337,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
-			// shadowing cancel() (from above) here because notifyStop()
+			// shadowing cancel() (from above) here because stopCancel()
 			// restores default behavior for the signals. This protects
 			// the shutdown sequence from abruptly terminating things
 			// like: database migrations, provisioner work, workspace
@@ -345,8 +345,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
-			defer notifyStop()
+			stopCtx, stopCancel := signalNotifyContext(ctx, inv, StopSignalsNoInterrupt...)
+			defer stopCancel()
+			interruptCtx, interruptCancel := signalNotifyContext(ctx, inv, InterruptSignals...)
+			defer interruptCancel()
 
 			cacheDir := vals.CacheDir.String()
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -1028,13 +1030,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			hangDetector.Start()
 			defer hangDetector.Close()
 
+			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				waitForProvisionerJobs = true
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
+			case <-interruptCtx.Done():
+				exitErr = interruptCtx.Err()
 				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
@@ -1082,7 +1089,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
-					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
+					timeout := 5 * time.Second
+					if waitForProvisionerJobs {
+						// It can last for a long time...
+						timeout = 30 * time.Minute
+					}
+
+					err := shutdownWithTimeout(func(ctx context.Context) error {
+						// We only want to cancel active jobs if we aren't exiting gracefully.
+						return provisionerDaemon.Shutdown(ctx, !waitForProvisionerJobs)
+					}, timeout)
 					if err != nil {
 						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
@@ -2511,4 +2527,13 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	}
 
 	return v, nil
+}
+
+func signalNotifyContext(ctx context.Context, inv *clibase.Invocation, sig ...os.Signal) (context.Context, context.CancelFunc) {
+	// On Windows, some of our signal functions lack support.
+	// If we pass in no signals, we should just return the context as-is.
+	if len(sig) == 0 {
+		return context.WithCancel(ctx)
+	}
+	return inv.SignalNotifyContext(ctx, sig...)
 }

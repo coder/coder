@@ -73,7 +73,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// session can persist for up to 72 hours, since we set a long
 			// timeout on the Agent side of the connection.  In particular,
 			// OpenSSH sends SIGHUP to terminate a proxy command.
-			ctx, stop := inv.SignalNotifyContext(inv.Context(), InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(inv.Context(), StopSignals...)
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()

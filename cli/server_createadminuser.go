@@ -47,7 +47,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, cancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer cancel()
 
 			if newUserDBURL == "" {
