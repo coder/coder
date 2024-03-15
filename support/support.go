@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -57,14 +58,16 @@ type Workspace struct {
 }
 
 type Agent struct {
-	Agent           *codersdk.WorkspaceAgent                       `json:"agent"`
-	ListeningPorts  *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
-	Logs            []byte                                         `json:"logs"`
-	MagicsockHTML   []byte                                         `json:"magicsock_html"`
-	Manifest        *agentsdk.Manifest                             `json:"manifest"`
-	PeerDiagnostics *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
-	PingResult      *ipnstate.PingResult                           `json:"ping_result"`
-	StartupLogs     []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
+	Agent               *codersdk.WorkspaceAgent                       `json:"agent"`
+	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
+	Logs                []byte                                         `json:"logs"`
+	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
+	AgentMagicsockHTML  []byte                                         `json:"agent_magicsock_html"`
+	Manifest            *agentsdk.Manifest                             `json:"manifest"`
+	PeerDiagnostics     *tailnet.PeerDiagnostics                       `json:"peer_diagnostics"`
+	PingResult          *ipnstate.PingResult                           `json:"ping_result"`
+	Prometheus          []byte                                         `json:"prometheus"`
+	StartupLogs         []codersdk.WorkspaceAgentLog                   `json:"startup_logs"`
 }
 
 // Deps is a set of dependencies for discovering information
@@ -330,6 +333,28 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 			log.Error(ctx, "timed out waiting for agent")
 		} else {
 			eg.Go(func() error {
+				mux := http.NewServeMux()
+				mux.HandleFunc("/", conn.MagicsockServeHTTPDebug)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/", nil)
+				if err != nil {
+					return xerrors.Errorf("create request: %w", err)
+				}
+				rr := httptest.NewRecorder()
+				mux.ServeHTTP(rr, req)
+				a.ClientMagicsockHTML = rr.Body.Bytes()
+				return nil
+			})
+
+			eg.Go(func() error {
+				promRes, err := conn.PrometheusMetrics(ctx)
+				if err != nil {
+					return xerrors.Errorf("fetch agent prometheus metrics: %w", err)
+				}
+				a.Prometheus = promRes
+				return nil
+			})
+
+			eg.Go(func() error {
 				_, _, pingRes, err := conn.Ping(ctx)
 				if err != nil {
 					return xerrors.Errorf("ping agent: %w", err)
@@ -349,7 +374,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 				if err != nil {
 					return xerrors.Errorf("get agent magicsock page: %w", err)
 				}
-				a.MagicsockHTML = msBytes
+				a.AgentMagicsockHTML = msBytes
 				return nil
 			})
 
