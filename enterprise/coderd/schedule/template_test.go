@@ -336,23 +336,27 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			},
 		})
 		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			CreatedBy: user.ID,
-			JobID:     templateJob.ID,
+			CreatedBy:      user.ID,
+			JobID:          templateJob.ID,
+			OrganizationID: templateJob.OrganizationID,
 		})
 		template = dbgen.Template(t, db, database.Template{
 			ActiveVersionID: templateVersion.ID,
 			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
 		})
 		otherTemplate = dbgen.Template(t, db, database.Template{
 			ActiveVersionID: templateVersion.ID,
 			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
 		})
 	)
 
 	// Create a workspace that will be shared by two builds.
 	ws := dbgen.Workspace(t, db, database.Workspace{
-		OwnerID:    user.ID,
-		TemplateID: template.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+		OrganizationID: templateJob.OrganizationID,
 	})
 
 	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
@@ -467,8 +471,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		wsID := b.workspaceID
 		if wsID == uuid.Nil {
 			ws := dbgen.Workspace(t, db, database.Workspace{
-				OwnerID:    user.ID,
-				TemplateID: b.templateID,
+				OwnerID:        user.ID,
+				TemplateID:     b.templateID,
+				OrganizationID: templateJob.OrganizationID,
 			})
 			wsID = ws.ID
 		}
@@ -479,6 +484,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			Tags: database.StringMap{
 				wsID.String(): "yeah",
 			},
+			OrganizationID: templateJob.OrganizationID,
 		})
 		wsBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       wsID,
