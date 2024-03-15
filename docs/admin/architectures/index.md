@@ -1,7 +1,7 @@
 # Reference Architectures
 
 This document provides prescriptive solutions and reference architectures to
-support successful deployments of up to 2000 users and outlines at a high-level
+support successful deployments of up to 3000 users and outlines at a high-level
 the methodology currently used to scale-test Coder.
 
 ## General concepts
@@ -168,7 +168,7 @@ Provisionerd:
 Database:
 
 - Median CPU utilization is 80%, with a significant portion dedicated to writing
-  metadata.
+  workspace agent metadata.
 - Memory utilization averages at 40%.
 - `write_ops_count` between 6.7 and 8.4 operations per second.
 
@@ -215,7 +215,9 @@ When determining scaling requirements, consider the following factors:
 - API latency/response time: Monitor API latency and response times to ensure
   optimal performance under varying loads.
 - Average number of HTTP requests: Track the average number of HTTP requests to
-  gauge system usage and identify potential bottlenecks.
+  gauge system usage and identify potential bottlenecks. The number of proxied
+  connections: For a very high number of proxied connections, more memory is
+  required.
 
 **HTTP API latency**
 

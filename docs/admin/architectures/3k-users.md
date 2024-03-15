@@ -26,7 +26,8 @@ purposes.
 **Footnotes**:
 
 - An external provisioner is deployed as Kubernetes pod.
-- It is strongly discouraged to run provisioner daemons on `coderd` nodes.
+- It is strongly discouraged to run provisioner daemons on `coderd` nodes at
+  this level of scale.
 - Separate provisioners into different namespaces in favor of zero-trust or
   multi-cloud deployments.
 

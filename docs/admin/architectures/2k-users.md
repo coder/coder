@@ -10,8 +10,8 @@ clusters.
 
 **Target load**: API: up to 300 RPS
 
-**High Availability**: The mode is _disabled_, but administrators may consider
-enabling it for deployment reliability.
+**High Availability**: The mode is _enabled_; multiple replicas provide higher
+deployment reliability under load.
 
 ## Hardware recommendations
 
