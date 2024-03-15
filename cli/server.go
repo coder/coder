@@ -345,8 +345,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			stopCtx, stopCancel := signalNotifyContext(ctx, inv, StopSignals...)
-			defer stopCancel()
 			interruptCtx, interruptCancel := signalNotifyContext(ctx, inv, InterruptSignals...)
 			defer interruptCancel()
 
@@ -1030,19 +1028,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			hangDetector.Start()
 			defer hangDetector.Close()
 
-			graceful := false
+			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-stopCtx.Done():
-				exitErr = stopCtx.Err()
-				graceful = true
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-interruptCtx.Done():
 				exitErr = interruptCtx.Err()
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
+				waitForProvisionerJobs = true
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case <-pubsubWatchdogTimeout:
@@ -1090,14 +1085,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
 					timeout := 5 * time.Second
-					if graceful {
+					if waitForProvisionerJobs {
 						// It can last for a long time...
 						timeout = 30 * time.Minute
 					}
 
 					err := shutdownWithTimeout(func(ctx context.Context) error {
 						// We only want to cancel active jobs if we aren't exiting gracefully.
-						return provisionerDaemon.Shutdown(ctx, !graceful)
+						return provisionerDaemon.Shutdown(ctx, !waitForProvisionerJobs)
 					}, timeout)
 					if err != nil {
 						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)

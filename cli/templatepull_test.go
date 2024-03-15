@@ -328,7 +328,7 @@ func TestTemplatePull_ToDir(t *testing.T) {
 
 			require.NoError(t, inv.Run())
 
-			// Validate behaviour of choosing template name in the absence of an output path argument.
+			// Validate behavior of choosing template name in the absence of an output path argument.
 			destPath := actualDest
 			if destPath == "" {
 				destPath = template.Name
