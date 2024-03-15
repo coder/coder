@@ -316,104 +316,118 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		return nil
 	})
 
-	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger:         log.Named("dial-agent"),
-		BlockEndpoints: false,
-	})
-	// nolint: nestif
-	if err != nil {
-		log.Error(ctx, "dial agent", slog.Error(err))
-	} else {
-		defer func() {
-			if err := conn.Close(); err != nil {
-				log.Error(ctx, "failed to close agent connection", slog.Error(err))
-			}
-			<-conn.Closed()
-		}()
-		if !conn.AwaitReachable(ctx) {
-			log.Error(ctx, "timed out waiting for agent")
-		} else {
-			eg.Go(func() error {
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/", nil)
-				if err != nil {
-					return xerrors.Errorf("create request: %w", err)
-				}
-				rr := httptest.NewRecorder()
-				conn.MagicsockServeHTTPDebug(rr, req)
-				a.ClientMagicsockHTML = rr.Body.Bytes()
-				return nil
-			})
-
-			eg.Go(func() error {
-				promRes, err := conn.PrometheusMetrics(ctx)
-				if err != nil {
-					return xerrors.Errorf("fetch agent prometheus metrics: %w", err)
-				}
-				a.Prometheus = promRes
-				return nil
-			})
-
-			eg.Go(func() error {
-				_, _, pingRes, err := conn.Ping(ctx)
-				if err != nil {
-					return xerrors.Errorf("ping agent: %w", err)
-				}
-				a.PingResult = pingRes
-				return nil
-			})
-
-			eg.Go(func() error {
-				pds := conn.GetPeerDiagnostics()
-				a.PeerDiagnostics = &pds
-				return nil
-			})
-
-			eg.Go(func() error {
-				msBytes, err := conn.DebugMagicsock(ctx)
-				if err != nil {
-					return xerrors.Errorf("get agent magicsock page: %w", err)
-				}
-				a.AgentMagicsockHTML = msBytes
-				return nil
-			})
-
-			eg.Go(func() error {
-				manifestRes, err := conn.DebugManifest(ctx)
-				if err != nil {
-					return xerrors.Errorf("fetch manifest: %w", err)
-				}
-				if err := json.NewDecoder(bytes.NewReader(manifestRes)).Decode(&a.Manifest); err != nil {
-					return xerrors.Errorf("decode agent manifest: %w", err)
-				}
-
-				return nil
-			})
-
-			eg.Go(func() error {
-				logBytes, err := conn.DebugLogs(ctx)
-				if err != nil {
-					return xerrors.Errorf("fetch coder agent logs: %w", err)
-				}
-				a.Logs = logBytes
-				return nil
-			})
-
-			eg.Go(func() error {
-				lps, err := conn.ListeningPorts(ctx)
-				if err != nil {
-					return xerrors.Errorf("get listening ports: %w", err)
-				}
-				a.ListeningPorts = &lps
-				return nil
-			})
-		}
-	}
+	// to simplify control flow, fetching information directly from
+	// the agent is handled in a separate function
+	closer := connectedAgentInfo(ctx, client, log, agentID, &eg, &a)
+	defer closer()
 
 	if err := eg.Wait(); err != nil {
 		log.Error(ctx, "fetch agent information", slog.Error(err))
 	}
 
 	return a
+}
+
+func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
+	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+		Logger:         log.Named("dial-agent"),
+		BlockEndpoints: false,
+	})
+
+	closer = func() {}
+
+	if err != nil {
+		log.Error(ctx, "dial agent", slog.Error(err))
+		return closer
+	}
+
+	if !conn.AwaitReachable(ctx) {
+		log.Error(ctx, "timed out waiting for agent")
+		return closer
+	}
+
+	closer = func() {
+		if err := conn.Close(); err != nil {
+			log.Error(ctx, "failed to close agent connection", slog.Error(err))
+		}
+		<-conn.Closed()
+	}
+
+	eg.Go(func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/", nil)
+		if err != nil {
+			return xerrors.Errorf("create request: %w", err)
+		}
+		rr := httptest.NewRecorder()
+		conn.MagicsockServeHTTPDebug(rr, req)
+		a.ClientMagicsockHTML = rr.Body.Bytes()
+		return nil
+	})
+
+	eg.Go(func() error {
+		promRes, err := conn.PrometheusMetrics(ctx)
+		if err != nil {
+			return xerrors.Errorf("fetch agent prometheus metrics: %w", err)
+		}
+		a.Prometheus = promRes
+		return nil
+	})
+
+	eg.Go(func() error {
+		_, _, pingRes, err := conn.Ping(ctx)
+		if err != nil {
+			return xerrors.Errorf("ping agent: %w", err)
+		}
+		a.PingResult = pingRes
+		return nil
+	})
+
+	eg.Go(func() error {
+		pds := conn.GetPeerDiagnostics()
+		a.PeerDiagnostics = &pds
+		return nil
+	})
+
+	eg.Go(func() error {
+		msBytes, err := conn.DebugMagicsock(ctx)
+		if err != nil {
+			return xerrors.Errorf("get agent magicsock page: %w", err)
+		}
+		a.AgentMagicsockHTML = msBytes
+		return nil
+	})
+
+	eg.Go(func() error {
+		manifestRes, err := conn.DebugManifest(ctx)
+		if err != nil {
+			return xerrors.Errorf("fetch manifest: %w", err)
+		}
+		if err := json.NewDecoder(bytes.NewReader(manifestRes)).Decode(&a.Manifest); err != nil {
+			return xerrors.Errorf("decode agent manifest: %w", err)
+		}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		logBytes, err := conn.DebugLogs(ctx)
+		if err != nil {
+			return xerrors.Errorf("fetch coder agent logs: %w", err)
+		}
+		a.Logs = logBytes
+		return nil
+	})
+
+	eg.Go(func() error {
+		lps, err := conn.ListeningPorts(ctx)
+		if err != nil {
+			return xerrors.Errorf("get listening ports: %w", err)
+		}
+		a.ListeningPorts = &lps
+		return nil
+	})
+
+	return closer
 }
 
 // Run generates a support bundle with the given dependencies.
