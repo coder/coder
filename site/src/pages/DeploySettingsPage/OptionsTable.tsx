@@ -6,7 +6,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { FC } from "react";
-import type { ClibaseOption } from "api/typesGenerated";
+import type { SerpentOption } from "api/typesGenerated";
 import {
   OptionConfig,
   OptionConfigFlag,
@@ -17,7 +17,7 @@ import {
 import { optionValue } from "./optionValue";
 
 interface OptionsTableProps {
-  options: ClibaseOption[];
+  options: SerpentOption[];
   additionalValues?: string[];
 }
 
