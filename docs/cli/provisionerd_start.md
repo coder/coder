@@ -51,26 +51,6 @@ Deprecated and ignored.
 
 Deprecated and ignored.
 
-### --prometheus-address
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Type        | <code>string</code>                    |
-| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
-| Default     | <code>127.0.0.1:2112</code>            |
-
-The bind address to serve prometheus metrics.
-
-### --prometheus-enable
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>bool</code>                     |
-| Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
-| Default     | <code>false</code>                    |
-
-Serve prometheus metrics on the address defined by prometheus address.
-
 ### --psk
 
 |             |                                            |
@@ -135,3 +115,23 @@ Output Stackdriver compatible logs to a given file.
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
 
 Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+
+### --prometheus-enable
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
+| Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
+| Default     | <code>false</code>                    |
+
+Serve prometheus metrics on the address defined by prometheus address.
+
+### --prometheus-address
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
+| Default     | <code>127.0.0.1:2112</code>            |
+
+The bind address to serve prometheus metrics.
