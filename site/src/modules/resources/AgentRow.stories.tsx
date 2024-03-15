@@ -79,7 +79,7 @@ const storybookLogs: LineWithID[] = [
   level: "info",
   output: line,
   time: "",
-  source_id: M.MockWorkspaceAgentLogSource.id,
+  sourceId: M.MockWorkspaceAgentLogSource.id,
 }));
 
 const meta: Meta<typeof AgentRow> = {
