@@ -341,5 +341,5 @@ We provide the following general recommendations for PostgreSQL settings:
 - Allocate extra memory if database performance is poor and CPU utilization is
   low. For maximum performance, the entire database should be able to fit in
   RAM.
-- Utilize faster disk options such as SSDs or NVMe drives for optimal
-  performance enhancement.
+- Utilize faster disk options (higher IOPS) such as SSDs or NVMe drives for
+  optimal performance enhancement and possibly reduce database load.
