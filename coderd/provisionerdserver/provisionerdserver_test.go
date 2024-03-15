@@ -157,7 +157,7 @@ func TestAcquireJob(t *testing.T) {
 			defer cancel()
 
 			_, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 				ID:             uuid.New(),
 				InitiatorID:    uuid.New(),
 				Provisioner:    database.ProvisionerTypeEcho,
@@ -202,12 +202,12 @@ func TestAcquireJob(t *testing.T) {
 			template := dbgen.Template(t, db, database.Template{
 				Name:           "template",
 				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 			})
 			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
 			versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 				TemplateID: uuid.NullUUID{
 					UUID:  template.ID,
 					Valid: true,
@@ -227,7 +227,7 @@ func TestAcquireJob(t *testing.T) {
 			require.NoError(t, err)
 			// Import version job
 			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 				ID:             version.JobID,
 				InitiatorID:    user.ID,
 				FileID:         versionFile.ID,
@@ -259,7 +259,7 @@ func TestAcquireJob(t *testing.T) {
 			workspace := dbgen.Workspace(t, db, database.Workspace{
 				TemplateID:     template.ID,
 				OwnerID:        user.ID,
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 			})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 				WorkspaceID:       workspace.ID,
@@ -271,7 +271,7 @@ func TestAcquireJob(t *testing.T) {
 			})
 			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 				ID:             build.ID,
-				OrganizationID: pd.ID,
+				OrganizationID: pd.OrganizationID,
 				InitiatorID:    user.ID,
 				Provisioner:    database.ProvisionerTypeEcho,
 				StorageMethod:  database.ProvisionerStorageMethodFile,
