@@ -137,15 +137,19 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 }
 
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
+	// We JSON-encode the following:
 	for k, v := range map[string]any{
 		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
 		"deployment/config.json":          src.Deployment.Config,
 		"deployment/experiments.json":     src.Deployment.Experiments,
 		"deployment/health.json":          src.Deployment.HealthReport,
-		"network/netcheck_local.json":     src.Network.NetcheckLocal,
-		"network/netcheck_remote.json":    src.Network.NetcheckRemote,
+		"network/netcheck.json":           src.Network.Netcheck,
 		"workspace/workspace.json":        src.Workspace.Workspace,
-		"workspace/agent.json":            src.Workspace.Agent,
+		"agent/agent.json":                src.Agent.Agent,
+		"agent/listening_ports.json":      src.Agent.ListeningPorts,
+		"agent/manifest.json":             src.Agent.Manifest,
+		"agent/peer_diagnostics.json":     src.Agent.PeerDiagnostics,
+		"agent/ping_result.json":          src.Agent.PingResult,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
@@ -166,13 +170,16 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("decode template zip from base64")
 	}
 
+	// The below we just write as we have them:
 	for k, v := range map[string]string{
-		"network/coordinator_debug.html":   src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":       src.Network.TailnetDebug,
-		"workspace/build_logs.txt":         humanizeBuildLogs(src.Workspace.BuildLogs),
-		"workspace/agent_startup_logs.txt": humanizeAgentLogs(src.Workspace.AgentStartupLogs),
-		"workspace/template_file.zip":      string(templateVersionBytes),
-		"logs.txt":                         strings.Join(src.Logs, "\n"),
+		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
+		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
+		"agent/logs.txt":                 string(src.Agent.Logs),
+		"agent/magicsock.html":           string(src.Agent.MagicsockHTML),
+		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
+		"workspace/template_file.zip":    string(templateVersionBytes),
+		"logs.txt":                       strings.Join(src.Logs, "\n"),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
