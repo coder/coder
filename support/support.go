@@ -334,14 +334,12 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 			log.Error(ctx, "timed out waiting for agent")
 		} else {
 			eg.Go(func() error {
-				mux := http.NewServeMux()
-				mux.HandleFunc("/", conn.MagicsockServeHTTPDebug)
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/", nil)
 				if err != nil {
 					return xerrors.Errorf("create request: %w", err)
 				}
 				rr := httptest.NewRecorder()
-				mux.ServeHTTP(rr, req)
+				conn.MagicsockServeHTTPDebug(rr, req)
 				a.ClientMagicsockHTML = rr.Body.Bytes()
 				return nil
 			})
