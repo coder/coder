@@ -274,7 +274,7 @@ export const Error: Story = {
 export const InvalidPageNumber: Story = {
   args: {
     workspaces: [],
-    count: 5,
+    count: 200,
     limit: 25,
     page: 1000,
   },
