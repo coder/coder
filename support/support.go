@@ -57,7 +57,7 @@ type Workspace struct {
 }
 
 type Agent struct {
-	Agent           codersdk.WorkspaceAgent                        `json:"agent"`
+	Agent           *codersdk.WorkspaceAgent                       `json:"agent"`
 	ListeningPorts  *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs            []byte                                         `json:"logs"`
 	MagicsockHTML   []byte                                         `json:"magicsock_html"`
@@ -295,7 +295,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		if err != nil {
 			return xerrors.Errorf("fetch workspace agent: %w", err)
 		}
-		a.Agent = agt
+		a.Agent = &agt
 		return nil
 	})
 
@@ -313,9 +313,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		return nil
 	})
 
-	dialCtx, dialCancel := context.WithCancel(ctx)
-	defer dialCancel()
-	conn, err := client.DialWorkspaceAgent(dialCtx, agentID, &codersdk.DialWorkspaceAgentOptions{
+	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger:         log.Named("dial-agent"),
 		BlockEndpoints: false,
 	})

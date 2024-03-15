@@ -137,6 +137,7 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 }
 
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
+	// We JSON-encode the following:
 	for k, v := range map[string]any{
 		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
 		"deployment/config.json":          src.Deployment.Config,
@@ -169,6 +170,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("decode template zip from base64")
 	}
 
+	// The below we just write as we have them:
 	for k, v := range map[string]string{
 		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
 		"network/tailnet_debug.html":     src.Network.TailnetDebug,

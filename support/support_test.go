@@ -55,35 +55,34 @@ func TestRun(t *testing.T) {
 			AgentID:     agt.ID,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, bun)
-		require.NotEmpty(t, bun.Deployment.BuildInfo)
-		require.NotEmpty(t, bun.Deployment.Config)
-		require.NotEmpty(t, bun.Deployment.Config.Options)
+		assertNotNilNotEmpty(t, bun, "bundle should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.BuildInfo, "deployment build info should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Config, "deployment config should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Config.Options, "deployment config should be present")
 		assertSanitizedDeploymentConfig(t, bun.Deployment.Config)
-		require.NotEmpty(t, bun.Deployment.HealthReport)
-		require.NotEmpty(t, bun.Deployment.Experiments)
-		require.NotEmpty(t, bun.Network.CoordinatorDebug)
-		require.NotEmpty(t, bun.Network.TailnetDebug)
-		require.NotNil(t, bun.Network.Netcheck)
-		require.NotNil(t, bun.Workspace.Workspace)
+		assertNotNilNotEmpty(t, bun.Deployment.HealthReport, "deployment health report should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Experiments, "deployment experiments should be present")
+		assertNotNilNotEmpty(t, bun.Network.CoordinatorDebug, "network coordinator debug should be present")
+		assertNotNilNotEmpty(t, bun.Network.TailnetDebug, "network tailnet debug should be present")
+		assertNotNilNotEmpty(t, bun.Network.Netcheck, "network netcheck should be present")
+		assertNotNilNotEmpty(t, bun.Workspace.Workspace, "workspace should be present")
 		assertSanitizedWorkspace(t, bun.Workspace.Workspace)
-		require.NotEmpty(t, bun.Workspace.BuildLogs)
-		require.NotEmpty(t, bun.Workspace.Template)
-		require.NotEmpty(t, bun.Workspace.TemplateVersion)
-		require.NotEmpty(t, bun.Workspace.TemplateFileBase64)
-		require.NotNil(t, bun.Workspace.Parameters)
-		require.NotNil(t, bun.Agent.Agent)
-		require.NotNil(t, bun.Agent.ListeningPorts)
-		require.NotNil(t, bun.Agent.Logs)
-		require.NotNil(t, bun.Agent.MagicsockHTML)
-		require.NotNil(t, bun.Agent.Manifest)
-		require.NotNil(t, bun.Agent.PeerDiagnostics)
-		require.NotNil(t, bun.Agent.PingResult)
-		require.NotEmpty(t, bun.Agent.StartupLogs)
-		require.NotEmpty(t, bun.Logs)
+		assertNotNilNotEmpty(t, bun.Workspace.BuildLogs, "workspace build logs should be present")
+		assertNotNilNotEmpty(t, bun.Workspace.Template, "workspace template should be present")
+		assertNotNilNotEmpty(t, bun.Workspace.TemplateVersion, "workspace template version should be present")
+		assertNotNilNotEmpty(t, bun.Workspace.TemplateFileBase64, "workspace template file should be present")
+		require.NotNil(t, bun.Workspace.Parameters, "workspace parameters should be present")
+		assertNotNilNotEmpty(t, bun.Agent.Agent, "agent should be present")
+		assertNotNilNotEmpty(t, bun.Agent.ListeningPorts, "agent listening ports should be present")
+		assertNotNilNotEmpty(t, bun.Agent.Logs, "agent logs should be present")
+		assertNotNilNotEmpty(t, bun.Agent.MagicsockHTML, "agent magicsock should be present")
+		assertNotNilNotEmpty(t, bun.Agent.PeerDiagnostics, "agent peer diagnostics should be present")
+		assertNotNilNotEmpty(t, bun.Agent.PingResult, "agent ping result should be present")
+		assertNotNilNotEmpty(t, bun.Agent.StartupLogs, "agent startup logs should be present")
+		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
 	})
 
-	t.Run("OK_NoAgent", func(t *testing.T) {
+	t.Run("OK_NoWorkspace", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo"}
@@ -98,18 +97,19 @@ func TestRun(t *testing.T) {
 			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, bun)
-		require.NotEmpty(t, bun.Deployment.BuildInfo)
-		require.NotEmpty(t, bun.Deployment.Config)
-		require.NotEmpty(t, bun.Deployment.Config.Options)
+		assertNotNilNotEmpty(t, bun, "bundle should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.BuildInfo, "deployment build info should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Config, "deployment config should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Config.Options, "deployment config should be present")
 		assertSanitizedDeploymentConfig(t, bun.Deployment.Config)
-		require.NotEmpty(t, bun.Deployment.HealthReport)
-		require.NotEmpty(t, bun.Deployment.Experiments)
-		require.NotEmpty(t, bun.Network.CoordinatorDebug)
-		require.NotEmpty(t, bun.Network.TailnetDebug)
-		require.NotNil(t, bun.Workspace)
-		assertSanitizedWorkspace(t, bun.Workspace.Workspace)
-		require.NotEmpty(t, bun.Logs)
+		assertNotNilNotEmpty(t, bun.Deployment.HealthReport, "deployment health report should be present")
+		assertNotNilNotEmpty(t, bun.Deployment.Experiments, "deployment experiments should be present")
+		assertNotNilNotEmpty(t, bun.Network.CoordinatorDebug, "network coordinator debug should be present")
+		assertNotNilNotEmpty(t, bun.Network.TailnetDebug, "network tailnet debug should be present")
+		assert.Empty(t, bun.Network.Netcheck, "did not expect netcheck to be present")
+		assert.Empty(t, bun.Workspace.Workspace, "did not expect workspace to be present")
+		assert.Empty(t, bun.Agent, "did not expect agent to be present")
+		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
 	})
 
 	t.Run("NoAuth", func(t *testing.T) {
@@ -224,4 +224,12 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
 
 	return ws, agt
+}
+
+func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {
+	t.Helper()
+
+	if assert.NotNil(t, v, msg+" but was nil") {
+		assert.NotEmpty(t, v, msg+" but was empty")
+	}
 }
