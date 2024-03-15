@@ -1,19 +1,19 @@
 package cli
 
 import (
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) users() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) users() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Short:   "Manage users",
 		Use:     "users [subcommand]",
 		Aliases: []string{"user"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.userCreate(),
 			r.userList(),
 			r.userSingle(),

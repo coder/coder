@@ -1,7 +1,7 @@
-import type { ClibaseOption } from "api/typesGenerated";
+import type { SerpentOption } from "api/typesGenerated";
 import { optionValue } from "./optionValue";
 
-const defaultOption: ClibaseOption = {
+const defaultOption: SerpentOption = {
   name: "",
   description: "",
   flag: "",
@@ -12,7 +12,7 @@ const defaultOption: ClibaseOption = {
 
 describe("optionValue", () => {
   it.each<{
-    option: ClibaseOption;
+    option: SerpentOption;
     additionalValues?: string[];
     expected: unknown;
   }>([

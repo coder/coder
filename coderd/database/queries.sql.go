@@ -8671,80 +8671,66 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	return err
 }
 
-const getWorkspaceAgentAndOwnerByAuthToken = `-- name: GetWorkspaceAgentAndOwnerByAuthToken :one
+const getWorkspaceAgentAndLatestBuildByAuthToken = `-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order,
-	workspaces.id AS workspace_id,
-	users.id AS owner_id,
-	users.username AS owner_name,
-	users.status AS owner_status,
-	workspaces.template_id AS template_id,
-	workspace_builds.template_version_id AS template_version_id,
-	array_cat(
-		array_append(users.rbac_roles, 'member'),
-		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
-	)::text[] as owner_roles,
-	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
-FROM users
-	INNER JOIN
-		workspaces
-	ON
-		workspaces.owner_id = users.id
-	INNER JOIN
-		workspace_builds
-	ON
-		workspace_builds.workspace_id = workspaces.id
-	INNER JOIN
-		workspace_resources
-	ON
-		workspace_resources.job_id = workspace_builds.job_id
-	INNER JOIN
-		workspace_agents
-	ON
-		workspace_agents.resource_id = workspace_resources.id
-	INNER JOIN -- every user is a member of some org
-		organization_members
-	ON
-		organization_members.user_id = users.id
-	LEFT JOIN -- as they may not be a member of any groups
-		group_members
-	ON
-		group_members.user_id = users.id
+	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username
+FROM
+	-- Only get the latest build for each workspace
+	(
+	SELECT
+		workspace_id, MAX(build_number) as max_build_number
+	FROM
+		workspace_build_with_user
+	GROUP BY
+		workspace_id
+	) as latest_builds
+	-- Pull the workspace_build rows for returning
+INNER JOIN workspace_build_with_user
+	ON workspace_build_with_user.workspace_id = latest_builds.workspace_id
+	AND workspace_build_with_user.build_number = latest_builds.max_build_number
+	-- For each latest build, grab the resources to relate to an agent
+INNER JOIN workspace_resources
+	ON workspace_resources.job_id = workspace_build_with_user.job_id
+	-- Agent <-> Resource is 1:1
+INNER JOIN workspace_agents
+	ON workspace_agents.resource_id = workspace_resources.id
+	-- We need the owner ID
+INNER JOIN workspaces
+	ON workspace_build_with_user.workspace_id = workspaces.id
 WHERE
-	-- TODO: we can add more conditions here, such as:
-	-- 1) The user must be active
-	-- 2) The workspace must be running
+	-- This should only match 1 agent, so 1 returned row or 0
 	workspace_agents.auth_token = $1
 AND
 	workspaces.deleted = FALSE
-GROUP BY
-	workspace_agents.id,
-	workspaces.id,
-	users.id,
-	organization_members.organization_id,
-	workspace_builds.build_number,
-	workspace_builds.template_version_id
-ORDER BY
-	workspace_builds.build_number DESC
-LIMIT 1
 `
 
-type GetWorkspaceAgentAndOwnerByAuthTokenRow struct {
-	WorkspaceAgent    WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
-	WorkspaceID       uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OwnerName         string         `db:"owner_name" json:"owner_name"`
-	OwnerStatus       UserStatus     `db:"owner_status" json:"owner_status"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID      `db:"template_version_id" json:"template_version_id"`
-	OwnerRoles        []string       `db:"owner_roles" json:"owner_roles"`
-	OwnerGroups       []string       `db:"owner_groups" json:"owner_groups"`
+type GetWorkspaceAgentAndLatestBuildByAuthTokenRow struct {
+	Workspace      Workspace      `db:"workspace" json:"workspace"`
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceBuild WorkspaceBuild `db:"workspace_build" json:"workspace_build"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndOwnerByAuthToken, authToken)
-	var i GetWorkspaceAgentAndOwnerByAuthTokenRow
+func (q *sqlQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndLatestBuildByAuthToken, authToken)
+	var i GetWorkspaceAgentAndLatestBuildByAuthTokenRow
 	err := row.Scan(
+		&i.Workspace.ID,
+		&i.Workspace.CreatedAt,
+		&i.Workspace.UpdatedAt,
+		&i.Workspace.OwnerID,
+		&i.Workspace.OrganizationID,
+		&i.Workspace.TemplateID,
+		&i.Workspace.Deleted,
+		&i.Workspace.Name,
+		&i.Workspace.AutostartSchedule,
+		&i.Workspace.Ttl,
+		&i.Workspace.LastUsedAt,
+		&i.Workspace.DormantAt,
+		&i.Workspace.DeletingAt,
+		&i.Workspace.AutomaticUpdates,
+		&i.Workspace.Favorite,
 		&i.WorkspaceAgent.ID,
 		&i.WorkspaceAgent.CreatedAt,
 		&i.WorkspaceAgent.UpdatedAt,
@@ -8776,14 +8762,22 @@ func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, a
 		pq.Array(&i.WorkspaceAgent.DisplayApps),
 		&i.WorkspaceAgent.APIVersion,
 		&i.WorkspaceAgent.DisplayOrder,
-		&i.WorkspaceID,
-		&i.OwnerID,
-		&i.OwnerName,
-		&i.OwnerStatus,
-		&i.TemplateID,
-		&i.TemplateVersionID,
-		pq.Array(&i.OwnerRoles),
-		pq.Array(&i.OwnerGroups),
+		&i.WorkspaceBuild.ID,
+		&i.WorkspaceBuild.CreatedAt,
+		&i.WorkspaceBuild.UpdatedAt,
+		&i.WorkspaceBuild.WorkspaceID,
+		&i.WorkspaceBuild.TemplateVersionID,
+		&i.WorkspaceBuild.BuildNumber,
+		&i.WorkspaceBuild.Transition,
+		&i.WorkspaceBuild.InitiatorID,
+		&i.WorkspaceBuild.ProvisionerState,
+		&i.WorkspaceBuild.JobID,
+		&i.WorkspaceBuild.Deadline,
+		&i.WorkspaceBuild.Reason,
+		&i.WorkspaceBuild.DailyCost,
+		&i.WorkspaceBuild.MaxDeadline,
+		&i.WorkspaceBuild.InitiatorByAvatarUrl,
+		&i.WorkspaceBuild.InitiatorByUsername,
 	)
 	return i, err
 }

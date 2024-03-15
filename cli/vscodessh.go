@@ -20,10 +20,10 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 // vscodeSSH is used by the Coder VS Code extension to establish
@@ -32,7 +32,7 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func (r *RootCmd) vscodeSSH() *clibase.Cmd {
+func (r *RootCmd) vscodeSSH() *serpent.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
@@ -41,15 +41,15 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 		networkInfoInterval time.Duration
 		waitEnum            string
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Code extension.
 		// It's not important here, only the delimiter `--` is.
 		Use:        "vscodessh <coder-vscode--<owner>--<workspace>--<agent?>>",
 		Hidden:     true,
-		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}
@@ -234,38 +234,38 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "network-info-dir",
 			Description: "Specifies a directory to write network information periodically.",
-			Value:       clibase.StringOf(&networkInfoDir),
+			Value:       serpent.StringOf(&networkInfoDir),
 		},
 		{
 			Flag:        "log-dir",
 			Description: "Specifies a directory to write logs to.",
-			Value:       clibase.StringOf(&logDir),
+			Value:       serpent.StringOf(&logDir),
 		},
 		{
 			Flag:        "session-token-file",
 			Description: "Specifies a file that contains a session token.",
-			Value:       clibase.StringOf(&sessionTokenFile),
+			Value:       serpent.StringOf(&sessionTokenFile),
 		},
 		{
 			Flag:        "url-file",
 			Description: "Specifies a file that contains the Coder URL.",
-			Value:       clibase.StringOf(&urlFile),
+			Value:       serpent.StringOf(&urlFile),
 		},
 		{
 			Flag:        "network-info-interval",
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
-			Value:       clibase.DurationOf(&networkInfoInterval),
+			Value:       serpent.DurationOf(&networkInfoInterval),
 		},
 		{
 			Flag:        "wait",
 			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
 			Default:     "auto",
-			Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
+			Value:       serpent.EnumOf(&waitEnum, "yes", "no", "auto"),
 		},
 	}
 	return cmd

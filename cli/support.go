@@ -16,38 +16,38 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) support() *clibase.Cmd {
-	supportCmd := &clibase.Cmd{
+func (r *RootCmd) support() *serpent.Cmd {
+	supportCmd := &serpent.Cmd{
 		Use:   "support",
 		Short: "Commands for troubleshooting issues with a Coder deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.supportBundle(),
 		},
 	}
 	return supportCmd
 }
 
-func (r *RootCmd) supportBundle() *clibase.Cmd {
+func (r *RootCmd) supportBundle() *serpent.Cmd {
 	var outputPath string
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				log = slog.Make(sloghuman.Sink(inv.Stderr)).
 					Leveled(slog.LevelDebug)
@@ -108,13 +108,13 @@ func (r *RootCmd) supportBundle() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "output",
 			FlagShorthand: "o",
 			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT",
 			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
-			Value:         clibase.StringOf(&outputPath),
+			Value:         serpent.StringOf(&outputPath),
 		},
 	}
 
@@ -137,15 +137,19 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 }
 
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
+	// We JSON-encode the following:
 	for k, v := range map[string]any{
 		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
 		"deployment/config.json":          src.Deployment.Config,
 		"deployment/experiments.json":     src.Deployment.Experiments,
 		"deployment/health.json":          src.Deployment.HealthReport,
-		"network/netcheck_local.json":     src.Network.NetcheckLocal,
-		"network/netcheck_remote.json":    src.Network.NetcheckRemote,
+		"network/netcheck.json":           src.Network.Netcheck,
 		"workspace/workspace.json":        src.Workspace.Workspace,
-		"workspace/agent.json":            src.Workspace.Agent,
+		"agent/agent.json":                src.Agent.Agent,
+		"agent/listening_ports.json":      src.Agent.ListeningPorts,
+		"agent/manifest.json":             src.Agent.Manifest,
+		"agent/peer_diagnostics.json":     src.Agent.PeerDiagnostics,
+		"agent/ping_result.json":          src.Agent.PingResult,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
@@ -166,13 +170,18 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("decode template zip from base64")
 	}
 
+	// The below we just write as we have them:
 	for k, v := range map[string]string{
-		"network/coordinator_debug.html":   src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":       src.Network.TailnetDebug,
-		"workspace/build_logs.txt":         humanizeBuildLogs(src.Workspace.BuildLogs),
-		"workspace/agent_startup_logs.txt": humanizeAgentLogs(src.Workspace.AgentStartupLogs),
-		"workspace/template_file.zip":      string(templateVersionBytes),
-		"logs.txt":                         strings.Join(src.Logs, "\n"),
+		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
+		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
+		"agent/logs.txt":                 string(src.Agent.Logs),
+		"agent/agent_magicsock.html":     string(src.Agent.AgentMagicsockHTML),
+		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
+		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
+		"agent/prometheus.txt":           string(src.Agent.Prometheus),
+		"workspace/template_file.zip":    string(templateVersionBytes),
+		"logs.txt":                       strings.Join(src.Logs, "\n"),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {

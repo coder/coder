@@ -671,7 +671,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
-		err := server.Shutdown(context.Background())
+		err := server.Shutdown(context.Background(), true)
 		require.NoError(t, err)
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
@@ -762,7 +762,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -853,7 +853,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -944,7 +944,7 @@ func TestProvisionerd(t *testing.T) {
 		t.Log("completeChan closed")
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -1039,7 +1039,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
@@ -1076,7 +1076,7 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		_ = server.Shutdown(ctx)
+		_ = server.Shutdown(ctx, true)
 		_ = server.Close()
 	})
 	return server

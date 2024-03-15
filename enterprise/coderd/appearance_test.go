@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestCustomLogoAndCompanyName(t *testing.T) {
@@ -203,7 +203,7 @@ func TestCustomSupportLinks(t *testing.T) {
 		},
 	}
 	cfg := coderdtest.DeploymentValues(t)
-	cfg.Support.Links = clibase.Struct[[]codersdk.LinkConfig]{
+	cfg.Support.Links = serpent.Struct[[]codersdk.LinkConfig]{
 		Value: supportLinks,
 	}
 

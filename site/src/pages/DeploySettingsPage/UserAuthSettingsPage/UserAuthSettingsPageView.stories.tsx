@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { ClibaseGroup } from "api/typesGenerated";
+import type { SerpentGroup } from "api/typesGenerated";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
-const oidcGroup: ClibaseGroup = {
+const oidcGroup: SerpentGroup = {
   name: "OIDC",
   description: "",
 };
 
-const ghGroup: ClibaseGroup = {
+const ghGroup: SerpentGroup = {
   name: "GitHub",
   description: "",
 };

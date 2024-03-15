@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import type { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
+import type { SerpentGroup, SerpentOption } from "api/typesGenerated";
 
 const deploymentOptions = (
-  options: ClibaseOption[],
+  options: SerpentOption[],
   ...names: string[]
-): ClibaseOption[] => {
-  const found: ClibaseOption[] = [];
+): SerpentOption[] => {
+  const found: SerpentOption[] = [];
   for (const name of names) {
     const option = options.find((o) => o.name === name);
     if (option) {
@@ -18,14 +18,14 @@ const deploymentOptions = (
 };
 
 export const useDeploymentOptions = (
-  options: ClibaseOption[],
+  options: SerpentOption[],
   ...names: string[]
-): ClibaseOption[] => {
+): SerpentOption[] => {
   return useMemo(() => deploymentOptions(options, ...names), [options, names]);
 };
 
 export const deploymentGroupHasParent = (
-  group: ClibaseGroup | undefined,
+  group: SerpentGroup | undefined,
   parent: string,
 ): boolean => {
   if (!group) {

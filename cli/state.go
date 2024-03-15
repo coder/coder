@@ -6,19 +6,19 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) state() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) state() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.statePull(),
 			r.statePush(),
 		},
@@ -26,17 +26,17 @@ func (r *RootCmd) state() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) statePull() *clibase.Cmd {
+func (r *RootCmd) statePull() *serpent.Cmd {
 	var buildNumber int64
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var err error
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
@@ -69,32 +69,32 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 			return os.WriteFile(inv.Args[1], state, 0o600)
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		buildNumberOption(&buildNumber),
 	}
 	return cmd
 }
 
-func buildNumberOption(n *int64) clibase.Option {
-	return clibase.Option{
+func buildNumberOption(n *int64) serpent.Option {
+	return serpent.Option{
 		Flag:          "build",
 		FlagShorthand: "b",
 		Description:   "Specify a workspace build to target by name. Defaults to latest.",
-		Value:         clibase.Int64Of(n),
+		Value:         serpent.Int64Of(n),
 	}
 }
 
-func (r *RootCmd) statePush() *clibase.Cmd {
+func (r *RootCmd) statePush() *serpent.Cmd {
 	var buildNumber int64
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "push <workspace> <file>",
 		Short: "Push a Terraform state file to a workspace.",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(2),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -134,7 +134,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 			return cliui.WorkspaceBuild(inv.Context(), inv.Stderr, client, build.ID)
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		buildNumberOption(&buildNumber),
 	}
 	return cmd

@@ -6,28 +6,28 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) createOrganization() *clibase.Cmd {
+func (r *RootCmd) createOrganization() *serpent.Cmd {
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
 		// This action is currently irreversible, so it's hidden until we have a way to delete organizations.
 		Hidden: true,
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
-			clibase.RequireNArgs(1),
+			serpent.RequireNArgs(1),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			orgName := inv.Args[0]
 
 			// This check is not perfect since not all users can read all organizations.

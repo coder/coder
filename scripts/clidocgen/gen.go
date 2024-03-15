@@ -13,8 +13,8 @@ import (
 	"github.com/acarl005/stripansi"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/flog"
+	"github.com/coder/serpent"
 )
 
 //go:embed command.tpl
@@ -25,8 +25,8 @@ var commandTemplate *template.Template
 func init() {
 	commandTemplate = template.Must(
 		template.New("command.tpl").Funcs(template.FuncMap{
-			"visibleSubcommands": func(cmd *clibase.Cmd) []*clibase.Cmd {
-				var visible []*clibase.Cmd
+			"visibleSubcommands": func(cmd *serpent.Cmd) []*serpent.Cmd {
+				var visible []*serpent.Cmd
 				for _, sub := range cmd.Children {
 					if sub.Hidden {
 						continue
@@ -35,8 +35,8 @@ func init() {
 				}
 				return visible
 			},
-			"visibleOptions": func(cmd *clibase.Cmd) []clibase.Option {
-				var visible []clibase.Option
+			"visibleOptions": func(cmd *serpent.Cmd) []serpent.Option {
+				var visible []serpent.Option
 				for _, opt := range cmd.Options {
 					if opt.Hidden {
 						continue
@@ -45,7 +45,7 @@ func init() {
 				}
 				return visible
 			},
-			"atRoot": func(cmd *clibase.Cmd) bool {
+			"atRoot": func(cmd *serpent.Cmd) bool {
 				return cmd.FullName() == "coder"
 			},
 			"newLinesToBr": func(s string) string {
@@ -54,7 +54,7 @@ func init() {
 			"wrapCode": func(s string) string {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
-			"commandURI": func(cmd *clibase.Cmd) string {
+			"commandURI": func(cmd *serpent.Cmd) string {
 				return fmtDocFilename(cmd)
 			},
 			"fullName": fullName,
@@ -67,14 +67,14 @@ func init() {
 	)
 }
 
-func fullName(cmd *clibase.Cmd) string {
+func fullName(cmd *serpent.Cmd) string {
 	if cmd.FullName() == "coder" {
 		return "coder"
 	}
 	return strings.TrimPrefix(cmd.FullName(), "coder ")
 }
 
-func fmtDocFilename(cmd *clibase.Cmd) string {
+func fmtDocFilename(cmd *serpent.Cmd) string {
 	if cmd.FullName() == "coder" {
 		// Special case for index.
 		return "../cli.md"
@@ -83,7 +83,7 @@ func fmtDocFilename(cmd *clibase.Cmd) string {
 	return fmt.Sprintf("%s.md", name)
 }
 
-func writeCommand(w io.Writer, cmd *clibase.Cmd) error {
+func writeCommand(w io.Writer, cmd *serpent.Cmd) error {
 	var b strings.Builder
 	err := commandTemplate.Execute(&b, cmd)
 	if err != nil {
@@ -112,7 +112,7 @@ func writeCommand(w io.Writer, cmd *clibase.Cmd) error {
 	return err
 }
 
-func genTree(dir string, cmd *clibase.Cmd, wroteLog map[string]*clibase.Cmd) error {
+func genTree(dir string, cmd *serpent.Cmd, wroteLog map[string]*serpent.Cmd) error {
 	if cmd.Hidden {
 		return nil
 	}

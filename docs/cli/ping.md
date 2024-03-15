@@ -12,14 +12,14 @@ coder ping [flags] <workspace>
 
 ## Options
 
-### -n, --num
+### --wait
 
-|         |                  |
-| ------- | ---------------- |
-| Type    | <code>int</code> |
-| Default | <code>10</code>  |
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>1s</code>       |
 
-Specifies the number of pings to perform.
+Specifies how long to wait between pings.
 
 ### -t, --timeout
 
@@ -30,11 +30,11 @@ Specifies the number of pings to perform.
 
 Specifies how long to wait for a ping to complete.
 
-### --wait
+### -n, --num
 
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>duration</code> |
-| Default | <code>1s</code>       |
+|         |                  |
+| ------- | ---------------- |
+| Type    | <code>int</code> |
+| Default | <code>10</code>  |
 
-Specifies how long to wait between pings.
+Specifies the number of pings to perform.

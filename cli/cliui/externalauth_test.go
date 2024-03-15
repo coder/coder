@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestExternalAuth(t *testing.T) {
@@ -22,8 +22,8 @@ func TestExternalAuth(t *testing.T) {
 	defer cancel()
 
 	ptty := ptytest.New(t)
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
+	cmd := &serpent.Cmd{
+		Handler: func(inv *serpent.Invocation) error {
 			var fetched atomic.Bool
 			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {

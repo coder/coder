@@ -15,18 +15,18 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) dotfiles() *clibase.Cmd {
+func (r *RootCmd) dotfiles() *serpent.Cmd {
 	var symlinkDir string
 	var gitbranch string
 	var dotfilesRepoDir string
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "dotfiles <git_repo_url>",
-		Middleware: clibase.RequireNArgs(1),
+		Middleware: serpent.RequireNArgs(1),
 		Short:      "Personalize your workspace by applying a canonical dotfiles repository",
 		Long: formatExamples(
 			example{
@@ -34,7 +34,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				gitRepo     = inv.Args[0]
 				cfg         = r.createConfig()
@@ -276,26 +276,26 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "symlink-dir",
 			Env:         "CODER_SYMLINK_DIR",
 			Description: "Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.",
-			Value:       clibase.StringOf(&symlinkDir),
+			Value:       serpent.StringOf(&symlinkDir),
 		},
 		{
 			Flag:          "branch",
 			FlagShorthand: "b",
 			Description: "Specifies which branch to clone. " +
 				"If empty, will default to cloning the default branch or using the existing branch in the cloned repo on disk.",
-			Value: clibase.StringOf(&gitbranch),
+			Value: serpent.StringOf(&gitbranch),
 		},
 		{
 			Flag:        "repo-dir",
 			Default:     "dotfiles",
 			Env:         "CODER_DOTFILES_REPO_DIR",
 			Description: "Specifies the directory for the dotfiles repository, relative to global config directory.",
-			Value:       clibase.StringOf(&dotfilesRepoDir),
+			Value:       serpent.StringOf(&dotfilesRepoDir),
 		},
 		cliui.SkipPromptOption(),
 	}
@@ -308,7 +308,7 @@ type ensureCorrectGitBranchParams struct {
 	gitBranch     string
 }
 
-func ensureCorrectGitBranch(baseInv *clibase.Invocation, params ensureCorrectGitBranchParams) error {
+func ensureCorrectGitBranch(baseInv *serpent.Invocation, params ensureCorrectGitBranchParams) error {
 	dotfileCmd := func(cmd string, args ...string) *exec.Cmd {
 		c := exec.CommandContext(baseInv.Context(), cmd, args...)
 		c.Dir = params.repoDir

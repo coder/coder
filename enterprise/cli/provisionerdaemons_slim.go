@@ -4,17 +4,17 @@ package cli
 
 import (
 	agplcli "github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) provisionerDaemons() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
 		// We accept RawArgs so all commands and flags are accepted.
 		RawArgs: true,
 		Hidden:  true,
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			agplcli.SlimUnsupported(inv.Stderr, "provisionerd")
 			return nil
 		},

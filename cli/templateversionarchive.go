@@ -8,22 +8,22 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) unarchiveTemplateVersion() *clibase.Cmd {
+func (r *RootCmd) unarchiveTemplateVersion() *serpent.Cmd {
 	return r.setArchiveTemplateVersion(false)
 }
 
-func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
+func (r *RootCmd) archiveTemplateVersion() *serpent.Cmd {
 	return r.setArchiveTemplateVersion(true)
 }
 
 //nolint:revive
-func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
+func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Cmd {
 	presentVerb := "archive"
 	pastVerb := "archived"
 	if !archive {
@@ -32,16 +32,16 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 	}
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   presentVerb + " <template-name> [template-version-names...] ",
 		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx      = inv.Context()
 				versions []codersdk.TemplateVersion
@@ -96,25 +96,25 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
-	var all clibase.Bool
+func (r *RootCmd) archiveTemplateVersions() *serpent.Cmd {
+	var all serpent.Bool
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "archive [template-name...] ",
 		Short: "Archive unused or failed template versions from a given template(s)",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
-			clibase.Option{
+			serpent.Option{
 				Name:        "all",
 				Description: "Include all unused template versions. By default, only failed template versions are archived.",
 				Flag:        "all",
 				Value:       &all,
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx           = inv.Context()
 				templateNames = []string{}

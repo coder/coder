@@ -31,6 +31,15 @@ Shows the following information for the given workspace(s):
 
 Specifies whether all workspaces will be listed or not.
 
+### --search
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>string</code>   |
+| Default | <code>owner:me</code> |
+
+Search for a workspace with a query.
+
 ### -c, --column
 
 |         |                                                                     |
@@ -48,12 +57,3 @@ Columns to display in table output. Available columns: workspace, starts at, sta
 | Default | <code>table</code>  |
 
 Output format. Available formats: table, json.
-
-### --search
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>string</code>   |
-| Default | <code>owner:me</code> |
-
-Search for a workspace with a query.

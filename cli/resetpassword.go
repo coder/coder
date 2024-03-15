@@ -9,22 +9,22 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
-func (*RootCmd) resetPassword() *clibase.Cmd {
+func (*RootCmd) resetPassword() *serpent.Cmd {
 	var postgresURL string
 
-	root := &clibase.Cmd{
+	root := &serpent.Cmd{
 		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
-		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
 			username := inv.Args[0]
 
 			sqlDB, err := sql.Open("postgres", postgresURL)
@@ -90,12 +90,12 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 		},
 	}
 
-	root.Options = clibase.OptionSet{
+	root.Options = serpent.OptionSet{
 		{
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database to connect to.",
 			Env:         "CODER_PG_CONNECTION_URL",
-			Value:       clibase.StringOf(&postgresURL),
+			Value:       serpent.StringOf(&postgresURL),
 		},
 	}
 

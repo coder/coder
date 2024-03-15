@@ -6,21 +6,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) publickey() *clibase.Cmd {
+func (r *RootCmd) publickey() *serpent.Cmd {
 	var reset bool
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "publickey",
 		Aliases:    []string{"pubkey"},
 		Short:      "Output your Coder public key used for Git operations",
 		Middleware: r.InitClient(client),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.
@@ -58,11 +58,11 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "reset",
 			Description: "Regenerate your public key. This will require updating the key on any services it's registered with.",
-			Value:       clibase.BoolOf(&reset),
+			Value:       serpent.BoolOf(&reset),
 		},
 		cliui.SkipPromptOption(),
 	}

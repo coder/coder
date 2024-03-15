@@ -19,10 +19,10 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -40,7 +40,7 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
-func promptFirstUsername(inv *clibase.Invocation) (string, error) {
+func promptFirstUsername(inv *serpent.Invocation) (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", xerrors.Errorf("get current user: %w", err)
@@ -59,7 +59,7 @@ func promptFirstUsername(inv *clibase.Invocation) (string, error) {
 	return username, nil
 }
 
-func promptFirstPassword(inv *clibase.Invocation) (string, error) {
+func promptFirstPassword(inv *serpent.Invocation) (string, error) {
 retry:
 	password, err := cliui.Prompt(inv, cliui.PromptOptions{
 		Text:   "Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
@@ -89,7 +89,7 @@ retry:
 }
 
 func (r *RootCmd) loginWithPassword(
-	inv *clibase.Invocation,
+	inv *serpent.Invocation,
 	client *codersdk.Client,
 	email, password string,
 ) error {
@@ -125,7 +125,7 @@ func (r *RootCmd) loginWithPassword(
 	return nil
 }
 
-func (r *RootCmd) login() *clibase.Cmd {
+func (r *RootCmd) login() *serpent.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
@@ -135,11 +135,11 @@ func (r *RootCmd) login() *clibase.Cmd {
 		trial              bool
 		useTokenForSession bool
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "login [<url>]",
 		Short:      "Authenticate with Coder deployment",
-		Middleware: clibase.RequireRangeArgs(0, 1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireRangeArgs(0, 1),
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			rawURL := ""
 			var urlSource string
@@ -350,35 +350,35 @@ func (r *RootCmd) login() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "first-user-email",
 			Env:         "CODER_FIRST_USER_EMAIL",
 			Description: "Specifies an email address to use if creating the first user for the deployment.",
-			Value:       clibase.StringOf(&email),
+			Value:       serpent.StringOf(&email),
 		},
 		{
 			Flag:        "first-user-username",
 			Env:         "CODER_FIRST_USER_USERNAME",
 			Description: "Specifies a username to use if creating the first user for the deployment.",
-			Value:       clibase.StringOf(&username),
+			Value:       serpent.StringOf(&username),
 		},
 		{
 			Flag:        "first-user-password",
 			Env:         "CODER_FIRST_USER_PASSWORD",
 			Description: "Specifies a password to use if creating the first user for the deployment.",
-			Value:       clibase.StringOf(&password),
+			Value:       serpent.StringOf(&password),
 		},
 		{
 			Flag:        "first-user-trial",
 			Env:         firstUserTrialEnv,
 			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
-			Value:       clibase.BoolOf(&trial),
+			Value:       serpent.BoolOf(&trial),
 		},
 		{
 			Flag:        "use-token-as-session",
 			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
-			Value:       clibase.BoolOf(&useTokenForSession),
+			Value:       serpent.BoolOf(&useTokenForSession),
 		},
 	}
 	return cmd
@@ -397,7 +397,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(inv *clibase.Invocation, urlToOpen string) error {
+func openURL(inv *serpent.Invocation, urlToOpen string) error {
 	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)

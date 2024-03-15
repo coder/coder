@@ -18,13 +18,13 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestAgent(t *testing.T) {
@@ -382,8 +382,8 @@ func TestAgent(t *testing.T) {
 			output := make(chan string, 100) // Buffered to avoid blocking, overflow is discarded.
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
 
-			cmd := &clibase.Cmd{
-				Handler: func(inv *clibase.Invocation) error {
+			cmd := &serpent.Cmd{
+				Handler: func(inv *serpent.Invocation) error {
 					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
 						t.Log("iter", len(tc.iter))
 						var err error
@@ -450,8 +450,8 @@ func TestAgent(t *testing.T) {
 		t.Parallel()
 		var fetchCalled uint64
 
-		cmd := &clibase.Cmd{
-			Handler: func(inv *clibase.Invocation) error {
+		cmd := &serpent.Cmd{
+			Handler: func(inv *serpent.Invocation) error {
 				buf := bytes.Buffer{}
 				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
 					FetchInterval: 10 * time.Millisecond,

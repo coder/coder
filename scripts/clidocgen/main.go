@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/flog"
+	"github.com/coder/serpent"
 )
 
 // route is an individual page object in the docs manifest.json.
@@ -83,7 +83,7 @@ func main() {
 	root := (&cli.RootCmd{})
 
 	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*clibase.Cmd)
+	wroteMap := make(map[string]*serpent.Cmd)
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")

@@ -452,7 +452,7 @@ export interface DeleteWorkspaceAgentPortShareRequest {
 // From codersdk/deployment.go
 export interface DeploymentConfig {
   readonly config?: DeploymentValues;
-  readonly options?: ClibaseOptionSet;
+  readonly options?: SerpentOptionSet;
 }
 
 // From codersdk/deployment.go
@@ -2434,51 +2434,6 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 // From codersdk/workspaceproxy.go
 export type RegionTypes = Region | WorkspaceProxy;
 
-// The code below is generated from cli/clibase.
-
-// From clibase/clibase.go
-export type ClibaseAnnotations = Record<string, string>;
-
-// From clibase/clibase.go
-export interface ClibaseGroup {
-  readonly parent?: ClibaseGroup;
-  readonly name?: string;
-  readonly yaml?: string;
-  readonly description?: string;
-}
-
-// From clibase/option.go
-export interface ClibaseOption {
-  readonly name?: string;
-  readonly description?: string;
-  readonly required?: boolean;
-  readonly flag?: string;
-  readonly flag_shorthand?: string;
-  readonly env?: string;
-  readonly yaml?: string;
-  readonly default?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
-  readonly value?: any;
-  readonly annotations?: ClibaseAnnotations;
-  readonly group?: ClibaseGroup;
-  readonly use_instead?: ClibaseOption[];
-  readonly hidden?: boolean;
-  readonly value_source?: ClibaseValueSource;
-}
-
-// From clibase/option.go
-export type ClibaseOptionSet = ClibaseOption[];
-
-// From clibase/option.go
-export type ClibaseValueSource = "" | "default" | "env" | "flag" | "yaml";
-export const ClibaseValueSources: ClibaseValueSource[] = [
-  "",
-  "default",
-  "env",
-  "flag",
-  "yaml",
-];
-
 // The code below is generated from coderd/healthcheck/health.
 
 // From health/model.go
@@ -2533,3 +2488,48 @@ export const HealthCodes: HealthCode[] = [
 // From health/model.go
 export type HealthSeverity = "error" | "ok" | "warning";
 export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
+
+// The code below is generated from github.com/coder/serpent.
+
+// From serpent/serpent.go
+export type SerpentAnnotations = Record<string, string>;
+
+// From serpent/serpent.go
+export interface SerpentGroup {
+  readonly parent?: SerpentGroup;
+  readonly name?: string;
+  readonly yaml?: string;
+  readonly description?: string;
+}
+
+// From serpent/option.go
+export interface SerpentOption {
+  readonly name?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly flag?: string;
+  readonly flag_shorthand?: string;
+  readonly env?: string;
+  readonly yaml?: string;
+  readonly default?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
+  readonly value?: any;
+  readonly annotations?: SerpentAnnotations;
+  readonly group?: SerpentGroup;
+  readonly use_instead?: SerpentOption[];
+  readonly hidden?: boolean;
+  readonly value_source?: SerpentValueSource;
+}
+
+// From serpent/option.go
+export type SerpentOptionSet = SerpentOption[];
+
+// From serpent/option.go
+export type SerpentValueSource = "" | "default" | "env" | "flag" | "yaml";
+export const SerpentValueSources: SerpentValueSource[] = [
+  "",
+  "default",
+  "env",
+  "flag",
+  "yaml",
+];

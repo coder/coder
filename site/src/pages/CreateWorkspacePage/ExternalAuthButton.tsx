@@ -29,7 +29,6 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
         <LoadingButton
           fullWidth
           loading={isLoading}
-          href={auth.authenticate_url}
           variant="contained"
           size="xlarge"
           startIcon={

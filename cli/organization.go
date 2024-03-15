@@ -9,38 +9,38 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) organizations() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) organizations() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "organizations [subcommand]",
 		Short:       "Organization related commands",
 		Aliases:     []string{"organization", "org", "orgs"},
 		Hidden:      true, // Hidden until these commands are complete.
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.currentOrganization(),
 			r.switchOrganization(),
 			r.createOrganization(),
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{}
+	cmd.Options = serpent.OptionSet{}
 	return cmd
 }
 
-func (r *RootCmd) switchOrganization() *clibase.Cmd {
+func (r *RootCmd) switchOrganization() *serpent.Cmd {
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "set <organization name | ID>",
 		Short: "set the organization used by the CLI. Pass an empty string to reset to the default organization.",
 		Long: "set the organization used by the CLI. Pass an empty string to reset to the default organization.\n" + formatExamples(
@@ -53,12 +53,12 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 				Command:     "coder organizations set my-org",
 			},
 		),
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
-			clibase.RequireRangeArgs(0, 1),
+			serpent.RequireRangeArgs(0, 1),
 		),
-		Options: clibase.OptionSet{},
-		Handler: func(inv *clibase.Invocation) error {
+		Options: serpent.OptionSet{},
+		Handler: func(inv *serpent.Invocation) error {
 			conf := r.createConfig()
 			orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 			if err != nil {
@@ -138,7 +138,7 @@ func (r *RootCmd) switchOrganization() *clibase.Cmd {
 
 // promptUserSelectOrg will prompt the user to select an organization from a list
 // of their organizations.
-func promptUserSelectOrg(inv *clibase.Invocation, conf config.Root, orgs []codersdk.Organization) (string, error) {
+func promptUserSelectOrg(inv *serpent.Invocation, conf config.Root, orgs []codersdk.Organization) (string, error) {
 	// Default choice
 	var defaultOrg string
 	// Comes from config file
@@ -206,7 +206,7 @@ func orgNames(orgs []codersdk.Organization) []string {
 	return names
 }
 
-func (r *RootCmd) currentOrganization() *clibase.Cmd {
+func (r *RootCmd) currentOrganization() *serpent.Cmd {
 	var (
 		stringFormat func(orgs []codersdk.Organization) (string, error)
 		client       = new(codersdk.Client)
@@ -224,23 +224,23 @@ func (r *RootCmd) currentOrganization() *clibase.Cmd {
 		)
 		onlyID = false
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "show [current|me|uuid]",
 		Short: "Show the organization, if no argument is given, the organization currently in use will be shown.",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
-			clibase.RequireRangeArgs(0, 1),
+			serpent.RequireRangeArgs(0, 1),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			{
 				Name:        "only-id",
 				Description: "Only print the organization ID.",
 				Required:    false,
 				Flag:        "only-id",
-				Value:       clibase.BoolOf(&onlyID),
+				Value:       serpent.BoolOf(&onlyID),
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			orgArg := "current"
 			if len(inv.Args) >= 1 {
 				orgArg = inv.Args[0]

@@ -12,13 +12,13 @@ coder groups edit [flags] <name>
 
 ## Options
 
-### -a, --add-users
+### -n, --name
 
-|      |                           |
-| ---- | ------------------------- |
-| Type | <code>string-array</code> |
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
 
-Add users to the group. Accepts emails or IDs.
+Update the group name.
 
 ### -u, --avatar-url
 
@@ -37,13 +37,13 @@ Update the group avatar.
 
 Optional human friendly name for the group.
 
-### -n, --name
+### -a, --add-users
 
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
 
-Update the group name.
+Add users to the group. Accepts emails or IDs.
 
 ### -r, --rm-users
 

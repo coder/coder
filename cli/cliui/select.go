@@ -10,8 +10,8 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 func init() {
@@ -68,7 +68,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(inv *serpent.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	var defaultOpt string
 	for i, option := range richOptions.Options {
@@ -102,7 +102,7 @@ func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*coders
 }
 
 // Select displays a list of user options.
-func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
+func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes
@@ -138,7 +138,7 @@ func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
 	return value, err
 }
 
-func MultiSelect(inv *clibase.Invocation, items []string) ([]string, error) {
+func MultiSelect(inv *serpent.Invocation, items []string) ([]string, error) {
 	// Similar hack is applied to Select()
 	if flag.Lookup("test.v") != nil {
 		return items, nil

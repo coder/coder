@@ -7,26 +7,26 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) restart() *clibase.Cmd {
+func (r *RootCmd) restart() *serpent.Cmd {
 	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{cliui.SkipPromptOption()},
-		Handler: func(inv *clibase.Invocation) error {
+		Options: serpent.OptionSet{cliui.SkipPromptOption()},
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
 

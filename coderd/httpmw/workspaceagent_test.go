@@ -23,8 +23,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 
-		req, rtr := setup(t, db, uuid.New(), httpmw.ExtractWorkspaceAgent(
-			httpmw.ExtractWorkspaceAgentConfig{
+		req, rtr, _, _ := setup(t, db, uuid.New(), httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 				DB:       db,
 				Optional: false,
 			}))
@@ -42,8 +42,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		authToken := uuid.New()
-		req, rtr := setup(t, db, authToken, httpmw.ExtractWorkspaceAgent(
-			httpmw.ExtractWorkspaceAgentConfig{
+		req, rtr, _, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 				DB:       db,
 				Optional: false,
 			}))
@@ -57,9 +57,47 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Cleanup(func() { _ = res.Body.Close() })
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
+
+	t.Run("Latest", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		authToken := uuid.New()
+		req, rtr, ws, tpv := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+			httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+				DB:       db,
+				Optional: false,
+			}),
+		)
+
+		// Create a newer build
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: ws.OrganizationID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			JobID:             job.ID,
+			TemplateVersionID: tpv.ID,
+			BuildNumber:       2,
+		})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		rw := httptest.NewRecorder()
+		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+		rtr.ServeHTTP(rw, req)
+
+		//nolint:bodyclose // Closed in `t.Cleanup`
+		res := rw.Result()
+		t.Cleanup(func() { _ = res.Body.Close() })
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }
 
-func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Handler) http.Handler) (*http.Request, http.Handler) {
+func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Handler) http.Handler) (*http.Request, http.Handler, database.Workspace, database.TemplateVersion) {
 	t.Helper()
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{
@@ -107,5 +145,5 @@ func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Ha
 		rw.WriteHeader(http.StatusOK)
 	})
 
-	return req, rtr
+	return req, rtr, workspace, templateVersion
 }

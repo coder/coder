@@ -375,9 +375,29 @@
         },
         {
           "title": "Scaling Coder",
-          "description": "Reference architecture and load testing tools",
+          "description": "Learn how to use load testing tools",
           "path": "./admin/scale.md",
           "icon_path": "./images/icons/scale.svg"
+        },
+        {
+          "title": "Reference Architectures",
+          "description": "Learn about reference architectures for Coder",
+          "path": "./admin/architectures/index.md",
+          "icon_path": "./images/icons/scale.svg",
+          "children": [
+            {
+              "title": "Up to 1,000 users",
+              "path": "./admin/architectures/1k-users.md"
+            },
+            {
+              "title": "Up to 2,000 users",
+              "path": "./admin/architectures/2k-users.md"
+            },
+            {
+              "title": "Up to 3,000 users",
+              "path": "./admin/architectures/3k-users.md"
+            }
+          ]
         },
         {
           "title": "External Provisioners",
