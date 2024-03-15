@@ -27,7 +27,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -40,18 +39,19 @@ import (
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
+	"github.com/coder/serpent"
 )
 
 const scaletestTracerName = "coder_scaletest"
 
-func (r *RootCmd) scaletestCmd() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) scaletestCmd() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
 			r.scaletestCreateWorkspaces(),
@@ -69,32 +69,32 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(opts *clibase.OptionSet) {
+func (s *scaletestTracingFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace",
 			Env:         "CODER_SCALETEST_TRACE",
 			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
-			Value:       clibase.BoolOf(&s.traceEnable),
+			Value:       serpent.BoolOf(&s.traceEnable),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-coder",
 			Env:         "CODER_SCALETEST_TRACE_CODER",
 			Description: "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.",
-			Value:       clibase.BoolOf(&s.traceCoder),
+			Value:       serpent.BoolOf(&s.traceCoder),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-honeycomb-api-key",
 			Env:         "CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API key.",
-			Value:       clibase.StringOf(&s.traceHoneycombAPIKey),
+			Value:       serpent.StringOf(&s.traceHoneycombAPIKey),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-propagate",
 			Env:         "CODER_SCALETEST_TRACE_PROPAGATE",
 			Description: "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.",
-			Value:       clibase.BoolOf(&s.tracePropagate),
+			Value:       serpent.BoolOf(&s.tracePropagate),
 		},
 	)
 }
@@ -137,7 +137,7 @@ type scaletestStrategyFlags struct {
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
+func (s *scaletestStrategyFlags) attach(opts *serpent.OptionSet) {
 	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_SCALETEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
 	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_SCALETEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
 	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_SCALETEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
@@ -149,26 +149,26 @@ func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
 
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        concurrencyLong,
 			Env:         concurrencyEnv,
 			Description: concurrencyDescription,
 			Default:     "1",
-			Value:       clibase.Int64Of(&s.concurrency),
+			Value:       serpent.Int64Of(&s.concurrency),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        timeoutLong,
 			Env:         timeoutEnv,
 			Description: timeoutDescription,
 			Default:     "30m",
-			Value:       clibase.DurationOf(&s.timeout),
+			Value:       serpent.DurationOf(&s.timeout),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        jobTimeoutLong,
 			Env:         jobTimeoutEnv,
 			Description: jobTimeoutDescription,
 			Default:     "5m",
-			Value:       clibase.DurationOf(&s.timeoutPerJob),
+			Value:       serpent.DurationOf(&s.timeoutPerJob),
 		},
 	)
 }
@@ -268,13 +268,13 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(opts *clibase.OptionSet) {
-	*opts = append(*opts, clibase.Option{
+func (s *scaletestOutputFlags) attach(opts *serpent.OptionSet) {
+	*opts = append(*opts, serpent.Option{
 		Flag:        "output",
 		Env:         "CODER_SCALETEST_OUTPUTS",
 		Description: `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`,
 		Default:     "text",
-		Value:       clibase.StringArrayOf(&s.outputSpecs),
+		Value:       serpent.StringArrayOf(&s.outputSpecs),
 	})
 }
 
@@ -331,21 +331,21 @@ type scaletestPrometheusFlags struct {
 	Wait    time.Duration
 }
 
-func (s *scaletestPrometheusFlags) attach(opts *clibase.OptionSet) {
+func (s *scaletestPrometheusFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "scaletest-prometheus-address",
 			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
 			Default:     "0.0.0.0:21112",
 			Description: "Address on which to expose scaletest Prometheus metrics.",
-			Value:       clibase.StringOf(&s.Address),
+			Value:       serpent.StringOf(&s.Address),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "scaletest-prometheus-wait",
 			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
 			Default:     "15s",
 			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
-			Value:       clibase.DurationOf(&s.Wait),
+			Value:       serpent.DurationOf(&s.Wait),
 		},
 	)
 }
@@ -398,20 +398,20 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
+func (r *RootCmd) scaletestCleanup() *serpent.Cmd {
 	var template string
 
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "cleanup",
 		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
@@ -508,12 +508,12 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "template",
 			Env:         "CODER_SCALETEST_CLEANUP_TEMPLATE",
 			Description: "Name or ID of the template. Only delete workspaces created from the given template.",
-			Value:       clibase.StringOf(&template),
+			Value:       serpent.StringOf(&template),
 		},
 	}
 
@@ -521,7 +521,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
+func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Cmd {
 	var (
 		count    int64
 		retry    int64
@@ -558,12 +558,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "create-workspaces",
 		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
 		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Middleware: r.InitClient(client),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
@@ -746,98 +746,98 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "count",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_COUNT",
 			Default:       "1",
 			Description:   "Required: Number of workspaces to create.",
-			Value:         clibase.Int64Of(&count),
+			Value:         serpent.Int64Of(&count),
 		},
 		{
 			Flag:        "retry",
 			Env:         "CODER_SCALETEST_RETRY",
 			Default:     "0",
 			Description: "Number of tries to create and bring up the workspace.",
-			Value:       clibase.Int64Of(&retry),
+			Value:       serpent.Int64Of(&retry),
 		},
 		{
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
 			Description:   "Required: Name or ID of the template to use for workspaces.",
-			Value:         clibase.StringOf(&template),
+			Value:         serpent.StringOf(&template),
 		},
 		{
 			Flag:        "no-cleanup",
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.",
-			Value:       clibase.BoolOf(&noCleanup),
+			Value:       serpent.BoolOf(&noCleanup),
 		},
 		{
 			Flag:        "no-wait-for-agents",
 			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
 			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
-			Value:       clibase.BoolOf(&noWaitForAgents),
+			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
 			Flag:        "run-command",
 			Env:         "CODER_SCALETEST_RUN_COMMAND",
 			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " + "If not specified, no command will be run.",
-			Value:       clibase.StringOf(&runCommand),
+			Value:       serpent.StringOf(&runCommand),
 		},
 		{
 			Flag:        "run-timeout",
 			Env:         "CODER_SCALETEST_RUN_TIMEOUT",
 			Default:     "5s",
 			Description: "Timeout for the command to complete.",
-			Value:       clibase.DurationOf(&runTimeout),
+			Value:       serpent.DurationOf(&runTimeout),
 		},
 		{
 			Flag: "run-expect-timeout",
 			Env:  "CODER_SCALETEST_RUN_EXPECT_TIMEOUT",
 
 			Description: "Expect the command to timeout." + " If the command does not finish within the given --run-timeout, it will be marked as succeeded." + " If the command finishes before the timeout, it will be marked as failed.",
-			Value:       clibase.BoolOf(&runExpectTimeout),
+			Value:       serpent.BoolOf(&runExpectTimeout),
 		},
 		{
 			Flag:        "run-expect-output",
 			Env:         "CODER_SCALETEST_RUN_EXPECT_OUTPUT",
 			Description: "Expect the command to output the given string (on a single line). " + "If the command does not output the given string, it will be marked as failed.",
-			Value:       clibase.StringOf(&runExpectOutput),
+			Value:       serpent.StringOf(&runExpectOutput),
 		},
 		{
 			Flag:        "run-log-output",
 			Env:         "CODER_SCALETEST_RUN_LOG_OUTPUT",
 			Description: "Log the output of the command to the test logs. " + "This should be left off unless you expect small amounts of output. " + "Large amounts of output will cause high memory usage.",
-			Value:       clibase.BoolOf(&runLogOutput),
+			Value:       serpent.BoolOf(&runLogOutput),
 		},
 		{
 			Flag:        "connect-url",
 			Env:         "CODER_SCALETEST_CONNECT_URL",
 			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
-			Value:       clibase.StringOf(&connectURL),
+			Value:       serpent.StringOf(&connectURL),
 		},
 		{
 			Flag:        "connect-mode",
 			Env:         "CODER_SCALETEST_CONNECT_MODE",
 			Default:     "derp",
 			Description: "Mode to use for connecting to the workspace.",
-			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
+			Value:       serpent.EnumOf(&connectMode, "derp", "direct"),
 		},
 		{
 			Flag:        "connect-hold",
 			Env:         "CODER_SCALETEST_CONNECT_HOLD",
 			Default:     "30s",
 			Description: "How long to hold the WireGuard connection open for.",
-			Value:       clibase.DurationOf(&connectHold),
+			Value:       serpent.DurationOf(&connectHold),
 		},
 		{
 			Flag:        "connect-interval",
 			Env:         "CODER_SCALETEST_CONNECT_INTERVAL",
 			Default:     "1s",
-			Value:       clibase.DurationOf(&connectInterval),
+			Value:       serpent.DurationOf(&connectInterval),
 			Description: "How long to wait between making requests to the --connect-url once the connection is established.",
 		},
 		{
@@ -845,14 +845,14 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Env:         "CODER_SCALETEST_CONNECT_TIMEOUT",
 			Default:     "5s",
 			Description: "Timeout for each request to the --connect-url.",
-			Value:       clibase.DurationOf(&connectTimeout),
+			Value:       serpent.DurationOf(&connectTimeout),
 		},
 		{
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
 			Description: "Use the user logged in on the host machine, instead of creating users.",
-			Value:       clibase.BoolOf(&useHostUser),
+			Value:       serpent.BoolOf(&useHostUser),
 		},
 	}
 
@@ -864,7 +864,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
+func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Cmd {
 	var (
 		tickInterval     time.Duration
 		bytesPerTick     int64
@@ -881,13 +881,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "workspace-traffic",
 		Short: "Generate traffic to scaletest workspaces through coderd",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) (err error) {
+		Handler: func(inv *serpent.Invocation) (err error) {
 			ctx := inv.Context()
 
 			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
@@ -1056,47 +1056,47 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = []serpent.Option{
 		{
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
 			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
-			Value:         clibase.StringOf(&template),
+			Value:         serpent.StringOf(&template),
 		},
 		{
 			Flag:        "target-workspaces",
 			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
 			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
-			Value:       clibase.StringOf(&targetWorkspaces),
+			Value:       serpent.StringOf(&targetWorkspaces),
 		},
 		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
 			Description: "How much traffic to generate per tick.",
-			Value:       clibase.Int64Of(&bytesPerTick),
+			Value:       serpent.Int64Of(&bytesPerTick),
 		},
 		{
 			Flag:        "tick-interval",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL",
 			Default:     "100ms",
 			Description: "How often to send traffic.",
-			Value:       clibase.DurationOf(&tickInterval),
+			Value:       serpent.DurationOf(&tickInterval),
 		},
 		{
 			Flag:        "ssh",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
 			Default:     "",
 			Description: "Send traffic over SSH, cannot be used with --app.",
-			Value:       clibase.BoolOf(&ssh),
+			Value:       serpent.BoolOf(&ssh),
 		},
 		{
 			Flag:        "app",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_APP",
 			Default:     "",
 			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
-			Value:       clibase.StringOf(&app),
+			Value:       serpent.StringOf(&app),
 		},
 	}
 
@@ -1109,7 +1109,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
+func (r *RootCmd) scaletestDashboard() *serpent.Cmd {
 	var (
 		interval    time.Duration
 		jitter      time.Duration
@@ -1125,13 +1125,13 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "dashboard",
 		Short: "Generate traffic to the HTTP API to simulate use of the dashboard.",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			if !(interval > 0) {
 				return xerrors.Errorf("--interval must be greater than zero")
 			}
@@ -1261,40 +1261,40 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = []serpent.Option{
 		{
 			Flag:        "target-users",
 			Env:         "CODER_SCALETEST_DASHBOARD_TARGET_USERS",
 			Description: "Target a specific range of users in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted users (0-9).",
-			Value:       clibase.StringOf(&targetUsers),
+			Value:       serpent.StringOf(&targetUsers),
 		},
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
 			Default:     "10s",
 			Description: "Interval between actions.",
-			Value:       clibase.DurationOf(&interval),
+			Value:       serpent.DurationOf(&interval),
 		},
 		{
 			Flag:        "jitter",
 			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
 			Default:     "5s",
 			Description: "Jitter between actions.",
-			Value:       clibase.DurationOf(&jitter),
+			Value:       serpent.DurationOf(&jitter),
 		},
 		{
 			Flag:        "headless",
 			Env:         "CODER_SCALETEST_DASHBOARD_HEADLESS",
 			Default:     "true",
 			Description: "Controls headless mode. Setting to false is useful for debugging.",
-			Value:       clibase.BoolOf(&headless),
+			Value:       serpent.BoolOf(&headless),
 		},
 		{
 			Flag:        "rand-seed",
 			Env:         "CODER_SCALETEST_DASHBOARD_RAND_SEED",
 			Default:     "0",
 			Description: "Seed for the random number generator.",
-			Value:       clibase.Int64Of(&randSeed),
+			Value:       serpent.Int64Of(&randSeed),
 		},
 	}
 

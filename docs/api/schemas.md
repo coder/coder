@@ -529,260 +529,6 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
-## clibase.Annotations
-
-```json
-{
-  "property1": "string",
-  "property2": "string"
-}
-```
-
-### Properties
-
-| Name             | Type   | Required | Restrictions | Description |
-| ---------------- | ------ | -------- | ------------ | ----------- |
-| `[any property]` | string | false    |              |             |
-
-## clibase.Group
-
-```json
-{
-  "description": "string",
-  "name": "string",
-  "parent": {
-    "description": "string",
-    "name": "string",
-    "parent": {},
-    "yaml": "string"
-  },
-  "yaml": "string"
-}
-```
-
-### Properties
-
-| Name          | Type                           | Required | Restrictions | Description |
-| ------------- | ------------------------------ | -------- | ------------ | ----------- |
-| `description` | string                         | false    |              |             |
-| `name`        | string                         | false    |              |             |
-| `parent`      | [clibase.Group](#clibasegroup) | false    |              |             |
-| `yaml`        | string                         | false    |              |             |
-
-## clibase.HostPort
-
-```json
-{
-  "host": "string",
-  "port": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `host` | string | false    |              |             |
-| `port` | string | false    |              |             |
-
-## clibase.Option
-
-```json
-{
-  "annotations": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "default": "string",
-  "description": "string",
-  "env": "string",
-  "flag": "string",
-  "flag_shorthand": "string",
-  "group": {
-    "description": "string",
-    "name": "string",
-    "parent": {
-      "description": "string",
-      "name": "string",
-      "parent": {},
-      "yaml": "string"
-    },
-    "yaml": "string"
-  },
-  "hidden": true,
-  "name": "string",
-  "required": true,
-  "use_instead": [
-    {
-      "annotations": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "default": "string",
-      "description": "string",
-      "env": "string",
-      "flag": "string",
-      "flag_shorthand": "string",
-      "group": {
-        "description": "string",
-        "name": "string",
-        "parent": {
-          "description": "string",
-          "name": "string",
-          "parent": {},
-          "yaml": "string"
-        },
-        "yaml": "string"
-      },
-      "hidden": true,
-      "name": "string",
-      "required": true,
-      "use_instead": [],
-      "value": null,
-      "value_source": "",
-      "yaml": "string"
-    }
-  ],
-  "value": null,
-  "value_source": "",
-  "yaml": "string"
-}
-```
-
-### Properties
-
-| Name             | Type                                       | Required | Restrictions | Description                                                                                                                                        |
-| ---------------- | ------------------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation.                     |
-| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                                               |
-| `description`    | string                                     | false    |              |                                                                                                                                                    |
-| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                                      |
-| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                                           |
-| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                                        |
-| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                               |
-| `hidden`         | boolean                                    | false    |              |                                                                                                                                                    |
-| `name`           | string                                     | false    |              |                                                                                                                                                    |
-| `required`       | boolean                                    | false    |              | Required means this value must be set by some means. It requires `ValueSource != ValueSourceNone` If `Default` is set, then `Required` is ignored. |
-| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.                     |
-| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                                      |
-| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                                    |
-| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                                        |
-
-## clibase.Regexp
-
-```json
-{}
-```
-
-### Properties
-
-_None_
-
-## clibase.Struct-array_codersdk_ExternalAuthConfig
-
-```json
-{
-  "value": [
-    {
-      "app_install_url": "string",
-      "app_installations_url": "string",
-      "auth_url": "string",
-      "client_id": "string",
-      "device_code_url": "string",
-      "device_flow": true,
-      "display_icon": "string",
-      "display_name": "string",
-      "extra_token_keys": ["string"],
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                                | Required | Restrictions | Description |
-| ------- | ------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `value` | array of [codersdk.ExternalAuthConfig](#codersdkexternalauthconfig) | false    |              |             |
-
-## clibase.Struct-array_codersdk_LinkConfig
-
-```json
-{
-  "value": [
-    {
-      "icon": "bug",
-      "name": "string",
-      "target": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                | Required | Restrictions | Description |
-| ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
-| `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
-
-## clibase.URL
-
-```json
-{
-  "forceQuery": true,
-  "fragment": "string",
-  "host": "string",
-  "omitHost": true,
-  "opaque": "string",
-  "path": "string",
-  "rawFragment": "string",
-  "rawPath": "string",
-  "rawQuery": "string",
-  "scheme": "string",
-  "user": {}
-}
-```
-
-### Properties
-
-| Name          | Type                         | Required | Restrictions | Description                                        |
-| ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port                                  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
-
-## clibase.ValueSource
-
-```json
-""
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value     |
-| --------- |
-| ``        |
-| `flag`    |
-| `env`     |
-| `yaml`    |
-| `default` |
-
 ## coderd.SCIMUser
 
 ```json
@@ -2507,7 +2253,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `region_code`    | string                     | false    |              |             |
 | `region_id`      | integer                    | false    |              |             |
 | `region_name`    | string                     | false    |              |             |
-| `relay_url`      | [clibase.URL](#clibaseurl) | false    |              |             |
+| `relay_url`      | [serpent.URL](#serpenturl) | false    |              |             |
 | `stun_addresses` | array of string            | false    |              |             |
 
 ## codersdk.DangerousConfig
@@ -2916,7 +2662,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name      | Type                                                   | Required | Restrictions | Description |
 | --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
-| `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
+| `options` | array of [serpent.Option](#serpentoption)              | false    |              |             |
 
 ## codersdk.DeploymentStats
 
@@ -3252,9 +2998,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
-| `access_url`                         | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
-| `address`                            | [clibase.HostPort](#clibasehostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
-| `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
 | `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
@@ -3269,10 +3015,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                              | false    |              |                                                                    |
-| `docs_url`                           | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
-| `external_auth`                      | [clibase.Struct-array_codersdk_ExternalAuthConfig](#clibasestruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
+| `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
 | `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
 | `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
@@ -4615,9 +4361,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `group_allow_list`      | array of string                  | false    |              |                                                                                  |
 | `group_auto_create`     | boolean                          | false    |              |                                                                                  |
 | `group_mapping`         | object                           | false    |              |                                                                                  |
-| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |                                                                                  |
+| `group_regex_filter`    | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
 | `groups_field`          | string                           | false    |              |                                                                                  |
-| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |                                                                                  |
+| `icon_url`              | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
 | `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
 | `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
 | `issuer_url`            | string                           | false    |              |                                                                                  |
@@ -4774,7 +4520,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name      | Type                                 | Required | Restrictions | Description |
 | --------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `address` | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `enable`  | boolean                              | false    |              |             |
 
 ## codersdk.PrometheusConfig
@@ -4796,7 +4542,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                       | Type                                 | Required | Restrictions | Description |
 | -------------------------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `address`                  | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `address`                  | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
@@ -5540,7 +5286,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name    | Type                                                                                 | Required | Restrictions | Description |
 | ------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `links` | [clibase.Struct-array_codersdk_LinkConfig](#clibasestruct-array_codersdk_linkconfig) | false    |              |             |
+| `links` | [serpent.Struct-array_codersdk_LinkConfig](#serpentstruct-array_codersdk_linkconfig) | false    |              |             |
 
 ## codersdk.SwaggerConfig
 
@@ -5582,7 +5328,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                     | Type                                 | Required | Restrictions | Description |
 | ------------------------ | ------------------------------------ | -------- | ------------ | ----------- |
-| `address`                | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `address`                | [serpent.HostPort](#serpenthostport) | false    |              |             |
 | `allow_insecure_ciphers` | boolean                              | false    |              |             |
 | `cert_file`              | array of string                      | false    |              |             |
 | `client_auth`            | string                               | false    |              |             |
@@ -5623,7 +5369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- | -------------------------- | -------- | ------------ | ----------- |
 | `enable` | boolean                    | false    |              |             |
 | `trace`  | boolean                    | false    |              |             |
-| `url`    | [clibase.URL](#clibaseurl) | false    |              |             |
+| `url`    | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.Template
 
@@ -8809,6 +8555,260 @@ _None_
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
 | `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
 | `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+
+## serpent.Annotations
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
+
+## serpent.Group
+
+```json
+{
+  "description": "string",
+  "name": "string",
+  "parent": {
+    "description": "string",
+    "name": "string",
+    "parent": {},
+    "yaml": "string"
+  },
+  "yaml": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                           | Required | Restrictions | Description |
+| ------------- | ------------------------------ | -------- | ------------ | ----------- |
+| `description` | string                         | false    |              |             |
+| `name`        | string                         | false    |              |             |
+| `parent`      | [serpent.Group](#serpentgroup) | false    |              |             |
+| `yaml`        | string                         | false    |              |             |
+
+## serpent.HostPort
+
+```json
+{
+  "host": "string",
+  "port": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `host` | string | false    |              |             |
+| `port` | string | false    |              |             |
+
+## serpent.Option
+
+```json
+{
+  "annotations": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "default": "string",
+  "description": "string",
+  "env": "string",
+  "flag": "string",
+  "flag_shorthand": "string",
+  "group": {
+    "description": "string",
+    "name": "string",
+    "parent": {
+      "description": "string",
+      "name": "string",
+      "parent": {},
+      "yaml": "string"
+    },
+    "yaml": "string"
+  },
+  "hidden": true,
+  "name": "string",
+  "required": true,
+  "use_instead": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "description": "string",
+          "name": "string",
+          "parent": {},
+          "yaml": "string"
+        },
+        "yaml": "string"
+      },
+      "hidden": true,
+      "name": "string",
+      "required": true,
+      "use_instead": [],
+      "value": null,
+      "value_source": "",
+      "yaml": "string"
+    }
+  ],
+  "value": null,
+  "value_source": "",
+  "yaml": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                       | Required | Restrictions | Description                                                                                                                                        |
+| ---------------- | ------------------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotations`    | [serpent.Annotations](#serpentannotations) | false    |              | Annotations enable extensions to serpent higher up in the stack. It's useful for help formatting and documentation generation.                     |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                                               |
+| `description`    | string                                     | false    |              |                                                                                                                                                    |
+| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                                      |
+| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                                           |
+| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                                        |
+| `group`          | [serpent.Group](#serpentgroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                               |
+| `hidden`         | boolean                                    | false    |              |                                                                                                                                                    |
+| `name`           | string                                     | false    |              |                                                                                                                                                    |
+| `required`       | boolean                                    | false    |              | Required means this value must be set by some means. It requires `ValueSource != ValueSourceNone` If `Default` is set, then `Required` is ignored. |
+| `use_instead`    | array of [serpent.Option](#serpentoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.                     |
+| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                                      |
+| `value_source`   | [serpent.ValueSource](#serpentvaluesource) | false    |              |                                                                                                                                                    |
+| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                                        |
+
+## serpent.Regexp
+
+```json
+{}
+```
+
+### Properties
+
+_None_
+
+## serpent.Struct-array_codersdk_ExternalAuthConfig
+
+```json
+{
+  "value": [
+    {
+      "app_install_url": "string",
+      "app_installations_url": "string",
+      "auth_url": "string",
+      "client_id": "string",
+      "device_code_url": "string",
+      "device_flow": true,
+      "display_icon": "string",
+      "display_name": "string",
+      "extra_token_keys": ["string"],
+      "id": "string",
+      "no_refresh": true,
+      "regex": "string",
+      "scopes": ["string"],
+      "token_url": "string",
+      "type": "string",
+      "validate_url": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                | Required | Restrictions | Description |
+| ------- | ------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.ExternalAuthConfig](#codersdkexternalauthconfig) | false    |              |             |
+
+## serpent.Struct-array_codersdk_LinkConfig
+
+```json
+{
+  "value": [
+    {
+      "icon": "bug",
+      "name": "string",
+      "target": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                | Required | Restrictions | Description |
+| ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+
+## serpent.URL
+
+```json
+{
+  "forceQuery": true,
+  "fragment": "string",
+  "host": "string",
+  "omitHost": true,
+  "opaque": "string",
+  "path": "string",
+  "rawFragment": "string",
+  "rawPath": "string",
+  "rawQuery": "string",
+  "scheme": "string",
+  "user": {}
+}
+```
+
+### Properties
+
+| Name          | Type                         | Required | Restrictions | Description                                        |
+| ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
+| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
+| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
+| `host`        | string                       | false    |              | host or host:port                                  |
+| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
+| `opaque`      | string                       | false    |              | encoded opaque data                                |
+| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
+| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
+| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
+| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
+| `scheme`      | string                       | false    |              |                                                    |
+| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+
+## serpent.ValueSource
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| ``        |
+| `flag`    |
+| `env`     |
+| `yaml`    |
+| `default` |
 
 ## tailcfg.DERPHomeParams
 

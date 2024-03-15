@@ -8028,201 +8028,6 @@ const docTemplate = `{
                 }
             }
         },
-        "clibase.Annotations": {
-            "type": "object",
-            "additionalProperties": {
-                "type": "string"
-            }
-        },
-        "clibase.Group": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "parent": {
-                    "$ref": "#/definitions/clibase.Group"
-                },
-                "yaml": {
-                    "type": "string"
-                }
-            }
-        },
-        "clibase.HostPort": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "type": "string"
-                },
-                "port": {
-                    "type": "string"
-                }
-            }
-        },
-        "clibase.Option": {
-            "type": "object",
-            "properties": {
-                "annotations": {
-                    "description": "Annotations enable extensions to clibase higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/clibase.Annotations"
-                        }
-                    ]
-                },
-                "default": {
-                    "description": "Default is parsed into Value if set.",
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "env": {
-                    "description": "Env is the environment variable used to configure this option. If unset,\nenvironment configuring is disabled.",
-                    "type": "string"
-                },
-                "flag": {
-                    "description": "Flag is the long name of the flag used to configure this option. If unset,\nflag configuring is disabled.",
-                    "type": "string"
-                },
-                "flag_shorthand": {
-                    "description": "FlagShorthand is the one-character shorthand for the flag. If unset, no\nshorthand is used.",
-                    "type": "string"
-                },
-                "group": {
-                    "description": "Group is a group hierarchy that helps organize this option in help, configs\nand other documentation.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/clibase.Group"
-                        }
-                    ]
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "required": {
-                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
-                    "type": "boolean"
-                },
-                "use_instead": {
-                    "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/clibase.Option"
-                    }
-                },
-                "value": {
-                    "description": "Value includes the types listed in values.go."
-                },
-                "value_source": {
-                    "$ref": "#/definitions/clibase.ValueSource"
-                },
-                "yaml": {
-                    "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
-                    "type": "string"
-                }
-            }
-        },
-        "clibase.Regexp": {
-            "type": "object"
-        },
-        "clibase.Struct-array_codersdk_ExternalAuthConfig": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ExternalAuthConfig"
-                    }
-                }
-            }
-        },
-        "clibase.Struct-array_codersdk_LinkConfig": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.LinkConfig"
-                    }
-                }
-            }
-        },
-        "clibase.URL": {
-            "type": "object",
-            "properties": {
-                "forceQuery": {
-                    "description": "append a query ('?') even if RawQuery is empty",
-                    "type": "boolean"
-                },
-                "fragment": {
-                    "description": "fragment for references, without '#'",
-                    "type": "string"
-                },
-                "host": {
-                    "description": "host or host:port",
-                    "type": "string"
-                },
-                "omitHost": {
-                    "description": "do not emit empty host (authority)",
-                    "type": "boolean"
-                },
-                "opaque": {
-                    "description": "encoded opaque data",
-                    "type": "string"
-                },
-                "path": {
-                    "description": "path (relative paths may omit leading slash)",
-                    "type": "string"
-                },
-                "rawFragment": {
-                    "description": "encoded fragment hint (see EscapedFragment method)",
-                    "type": "string"
-                },
-                "rawPath": {
-                    "description": "encoded path hint (see EscapedPath method)",
-                    "type": "string"
-                },
-                "rawQuery": {
-                    "description": "encoded query values, without '?'",
-                    "type": "string"
-                },
-                "scheme": {
-                    "type": "string"
-                },
-                "user": {
-                    "description": "username and password information",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/url.Userinfo"
-                        }
-                    ]
-                }
-            }
-        },
-        "clibase.ValueSource": {
-            "type": "string",
-            "enum": [
-                "",
-                "flag",
-                "env",
-                "yaml",
-                "default"
-            ],
-            "x-enum-varnames": [
-                "ValueSourceNone",
-                "ValueSourceFlag",
-                "ValueSourceEnv",
-                "ValueSourceYAML",
-                "ValueSourceDefault"
-            ]
-        },
         "coderd.SCIMUser": {
             "type": "object",
             "properties": {
@@ -9536,7 +9341,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "relay_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 },
                 "stun_addresses": {
                     "type": "array",
@@ -9625,7 +9430,7 @@ const docTemplate = `{
                 "options": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/clibase.Option"
+                        "$ref": "#/definitions/serpent.Option"
                     }
                 }
             }
@@ -9660,18 +9465,18 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "access_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/clibase.HostPort"
+                            "$ref": "#/definitions/serpent.HostPort"
                         }
                     ]
                 },
                 "agent_fallback_troubleshooting_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
@@ -9716,7 +9521,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "docs_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
@@ -9728,7 +9533,7 @@ const docTemplate = `{
                     }
                 },
                 "external_auth": {
-                    "$ref": "#/definitions/clibase.Struct-array_codersdk_ExternalAuthConfig"
+                    "$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
                 },
                 "external_token_encryption_keys": {
                     "type": "array",
@@ -10747,13 +10552,13 @@ const docTemplate = `{
                     "type": "object"
                 },
                 "group_regex_filter": {
-                    "$ref": "#/definitions/clibase.Regexp"
+                    "$ref": "#/definitions/serpent.Regexp"
                 },
                 "groups_field": {
                     "type": "string"
                 },
                 "icon_url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 },
                 "ignore_email_verified": {
                     "type": "boolean"
@@ -10939,7 +10744,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/clibase.HostPort"
+                    "$ref": "#/definitions/serpent.HostPort"
                 },
                 "enable": {
                     "type": "boolean"
@@ -10950,7 +10755,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/clibase.HostPort"
+                    "$ref": "#/definitions/serpent.HostPort"
                 },
                 "aggregate_agent_stats_by": {
                     "type": "array",
@@ -11642,7 +11447,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "links": {
-                    "$ref": "#/definitions/clibase.Struct-array_codersdk_LinkConfig"
+                    "$ref": "#/definitions/serpent.Struct-array_codersdk_LinkConfig"
                 }
             }
         },
@@ -11658,7 +11463,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/clibase.HostPort"
+                    "$ref": "#/definitions/serpent.HostPort"
                 },
                 "allow_insecure_ciphers": {
                     "type": "boolean"
@@ -11714,7 +11519,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "url": {
-                    "$ref": "#/definitions/clibase.URL"
+                    "$ref": "#/definitions/serpent.URL"
                 }
             }
         },
@@ -14239,6 +14044,201 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "serpent.Annotations": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "serpent.Group": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent": {
+                    "$ref": "#/definitions/serpent.Group"
+                },
+                "yaml": {
+                    "type": "string"
+                }
+            }
+        },
+        "serpent.HostPort": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "string"
+                }
+            }
+        },
+        "serpent.Option": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Annotations enable extensions to serpent higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.Annotations"
+                        }
+                    ]
+                },
+                "default": {
+                    "description": "Default is parsed into Value if set.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "env": {
+                    "description": "Env is the environment variable used to configure this option. If unset,\nenvironment configuring is disabled.",
+                    "type": "string"
+                },
+                "flag": {
+                    "description": "Flag is the long name of the flag used to configure this option. If unset,\nflag configuring is disabled.",
+                    "type": "string"
+                },
+                "flag_shorthand": {
+                    "description": "FlagShorthand is the one-character shorthand for the flag. If unset, no\nshorthand is used.",
+                    "type": "string"
+                },
+                "group": {
+                    "description": "Group is a group hierarchy that helps organize this option in help, configs\nand other documentation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.Group"
+                        }
+                    ]
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
+                    "type": "boolean"
+                },
+                "use_instead": {
+                    "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/serpent.Option"
+                    }
+                },
+                "value": {
+                    "description": "Value includes the types listed in values.go."
+                },
+                "value_source": {
+                    "$ref": "#/definitions/serpent.ValueSource"
+                },
+                "yaml": {
+                    "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
+                    "type": "string"
+                }
+            }
+        },
+        "serpent.Regexp": {
+            "type": "object"
+        },
+        "serpent.Struct-array_codersdk_ExternalAuthConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExternalAuthConfig"
+                    }
+                }
+            }
+        },
+        "serpent.Struct-array_codersdk_LinkConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
+                }
+            }
+        },
+        "serpent.URL": {
+            "type": "object",
+            "properties": {
+                "forceQuery": {
+                    "description": "append a query ('?') even if RawQuery is empty",
+                    "type": "boolean"
+                },
+                "fragment": {
+                    "description": "fragment for references, without '#'",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "host or host:port",
+                    "type": "string"
+                },
+                "omitHost": {
+                    "description": "do not emit empty host (authority)",
+                    "type": "boolean"
+                },
+                "opaque": {
+                    "description": "encoded opaque data",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "path (relative paths may omit leading slash)",
+                    "type": "string"
+                },
+                "rawFragment": {
+                    "description": "encoded fragment hint (see EscapedFragment method)",
+                    "type": "string"
+                },
+                "rawPath": {
+                    "description": "encoded path hint (see EscapedPath method)",
+                    "type": "string"
+                },
+                "rawQuery": {
+                    "description": "encoded query values, without '?'",
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "username and password information",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/url.Userinfo"
+                        }
+                    ]
+                }
+            }
+        },
+        "serpent.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "tailcfg.DERPHomeParams": {
             "type": "object",

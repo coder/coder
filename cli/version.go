@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
@@ -61,7 +61,7 @@ func defaultVersionInfo() *versionInfo {
 }
 
 // version prints the coder version
-func (*RootCmd) version(versionInfo func() *versionInfo) *clibase.Cmd {
+func (*RootCmd) version(versionInfo func() *versionInfo) *serpent.Cmd {
 	var (
 		formatter = cliui.NewOutputFormatter(
 			cliui.TextFormat(),
@@ -70,11 +70,11 @@ func (*RootCmd) version(versionInfo func() *versionInfo) *clibase.Cmd {
 		vi = versionInfo()
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "version",
 		Short:   "Show coder version",
-		Options: clibase.OptionSet{},
-		Handler: func(inv *clibase.Invocation) error {
+		Options: serpent.OptionSet{},
+		Handler: func(inv *serpent.Invocation) error {
 			out, err := formatter.Format(inv.Context(), vi)
 			if err != nil {
 				return err

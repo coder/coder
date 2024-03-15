@@ -8,21 +8,21 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) netcheck() *clibase.Cmd {
+func (r *RootCmd) netcheck() *serpent.Cmd {
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "netcheck",
 		Short: "Print network debug information for DERP and STUN",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
@@ -56,6 +56,6 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{}
+	cmd.Options = serpent.OptionSet{}
 	return cmd
 }

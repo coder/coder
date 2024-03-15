@@ -8,14 +8,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateVersions() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) templateVersions() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
@@ -25,10 +25,10 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 				Command:     "coder templates versions list my-template",
 			},
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.templateVersionsList(),
 			r.archiveTemplateVersion(),
 			r.unarchiveTemplateVersion(),
@@ -38,7 +38,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) templateVersionsList() *clibase.Cmd {
+func (r *RootCmd) templateVersionsList() *serpent.Cmd {
 	defaultColumns := []string{
 		"Name",
 		"Created At",
@@ -52,15 +52,15 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 
-	var includeArchived clibase.Bool
+	var includeArchived serpent.Bool
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use: "list <template>",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
-			func(next clibase.HandlerFunc) clibase.HandlerFunc {
-				return func(i *clibase.Invocation) error {
+			func(next serpent.HandlerFunc) serpent.HandlerFunc {
+				return func(i *serpent.Invocation) error {
 					// This is the only way to dynamically add the "archived"
 					// column if '--include-archived' is true.
 					// It does not make sense to show this column if the
@@ -68,8 +68,8 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 					if includeArchived {
 						for _, opt := range i.Command.Options {
 							if opt.Flag == "column" {
-								if opt.ValueSource == clibase.ValueSourceDefault {
-									v, ok := opt.Value.(*clibase.StringArray)
+								if opt.ValueSource == serpent.ValueSourceDefault {
+									v, ok := opt.Value.(*serpent.StringArray)
 									if ok {
 										// Add the extra new default column.
 										*v = append(*v, "Archived")
@@ -84,7 +84,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 			},
 		),
 		Short: "List all the versions of the specified template",
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			{
 				Name:        "include-archived",
 				Description: "Include archived versions in the result list.",
@@ -92,7 +92,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 				Value:       &includeArchived,
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)

@@ -18,9 +18,9 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -137,78 +137,78 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
-	Verbose             clibase.Bool   `json:"verbose,omitempty"`
-	AccessURL           clibase.URL    `json:"access_url,omitempty"`
-	WildcardAccessURL   clibase.String `json:"wildcard_access_url,omitempty"`
-	DocsURL             clibase.URL    `json:"docs_url,omitempty"`
-	RedirectToAccessURL clibase.Bool   `json:"redirect_to_access_url,omitempty"`
+	Verbose             serpent.Bool   `json:"verbose,omitempty"`
+	AccessURL           serpent.URL    `json:"access_url,omitempty"`
+	WildcardAccessURL   serpent.String `json:"wildcard_access_url,omitempty"`
+	DocsURL             serpent.URL    `json:"docs_url,omitempty"`
+	RedirectToAccessURL serpent.Bool   `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
-	HTTPAddress                     clibase.String                       `json:"http_address,omitempty" typescript:",notnull"`
-	AutobuildPollInterval           clibase.Duration                     `json:"autobuild_poll_interval,omitempty"`
-	JobHangDetectorInterval         clibase.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	HTTPAddress                     serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
+	AutobuildPollInterval           serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
+	JobHangDetectorInterval         serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
 	DERP                            DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                           PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             clibase.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             clibase.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
-	CacheDir                        clibase.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                clibase.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
-	PostgresURL                     clibase.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
+	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
+	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
 	TLS                             TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
 	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                clibase.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	StrictTransportSecurity         clibase.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  clibase.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
-	SSHKeygenAlgorithm              clibase.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
-	MetricsCacheRefreshInterval     clibase.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
-	AgentStatRefreshInterval        clibase.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL clibase.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	BrowserOnly                     clibase.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
-	SCIMAPIKey                      clibase.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
-	ExternalTokenEncryptionKeys     clibase.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
+	SecureAuthCookie                serpent.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	StrictTransportSecurity         serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	SSHKeygenAlgorithm              serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
+	MetricsCacheRefreshInterval     serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
+	AgentStatRefreshInterval        serpent.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	BrowserOnly                     serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
+	SCIMAPIKey                      serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	ExternalTokenEncryptionKeys     serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     clibase.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
-	UpdateCheck                     clibase.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                clibase.Duration                     `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	Experiments                     serpent.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
+	UpdateCheck                     serpent.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
+	MaxTokenLifetime                serpent.Duration                     `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 	Swagger                         SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
 	Logging                         LoggingConfig                        `json:"logging,omitempty" typescript:",notnull"`
 	Dangerous                       DangerousConfig                      `json:"dangerous,omitempty" typescript:",notnull"`
-	DisablePathApps                 clibase.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 clibase.Duration                     `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     clibase.Bool                         `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
-	DisablePasswordAuth             clibase.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	DisablePathApps                 serpent.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
+	SessionDuration                 serpent.Duration                     `json:"max_session_expiry,omitempty" typescript:",notnull"`
+	DisableSessionExpiryRefresh     serpent.Bool                         `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
-	ExternalAuthConfigs             clibase.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
+	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
-	WgtunnelHost                    clibase.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
-	DisableOwnerWorkspaceExec       clibase.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
-	ProxyHealthStatusInterval       clibase.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	DisableOwnerWorkspaceExec       serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
+	ProxyHealthStatusInterval       serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
-	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames           clibase.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	WebTerminalRenderer             serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
+	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage               clibase.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 
-	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
-	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
+	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
+	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
+	Address serpent.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
 // SSHConfig is configuration the cli & vscode extension use for configuring
 // ssh connections.
 type SSHConfig struct {
 	// DeploymentName is the config-ssh Hostname prefix
-	DeploymentName clibase.String
+	DeploymentName serpent.String
 	// SSHConfigOptions are additional options to add to the ssh config file.
 	// This will override defaults.
-	SSHConfigOptions clibase.StringArray
+	SSHConfigOptions serpent.StringArray
 }
 
 func (c SSHConfig) ParseOptions() (map[string]string, error) {
@@ -241,32 +241,32 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        clibase.Bool        `json:"enable" typescript:",notnull"`
-	RegionID      clibase.Int64       `json:"region_id" typescript:",notnull"`
-	RegionCode    clibase.String      `json:"region_code" typescript:",notnull"`
-	RegionName    clibase.String      `json:"region_name" typescript:",notnull"`
-	STUNAddresses clibase.StringArray `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      clibase.URL         `json:"relay_url" typescript:",notnull"`
+	Enable        serpent.Bool        `json:"enable" typescript:",notnull"`
+	RegionID      serpent.Int64       `json:"region_id" typescript:",notnull"`
+	RegionCode    serpent.String      `json:"region_code" typescript:",notnull"`
+	RegionName    serpent.String      `json:"region_name" typescript:",notnull"`
+	STUNAddresses serpent.StringArray `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      serpent.URL         `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
-	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
-	URL             clibase.String `json:"url" typescript:",notnull"`
-	Path            clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect     serpent.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL             serpent.String `json:"url" typescript:",notnull"`
+	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
-	Enable                clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address               clibase.HostPort    `json:"address" typescript:",notnull"`
-	CollectAgentStats     clibase.Bool        `json:"collect_agent_stats" typescript:",notnull"`
-	CollectDBMetrics      clibase.Bool        `json:"collect_db_metrics" typescript:",notnull"`
-	AggregateAgentStatsBy clibase.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	Enable                serpent.Bool        `json:"enable" typescript:",notnull"`
+	Address               serpent.HostPort    `json:"address" typescript:",notnull"`
+	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
+	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address clibase.HostPort `json:"address" typescript:",notnull"`
+	Enable  serpent.Bool     `json:"enable" typescript:",notnull"`
+	Address serpent.HostPort `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
@@ -274,69 +274,69 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          clibase.String      `json:"client_id" typescript:",notnull"`
-	ClientSecret      clibase.String      `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       clibase.StringArray `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      clibase.StringArray `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      clibase.Bool        `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     clibase.Bool        `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL clibase.String      `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          serpent.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret      serpent.String      `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      serpent.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups clibase.Bool   `json:"allow_signups" typescript:",notnull"`
-	ClientID     clibase.String `json:"client_id" typescript:",notnull"`
-	ClientSecret clibase.String `json:"client_secret" typescript:",notnull"`
+	AllowSignups serpent.Bool   `json:"allow_signups" typescript:",notnull"`
+	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
+	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile       clibase.String                      `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile      clibase.String                      `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String                      `json:"username_field" typescript:",notnull"`
-	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
-	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
-	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
-	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
-	GroupAllowList      clibase.StringArray                 `json:"group_allow_list" typescript:",notnull"`
-	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
-	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
-	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
-	UserRoleMapping     clibase.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
-	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
-	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
-	SignupsDisabledText clibase.String                      `json:"signups_disabled_text" typescript:",notnull"`
+	ClientKeyFile       serpent.String                      `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      serpent.String                      `json:"client_cert_file" typescript:",notnull"`
+	EmailDomain         serpent.StringArray                 `json:"email_domain" typescript:",notnull"`
+	IssuerURL           serpent.String                      `json:"issuer_url" typescript:",notnull"`
+	Scopes              serpent.StringArray                 `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified serpent.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       serpent.String                      `json:"username_field" typescript:",notnull"`
+	EmailField          serpent.String                      `json:"email_field" typescript:",notnull"`
+	AuthURLParams       serpent.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      serpent.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     serpent.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    serpent.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList      serpent.StringArray                 `json:"group_allow_list" typescript:",notnull"`
+	GroupField          serpent.String                      `json:"groups_field" typescript:",notnull"`
+	GroupMapping        serpent.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
+	UserRoleField       serpent.String                      `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping     serpent.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault    serpent.StringArray                 `json:"user_roles_default" typescript:",notnull"`
+	SignInText          serpent.String                      `json:"sign_in_text" typescript:",notnull"`
+	IconURL             serpent.URL                         `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText serpent.String                      `json:"signups_disabled_text" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
-	Enable clibase.Bool `json:"enable" typescript:",notnull"`
-	Trace  clibase.Bool `json:"trace" typescript:",notnull"`
-	URL    clibase.URL  `json:"url" typescript:",notnull"`
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
+	Trace  serpent.Bool `json:"trace" typescript:",notnull"`
+	URL    serpent.URL  `json:"url" typescript:",notnull"`
 }
 
 type TLSConfig struct {
-	Enable               clibase.Bool        `json:"enable" typescript:",notnull"`
-	Address              clibase.HostPort    `json:"address" typescript:",notnull"`
-	RedirectHTTP         clibase.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles            clibase.StringArray `json:"cert_file" typescript:",notnull"`
-	ClientAuth           clibase.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile         clibase.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles             clibase.StringArray `json:"key_file" typescript:",notnull"`
-	MinVersion           clibase.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile       clibase.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile        clibase.String      `json:"client_key_file" typescript:",notnull"`
-	SupportedCiphers     clibase.StringArray `json:"supported_ciphers" typescript:",notnull"`
-	AllowInsecureCiphers clibase.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
+	Enable               serpent.Bool        `json:"enable" typescript:",notnull"`
+	Address              serpent.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP         serpent.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles            serpent.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth           serpent.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile         serpent.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles             serpent.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion           serpent.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile       serpent.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile        serpent.String      `json:"client_key_file" typescript:",notnull"`
+	SupportedCiphers     serpent.StringArray `json:"supported_ciphers" typescript:",notnull"`
+	AllowInsecureCiphers serpent.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
 
 type TraceConfig struct {
-	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
-	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
-	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
-	DataDog         clibase.Bool   `json:"data_dog" typescript:",notnull"`
+	Enable          serpent.Bool   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
+	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
 type ExternalAuthConfig struct {
@@ -371,48 +371,48 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonsEcho         clibase.Bool     `json:"daemons_echo" typescript:",notnull"`
-	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
+	Daemons             serpent.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonsEcho         serpent.Bool     `json:"daemons_echo" typescript:",notnull"`
+	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    serpent.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval serpent.Duration `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           serpent.String   `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
-	DisableAll clibase.Bool  `json:"disable_all" typescript:",notnull"`
-	API        clibase.Int64 `json:"api" typescript:",notnull"`
+	DisableAll serpent.Bool  `json:"disable_all" typescript:",notnull"`
+	API        serpent.Int64 `json:"api" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
-	Enable clibase.Bool `json:"enable" typescript:",notnull"`
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type LoggingConfig struct {
-	Filter      clibase.StringArray `json:"log_filter" typescript:",notnull"`
-	Human       clibase.String      `json:"human" typescript:",notnull"`
-	JSON        clibase.String      `json:"json" typescript:",notnull"`
-	Stackdriver clibase.String      `json:"stackdriver" typescript:",notnull"`
+	Filter      serpent.StringArray `json:"log_filter" typescript:",notnull"`
+	Human       serpent.String      `json:"human" typescript:",notnull"`
+	JSON        serpent.String      `json:"json" typescript:",notnull"`
+	Stackdriver serpent.String      `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
-	AllowAllCors                clibase.Bool `json:"allow_all_cors" typescript:",notnull"`
+	AllowPathAppSharing         serpent.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess serpent.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowAllCors                serpent.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
 
 type UserQuietHoursScheduleConfig struct {
-	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
-	AllowUserCustom clibase.Bool   `json:"allow_user_custom" typescript:",notnull"`
+	DefaultSchedule serpent.String `json:"default_schedule" typescript:",notnull"`
+	AllowUserCustom serpent.Bool   `json:"allow_user_custom" typescript:",notnull"`
 	// TODO: add WindowDuration and the ability to postpone max_deadline by this
 	// amount
-	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
+	// WindowDuration  serpent.Duration `json:"window_duration" typescript:",notnull"`
 }
 
 // HealthcheckConfig contains configuration for healthchecks.
 type HealthcheckConfig struct {
-	Refresh           clibase.Duration `json:"refresh" typescript:",notnull"`
-	ThresholdDatabase clibase.Duration `json:"threshold_database" typescript:",notnull"`
+	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
+	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
 }
 
 const (
@@ -425,13 +425,13 @@ const (
 )
 
 // IsWorkspaceProxies returns true if the cli option is used by workspace proxies.
-func IsWorkspaceProxies(opt clibase.Option) bool {
+func IsWorkspaceProxies(opt serpent.Option) bool {
 	// If it is a bool, use the bool value.
 	b, _ := strconv.ParseBool(opt.Annotations[annotationExternalProxies])
 	return b
 }
 
-func IsSecretDeploymentOption(opt clibase.Option) bool {
+func IsSecretDeploymentOption(opt serpent.Option) bool {
 	return opt.Annotations.IsSet(annotationSecretKey)
 }
 
@@ -453,17 +453,17 @@ func DefaultCacheDir() string {
 // DeploymentConfig contains both the deployment values and how they're set.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
-	Options clibase.OptionSet `json:"options,omitempty"`
+	Options serpent.OptionSet `json:"options,omitempty"`
 }
 
-func (c *DeploymentValues) Options() clibase.OptionSet {
+func (c *DeploymentValues) Options() serpent.OptionSet {
 	// The deploymentGroup variables are used to organize the myriad server options.
 	var (
-		deploymentGroupNetworking = clibase.Group{
+		deploymentGroupNetworking = serpent.Group{
 			Name: "Networking",
 			YAML: "networking",
 		}
-		deploymentGroupNetworkingTLS = clibase.Group{
+		deploymentGroupNetworkingTLS = serpent.Group{
 			Parent: &deploymentGroupNetworking,
 			Name:   "TLS",
 			Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
@@ -471,12 +471,12 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
  secure link, you can safely ignore these settings.`,
 			YAML: "tls",
 		}
-		deploymentGroupNetworkingHTTP = clibase.Group{
+		deploymentGroupNetworkingHTTP = serpent.Group{
 			Parent: &deploymentGroupNetworking,
 			Name:   "HTTP",
 			YAML:   "http",
 		}
-		deploymentGroupNetworkingDERP = clibase.Group{
+		deploymentGroupNetworkingDERP = serpent.Group{
 			Parent: &deploymentGroupNetworking,
 			Name:   "DERP",
 			Description: `Most Coder deployments never have to think about DERP because all connections
@@ -485,84 +485,84 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
  Tailscale and WireGuard.`,
 			YAML: "derp",
 		}
-		deploymentGroupIntrospection = clibase.Group{
+		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, and metrics exporting.`,
 			YAML:        "introspection",
 		}
-		deploymentGroupIntrospectionPPROF = clibase.Group{
+		deploymentGroupIntrospectionPPROF = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "pprof",
 			YAML:   "pprof",
 		}
-		deploymentGroupIntrospectionPrometheus = clibase.Group{
+		deploymentGroupIntrospectionPrometheus = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Prometheus",
 			YAML:   "prometheus",
 		}
-		deploymentGroupIntrospectionTracing = clibase.Group{
+		deploymentGroupIntrospectionTracing = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Tracing",
 			YAML:   "tracing",
 		}
-		deploymentGroupIntrospectionLogging = clibase.Group{
+		deploymentGroupIntrospectionLogging = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Logging",
 			YAML:   "logging",
 		}
-		deploymentGroupIntrospectionHealthcheck = clibase.Group{
+		deploymentGroupIntrospectionHealthcheck = serpent.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Health Check",
 			YAML:   "healthcheck",
 		}
-		deploymentGroupOAuth2 = clibase.Group{
+		deploymentGroupOAuth2 = serpent.Group{
 			Name:        "OAuth2",
 			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
 			YAML:        "oauth2",
 		}
-		deploymentGroupOAuth2GitHub = clibase.Group{
+		deploymentGroupOAuth2GitHub = serpent.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
 			YAML:   "github",
 		}
-		deploymentGroupOIDC = clibase.Group{
+		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
 			YAML: "oidc",
 		}
-		deploymentGroupTelemetry = clibase.Group{
+		deploymentGroupTelemetry = serpent.Group{
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry
 when required by your organization's security policy.`,
 		}
-		deploymentGroupProvisioning = clibase.Group{
+		deploymentGroupProvisioning = serpent.Group{
 			Name:        "Provisioning",
 			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
 			YAML:        "provisioning",
 		}
-		deploymentGroupUserQuietHoursSchedule = clibase.Group{
+		deploymentGroupUserQuietHoursSchedule = serpent.Group{
 			Name:        "User Quiet Hours Schedule",
 			Description: "Allow users to set quiet hours schedules each day for workspaces to avoid workspaces stopping during the day due to template max TTL.",
 			YAML:        "userQuietHoursSchedule",
 		}
-		deploymentGroupDangerous = clibase.Group{
+		deploymentGroupDangerous = serpent.Group{
 			Name: "⚠️ Dangerous",
 			YAML: "dangerous",
 		}
-		deploymentGroupClient = clibase.Group{
+		deploymentGroupClient = serpent.Group{
 			Name: "Client",
 			Description: "These options change the behavior of how clients interact with the Coder. " +
 				"Clients include the coder cli, vs code extension, and the web UI.",
 			YAML: "client",
 		}
-		deploymentGroupConfig = clibase.Group{
+		deploymentGroupConfig = serpent.Group{
 			Name:        "Config",
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 		}
 	)
 
-	httpAddress := clibase.Option{
+	httpAddress := serpent.Option{
 		Name:        "HTTP Address",
 		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
 		Flag:        "http-address",
@@ -571,9 +571,9 @@ when required by your organization's security policy.`,
 		Value:       &c.HTTPAddress,
 		Group:       &deploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
-		Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 	}
-	tlsBindAddress := clibase.Option{
+	tlsBindAddress := serpent.Option{
 		Name:        "TLS Address",
 		Description: "HTTPS bind address of the server.",
 		Flag:        "tls-address",
@@ -582,9 +582,9 @@ when required by your organization's security policy.`,
 		Value:       &c.TLS.Address,
 		Group:       &deploymentGroupNetworkingTLS,
 		YAML:        "address",
-		Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 	}
-	redirectToAccessURL := clibase.Option{
+	redirectToAccessURL := serpent.Option{
 		Name:        "Redirect to Access URL",
 		Description: "Specifies whether to redirect requests that do not match the access URL host.",
 		Flag:        "redirect-to-access-url",
@@ -593,7 +593,7 @@ when required by your organization's security policy.`,
 		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
-	logFilter := clibase.Option{
+	logFilter := serpent.Option{
 		Name:          "Log Filter",
 		Description:   "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
 		Flag:          "log-filter",
@@ -603,7 +603,7 @@ when required by your organization's security policy.`,
 		Group:         &deploymentGroupIntrospectionLogging,
 		YAML:          "filter",
 	}
-	opts := clibase.OptionSet{
+	opts := serpent.OptionSet{
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
@@ -612,20 +612,20 @@ when required by your organization's security policy.`,
 			Env:         "CODER_ACCESS_URL",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "accessURL",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Wildcard Access URL",
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
-			// Do not use a clibase.URL here. We are intentionally omitting the
+			// Do not use a serpent.URL here. We are intentionally omitting the
 			// scheme part of the url (https://), so the standard url parsing
 			// will yield unexpected results.
 			//
 			// We have a validation function to ensure the wildcard url is correct,
 			// so use that instead.
-			Value: clibase.Validate(&c.WildcardAccessURL, func(value *clibase.String) error {
+			Value: serpent.Validate(&c.WildcardAccessURL, func(value *serpent.String) error {
 				if value.Value() == "" {
 					return nil
 				}
@@ -634,7 +634,7 @@ when required by your organization's security policy.`,
 			}),
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Docs URL",
@@ -644,7 +644,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_DOCS_URL",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "docsURL",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		redirectToAccessURL,
 		{
@@ -656,7 +656,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
 			YAML:        "autobuildPollInterval",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Job Hang Detector Interval",
@@ -667,7 +667,7 @@ when required by your organization's security policy.`,
 			Default:     time.Minute.String(),
 			Value:       &c.JobHangDetectorInterval,
 			YAML:        "jobHangDetectorInterval",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		httpAddress,
 		tlsBindAddress,
@@ -679,12 +679,12 @@ when required by your organization's security policy.`,
 			Env:           "CODER_ADDRESS",
 			Hidden:        true,
 			Value:         &c.Address,
-			UseInstead: clibase.OptionSet{
+			UseInstead: serpent.OptionSet{
 				httpAddress,
 				tlsBindAddress,
 			},
 			Group:       &deploymentGroupNetworking,
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// TLS settings
 		{
@@ -695,7 +695,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.Enable,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "enable",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Redirect HTTP to HTTPS",
@@ -705,10 +705,10 @@ when required by your organization's security policy.`,
 			Default:     "true",
 			Hidden:      true,
 			Value:       &c.TLS.RedirectHTTP,
-			UseInstead:  clibase.OptionSet{redirectToAccessURL},
+			UseInstead:  serpent.OptionSet{redirectToAccessURL},
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "redirectHTTP",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Certificate Files",
@@ -718,7 +718,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.CertFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "certFiles",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client CA Files",
@@ -728,7 +728,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientCAFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCAFile",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Auth",
@@ -739,7 +739,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientAuth,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientAuth",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Key Files",
@@ -749,7 +749,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.KeyFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "keyFiles",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Minimum Version",
@@ -760,7 +760,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.MinVersion,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "minVersion",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Cert File",
@@ -770,7 +770,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientCertFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCertFile",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Client Key File",
@@ -780,7 +780,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Ciphers",
@@ -791,7 +791,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.SupportedCiphers,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "tlsCiphers",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "TLS Allow Insecure Ciphers",
@@ -802,7 +802,7 @@ when required by your organization's security policy.`,
 			Value:       &c.TLS.AllowInsecureCiphers,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "tlsAllowInsecureCiphers",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Derp settings
 		{
@@ -814,7 +814,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.Enable,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "enable",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Server Region ID",
@@ -869,7 +869,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
-			Annotations: clibase.Annotations{}.
+			Annotations: serpent.Annotations{}.
 				Mark(annotationEnterpriseKey, "true").
 				Mark(annotationExternalProxies, "true"),
 		},
@@ -883,7 +883,7 @@ when required by your organization's security policy.`,
 			Env:   "CODER_BLOCK_DIRECT",
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
-			YAML:  "blockDirect", Annotations: clibase.Annotations{}.
+			YAML:  "blockDirect", Annotations: serpent.Annotations{}.
 				Mark(annotationExternalProxies, "true"),
 		},
 		{
@@ -923,7 +923,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Enable,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "enable",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Prometheus Address",
@@ -934,7 +934,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.Address,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "address",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Prometheus Collect Agent Stats",
@@ -950,7 +950,7 @@ when required by your organization's security policy.`,
 			Description: fmt.Sprintf("When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are %s.", strings.Join(agentmetrics.LabelAll, ", ")),
 			Flag:        "prometheus-aggregate-agent-stats-by",
 			Env:         "CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY",
-			Value: clibase.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *clibase.StringArray) error {
+			Value: serpent.Validate(&c.Prometheus.AggregateAgentStatsBy, func(value *serpent.StringArray) error {
 				if value == nil {
 					return nil
 				}
@@ -980,7 +980,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Pprof.Enable,
 			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "enable",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "pprof Address",
@@ -991,7 +991,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Pprof.Address,
 			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "address",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// oAuth settings
 		{
@@ -1009,7 +1009,7 @@ when required by your organization's security policy.`,
 			Flag:        "oauth2-github-client-secret",
 			Env:         "CODER_OAUTH2_GITHUB_CLIENT_SECRET",
 			Value:       &c.OAuth2.Github.ClientSecret,
-			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Group:       &deploymentGroupOAuth2GitHub,
 		},
 		{
@@ -1082,7 +1082,7 @@ when required by your organization's security policy.`,
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
 			Env:         "CODER_OIDC_CLIENT_SECRET",
-			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 			Group:       &deploymentGroupOIDC,
 		},
@@ -1329,14 +1329,14 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.Enable,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "enable",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Trace Honeycomb API Key",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
 			Env:         "CODER_TRACE_HONEYCOMB_API_KEY",
-			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true").Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true").Mark(annotationExternalProxies, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
 			Group:       &deploymentGroupIntrospectionTracing,
 		},
@@ -1348,7 +1348,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Send Go runtime traces to DataDog",
@@ -1364,7 +1364,7 @@ when required by your organization's security policy.`,
 			// Default is false because datadog creates a bunch of goroutines that
 			// don't get cleaned up and trip the leak detector.
 			Default:     "false",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Provisioner settings
 		{
@@ -1397,7 +1397,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollInterval",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Poll Jitter",
@@ -1408,7 +1408,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonPollJitter,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollJitter",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Force Cancel Interval",
@@ -1419,7 +1419,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
@@ -1428,7 +1428,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Value:       &c.Provisioner.DaemonPSK,
 			Group:       &deploymentGroupProvisioning,
-			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 		},
 		// RateLimit settings
 		{
@@ -1439,7 +1439,7 @@ when required by your organization's security policy.`,
 
 			Value:       &c.RateLimit.DisableAll,
 			Hidden:      true,
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "API Rate Limit",
@@ -1451,7 +1451,7 @@ when required by your organization's security policy.`,
 			Default:     "512",
 			Value:       &c.RateLimit.API,
 			Hidden:      true,
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Logging settings
 		{
@@ -1461,11 +1461,11 @@ when required by your organization's security policy.`,
 			Env:           "CODER_VERBOSE",
 			FlagShorthand: "v",
 			Hidden:        true,
-			UseInstead:    []clibase.Option{logFilter},
+			UseInstead:    []serpent.Option{logFilter},
 			Value:         &c.Verbose,
 			Group:         &deploymentGroupIntrospectionLogging,
 			YAML:          "verbose",
-			Annotations:   clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations:   serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		logFilter,
 		{
@@ -1477,7 +1477,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.Human,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "humanPath",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "JSON Log Location",
@@ -1488,7 +1488,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.JSON,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "jsonPath",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Stackdriver Log Location",
@@ -1499,7 +1499,7 @@ when required by your organization's security policy.`,
 			Value:       &c.Logging.Stackdriver,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "stackdriverPath",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Enable Terraform debug mode",
@@ -1520,7 +1520,7 @@ when required by your organization's security policy.`,
 			Hidden:      true, // Hidden, should only be used by yarn dev server
 			Value:       &c.Dangerous.AllowAllCors,
 			Group:       &deploymentGroupDangerous,
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DANGEROUS: Allow Path App Sharing",
@@ -1548,7 +1548,7 @@ when required by your organization's security policy.`,
 			Env:         "CODER_EXPERIMENTS",
 			Value:       &c.Experiments,
 			YAML:        "experiments",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Update Check",
@@ -1573,7 +1573,7 @@ when required by your organization's security policy.`,
 			Value:       &c.MaxTokenLifetime,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -1592,7 +1592,7 @@ when required by your organization's security policy.`,
 			Value:       &c.ProxyTrustedHeaders,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedHeaders",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Proxy Trusted Origins",
@@ -1602,7 +1602,7 @@ when required by your organization's security policy.`,
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Cache Directory",
@@ -1627,7 +1627,7 @@ when required by your organization's security policy.`,
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
-			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},
 		{
@@ -1638,7 +1638,7 @@ when required by your organization's security policy.`,
 			Value:       &c.SecureAuthCookie,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name: "Strict-Transport-Security",
@@ -1651,7 +1651,7 @@ when required by your organization's security policy.`,
 			Value:       &c.StrictTransportSecurity,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "strictTransportSecurity",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name: "Strict-Transport-Security Options",
@@ -1662,7 +1662,7 @@ when required by your organization's security policy.`,
 			Value:       &c.StrictTransportSecurityOptions,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "strictTransportSecurityOptions",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "SSH Keygen Algorithm",
@@ -1681,7 +1681,7 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Default:     (4 * time.Hour).String(),
 			Value:       &c.MetricsCacheRefreshInterval,
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Stat Refresh Interval",
@@ -1691,7 +1691,7 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Agent Fallback Troubleshooting URL",
@@ -1708,7 +1708,7 @@ when required by your organization's security policy.`,
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "CODER_BROWSER_ONLY",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
@@ -1718,7 +1718,7 @@ when required by your organization's security policy.`,
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
 			Env:         "CODER_SCIM_AUTH_HEADER",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
 		{
@@ -1726,7 +1726,7 @@ when required by your organization's security policy.`,
 			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
 			Flag:        "external-token-encryption-keys",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.ExternalTokenEncryptionKeys,
 		},
 		{
@@ -1737,7 +1737,7 @@ when required by your organization's security policy.`,
 
 			Value:       &c.DisablePathApps,
 			YAML:        "disablePathApps",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Disable Owner Workspace Access",
@@ -1747,7 +1747,7 @@ when required by your organization's security policy.`,
 
 			Value:       &c.DisableOwnerWorkspaceExec,
 			YAML:        "disableOwnerWorkspaceAccess",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Session Duration",
@@ -1758,7 +1758,7 @@ when required by your organization's security policy.`,
 			Value:       &c.SessionDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Disable Session Expiry Refresh",
@@ -1831,7 +1831,7 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupConfig,
 			Hidden:      false,
 			Value:       &c.WriteConfig,
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Support Links",
@@ -1870,7 +1870,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
@@ -1921,7 +1921,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Healthcheck.Refresh,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "refresh",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Health Check Threshold: Database",
@@ -1932,7 +1932,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Healthcheck.ThresholdDatabase,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "thresholdDatabase",
-			Annotations: clibase.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 	}
 
@@ -1940,7 +1940,7 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type SupportConfig struct {
-	Links clibase.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
+	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
 type LinkConfig struct {
@@ -1950,8 +1950,8 @@ type LinkConfig struct {
 }
 
 // DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
-func DeploymentOptionsWithoutSecrets(set clibase.OptionSet) clibase.OptionSet {
-	cpy := make(clibase.OptionSet, 0, len(set))
+func DeploymentOptionsWithoutSecrets(set serpent.OptionSet) serpent.OptionSet {
+	cpy := make(serpent.OptionSet, 0, len(set))
 	for _, opt := range set {
 		cpyOpt := opt
 		if IsSecretDeploymentOption(cpyOpt) {
@@ -1983,7 +1983,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
-		case *clibase.String, *clibase.StringArray:
+		case *serpent.String, *serpent.StringArray:
 			err := v.Set("")
 			if err != nil {
 				panic(err)

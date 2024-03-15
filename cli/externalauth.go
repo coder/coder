@@ -7,28 +7,28 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) externalAuth() *clibase.Cmd {
-	return &clibase.Cmd{
+func (r *RootCmd) externalAuth() *serpent.Cmd {
+	return &serpent.Cmd{
 		Use:   "external-auth",
 		Short: "Manage external authentication",
 		Long:  "Authenticate with external services inside of a workspace.",
-		Handler: func(i *clibase.Invocation) error {
+		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.externalAuthAccessToken(),
 		},
 	}
 }
 
-func (r *RootCmd) externalAuthAccessToken() *clibase.Cmd {
+func (r *RootCmd) externalAuthAccessToken() *serpent.Cmd {
 	var extra string
-	return &clibase.Cmd{
+	return &serpent.Cmd{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
 		Long: "Print an access-token for an external auth provider. " +
@@ -52,17 +52,17 @@ fi
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 		),
-		Options: clibase.OptionSet{{
+		Options: serpent.OptionSet{{
 			Name:        "Extra",
 			Flag:        "extra",
 			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
-			Value:       clibase.StringOf(&extra),
+			Value:       serpent.StringOf(&extra),
 		}},
 
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)

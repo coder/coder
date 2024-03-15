@@ -11,7 +11,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -20,9 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
+func (r *RootCmd) newCreateAdminUserCommand() *serpent.Cmd {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string
@@ -30,10 +30,10 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &clibase.Cmd{
+	createAdminUserCommand := &serpent.Cmd{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(newUserSSHKeygenAlgorithm)
@@ -237,36 +237,36 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 	}
 
 	createAdminUserCommand.Options.Add(
-		clibase.Option{
+		serpent.Option{
 			Env:         "CODER_PG_CONNECTION_URL",
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
-			Value:       clibase.StringOf(&newUserDBURL),
+			Value:       serpent.StringOf(&newUserDBURL),
 		},
-		clibase.Option{
+		serpent.Option{
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
 			Flag:        "ssh-keygen-algorithm",
 			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
 			Default:     "ed25519",
-			Value:       clibase.StringOf(&newUserSSHKeygenAlgorithm),
+			Value:       serpent.StringOf(&newUserSSHKeygenAlgorithm),
 		},
-		clibase.Option{
+		serpent.Option{
 			Env:         "CODER_USERNAME",
 			Flag:        "username",
 			Description: "The username of the new user. If not specified, you will be prompted via stdin.",
-			Value:       clibase.StringOf(&newUserUsername),
+			Value:       serpent.StringOf(&newUserUsername),
 		},
-		clibase.Option{
+		serpent.Option{
 			Env:         "CODER_EMAIL",
 			Flag:        "email",
 			Description: "The email of the new user. If not specified, you will be prompted via stdin.",
-			Value:       clibase.StringOf(&newUserEmail),
+			Value:       serpent.StringOf(&newUserEmail),
 		},
-		clibase.Option{
+		serpent.Option{
 			Env:         "CODER_PASSWORD",
 			Flag:        "password",
 			Description: "The password of the new user. If not specified, you will be prompted via stdin.",
-			Value:       clibase.StringOf(&newUserPassword),
+			Value:       serpent.StringOf(&newUserPassword),
 		},
 	)
 

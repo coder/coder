@@ -10,12 +10,12 @@ import (
 	"github.com/codeclysm/extract/v3"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templatePull() *clibase.Cmd {
+func (r *RootCmd) templatePull() *serpent.Cmd {
 	var (
 		tarMode     bool
 		zipMode     bool
@@ -23,14 +23,14 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the active, latest, or specified version of a template to a path.",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx          = inv.Context()
 				templateName = inv.Args[0]
@@ -166,24 +166,24 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Description: "Output the template as a tar archive to stdout.",
 			Flag:        "tar",
 
-			Value: clibase.BoolOf(&tarMode),
+			Value: serpent.BoolOf(&tarMode),
 		},
 		{
 			Description: "Output the template as a zip archive to stdout.",
 			Flag:        "zip",
 
-			Value: clibase.BoolOf(&zipMode),
+			Value: serpent.BoolOf(&zipMode),
 		},
 		{
 			Description: "The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.",
 			Flag:        "version",
 
-			Value: clibase.StringOf(&versionName),
+			Value: serpent.StringOf(&versionName),
 		},
 		cliui.SkipPromptOption(),
 	}

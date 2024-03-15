@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.21
+go 1.21.4
 
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
@@ -33,7 +33,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240312053019-86ba201e56df
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240214140224-3788ab894ba1
 
 // Fixes a race-condition in coder/wgtunnel.
 // Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
@@ -149,7 +149,7 @@ require (
 	github.com/muesli/termenv v0.15.2
 	github.com/open-policy-agent/opa v0.58.0
 	github.com/ory/dockertest/v3 v3.10.0
-	github.com/pion/udp v0.1.2
+	github.com/pion/udp v0.1.4
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.6
@@ -162,11 +162,11 @@ require (
 	github.com/spf13/afero v1.11.0
 	github.com/spf13/pflag v1.0.5
 	github.com/sqlc-dev/pqtype v0.3.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/http-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.16.2
 	github.com/tidwall/gjson v1.17.0
-	github.com/u-root/u-root v0.14.0
+	github.com/u-root/u-root v0.13.0
 	github.com/unrolled/secure v1.14.0
 	github.com/valyala/fasthttp v1.52.0
 	github.com/wagslane/go-password-validator v0.3.0
@@ -181,20 +181,20 @@ require (
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
 	golang.org/x/crypto v0.21.0
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
-	golang.org/x/mod v0.16.0
-	golang.org/x/net v0.22.0
-	golang.org/x/oauth2 v0.18.0
+	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
+	golang.org/x/mod v0.15.0
+	golang.org/x/net v0.21.0
+	golang.org/x/oauth2 v0.17.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/term v0.18.0
 	golang.org/x/text v0.14.0
-	golang.org/x/tools v0.19.0
+	golang.org/x/tools v0.18.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
 	google.golang.org/api v0.152.0
 	google.golang.org/grpc v1.62.0
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.32.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.57.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -208,12 +208,14 @@ require go.uber.org/mock v0.4.0
 
 require (
 	github.com/benbjohnson/clock v1.3.5
+	github.com/coder/serpent v0.4.0
 	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
 )
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.4 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
+	github.com/pion/transport/v2 v2.0.0 // indirect
 	github.com/tdewolff/test v1.0.11-0.20240106005702-7de5f7df4739 // indirect
 )
 
@@ -366,7 +368,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
-	github.com/pion/transport v0.14.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
@@ -392,7 +393,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
-	github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a // indirect
+	github.com/u-root/uio v0.0.0-20240118234441-a3c409a6018e // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect

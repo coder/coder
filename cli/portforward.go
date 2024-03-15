@@ -18,19 +18,19 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) portForward() *clibase.Cmd {
+func (r *RootCmd) portForward() *serpent.Cmd {
 	var (
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "port-forward <workspace>",
 		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
@@ -56,11 +56,11 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				Command:     "coder port-forward <workspace> --tcp 1.2.3.4:8080:8080",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -171,21 +171,21 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "tcp",
 			FlagShorthand: "p",
 			Env:           "CODER_PORT_FORWARD_TCP",
 			Description:   "Forward TCP port(s) from the workspace to the local machine.",
-			Value:         clibase.StringArrayOf(&tcpForwards),
+			Value:         serpent.StringArrayOf(&tcpForwards),
 		},
 		{
 			Flag:        "udp",
 			Env:         "CODER_PORT_FORWARD_UDP",
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
-			Value:       clibase.StringArrayOf(&udpForwards),
+			Value:       serpent.StringArrayOf(&udpForwards),
 		},
-		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
+		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 
 	return cmd
@@ -193,7 +193,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 
 func listenAndPortForward(
 	ctx context.Context,
-	inv *clibase.Invocation,
+	inv *serpent.Invocation,
 	conn *codersdk.WorkspaceAgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,

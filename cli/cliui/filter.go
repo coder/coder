@@ -1,8 +1,8 @@
 package cliui
 
 import (
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 var defaultQuery = "owner:me"
@@ -11,12 +11,12 @@ var defaultQuery = "owner:me"
 // and allows easy integration to a CLI command.
 // Example usage:
 //
-//	func (r *RootCmd) MyCmd() *clibase.Cmd {
+//	func (r *RootCmd) MyCmd() *serpent.Cmd {
 //	  var (
 //	    filter cliui.WorkspaceFilter
 //	    ...
 //	  )
-//	  cmd := &clibase.Cmd{
+//	  cmd := &serpent.Cmd{
 //	    ...
 //	  }
 //	  filter.AttachOptions(&cmd.Options)
@@ -44,20 +44,20 @@ func (w *WorkspaceFilter) Filter() codersdk.WorkspaceFilter {
 	return f
 }
 
-func (w *WorkspaceFilter) AttachOptions(opts *clibase.OptionSet) {
+func (w *WorkspaceFilter) AttachOptions(opts *serpent.OptionSet) {
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "all",
 			FlagShorthand: "a",
 			Description:   "Specifies whether all workspaces will be listed or not.",
 
-			Value: clibase.BoolOf(&w.all),
+			Value: serpent.BoolOf(&w.all),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "search",
 			Description: "Search for a workspace with a query.",
 			Default:     defaultQuery,
-			Value:       clibase.StringOf(&w.searchQuery),
+			Value:       serpent.StringOf(&w.searchQuery),
 		},
 	)
 }

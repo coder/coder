@@ -12,12 +12,12 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) ping() *clibase.Cmd {
+func (r *RootCmd) ping() *serpent.Cmd {
 	var (
 		pingNum     int64
 		pingTimeout time.Duration
@@ -25,15 +25,15 @@ func (r *RootCmd) ping() *clibase.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -143,26 +143,26 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "wait",
 			Description: "Specifies how long to wait between pings.",
 			Default:     "1s",
-			Value:       clibase.DurationOf(&pingWait),
+			Value:       serpent.DurationOf(&pingWait),
 		},
 		{
 			Flag:          "timeout",
 			FlagShorthand: "t",
 			Default:       "5s",
 			Description:   "Specifies how long to wait for a ping to complete.",
-			Value:         clibase.DurationOf(&pingTimeout),
+			Value:         serpent.DurationOf(&pingTimeout),
 		},
 		{
 			Flag:          "num",
 			FlagShorthand: "n",
 			Default:       "10",
 			Description:   "Specifies the number of pings to perform.",
-			Value:         clibase.Int64Of(&pingNum),
+			Value:         serpent.Int64Of(&pingNum),
 		},
 	}
 	return cmd

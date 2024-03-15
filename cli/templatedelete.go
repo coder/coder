@@ -9,23 +9,23 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateDelete() *clibase.Cmd {
+func (r *RootCmd) templateDelete() *serpent.Cmd {
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx           = inv.Context()
 				templateNames = []string{}

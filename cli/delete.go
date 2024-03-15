@@ -4,24 +4,24 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 // nolint
-func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
+func (r *RootCmd) deleteWorkspace() *serpent.Cmd {
 	var orphan bool
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -62,12 +62,12 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "orphan",
 			Description: "Delete a workspace without deleting its resources. This can delete a workspace in a broken state, but may also lead to unaccounted cloud resources.",
 
-			Value: clibase.BoolOf(&orphan),
+			Value: serpent.BoolOf(&orphan),
 		},
 		cliui.SkipPromptOption(),
 	}

@@ -8,10 +8,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
@@ -70,7 +70,7 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	}
 }
 
-func (r *RootCmd) list() *clibase.Cmd {
+func (r *RootCmd) list() *serpent.Cmd {
 	var (
 		filter    cliui.WorkspaceFilter
 		formatter = cliui.NewOutputFormatter(
@@ -92,16 +92,16 @@ func (r *RootCmd) list() *clibase.Cmd {
 		)
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			res, err := queryConvertWorkspaces(inv.Context(), client, filter.Filter(), workspaceListRowFromWorkspace)
 			if err != nil {
 				return err

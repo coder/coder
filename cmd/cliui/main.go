@@ -15,18 +15,18 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 func main() {
-	var root *clibase.Cmd
-	root = &clibase.Cmd{
+	var root *serpent.Cmd
+	root = &serpent.Cmd{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
-		HelpHandler: func(inv *clibase.Invocation) error {
+		HelpHandler: func(inv *serpent.Invocation) error {
 			_, _ = fmt.Fprintln(inv.Stdout, "This command is used for visually testing UI components for the CLI.")
 			_, _ = fmt.Fprintln(inv.Stdout, "It is not intended to be used by end users.")
 			_, _ = fmt.Fprintln(inv.Stdout, "Subcommands: ")
@@ -37,9 +37,9 @@ func main() {
 		},
 	}
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "prompt",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Field("company name") + "?",
 				Default: "acme-corp",
@@ -75,9 +75,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "select",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
@@ -87,9 +87,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "job",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: dbtime.Now(),
@@ -173,9 +173,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "agent",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var agent codersdk.WorkspaceAgent
 			var logs []codersdk.WorkspaceAgentLog
 
@@ -265,9 +265,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "resources",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			disconnected := dbtime.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(inv.Stdout, []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -315,9 +315,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Cmd{
 		Use: "git-auth",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool

@@ -26,11 +26,11 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
 	"github.com/coder/retry"
+	"github.com/coder/serpent"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -44,7 +44,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func (r *RootCmd) ssh() *clibase.Cmd {
+func (r *RootCmd) ssh() *serpent.Cmd {
 	var (
 		stdio            bool
 		forwardAgent     bool
@@ -58,15 +58,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) (retErr error) {
+		Handler: func(inv *serpent.Invocation) (retErr error) {
 			// Before dialing the SSH server over TCP, capture Interrupt signals
 			// so that if we are interrupted, we have a chance to tear down the
 			// TCP session cleanly before exiting.  If we don't, then the TCP
@@ -412,70 +412,70 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			return nil
 		},
 	}
-	waitOption := clibase.Option{
+	waitOption := serpent.Option{
 		Flag:        "wait",
 		Env:         "CODER_SSH_WAIT",
 		Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
 		Default:     "auto",
-		Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
+		Value:       serpent.EnumOf(&waitEnum, "yes", "no", "auto"),
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "stdio",
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
-			Value:       clibase.BoolOf(&stdio),
+			Value:       serpent.BoolOf(&stdio),
 		},
 		{
 			Flag:          "forward-agent",
 			FlagShorthand: "A",
 			Env:           "CODER_SSH_FORWARD_AGENT",
 			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.",
-			Value:         clibase.BoolOf(&forwardAgent),
+			Value:         serpent.BoolOf(&forwardAgent),
 		},
 		{
 			Flag:          "forward-gpg",
 			FlagShorthand: "G",
 			Env:           "CODER_SSH_FORWARD_GPG",
 			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.",
-			Value:         clibase.BoolOf(&forwardGPG),
+			Value:         serpent.BoolOf(&forwardGPG),
 		},
 		{
 			Flag:        "identity-agent",
 			Env:         "CODER_SSH_IDENTITY_AGENT",
 			Description: "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.",
-			Value:       clibase.StringOf(&identityAgent),
+			Value:       serpent.StringOf(&identityAgent),
 		},
 		{
 			Flag:        "workspace-poll-interval",
 			Env:         "CODER_WORKSPACE_POLL_INTERVAL",
 			Description: "Specifies how often to poll for workspace automated shutdown.",
 			Default:     "1m",
-			Value:       clibase.DurationOf(&wsPollInterval),
+			Value:       serpent.DurationOf(&wsPollInterval),
 		},
 		waitOption,
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
 			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
-			Value:       clibase.BoolOf(&noWait),
-			UseInstead:  []clibase.Option{waitOption},
+			Value:       serpent.BoolOf(&noWait),
+			UseInstead:  []serpent.Option{waitOption},
 		},
 		{
 			Flag:          "log-dir",
 			Description:   "Specify the directory containing SSH diagnostic log files.",
 			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
-			Value:         clibase.StringOf(&logDirPath),
+			Value:         serpent.StringOf(&logDirPath),
 		},
 		{
 			Flag:          "remote-forward",
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
-			Value:         clibase.StringArrayOf(&remoteForwards),
+			Value:         serpent.StringArrayOf(&remoteForwards),
 		},
-		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
+		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
 }
@@ -549,7 +549,7 @@ startWatchLoop:
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
@@ -990,8 +990,8 @@ func (c *rawSSHCopier) Close() error {
 	return err
 }
 
-func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
-	return clibase.Option{
+func sshDisableAutostartOption(src *serpent.Bool) serpent.Option {
+	return serpent.Option{
 		Flag:        "disable-autostart",
 		Description: "Disable starting the workspace automatically when connecting via SSH.",
 		Env:         "CODER_SSH_DISABLE_AUTOSTART",

@@ -40,7 +40,6 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -73,6 +72,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/serpent"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -169,7 +169,7 @@ type Options struct {
 	// contextual information about how the values were set.
 	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
 	// All secrets values are stripped.
-	DeploymentOptions  clibase.OptionSet
+	DeploymentOptions  serpent.OptionSet
 	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
 	// SSHConfig is the response clients use to configure config-ssh locally.

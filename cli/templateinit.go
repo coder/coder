@@ -12,15 +12,15 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (*RootCmd) templateInit() *clibase.Cmd {
+func (*RootCmd) templateInit() *serpent.Cmd {
 	var templateID string
 	exampleList, err := examples.List()
 	if err != nil {
@@ -32,11 +32,11 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 		templateIDs = append(templateIDs, ex.ID)
 	}
 	sort.Strings(templateIDs)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:        "init [directory]",
 		Short:      "Get started with a templated template.",
-		Middleware: clibase.RequireRangeArgs(0, 1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireRangeArgs(0, 1),
+		Handler: func(inv *serpent.Invocation) error {
 			// If the user didn't specify any template, prompt them to select one.
 			if templateID == "" {
 				optsToID := map[string]string{}
@@ -76,7 +76,7 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 
 			selectedTemplate, ok := templateByID(templateID, exampleList)
 			if !ok {
-				// clibase.EnumOf would normally handle this.
+				// serpent.EnumOf would normally handle this.
 				return xerrors.Errorf("template not found: %q", templateID)
 			}
 			archive, err := examples.Archive(selectedTemplate.ID)
@@ -120,11 +120,11 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "id",
 			Description: "Specify a given example template by ID.",
-			Value:       clibase.EnumOf(&templateID, templateIDs...),
+			Value:       serpent.EnumOf(&templateID, templateIDs...),
 		},
 	}
 

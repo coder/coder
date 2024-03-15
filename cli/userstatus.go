@@ -8,13 +8,13 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 // createUserStatusCommand sets a user status.
-func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
+func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpent.Cmd {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -36,7 +36,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 	client := new(codersdk.Client)
 
 	var columns []string
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Aliases: aliases,
@@ -45,11 +45,11 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")
@@ -94,13 +94,13 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "column",
 			FlagShorthand: "c",
 			Description:   "Specify a column to filter in the table.",
 			Default:       strings.Join([]string{"username", "email", "created_at", "status"}, ","),
-			Value:         clibase.StringArrayOf(&columns),
+			Value:         serpent.StringArrayOf(&columns),
 		},
 	}
 	return cmd

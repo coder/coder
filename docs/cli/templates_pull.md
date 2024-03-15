@@ -20,6 +20,14 @@ coder templates pull [flags] <name> [destination]
 
 Output the template as a tar archive to stdout.
 
+### --zip
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Output the template as a zip archive to stdout.
+
 ### --version
 
 |      |                     |
@@ -35,11 +43,3 @@ The name of the template version to pull. Use 'active' to pull the active versio
 | Type | <code>bool</code> |
 
 Bypass prompts.
-
-### --zip
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Output the template as a zip archive to stdout.

@@ -12,14 +12,6 @@ coder templates archive [flags] [template-name...]
 
 ## Options
 
-### --all
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Include all unused template versions. By default, only failed template versions are archived.
-
 ### -y, --yes
 
 |      |                   |
@@ -27,3 +19,11 @@ Include all unused template versions. By default, only failed template versions 
 | Type | <code>bool</code> |
 
 Bypass prompts.
+
+### --all
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Include all unused template versions. By default, only failed template versions are archived.

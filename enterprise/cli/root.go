@@ -2,15 +2,15 @@ package cli
 
 import (
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/serpent"
 )
 
 type RootCmd struct {
 	cli.RootCmd
 }
 
-func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
-	return []*clibase.Cmd{
+func (r *RootCmd) enterpriseOnly() []*serpent.Cmd {
+	return []*serpent.Cmd{
 		r.Server(nil),
 		r.workspaceProxy(),
 		r.features(),
@@ -20,7 +20,7 @@ func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 	}
 }
 
-func (r *RootCmd) EnterpriseSubcommands() []*clibase.Cmd {
+func (r *RootCmd) EnterpriseSubcommands() []*serpent.Cmd {
 	all := append(r.Core(), r.enterpriseOnly()...)
 	return all
 }

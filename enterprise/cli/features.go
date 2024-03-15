@@ -10,27 +10,27 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) features() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) features() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.featuresList(),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) featuresList() *clibase.Cmd {
+func (r *RootCmd) featuresList() *serpent.Cmd {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string
@@ -38,13 +38,13 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -81,7 +81,7 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "column",
 			FlagShorthand: "c",
@@ -89,14 +89,14 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 				strings.Join(featureColumns, ", "),
 			),
 			Default: strings.Join(featureColumns, ","),
-			Value:   clibase.StringArrayOf(&columns),
+			Value:   serpent.StringArrayOf(&columns),
 		},
 		{
 			Flag:          "output",
 			FlagShorthand: "o",
 			Description:   "Output format. Available formats are: table, json.",
 			Default:       "table",
-			Value:         clibase.StringOf(&outputFormat),
+			Value:         serpent.StringOf(&outputFormat),
 		},
 	}
 

@@ -16,38 +16,38 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) support() *clibase.Cmd {
-	supportCmd := &clibase.Cmd{
+func (r *RootCmd) support() *serpent.Cmd {
+	supportCmd := &serpent.Cmd{
 		Use:   "support",
 		Short: "Commands for troubleshooting issues with a Coder deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Cmd{
 			r.supportBundle(),
 		},
 	}
 	return supportCmd
 }
 
-func (r *RootCmd) supportBundle() *clibase.Cmd {
+func (r *RootCmd) supportBundle() *serpent.Cmd {
 	var outputPath string
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				log = slog.Make(sloghuman.Sink(inv.Stderr)).
 					Leveled(slog.LevelDebug)
@@ -108,13 +108,13 @@ func (r *RootCmd) supportBundle() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "output",
 			FlagShorthand: "o",
 			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT",
 			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
-			Value:         clibase.StringOf(&outputPath),
+			Value:         serpent.StringOf(&outputPath),
 		},
 	}
 

@@ -12,14 +12,14 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) create() *clibase.Cmd {
+func (r *RootCmd) create() *serpent.Cmd {
 	var (
 		templateName  string
 		startAt       string
@@ -31,7 +31,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		copyParametersFrom string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
 		Short:       "Create a workspace",
@@ -41,8 +41,8 @@ func (r *RootCmd) create() *clibase.Cmd {
 				Command:     "coder create <username>/<workspace_name>",
 			},
 		),
-		Middleware: clibase.Chain(r.InitClient(client)),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.Chain(r.InitClient(client)),
+		Handler: func(inv *serpent.Invocation) error {
 			organization, err := CurrentOrganization(r, inv, client)
 			if err != nil {
 				return err
@@ -227,37 +227,37 @@ func (r *RootCmd) create() *clibase.Cmd {
 		},
 	}
 	cmd.Options = append(cmd.Options,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_TEMPLATE_NAME",
 			Description:   "Specify a template name.",
-			Value:         clibase.StringOf(&templateName),
+			Value:         serpent.StringOf(&templateName),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "start-at",
 			Env:         "CODER_WORKSPACE_START_AT",
 			Description: "Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.",
-			Value:       clibase.StringOf(&startAt),
+			Value:       serpent.StringOf(&startAt),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "stop-after",
 			Env:         "CODER_WORKSPACE_STOP_AFTER",
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
-			Value:       clibase.DurationOf(&stopAfter),
+			Value:       serpent.DurationOf(&stopAfter),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "automatic-updates",
 			Env:         "CODER_WORKSPACE_AUTOMATIC_UPDATES",
 			Description: "Specify automatic updates setting for the workspace (accepts 'always' or 'never').",
 			Default:     string(codersdk.AutomaticUpdatesNever),
-			Value:       clibase.StringOf(&autoUpdates),
+			Value:       serpent.StringOf(&autoUpdates),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "copy-parameters-from",
 			Env:         "CODER_WORKSPACE_COPY_PARAMETERS_FROM",
 			Description: "Specify the source workspace name to copy parameters from.",
-			Value:       clibase.StringOf(&copyParametersFrom),
+			Value:       serpent.StringOf(&copyParametersFrom),
 		},
 		cliui.SkipPromptOption(),
 	)
@@ -283,7 +283,7 @@ type prepWorkspaceBuildArgs struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports rich parameters.
-func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, error) {
+func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
 	templateVersion, err := client.TemplateVersion(ctx, args.TemplateVersionID)

@@ -13,12 +13,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) speedtest() *clibase.Cmd {
+func (r *RootCmd) speedtest() *serpent.Cmd {
 	var (
 		direct    bool
 		duration  time.Duration
@@ -26,15 +26,15 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 		pcapFile  string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Short:       "Run upload and download tests from your machine to a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -142,32 +142,32 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			return err
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Description:   "Specifies whether to wait for a direct connection before testing speed.",
 			Flag:          "direct",
 			FlagShorthand: "d",
 
-			Value: clibase.BoolOf(&direct),
+			Value: serpent.BoolOf(&direct),
 		},
 		{
 			Description: "Specifies whether to run in reverse mode where the client receives and the server sends.",
 			Flag:        "direction",
 			Default:     "down",
-			Value:       clibase.EnumOf(&direction, "up", "down"),
+			Value:       serpent.EnumOf(&direction, "up", "down"),
 		},
 		{
 			Description:   "Specifies the duration to monitor traffic.",
 			Flag:          "time",
 			FlagShorthand: "t",
 			Default:       tsspeedtest.DefaultDuration.String(),
-			Value:         clibase.DurationOf(&duration),
+			Value:         serpent.DurationOf(&duration),
 		},
 		{
 			Description: "Specifies a file to write a network capture to.",
 			Flag:        "pcap-file",
 			Default:     "",
-			Value:       clibase.StringOf(&pcapFile),
+			Value:       serpent.StringOf(&pcapFile),
 		},
 	}
 	return cmd

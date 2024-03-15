@@ -8,26 +8,26 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) userList() *clibase.Cmd {
+func (r *RootCmd) userList() *serpent.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
@@ -47,14 +47,14 @@ func (r *RootCmd) userList() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) userSingle() *clibase.Cmd {
+func (r *RootCmd) userSingle() *serpent.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Cmd{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Long: formatExamples(
@@ -62,11 +62,11 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 				Command: "coder users show me",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
@@ -114,7 +114,7 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (*userShowFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (*userShowFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

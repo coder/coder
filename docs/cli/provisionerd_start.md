@@ -22,14 +22,62 @@ coder provisionerd start [flags]
 
 Directory to store cached data.
 
-### --log-filter
+### -t, --tag
 
-|             |                                                   |
-| ----------- | ------------------------------------------------- |
-| Type        | <code>string-array</code>                         |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Type        | <code>string-array</code>             |
+| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
 
-Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+Tags to filter provisioner jobs by.
+
+### --poll-interval
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
+| Default     | <code>1s</code>                                |
+
+Deprecated and ignored.
+
+### --poll-jitter
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>duration</code>                        |
+| Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
+| Default     | <code>100ms</code>                           |
+
+Deprecated and ignored.
+
+### --psk
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
+
+Pre-shared key to authenticate with Coder server.
+
+### --name
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
+
+Name of this provisioner daemon. Defaults to the current hostname without FQDN.
+
+### --verbose
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_VERBOSE</code> |
+| Default     | <code>false</code>                             |
+
+Output debug-level logs.
 
 ### --log-human
 
@@ -59,44 +107,14 @@ Output JSON logs to a given file.
 
 Output Stackdriver compatible logs to a given file.
 
-### --name
+### --log-filter
 
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_NAME</code> |
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>string-array</code>                         |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
 
-Name of this provisioner daemon. Defaults to the current hostname without FQDN.
-
-### --poll-interval
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>duration</code>                          |
-| Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
-| Default     | <code>1s</code>                                |
-
-Deprecated and ignored.
-
-### --poll-jitter
-
-|             |                                              |
-| ----------- | -------------------------------------------- |
-| Type        | <code>duration</code>                        |
-| Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
-| Default     | <code>100ms</code>                           |
-
-Deprecated and ignored.
-
-### --prometheus-address
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Type        | <code>string</code>                    |
-| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
-| Default     | <code>127.0.0.1:2112</code>            |
-
-The bind address to serve prometheus metrics.
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
 
 ### --prometheus-enable
 
@@ -108,30 +126,12 @@ The bind address to serve prometheus metrics.
 
 Serve prometheus metrics on the address defined by prometheus address.
 
-### --psk
+### --prometheus-address
 
-|             |                                            |
-| ----------- | ------------------------------------------ |
-| Type        | <code>string</code>                        |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
+| Default     | <code>127.0.0.1:2112</code>            |
 
-Pre-shared key to authenticate with Coder server.
-
-### -t, --tag
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>string-array</code>             |
-| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
-
-Tags to filter provisioner jobs by.
-
-### --verbose
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>bool</code>                              |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_VERBOSE</code> |
-| Default     | <code>false</code>                             |
-
-Output debug-level logs.
+The bind address to serve prometheus metrics.

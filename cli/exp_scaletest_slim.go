@@ -2,13 +2,13 @@
 
 package cli
 
-import "github.com/coder/coder/v2/cli/clibase"
+import "github.com/coder/serpent"
 
-func (r *RootCmd) scaletestCmd() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) scaletestCmd() *serpent.Cmd {
+	cmd := &serpent.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			SlimUnsupported(inv.Stderr, "exp scaletest")
 			return nil
 		},

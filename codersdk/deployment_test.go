@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 type exclusion struct {
@@ -67,7 +67,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		"External Auth Providers": {
 			// Technically External Auth Providers can be provided through the env,
-			// but bypassing clibase. See cli.ReadExternalAuthProvidersFromEnv.
+			// but bypassing serpent. See cli.ReadExternalAuthProvidersFromEnv.
 			flag: true,
 			env:  true,
 		},
@@ -129,7 +129,7 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 
 	testCases := []struct {
 		Name          string
-		ConfigOptions clibase.StringArray
+		ConfigOptions serpent.StringArray
 		ExpectError   bool
 		Expect        map[string]string
 	}{
@@ -300,7 +300,7 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 		}
 		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
 		t.Logf("To fix this, add the following to the option declaration:")
-		t.Logf(`Annotations: clibase.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.Logf(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
 	}
 }

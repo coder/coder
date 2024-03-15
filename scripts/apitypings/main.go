@@ -34,8 +34,12 @@ var (
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/health"}
-	indent           = "  "
+	externalTypePkgs = [...]string{
+		"./coderd/healthcheck/health",
+		// CLI option types:
+		"github.com/coder/serpent",
+	}
+	indent = "  "
 )
 
 func main() {
@@ -43,7 +47,7 @@ func main() {
 	log := slog.Make(sloghuman.Sink(os.Stderr))
 
 	external := []*Generator{}
-	for _, dir := range externalTypeDirs {
+	for _, dir := range externalTypePkgs {
 		extGen, err := ParseDirectory(ctx, log, dir)
 		if err != nil {
 			log.Fatal(ctx, fmt.Sprintf("parse external directory %s: %s", dir, err.Error()))
@@ -81,7 +85,7 @@ func main() {
 			break
 		}
 
-		dir := externalTypeDirs[i]
+		dir := externalTypePkgs[i]
 		_, _ = fmt.Printf("// The code below is generated from %s.\n\n", strings.TrimPrefix(dir, "./"))
 		_, _ = fmt.Print(ts.String(), "\n\n")
 	}
@@ -829,24 +833,24 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// We would need to add more logic to determine this, but for now
 		// just hard code them.
 		switch n.String() {
-		case "github.com/coder/coder/v2/cli/clibase.Regexp":
+		case "github.com/coder/serpent.Regexp":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.HostPort":
+		case "github.com/coder/serpent.HostPort":
 			// Custom marshal json to be a string
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.StringArray":
+		case "github.com/coder/serpent.StringArray":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.String":
+		case "github.com/coder/serpent.String":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.YAMLConfigPath":
+		case "github.com/coder/serpent.YAMLConfigPath":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Strings":
+		case "github.com/coder/serpent.Strings":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Int64":
+		case "github.com/coder/serpent.Int64":
 			return TypescriptType{ValueType: "number"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Bool":
+		case "github.com/coder/serpent.Bool":
 			return TypescriptType{ValueType: "boolean"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Duration":
+		case "github.com/coder/serpent.Duration":
 			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
@@ -865,7 +869,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.URL":
+		case "github.com/coder/serpent.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		// XXX: For some reason, the type generator generates these as `any`
 		//      so explicitly specifying the correct generic TS type.
@@ -885,7 +889,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		//nolint:gocritic,revive // I prefer the switch for extensibility later.
 		switch {
 		// Struct is a generic, so the type has generic constraints in the string.
-		case regexp.MustCompile(`github\.com/coder/coder/v2/cli/clibase.Struct\[.*\]`).MatchString(n.String()):
+		case regexp.MustCompile(`github\.com/coder/serpent.Struct\[.*\]`).MatchString(n.String()):
 			// The marshal json just marshals the underlying value.
 			str, ok := ty.Underlying().(*types.Struct)
 			if ok {

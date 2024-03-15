@@ -8,21 +8,21 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/retry"
+	"github.com/coder/serpent"
 )
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func (r *RootCmd) gitAskpass() *clibase.Cmd {
-	return &clibase.Cmd{
+func (r *RootCmd) gitAskpass() *serpent.Cmd {
+	return &serpent.Cmd{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)

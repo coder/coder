@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -225,7 +225,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 	})
 }
 
-func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invocation {
+func setupFakeLicenseServerTest(t *testing.T, args ...string) *serpent.Invocation {
 	t.Helper()
 	s := httptest.NewServer(newFakeLicenseAPI(t))
 	t.Cleanup(s.Close)
@@ -240,7 +240,7 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invocatio
 	return inv
 }
 
-func attachPty(t *testing.T, inv *clibase.Invocation) *ptytest.PTY {
+func attachPty(t *testing.T, inv *serpent.Invocation) *ptytest.PTY {
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stdout = pty.Output()

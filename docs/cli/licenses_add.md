@@ -12,14 +12,6 @@ coder licenses add [flags] [-f file | -l license]
 
 ## Options
 
-### --debug
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Output license claims for debugging.
-
 ### -f, --file
 
 |      |                     |
@@ -35,3 +27,11 @@ Load license from file.
 | Type | <code>string</code> |
 
 License string.
+
+### --debug
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Output license claims for debugging.
