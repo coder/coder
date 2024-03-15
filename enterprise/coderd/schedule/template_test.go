@@ -45,9 +45,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			},
 		})
 		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			CreatedBy: quietUser.ID,
-			JobID:     templateJob.ID,
+			OrganizationID: templateJob.OrganizationID,
+			CreatedBy:      quietUser.ID,
+			JobID:          templateJob.ID,
 		})
+		organizationID = templateJob.OrganizationID
 	)
 
 	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
@@ -201,17 +203,20 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			var (
 				template = dbgen.Template(t, db, database.Template{
+					OrganizationID:  organizationID,
 					ActiveVersionID: templateVersion.ID,
 					CreatedBy:       user.ID,
 				})
 				ws = dbgen.Workspace(t, db, database.Workspace{
-					OwnerID:    user.ID,
-					TemplateID: template.ID,
+					OrganizationID: organizationID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
 				})
 				job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-					FileID:      file.ID,
-					InitiatorID: user.ID,
-					Provisioner: database.ProvisionerTypeEcho,
+					OrganizationID: organizationID,
+					FileID:         file.ID,
+					InitiatorID:    user.ID,
+					Provisioner:    database.ProvisionerTypeEcho,
 					Tags: database.StringMap{
 						c.name: "yeah",
 					},
