@@ -4,8 +4,8 @@ package cli
 
 import "github.com/coder/serpent"
 
-func (*RootCmd) resetPassword() *serpent.Cmd {
-	root := &serpent.Cmd{
+func (*RootCmd) resetPassword() *serpent.Command {
+	root := &serpent.Command{
 		Use:   "reset-password <username>",
 		Short: "Directly connect to the database to reset a user's password",
 		// We accept RawArgs so all commands and flags are accepted.

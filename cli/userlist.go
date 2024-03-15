@@ -13,14 +13,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) userList() *serpent.Cmd {
+func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
@@ -47,14 +47,14 @@ func (r *RootCmd) userList() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) userSingle() *serpent.Cmd {
+func (r *RootCmd) userSingle() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Long: formatExamples(

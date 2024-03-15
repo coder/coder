@@ -382,7 +382,7 @@ func TestAgent(t *testing.T) {
 			output := make(chan string, 100) // Buffered to avoid blocking, overflow is discarded.
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
 
-			cmd := &serpent.Cmd{
+			cmd := &serpent.Command{
 				Handler: func(inv *serpent.Invocation) error {
 					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
 						t.Log("iter", len(tc.iter))
@@ -450,7 +450,7 @@ func TestAgent(t *testing.T) {
 		t.Parallel()
 		var fetchCalled uint64
 
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
 				buf := bytes.Buffer{}
 				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{

@@ -107,7 +107,7 @@ var usageTemplate = func() *template.Template {
 					}
 					return sb.String()
 				},
-				"formatSubcommand": func(cmd *serpent.Cmd) string {
+				"formatSubcommand": func(cmd *serpent.Command) string {
 					// Minimize padding by finding the longest neighboring name.
 					maxNameLength := len(cmd.Name())
 					if parent := cmd.Parent; parent != nil {
@@ -189,12 +189,12 @@ var usageTemplate = func() *template.Template {
 					s = wrapTTY(s)
 					return s
 				},
-				"visibleChildren": func(cmd *serpent.Cmd) []*serpent.Cmd {
-					return filterSlice(cmd.Children, func(c *serpent.Cmd) bool {
+				"visibleChildren": func(cmd *serpent.Command) []*serpent.Command {
+					return filterSlice(cmd.Children, func(c *serpent.Command) bool {
 						return !c.Hidden
 					})
 				},
-				"optionGroups": func(cmd *serpent.Cmd) []optionGroup {
+				"optionGroups": func(cmd *serpent.Command) []optionGroup {
 					groups := []optionGroup{{
 						// Default group.
 						Name:        "",

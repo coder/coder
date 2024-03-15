@@ -12,10 +12,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) publickey() *serpent.Cmd {
+func (r *RootCmd) publickey() *serpent.Command {
 	var reset bool
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "publickey",
 		Aliases:    []string{"pubkey"},
 		Short:      "Output your Coder public key used for Git operations",

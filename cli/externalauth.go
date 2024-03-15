@@ -12,23 +12,23 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) externalAuth() *serpent.Cmd {
-	return &serpent.Cmd{
+func (r *RootCmd) externalAuth() *serpent.Command {
+	return &serpent.Command{
 		Use:   "external-auth",
 		Short: "Manage external authentication",
 		Long:  "Authenticate with external services inside of a workspace.",
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.externalAuthAccessToken(),
 		},
 	}
 }
 
-func (r *RootCmd) externalAuthAccessToken() *serpent.Cmd {
+func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 	var extra string
-	return &serpent.Cmd{
+	return &serpent.Command{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
 		Long: "Print an access-token for an external auth provider. " +

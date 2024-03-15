@@ -25,8 +25,8 @@ var commandTemplate *template.Template
 func init() {
 	commandTemplate = template.Must(
 		template.New("command.tpl").Funcs(template.FuncMap{
-			"visibleSubcommands": func(cmd *serpent.Cmd) []*serpent.Cmd {
-				var visible []*serpent.Cmd
+			"visibleSubcommands": func(cmd *serpent.Command) []*serpent.Command {
+				var visible []*serpent.Command
 				for _, sub := range cmd.Children {
 					if sub.Hidden {
 						continue
@@ -35,7 +35,7 @@ func init() {
 				}
 				return visible
 			},
-			"visibleOptions": func(cmd *serpent.Cmd) []serpent.Option {
+			"visibleOptions": func(cmd *serpent.Command) []serpent.Option {
 				var visible []serpent.Option
 				for _, opt := range cmd.Options {
 					if opt.Hidden {
@@ -45,7 +45,7 @@ func init() {
 				}
 				return visible
 			},
-			"atRoot": func(cmd *serpent.Cmd) bool {
+			"atRoot": func(cmd *serpent.Command) bool {
 				return cmd.FullName() == "coder"
 			},
 			"newLinesToBr": func(s string) string {
@@ -54,7 +54,7 @@ func init() {
 			"wrapCode": func(s string) string {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
-			"commandURI": func(cmd *serpent.Cmd) string {
+			"commandURI": func(cmd *serpent.Command) string {
 				return fmtDocFilename(cmd)
 			},
 			"fullName": fullName,
@@ -67,14 +67,14 @@ func init() {
 	)
 }
 
-func fullName(cmd *serpent.Cmd) string {
+func fullName(cmd *serpent.Command) string {
 	if cmd.FullName() == "coder" {
 		return "coder"
 	}
 	return strings.TrimPrefix(cmd.FullName(), "coder ")
 }
 
-func fmtDocFilename(cmd *serpent.Cmd) string {
+func fmtDocFilename(cmd *serpent.Command) string {
 	if cmd.FullName() == "coder" {
 		// Special case for index.
 		return "../cli.md"
@@ -83,7 +83,7 @@ func fmtDocFilename(cmd *serpent.Cmd) string {
 	return fmt.Sprintf("%s.md", name)
 }
 
-func writeCommand(w io.Writer, cmd *serpent.Cmd) error {
+func writeCommand(w io.Writer, cmd *serpent.Command) error {
 	var b strings.Builder
 	err := commandTemplate.Execute(&b, cmd)
 	if err != nil {
@@ -112,7 +112,7 @@ func writeCommand(w io.Writer, cmd *serpent.Cmd) error {
 	return err
 }
 
-func genTree(dir string, cmd *serpent.Cmd, wroteLog map[string]*serpent.Cmd) error {
+func genTree(dir string, cmd *serpent.Command, wroteLog map[string]*serpent.Command) error {
 	if cmd.Hidden {
 		return nil
 	}

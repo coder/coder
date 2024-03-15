@@ -12,9 +12,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) groupDelete() *serpent.Cmd {
+func (r *RootCmd) groupDelete() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "delete <name>",
 		Short: "Delete a user group",
 		Middleware: serpent.Chain(

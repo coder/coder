@@ -127,7 +127,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	}
 	jobLock := sync.Mutex{}
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			return cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,

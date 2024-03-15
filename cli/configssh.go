@@ -215,7 +215,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func (r *RootCmd) configSSH() *serpent.Cmd {
+func (r *RootCmd) configSSH() *serpent.Command {
 	var (
 		sshConfigFile       string
 		sshConfigOpts       sshConfigOptions
@@ -226,7 +226,7 @@ func (r *RootCmd) configSSH() *serpent.Cmd {
 		coderCliPath        string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",

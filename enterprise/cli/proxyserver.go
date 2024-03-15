@@ -44,7 +44,7 @@ func (c *closers) Add(f func()) {
 	*c = append(*c, f)
 }
 
-func (r *RootCmd) proxyServer() *serpent.Cmd {
+func (r *RootCmd) proxyServer() *serpent.Command {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
@@ -102,7 +102,7 @@ func (r *RootCmd) proxyServer() *serpent.Cmd {
 		},
 	)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
 		Options: opts,

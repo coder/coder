@@ -7,8 +7,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) proxyServer() *serpent.Cmd {
-	root := &serpent.Cmd{
+func (r *RootCmd) proxyServer() *serpent.Command {
+	root := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
 		Aliases: []string{},

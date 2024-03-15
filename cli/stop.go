@@ -9,9 +9,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) stop() *serpent.Cmd {
+func (r *RootCmd) stop() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",

@@ -28,7 +28,7 @@ import (
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	getCmds := func(t *testing.T) *serpent.Cmd {
+	getCmds := func(t *testing.T) *serpent.Command {
 		// Must return a fresh instance of cmds each time.
 
 		t.Helper()

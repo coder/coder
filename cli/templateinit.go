@@ -20,7 +20,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (*RootCmd) templateInit() *serpent.Cmd {
+func (*RootCmd) templateInit() *serpent.Command {
 	var templateID string
 	exampleList, err := examples.List()
 	if err != nil {
@@ -32,7 +32,7 @@ func (*RootCmd) templateInit() *serpent.Cmd {
 		templateIDs = append(templateIDs, ex.ID)
 	}
 	sort.Strings(templateIDs)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "init [directory]",
 		Short:      "Get started with a templated template.",
 		Middleware: serpent.RequireRangeArgs(0, 1),

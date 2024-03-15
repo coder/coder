@@ -15,7 +15,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templatePull() *serpent.Cmd {
+func (r *RootCmd) templatePull() *serpent.Command {
 	var (
 		tarMode     bool
 		zipMode     bool
@@ -23,7 +23,7 @@ func (r *RootCmd) templatePull() *serpent.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the active, latest, or specified version of a template to a path.",
 		Middleware: serpent.Chain(

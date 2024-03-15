@@ -18,8 +18,8 @@ import (
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func (r *RootCmd) gitAskpass() *serpent.Cmd {
-	return &serpent.Cmd{
+func (r *RootCmd) gitAskpass() *serpent.Command {
+	return &serpent.Command{
 		Use:    "gitaskpass",
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {

@@ -22,7 +22,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) newCreateAdminUserCommand() *serpent.Cmd {
+func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string
@@ -30,7 +30,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Cmd {
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &serpent.Cmd{
+	createAdminUserCommand := &serpent.Command{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
 		Handler: func(inv *serpent.Invocation) error {

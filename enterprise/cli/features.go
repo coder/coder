@@ -15,22 +15,22 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) features() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) features() *serpent.Command {
+	cmd := &serpent.Command{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.featuresList(),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) featuresList() *serpent.Cmd {
+func (r *RootCmd) featuresList() *serpent.Command {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string
@@ -38,7 +38,7 @@ func (r *RootCmd) featuresList() *serpent.Cmd {
 	)
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(

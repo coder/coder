@@ -13,14 +13,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) groupList() *serpent.Cmd {
+func (r *RootCmd) groupList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]groupTableRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List user groups",
 		Middleware: serpent.Chain(

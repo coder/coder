@@ -17,14 +17,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) open() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) open() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "open",
 		Short: "Open a workspace",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.openVSCode(),
 		},
 	}
@@ -33,14 +33,14 @@ func (r *RootCmd) open() *serpent.Cmd {
 
 const vscodeDesktopName = "VS Code Desktop"
 
-func (r *RootCmd) openVSCode() *serpent.Cmd {
+func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
 		generateToken bool
 		testOpenError bool
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "vscode <workspace> [<directory in workspace>]",
 		Short:       fmt.Sprintf("Open a workspace in %s", vscodeDesktopName),
