@@ -1,8 +1,9 @@
 import TextField from "@mui/material/TextField";
 import { type FormikTouched, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Yup from "yup";
+import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFooter } from "components/FormFooter/FormFooter";
@@ -11,7 +12,6 @@ import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
-import { isApiValidationError } from "api/errors";
 
 const validationSchema = Yup.object({
   name: Yup.string().required().label("Name"),

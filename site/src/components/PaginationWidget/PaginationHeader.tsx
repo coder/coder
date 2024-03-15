@@ -1,6 +1,6 @@
-import { type FC } from "react";
 import { useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
+import type { FC } from "react";
 
 type PaginationHeaderProps = {
   paginationUnitLabel: string;

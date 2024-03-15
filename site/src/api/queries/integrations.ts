@@ -1,4 +1,4 @@
-import { GetJFrogXRayScanParams } from "api/api";
+import type { GetJFrogXRayScanParams } from "api/api";
 import * as API from "api/api";
 
 export const xrayScan = (params: GetJFrogXRayScanParams) => {

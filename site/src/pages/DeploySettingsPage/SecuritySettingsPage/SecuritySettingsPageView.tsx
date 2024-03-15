@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import type { ClibaseOption } from "api/typesGenerated";
 import {
   Badges,

@@ -214,59 +214,37 @@ WHERE
 			wb.workspace_id = @workspace_id :: uuid
 	);
 
--- name: GetWorkspaceAgentAndOwnerByAuthToken :one
+-- name: GetWorkspaceAgentAndLatestBuildByAuthToken :one
 SELECT
+	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
-	workspaces.id AS workspace_id,
-	users.id AS owner_id,
-	users.username AS owner_name,
-	users.status AS owner_status,
-	workspaces.template_id AS template_id,
-	workspace_builds.template_version_id AS template_version_id,
-	array_cat(
-		array_append(users.rbac_roles, 'member'),
-		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
-	)::text[] as owner_roles,
-	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
-FROM users
-	INNER JOIN
-		workspaces
-	ON
-		workspaces.owner_id = users.id
-	INNER JOIN
-		workspace_builds
-	ON
-		workspace_builds.workspace_id = workspaces.id
-	INNER JOIN
-		workspace_resources
-	ON
-		workspace_resources.job_id = workspace_builds.job_id
-	INNER JOIN
-		workspace_agents
-	ON
-		workspace_agents.resource_id = workspace_resources.id
-	INNER JOIN -- every user is a member of some org
-		organization_members
-	ON
-		organization_members.user_id = users.id
-	LEFT JOIN -- as they may not be a member of any groups
-		group_members
-	ON
-		group_members.user_id = users.id
+	sqlc.embed(workspace_build_with_user)
+FROM
+	-- Only get the latest build for each workspace
+	(
+	SELECT
+		workspace_id, MAX(build_number) as max_build_number
+	FROM
+		workspace_build_with_user
+	GROUP BY
+		workspace_id
+	) as latest_builds
+	-- Pull the workspace_build rows for returning
+INNER JOIN workspace_build_with_user
+	ON workspace_build_with_user.workspace_id = latest_builds.workspace_id
+	AND workspace_build_with_user.build_number = latest_builds.max_build_number
+	-- For each latest build, grab the resources to relate to an agent
+INNER JOIN workspace_resources
+	ON workspace_resources.job_id = workspace_build_with_user.job_id
+	-- Agent <-> Resource is 1:1
+INNER JOIN workspace_agents
+	ON workspace_agents.resource_id = workspace_resources.id
+	-- We need the owner ID
+INNER JOIN workspaces
+	ON workspace_build_with_user.workspace_id = workspaces.id
 WHERE
-	-- TODO: we can add more conditions here, such as:
-	-- 1) The user must be active
-	-- 2) The workspace must be running
+	-- This should only match 1 agent, so 1 returned row or 0
 	workspace_agents.auth_token = @auth_token
 AND
 	workspaces.deleted = FALSE
-GROUP BY
-	workspace_agents.id,
-	workspaces.id,
-	users.id,
-	organization_members.organization_id,
-	workspace_builds.build_number,
-	workspace_builds.template_version_id
-ORDER BY
-	workspace_builds.build_number DESC
-LIMIT 1;
+;

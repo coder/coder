@@ -1,12 +1,12 @@
 import { Helmet } from "react-helmet-async";
+import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
+import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { pageTitle } from "utils/page";
+import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
-import { useMutation } from "react-query";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
-import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 
 const WorkspaceSettingsPage = () => {
   const params = useParams() as {

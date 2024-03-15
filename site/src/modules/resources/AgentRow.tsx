@@ -1,6 +1,6 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import { type Interpolation, type Theme } from "@emotion/react";
 import {
   type FC,
   useCallback,
@@ -10,8 +10,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
-import { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { xrayScan } from "api/queries/integrations";
 import type {
   Template,
   Workspace,
@@ -19,13 +21,11 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import {
-  Line,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
-import { useProxy } from "contexts/ProxyContext";
+import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
+import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
+import { AgentLogs, useAgentLogs } from "./AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -34,10 +34,10 @@ import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
-import { useQuery } from "react-query";
-import { xrayScan } from "api/queries/integrations";
 import { XRayScanAlert } from "./XRayScanAlert";
-import { AgentLogs, useAgentLogs } from "./AgentLogs";
+
+// Approximate height of a log line. Used to control virtualized list height.
+export const AGENT_LOG_LINE_HEIGHT = 20;
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -115,7 +115,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
-        source_id: "",
+        sourceId: "",
       });
     }
     return logs;
@@ -154,7 +154,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       const distanceFromBottom =
         logListDivRef.current.scrollHeight -
         (props.scrollOffset + parent.clientHeight);
-      setBottomOfLogs(distanceFromBottom < logLineHeight);
+      setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
     },
     [logListDivRef],
   );

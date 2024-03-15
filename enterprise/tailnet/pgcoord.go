@@ -224,7 +224,7 @@ func (c *pgCoord) Close() error {
 }
 
 func (c *pgCoord) Coordinate(
-	ctx context.Context, id uuid.UUID, name string, a agpl.TunnelAuth,
+	ctx context.Context, id uuid.UUID, name string, a agpl.CoordinateeAuth,
 ) (
 	chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse,
 ) {

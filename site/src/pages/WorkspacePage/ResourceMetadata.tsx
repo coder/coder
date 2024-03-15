@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import {
   Children,
   type FC,
@@ -6,9 +6,9 @@ import {
   type PropsWithChildren,
 } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { SensitiveValue } from "modules/resources/SensitiveValue";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { SensitiveValue } from "modules/resources/SensitiveValue";
 
 type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
   resource: WorkspaceResource;

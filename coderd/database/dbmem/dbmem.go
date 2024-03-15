@@ -69,7 +69,7 @@ func New() database.Store {
 			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
+			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
@@ -77,6 +77,23 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 		},
 	}
+	// Always start with a default org. Matching migration 198.
+	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
+		ID:          uuid.New(),
+		Name:        "first-organization",
+		Description: "Builtin default organization.",
+		CreatedAt:   dbtime.Now(),
+		UpdatedAt:   dbtime.Now(),
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create default organization: %w", err))
+	}
+
+	_, err = q.InsertAllUsersGroup(context.Background(), defaultOrg.ID)
+	if err != nil {
+		panic(fmt.Errorf("failed to create default group: %w", err))
+	}
+
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
 	return q
@@ -154,7 +171,7 @@ type data struct {
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
-	workspaceBuilds               []database.WorkspaceBuildTable
+	workspaceBuilds               []database.WorkspaceBuild
 	workspaceBuildParameters      []database.WorkspaceBuildParameter
 	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
 	workspaceResources            []database.WorkspaceResource
@@ -345,7 +362,7 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64, withSummary bool) []database.GetWorkspacesRow { //nolint:revive // withSummary flag ensures the extra technical row
 	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
 	for _, w := range workspaces {
 		wr := database.GetWorkspacesRow{
@@ -388,6 +405,12 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 		}
 
 		rows = append(rows, wr)
+	}
+	if withSummary {
+		rows = append(rows, database.GetWorkspacesRow{
+			Name:  "**TECHNICAL_ROW**",
+			Count: count,
+		})
 	}
 	return rows
 }
@@ -519,7 +542,7 @@ func (q *FakeQuerier) templateVersionWithUserNoLock(tpl database.TemplateVersion
 	return withUser
 }
 
-func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuildTable) database.WorkspaceBuild {
+func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuild) database.WorkspaceBuild {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.InitiatorID {
@@ -1443,6 +1466,30 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortShare(_ context.Context, arg datab
 		if share.WorkspaceID == arg.WorkspaceID && share.AgentName == arg.AgentName && share.Port == arg.Port {
 			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
 			return nil
+		}
+	}
+
+	return nil
+}
+
+func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context, templateID uuid.UUID) error {
+	err := validateDatabaseType(templateID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID != templateID {
+			continue
+		}
+		for i, share := range q.workspaceAgentPortShares {
+			if share.WorkspaceID != workspace.ID {
+				continue
+			}
+			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
 		}
 	}
 
@@ -2754,7 +2801,7 @@ func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuildTable
+		var lastBuild database.WorkspaceBuild
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
@@ -3441,7 +3488,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	defer q.mutex.RUnlock()
 
 	// WITH latest_workspace_builds ...
-	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuild)
 	for _, wb := range q.workspaceBuilds {
 		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
 			continue
@@ -4223,20 +4270,14 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-
-	// map of build number -> row
-	rows := make(map[int32]database.GetWorkspaceAgentAndOwnerByAuthTokenRow)
-
-	// We want to return the latest build number
-	var latestBuildNumber int32
+	rows := []database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}
+	// We want to return the latest build number for each workspace
+	latestBuildNumber := make(map[uuid.UUID]int32)
 
 	for _, agt := range q.workspaceAgents {
-		if agt.AuthToken != authToken {
-			continue
-		}
 		// get the related workspace and user
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
@@ -4253,47 +4294,43 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 					if ws.Deleted {
 						continue
 					}
-					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-					row.WorkspaceID = ws.ID
-					row.TemplateID = ws.TemplateID
+					row := database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{
+						Workspace: database.Workspace{
+							ID:         ws.ID,
+							TemplateID: ws.TemplateID,
+						},
+						WorkspaceAgent: agt,
+						WorkspaceBuild: build,
+					}
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
-						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+						return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 					}
-					row.OwnerID = usr.ID
-					row.OwnerRoles = append(usr.RBACRoles, "member")
-					// We also need to get org roles for the user
-					row.OwnerName = usr.Username
-					row.WorkspaceAgent = agt
-					row.TemplateVersionID = build.TemplateVersionID
-					for _, mem := range q.organizationMembers {
-						if mem.UserID == usr.ID {
-							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
-						}
-					}
-					// And group memberships
-					for _, groupMem := range q.groupMembers {
-						if groupMem.UserID == usr.ID {
-							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
-						}
-					}
+					row.Workspace.OwnerID = usr.ID
 
 					// Keep track of the latest build number
-					rows[build.BuildNumber] = row
-					if build.BuildNumber > latestBuildNumber {
-						latestBuildNumber = build.BuildNumber
+					rows = append(rows, row)
+					if build.BuildNumber > latestBuildNumber[ws.ID] {
+						latestBuildNumber[ws.ID] = build.BuildNumber
 					}
 				}
 			}
 		}
 	}
 
-	if len(rows) == 0 {
-		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+	for i := range rows {
+		if rows[i].WorkspaceAgent.AuthToken != authToken {
+			continue
+		}
+
+		if rows[i].WorkspaceBuild.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
+			continue
+		}
+
+		return rows[i], nil
 	}
 
-	// Return the row related to the latest build
-	return rows[latestBuildNumber], nil
+	return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -6196,7 +6233,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceBuild := database.WorkspaceBuildTable{
+	workspaceBuild := database.WorkspaceBuild{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
@@ -6331,6 +6368,33 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	}
 
 	return shares, nil
+}
+
+func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
+	err := validateDatabaseType(templateID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID != templateID {
+			continue
+		}
+		for i, share := range q.workspaceAgentPortShares {
+			if share.WorkspaceID != workspace.ID {
+				continue
+			}
+			if share.ShareLevel == database.AppSharingLevelPublic {
+				share.ShareLevel = database.AppSharingLevelAuthenticated
+			}
+			q.workspaceAgentPortShares[i] = share
+		}
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -7865,6 +7929,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 	for i, share := range q.workspaceAgentPortShares {
 		if share.WorkspaceID == arg.WorkspaceID && share.Port == arg.Port && share.AgentName == arg.AgentName {
 			share.ShareLevel = arg.ShareLevel
+			share.Protocol = arg.Protocol
 			q.workspaceAgentPortShares[i] = share
 			return share, nil
 		}
@@ -7876,6 +7941,7 @@ func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg datab
 		AgentName:   arg.AgentName,
 		Port:        arg.Port,
 		ShareLevel:  arg.ShareLevel,
+		Protocol:    arg.Protocol,
 	}
 	q.workspaceAgentPortShares = append(q.workspaceAgentPortShares, psl)
 
@@ -8196,6 +8262,19 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if len(arg.WorkspaceIds) > 0 {
+			match := false
+			for _, id := range arg.WorkspaceIds {
+				if workspace.ID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
 		// If the filter exists, ensure the object is authorized.
 		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
 			continue
@@ -8278,12 +8357,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
 }
 
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {

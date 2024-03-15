@@ -1,3 +1,4 @@
+import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -5,6 +6,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 import { type FC, useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "api/queries/externalAuth";
@@ -16,7 +18,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -24,9 +26,8 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import LoadingButton from "@mui/lab/LoadingButton";
-import visuallyHidden from "@mui/utils/visuallyHidden";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -51,7 +52,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   }
 
   if (isLoading || !auths) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   return (
@@ -70,31 +71,24 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {((auths.providers === null || auths.providers?.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <div css={{ textAlign: "center" }}>
-                    No providers have been configured!
-                  </div>
-                </TableCell>
-              </TableRow>
-            )) ||
-              auths.providers?.map((app: ExternalAuthLinkProvider) => {
-                return (
-                  <ExternalAuthRow
-                    key={app.id}
-                    app={app}
-                    unlinked={unlinked}
-                    link={auths.links.find((l) => l.provider_id === app.id)}
-                    onUnlinkExternalAuth={() => {
-                      onUnlinkExternalAuth(app.id);
-                    }}
-                    onValidateExternalAuth={() => {
-                      onValidateExternalAuth(app.id);
-                    }}
-                  />
-                );
-              })}
+            {auths.providers === null || auths.providers?.length === 0 ? (
+              <TableEmpty message="No providers have been configured" />
+            ) : (
+              auths.providers?.map((app) => (
+                <ExternalAuthRow
+                  key={app.id}
+                  app={app}
+                  unlinked={unlinked}
+                  link={auths.links.find((l) => l.provider_id === app.id)}
+                  onUnlinkExternalAuth={() => {
+                    onUnlinkExternalAuth(app.id);
+                  }}
+                  onValidateExternalAuth={() => {
+                    onValidateExternalAuth(app.id);
+                  }}
+                />
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>

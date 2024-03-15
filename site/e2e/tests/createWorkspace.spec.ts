@@ -5,7 +5,7 @@ import {
   echoResponsesWithParameters,
   verifyParameters,
 } from "../helpers";
-
+import { beforeCoderTest } from "../hooks";
 import {
   secondParameter,
   fourthParameter,
@@ -16,8 +16,7 @@ import {
   sixthParameter,
   randParamName,
 } from "../parameters";
-import { RichParameter } from "../provisionerGenerated";
-import { beforeCoderTest } from "../hooks";
+import type { RichParameter } from "../provisionerGenerated";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 

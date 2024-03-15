@@ -3,8 +3,10 @@ import {
   type FC,
   type PropsWithChildren,
   useCallback,
+  useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { isApiError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
   authMethods,
@@ -14,7 +16,6 @@ import {
   me,
   updateProfile as updateProfileOptions,
 } from "api/queries/users";
-import { isApiError } from "api/errors";
 import type {
   AuthMethods,
   UpdateUserProfileRequest,
@@ -34,6 +35,7 @@ export type AuthContextValue = {
   user: User | undefined;
   permissions: Permissions | undefined;
   authMethods: AuthMethods | undefined;
+  organizationId: string | undefined;
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
@@ -48,7 +50,6 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const queryClient = useQueryClient();
   const meOptions = me();
-
   const userQuery = useQuery(meOptions);
   const authMethodsQuery = useQuery(authMethods());
   const hasFirstUserQuery = useQuery(hasFirstUser());
@@ -122,9 +123,20 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         authMethods: authMethodsQuery.data,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
+        organizationId: userQuery.data?.organization_ids[0],
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth should be used inside of <AuthProvider />");
+  }
+
+  return context;
 };

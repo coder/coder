@@ -1,12 +1,12 @@
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as api from "api/api";
+import { MockWorkspace } from "testHelpers/entities";
 import {
   renderWithWorkspaceSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import WorkspaceSettingsPage from "./WorkspaceSettingsPage";
-import { screen, waitFor, within } from "@testing-library/react";
-import * as api from "api/api";
-import { MockWorkspace } from "testHelpers/entities";
 
 test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data

@@ -7,17 +7,17 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -38,8 +38,8 @@ const templatePermissions = (
   },
 });
 
-const fetchTemplate = async (orgId: string, templateName: string) => {
-  const template = await getTemplateByName(orgId, templateName);
+const fetchTemplate = async (organizationId: string, templateName: string) => {
+  const template = await getTemplateByName(organizationId, templateName);
   const [activeVersion, permissions] = await Promise.all([
     getTemplateVersion(template.active_version_id),
     checkAuthorization({
@@ -74,11 +74,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const orgId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
-    queryFn: () => fetchTemplate(orgId, templateName),
+    queryFn: () => fetchTemplate(organizationId, templateName),
   });
   const location = useLocation();
   const paths = location.pathname.split("/");

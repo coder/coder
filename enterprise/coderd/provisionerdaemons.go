@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -86,11 +85,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
-	for _, daemon := range daemons {
-		apiDaemons = append(apiDaemons, db2sdk.ProvisionerDaemon(daemon))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
 type provisionerDaemonAuth struct {
@@ -118,13 +114,11 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	}
 
 	// Check for PSK
-	if p.psk != "" {
-		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
-		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
-			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-			return tags, true
-		}
+	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
+	if provAuth {
+		// If using PSK auth, the daemon is, by definition, scoped to the organization.
+		tags = provisionersdk.MutateTags(uuid.Nil, tags)
+		return tags, true
 	}
 	return nil, false
 }
@@ -140,6 +134,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 // @Router /organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
 
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
@@ -252,13 +247,14 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	// Create the daemon in the database.
 	now := dbtime.Now()
 	daemon, err := api.Database.UpsertProvisionerDaemon(authCtx, database.UpsertProvisionerDaemonParams{
-		Name:         name,
-		Provisioners: provisioners,
-		Tags:         tags,
-		CreatedAt:    now,
-		LastSeenAt:   sql.NullTime{Time: now, Valid: true},
-		Version:      versionHdrVal,
-		APIVersion:   apiVersion,
+		Name:           name,
+		Provisioners:   provisioners,
+		Tags:           tags,
+		CreatedAt:      now,
+		LastSeenAt:     sql.NullTime{Time: now, Valid: true},
+		Version:        versionHdrVal,
+		APIVersion:     apiVersion,
+		OrganizationID: organization.ID,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

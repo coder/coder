@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useState, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -17,16 +17,15 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useMe } from "contexts/auth/useMe";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "utils/page";
-import { AutofillBuildParameter } from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { useDashboard } from "modules/dashboard/useDashboard";
+import { createWorkspaceChecks, type CreateWSPermissions } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -34,9 +33,8 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const organizationId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
-  const me = useMe();
+  const { user: me, organizationId } = useAuthenticated();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mode = getWorkspaceMode(searchParams);
@@ -94,19 +92,25 @@ const CreateWorkspacePage: FC = () => {
   );
 
   // Auto fill parameters
+  const autofillEnabled = experiments.includes("auto-fill-parameters");
   const userParametersQuery = useQuery({
     queryKey: ["userParameters"],
     queryFn: () => getUserParameters(templateQuery.data!.id),
-    enabled:
-      experiments.includes("auto-fill-parameters") && templateQuery.isSuccess,
+    enabled: autofillEnabled && templateQuery.isSuccess,
   });
   const autofillParameters = getAutofillParameters(
     searchParams,
     userParametersQuery.data ? userParametersQuery.data : [],
   );
 
+  const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
+    if (autoCreationStartedRef.current) {
+      return;
+    }
+
     try {
+      autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
@@ -122,11 +126,13 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
+  const autoStartReady =
+    mode === "auto" && (!autofillEnabled || userParametersQuery.isSuccess);
   useEffect(() => {
-    if (mode === "auto") {
+    if (autoStartReady) {
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, mode]);
+  }, [automateWorkspaceCreation, autoStartReady]);
 
   return (
     <>

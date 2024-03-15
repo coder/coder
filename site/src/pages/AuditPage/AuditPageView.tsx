@@ -3,7 +3,7 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -13,17 +13,17 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import { Paywall } from "components/Paywall/Paywall";
 import {
   type PaginationResult,
   PaginationContainer,
 } from "components/PaginationWidget/PaginationContainer";
+import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { Timeline } from "components/Timeline/Timeline";
 import { docs } from "utils/docs";
-import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { AuditFilter } from "./AuditFilter";
+import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 
 export const Language = {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -34,7 +35,7 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 			// from creating it.
 			existing, _ := client.OrganizationByName(inv.Context(), orgName)
 			if existing.ID != uuid.Nil {
-				return fmt.Errorf("organization %q already exists", orgName)
+				return xerrors.Errorf("organization %q already exists", orgName)
 			}
 
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
@@ -53,7 +54,7 @@ func (r *RootCmd) createOrganization() *clibase.Cmd {
 				Name: orgName,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to create organization: %w", err)
+				return xerrors.Errorf("failed to create organization: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Organization %s (%s) created.\n", organization.Name, organization.ID)

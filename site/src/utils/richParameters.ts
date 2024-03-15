@@ -1,8 +1,8 @@
-import {
+import * as Yup from "yup";
+import type {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import * as Yup from "yup";
 
 export type AutofillSource = "user_history" | "url" | "active_build";
 
@@ -33,7 +33,9 @@ export const getInitialRichParameterValues = (
     return {
       name: parameter.name,
       value:
-        autofillParam && isValidValue(parameter, autofillParam)
+        autofillParam &&
+        isValidValue(parameter, autofillParam) &&
+        autofillParam.source !== "user_history"
           ? autofillParam.value
           : parameter.default_value,
     };

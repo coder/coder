@@ -23,6 +23,7 @@ application. The following providers are supported:
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
+- [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 
 Example callback URL:
 `https://coder.example.com/external-auth/primary-github/callback`. Use an
@@ -107,6 +108,20 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
 ```
+
+### Azure DevOps (via Entra ID)
+
+Azure DevOps (via Entra ID) requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
+CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
+```
+
+> Note: Your app registration in Entra ID requires the `vso.code_write` scope
 
 ### GitLab self-managed
 

@@ -254,6 +254,14 @@ func (c *configMaps) setBlockEndpoints(blockEndpoints bool) {
 	c.Broadcast()
 }
 
+// getBlockEndpoints returns the value of the most recent setBlockEndpoints
+// call.
+func (c *configMaps) getBlockEndpoints() bool {
+	c.L.Lock()
+	defer c.L.Unlock()
+	return c.blockEndpoints
+}
+
 // setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
 // c.L MUST NOT be held.
 func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) {

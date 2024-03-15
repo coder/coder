@@ -59,7 +59,7 @@ func (mr *MockCoordinatorMockRecorder) Close() *gomock.Call {
 }
 
 // Coordinate mocks base method.
-func (m *MockCoordinator) Coordinate(arg0 context.Context, arg1 uuid.UUID, arg2 string, arg3 tailnet.TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
+func (m *MockCoordinator) Coordinate(arg0 context.Context, arg1 uuid.UUID, arg2 string, arg3 tailnet.CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Coordinate", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(chan<- *proto.CoordinateRequest)

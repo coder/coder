@@ -1,6 +1,5 @@
-import { renderHookWithAuth } from "testHelpers/renderHelpers";
 import { waitFor } from "@testing-library/react";
-
+import { renderHookWithAuth } from "testHelpers/hooks";
 import {
   type PaginatedData,
   type UsePaginatedQueryOptions,
@@ -24,9 +23,13 @@ function render<
   route?: `/?page=${string}`,
 ) {
   return renderHookWithAuth(({ options }) => usePaginatedQuery(options), {
-    route,
-    path: "/",
-    initialProps: { options },
+    routingOptions: {
+      route,
+      path: "/",
+    },
+    renderOptions: {
+      initialProps: { options },
+    },
   });
 }
 

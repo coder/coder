@@ -1,24 +1,24 @@
-import Drawer from "@mui/material/Drawer";
-import IconButton from "@mui/material/IconButton";
-import Divider from "@mui/material/Divider";
-import Skeleton from "@mui/material/Skeleton";
-import Menu from "@mui/material/Menu";
-import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
+import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import type * as TypesGen from "api/typesGenerated";
-import { usePermissions } from "contexts/auth/usePermissions";
-import type { ProxyContextValue } from "contexts/ProxyContext";
 import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { Latency } from "components/Latency/Latency";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { ProxyContextValue } from "contexts/ProxyContext";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
@@ -215,7 +215,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
   const latencies = proxyContextValue.proxyLatencies;
   const isLoadingLatencies = Object.keys(latencies).length === 0;
   const isLoading = proxyContextValue.isLoading || isLoadingLatencies;
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
 
   const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
     if (!refetchDate) {
@@ -276,7 +276,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               />
             </div>
 
-            <ProxyStatusLatency
+            <Latency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
               isLoading={proxyLatencyLoading(selectedProxy)}
             />
@@ -385,7 +385,7 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
                 {proxy.display_name}
 
-                <ProxyStatusLatency
+                <Latency
                   latency={latencies?.[proxy.id]?.latencyMS}
                   isLoading={proxyLatencyLoading(proxy)}
                 />

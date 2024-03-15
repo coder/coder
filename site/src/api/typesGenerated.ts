@@ -925,6 +925,7 @@ export interface PrometheusConfig {
   readonly address: string;
   readonly collect_agent_stats: boolean;
   readonly collect_db_metrics: boolean;
+  readonly aggregate_agent_stats_by: string[];
 }
 
 // From codersdk/deployment.go
@@ -1504,6 +1505,7 @@ export interface UpsertWorkspaceAgentPortShareRequest {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/users.go
@@ -1762,6 +1764,7 @@ export interface WorkspaceAgentPortShare {
   readonly agent_name: string;
   readonly port: number;
   readonly share_level: WorkspaceAgentPortShareLevel;
+  readonly protocol: WorkspaceAgentPortShareProtocol;
 }
 
 // From codersdk/workspaceagentportshare.go
@@ -2003,6 +2006,7 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
   | "azure-devops"
+  | "azure-devops-entra"
   | "bitbucket-cloud"
   | "bitbucket-server"
   | "gitea"
@@ -2012,6 +2016,7 @@ export type EnhancedExternalAuthProvider =
   | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
+  "azure-devops-entra",
   "bitbucket-cloud",
   "bitbucket-server",
   "gitea",
@@ -2348,6 +2353,11 @@ export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
   "owner",
   "public",
 ];
+
+// From codersdk/workspaceagentportshare.go
+export type WorkspaceAgentPortShareProtocol = "http" | "https";
+export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] =
+  ["http", "https"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";

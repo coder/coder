@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockTemplate,
   MockTemplateExample,
@@ -8,7 +9,6 @@ import {
   MockTemplateVersionVariable5,
 } from "testHelpers/entities";
 import { CreateTemplateForm } from "./CreateTemplateForm";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof CreateTemplateForm> = {
   title: "pages/CreateTemplatePage/CreateTemplateForm",

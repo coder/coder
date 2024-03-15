@@ -1,3 +1,6 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectProps } from "@mui/material/Select";
 import Table from "@mui/material/Table";
@@ -6,9 +9,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import LoadingButton from "@mui/lab/LoadingButton";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, useState } from "react";
 import type {
   Group,
@@ -18,9 +18,10 @@ import type {
   TemplateRole,
   TemplateUser,
 } from "api/typesGenerated";
-import { getGroupSubtitle } from "utils/groups";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -28,14 +29,13 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "utils/groups";
 import {
   UserOrGroupAutocomplete,
-  UserOrGroupAutocompleteValue,
+  type UserOrGroupAutocompleteValue,
 } from "./UserOrGroupAutocomplete";
 
 type AddTemplateUserOrGroupProps = {

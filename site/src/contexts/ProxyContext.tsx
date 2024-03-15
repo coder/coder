@@ -10,8 +10,8 @@ import {
 import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.
@@ -116,7 +116,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     }
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const query = async (): Promise<Region[]> => {
     const endpoint = permissions.editWorkspaceProxies
       ? getWorkspaceProxies

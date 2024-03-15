@@ -95,6 +95,9 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Auth: &sdkproto.Agent_Token{
 			Token: b.agentToken,
 		},
+		Env: map[string]string{
+			"SECRET_TOKEN": "supersecret",
+		},
 	}}
 	for _, m := range mutations {
 		agents = m(agents)
@@ -274,6 +277,7 @@ type TemplateVersionBuilder struct {
 	t         testing.TB
 	db        database.Store
 	seed      database.TemplateVersion
+	fileID    uuid.UUID
 	ps        pubsub.Pubsub
 	resources []*sdkproto.Resource
 	params    []database.TemplateVersionParameter
@@ -293,6 +297,12 @@ func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
 func (t TemplateVersionBuilder) Seed(v database.TemplateVersion) TemplateVersionBuilder {
 	// nolint: revive // returns modified struct
 	t.seed = v
+	return t
+}
+
+func (t TemplateVersionBuilder) FileID(fid uuid.UUID) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.fileID = fid
 	return t
 }
 
@@ -320,6 +330,8 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.seed.OrganizationID = takeFirst(t.seed.OrganizationID, uuid.New())
 	t.seed.ID = takeFirst(t.seed.ID, uuid.New())
 	t.seed.CreatedBy = takeFirst(t.seed.CreatedBy, uuid.New())
+	// nolint: revive
+	t.fileID = takeFirst(t.fileID, uuid.New())
 
 	var resp TemplateVersionResponse
 	if t.seed.TemplateID.UUID == uuid.Nil {
@@ -361,6 +373,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
+		FileID: t.fileID,
 	})
 
 	t.seed.JobID = job.ID

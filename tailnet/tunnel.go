@@ -1,32 +1,89 @@
 package tailnet
 
-import "github.com/google/uuid"
+import (
+	"net/netip"
 
-type TunnelAuth interface {
-	Authorize(dst uuid.UUID) bool
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/tailnet/proto"
+)
+
+var legacyWorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
+type CoordinateeAuth interface {
+	Authorize(req *proto.CoordinateRequest) error
 }
 
-// SingleTailnetTunnelAuth allows all tunnels, since Coderd and wsproxy are allowed to initiate a tunnel to any agent
-type SingleTailnetTunnelAuth struct{}
+// SingleTailnetCoordinateeAuth allows all tunnels, since Coderd and wsproxy are allowed to initiate a tunnel to any agent
+type SingleTailnetCoordinateeAuth struct{}
 
-func (SingleTailnetTunnelAuth) Authorize(uuid.UUID) bool {
-	return true
+func (SingleTailnetCoordinateeAuth) Authorize(*proto.CoordinateRequest) error {
+	return nil
 }
 
-// ClientTunnelAuth allows connecting to a single, given agent
-type ClientTunnelAuth struct {
+// ClientCoordinateeAuth allows connecting to a single, given agent
+type ClientCoordinateeAuth struct {
 	AgentID uuid.UUID
 }
 
-func (c ClientTunnelAuth) Authorize(dst uuid.UUID) bool {
-	return c.AgentID == dst
+func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
+	if tun := req.GetAddTunnel(); tun != nil {
+		uid, err := uuid.FromBytes(tun.Id)
+		if err != nil {
+			return xerrors.Errorf("parse add tunnel id: %w", err)
+		}
+
+		if c.AgentID != uid {
+			return xerrors.Errorf("invalid agent id, expected %s, got %s", c.AgentID.String(), uid.String())
+		}
+	}
+
+	if upd := req.GetUpdateSelf(); upd != nil {
+		for _, addrStr := range upd.Node.Addresses {
+			pre, err := netip.ParsePrefix(addrStr)
+			if err != nil {
+				return xerrors.Errorf("parse node address: %w", err)
+			}
+
+			if pre.Bits() != 128 {
+				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
+			}
+		}
+	}
+
+	return nil
 }
 
-// AgentTunnelAuth disallows all tunnels, since agents are not allowed to initiate their own tunnels
-type AgentTunnelAuth struct{}
+// AgentCoordinateeAuth disallows all tunnels, since agents are not allowed to initiate their own tunnels
+type AgentCoordinateeAuth struct {
+	ID uuid.UUID
+}
 
-func (AgentTunnelAuth) Authorize(uuid.UUID) bool {
-	return false
+func (a AgentCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
+	if tun := req.GetAddTunnel(); tun != nil {
+		return xerrors.New("agents cannot open tunnels")
+	}
+
+	if upd := req.GetUpdateSelf(); upd != nil {
+		for _, addrStr := range upd.Node.Addresses {
+			pre, err := netip.ParsePrefix(addrStr)
+			if err != nil {
+				return xerrors.Errorf("parse node address: %w", err)
+			}
+
+			if pre.Bits() != 128 {
+				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
+			}
+
+			if IPFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
+				legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
+				return xerrors.Errorf("invalid node address, got %s", pre.Addr().String())
+			}
+		}
+	}
+
+	return nil
 }
 
 // tunnelStore contains tunnel information and allows querying it.  It is not threadsafe and all

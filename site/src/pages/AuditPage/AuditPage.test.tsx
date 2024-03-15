@@ -1,7 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
 import { rest } from "msw";
+import * as API from "api/api";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import {
   MockAuditLog,
   MockAuditLog2,
@@ -12,10 +13,8 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-
 import * as CreateDayString from "utils/createDayString";
 import AuditPage from "./AuditPage";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 
 interface RenderPageOptions {
   filter?: string;

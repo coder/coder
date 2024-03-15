@@ -1,6 +1,7 @@
-import { type FC } from "react";
 import { useTheme } from "@emotion/react";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
+import type { FC } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import {
   HelpTooltip,
   HelpTooltipAction,
@@ -9,10 +10,9 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import type { WorkspaceAgent } from "api/typesGenerated";
+import { PopoverTrigger } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
-import { PopoverTrigger } from "components/Popover/Popover";
 
 type AgentOutdatedTooltipProps = {
   agent: WorkspaceAgent;

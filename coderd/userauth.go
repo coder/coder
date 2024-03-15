@@ -929,15 +929,23 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
+		emailSp := strings.Split(email, "@")
+		if len(emailSp) == 1 {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
+			})
+			return
+		}
+		userEmailDomain := emailSp[len(emailSp)-1]
 		for _, domain := range api.OIDCConfig.EmailDomain {
-			if strings.HasSuffix(strings.ToLower(email), strings.ToLower(domain)) {
+			if strings.EqualFold(userEmailDomain, domain) {
 				ok = true
 				break
 			}
 		}
 		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not in domains %q!", email, api.OIDCConfig.EmailDomain),
 			})
 			return
 		}
@@ -1343,20 +1351,16 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
-			var organizationID uuid.UUID
-			// Ignoring this error is a product of our unit tests. In prod this should never
-			// happen. Unit tests use this as a shortcut to making a new organization. We
-			// should really fix our unit tests and remove this.
+			// Until proper multi-org support, all users will be added to the default organization.
+			// The default organization should always be present.
 			//nolint:gocritic
-			organization, _ := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-
-			// Add the user to the default organization.
-			// Once multi-organization we should check some configuration to see
-			// if we should add the user to a different organization.
-			organizationID = organization.ID
+			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+			if err != nil {
+				return xerrors.Errorf("unable to fetch default organization: %w", err)
+			}
 
 			//nolint:gocritic
-			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+			_, err = tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
 			if err == nil {
@@ -1394,13 +1398,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
-					OrganizationID: organizationID,
+					OrganizationID: defaultOrganization.ID,
 				},
-				// All of the userauth tests depend on this being able to create
-				// the first organization. It shouldn't be possible in normal
-				// operation.
-				CreateOrganization: organizationID == uuid.Nil,
-				LoginType:          params.LoginType,
+				LoginType: params.LoginType,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)

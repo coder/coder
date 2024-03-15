@@ -1,9 +1,9 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 
 const noMessage = {

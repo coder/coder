@@ -178,6 +178,10 @@ func TestSearchWorkspace(t *testing.T) {
 				}
 				assert.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
+				if len(c.Expected.WorkspaceIds) == len(values.WorkspaceIds) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.WorkspaceIds = values.WorkspaceIds
+				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
 			}

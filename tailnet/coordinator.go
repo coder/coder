@@ -59,7 +59,7 @@ type CoordinatorV2 interface {
 	// Node returns a node by peer ID, if known to the coordinator.  Returns nil if unknown.
 	Node(id uuid.UUID) *Node
 	Close() error
-	Coordinate(ctx context.Context, id uuid.UUID, name string, a TunnelAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
+	Coordinate(ctx context.Context, id uuid.UUID, name string, a CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
 }
 
 // Node represents a node in the network.
@@ -247,10 +247,10 @@ func NewInMemoryCoordination(
 ) Coordination {
 	thisID := agentID
 	logger = logger.With(slog.F("agent_id", agentID))
-	var auth TunnelAuth = AgentTunnelAuth{}
+	var auth CoordinateeAuth = AgentCoordinateeAuth{ID: agentID}
 	if clientID != uuid.Nil {
 		// this is a client connection
-		auth = ClientTunnelAuth{AgentID: agentID}
+		auth = ClientCoordinateeAuth{AgentID: agentID}
 		logger = logger.With(slog.F("client_id", clientID))
 		thisID = clientID
 	}
@@ -420,7 +420,7 @@ type coordinator struct {
 }
 
 func (c *coordinator) Coordinate(
-	ctx context.Context, id uuid.UUID, name string, a TunnelAuth,
+	ctx context.Context, id uuid.UUID, name string, a CoordinateeAuth,
 ) (
 	chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse,
 ) {
@@ -476,7 +476,7 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAgentConn {
 	logger = logger.With(slog.F("client_id", id)).Named("multiagent")
 	ctx, cancel := context.WithCancel(context.Background())
-	reqs, resps := c.Coordinate(ctx, id, id.String(), SingleTailnetTunnelAuth{})
+	reqs, resps := c.Coordinate(ctx, id, id.String(), SingleTailnetCoordinateeAuth{})
 	m := (&MultiAgent{
 		ID: id,
 		OnSubscribe: func(enq Queue, agent uuid.UUID) error {
@@ -584,7 +584,7 @@ func ServeClientV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, con
 	}()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, id.String(), ClientTunnelAuth{AgentID: agent})
+	reqs, resps := c.Coordinate(ctx, id, id.String(), ClientCoordinateeAuth{AgentID: agent})
 	err := SendCtx(ctx, reqs, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)},
 	})
@@ -611,6 +611,11 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 	if !ok || pr != p {
 		return ErrAlreadyRemoved
 	}
+
+	if err := pr.auth.Authorize(req); err != nil {
+		return xerrors.Errorf("authorize request: %w", err)
+	}
+
 	if req.UpdateSelf != nil {
 		err := c.nodeUpdateLocked(p, req.UpdateSelf.Node)
 		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
@@ -683,9 +688,6 @@ func (c *core) updateTunnelPeersLocked(id uuid.UUID, n *proto.Node, k proto.Coor
 }
 
 func (c *core) addTunnelLocked(src *peer, dstID uuid.UUID) error {
-	if !src.auth.Authorize(dstID) {
-		return xerrors.Errorf("src %s is not allowed to tunnel to %s", src.id, dstID)
-	}
 	c.tunnels.add(src.id, dstID)
 	c.logger.Debug(context.Background(), "adding tunnel",
 		slog.F("src_id", src.id),
@@ -813,7 +815,7 @@ func ServeAgentV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, conn
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	logger.Debug(ctx, "starting new agent connection")
-	reqs, resps := c.Coordinate(ctx, id, name, AgentTunnelAuth{})
+	reqs, resps := c.Coordinate(ctx, id, name, AgentCoordinateeAuth{ID: id})
 	tc := NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, QueueKindAgent)
 	go tc.SendUpdates()
 	go v1RespLoop(ctx, cancel, logger, tc, resps)

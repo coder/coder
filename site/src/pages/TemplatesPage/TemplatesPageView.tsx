@@ -1,19 +1,30 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
+import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
+import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
-import { createDayString } from "utils/createDayString";
-import {
-  formatTemplateBuildTime,
-  formatTemplateActiveDevelopers,
-} from "utils/templates";
+import type { Template, TemplateExample } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { DeprecatedBadge } from "components/Badges/Badges";
+import {
+  HelpTooltip,
+  HelpTooltipContent,
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+  HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -25,26 +36,15 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import {
-  HelpTooltip,
-  HelpTooltipContent,
-  HelpTooltipLink,
-  HelpTooltipLinksGroup,
-  HelpTooltipText,
-  HelpTooltipTitle,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { EmptyTemplates } from "./EmptyTemplates";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import type { Template, TemplateExample } from "api/typesGenerated";
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import { ExternalAvatar } from "components/Avatar/Avatar";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
-import Skeleton from "@mui/material/Skeleton";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import { DeprecatedBadge } from "components/Badges/Badges";
+import {
+  formatTemplateBuildTime,
+  formatTemplateActiveDevelopers,
+} from "utils/templates";
 import { CreateTemplateButton } from "./CreateTemplateButton";
+import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
   developerCount: (activeCount: number): string => {

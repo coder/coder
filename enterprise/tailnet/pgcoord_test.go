@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 
 	"github.com/google/uuid"
@@ -92,6 +94,144 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	agent := newTestAgent(t, coordinator, "agent")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
+	require.Eventually(t, func() bool {
+		agents, err := store.GetTailnetPeers(ctx, agent.id)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("database error: %v", err)
+		}
+		if len(agents) == 0 {
+			return false
+		}
+		node := new(proto.Node)
+		err = gProto.Unmarshal(agents[0].Node, node)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 10, node.PreferredDerp)
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = agent.close()
+	require.NoError(t, err)
+	<-agent.errChan
+	<-agent.closeChan
+	assertEventuallyLost(ctx, t, store, agent.id)
+}
+
+func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "agent")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{
+		Addresses: []netip.Prefix{
+			netip.PrefixFrom(agpl.IP(), 128),
+		},
+		PreferredDERP: 10,
+	})
+
+	// The agent connection should be closed immediately after sending an invalid addr
+	testutil.RequireRecvCtx(ctx, t, agent.closeChan)
+	assertEventuallyLost(ctx, t, store, agent.id)
+}
+
+func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "agent")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{
+		Addresses: []netip.Prefix{
+			netip.PrefixFrom(agpl.IPFromUUID(agent.id), 64),
+		},
+		PreferredDERP: 10,
+	})
+
+	// The agent connection should be closed immediately after sending an invalid addr
+	testutil.RequireRecvCtx(ctx, t, agent.closeChan)
+	assertEventuallyLost(ctx, t, store, agent.id)
+}
+
+func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "agent")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{
+		Addresses: []netip.Prefix{
+			netip.PrefixFrom(agpl.IPFromUUID(agent.id), 128),
+		},
+		PreferredDERP: 10,
+	})
+	require.Eventually(t, func() bool {
+		agents, err := store.GetTailnetPeers(ctx, agent.id)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("database error: %v", err)
+		}
+		if len(agents) == 0 {
+			return false
+		}
+		node := new(proto.Node)
+		err = gProto.Unmarshal(agents[0].Node, node)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 10, node.PreferredDerp)
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = agent.close()
+	require.NoError(t, err)
+	<-agent.errChan
+	<-agent.closeChan
+	assertEventuallyLost(ctx, t, store, agent.id)
+}
+
+func TestPGCoordinatorSingle_AgentValidIPLegacy(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "agent")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{
+		Addresses: []netip.Prefix{
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		},
+		PreferredDERP: 10,
+	})
 	require.Eventually(t, func() bool {
 		agents, err := store.GetTailnetPeers(ctx, agent.id)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {

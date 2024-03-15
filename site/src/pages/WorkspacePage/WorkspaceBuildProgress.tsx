@@ -1,12 +1,11 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
-import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
-import { type FC, useEffect, useState } from "react";
-import capitalize from "lodash/capitalize";
-
 import duration from "dayjs/plugin/duration";
+import capitalize from "lodash/capitalize";
+import { type FC, useEffect, useState } from "react";
+import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
 
 dayjs.extend(duration);
 

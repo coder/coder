@@ -1,5 +1,5 @@
-import { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
 import { useMemo } from "react";
+import type { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
 
 const deploymentOptions = (
   options: ClibaseOption[],

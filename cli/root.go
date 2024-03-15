@@ -65,7 +65,9 @@ const (
 	varVerbose            = "verbose"
 	varOrganizationSelect = "organization"
 	varDisableDirect      = "disable-direct-connections"
-	notLoggedInMessage    = "You are not logged in. Try logging in using 'coder login <url>'."
+
+	notLoggedInMessage         = "You are not logged in. Try logging in using 'coder login <url>'."
+	notLoggedInURLSavedMessage = "You are not logged in. Try logging in using 'coder login'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -77,7 +79,10 @@ const (
 	envURL            = "CODER_URL"
 )
 
-var errUnauthenticated = xerrors.New(notLoggedInMessage)
+var (
+	errUnauthenticated         = xerrors.New(notLoggedInMessage)
+	errUnauthenticatedURLSaved = xerrors.New(notLoggedInURLSavedMessage)
+)
 
 func (r *RootCmd) Core() []*clibase.Cmd {
 	// Please re-sort this list alphabetically if you change it!
@@ -123,6 +128,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 		r.expCmd(),
+		r.support(),
 	}
 }
 
@@ -573,7 +579,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					if !allowTokenMissing {
-						return errUnauthenticated
+						return errUnauthenticatedURLSaved
 					}
 				} else if err != nil {
 					return err
@@ -715,7 +721,7 @@ func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.C
 	if selected == "" && conf.Organization().Exists() {
 		org, err := conf.Organization().Read()
 		if err != nil {
-			return codersdk.Organization{}, fmt.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
+			return codersdk.Organization{}, xerrors.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
 		}
 		selected = org
 	}
@@ -743,7 +749,14 @@ func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.C
 		return org.IsDefault
 	})
 	if index < 0 {
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
+		if len(orgs) == 1 {
+			// If there is no "isDefault", but only 1 org is present. We can just
+			// assume the single organization is correct. This is mainly a helper
+			// for cli hitting an old instance, or a user that belongs to a single
+			// org that is not the default.
+			return orgs[0], nil
+		}
+		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder org set <org>' to select an organization to use")
 	}
 
 	return orgs[index], nil
@@ -936,7 +949,7 @@ func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...inter
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func DumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context, name string) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return
@@ -991,7 +1004,11 @@ func DumpHandler(ctx context.Context) {
 		if err != nil {
 			dir = os.TempDir()
 		}
-		fpath := filepath.Join(dir, fmt.Sprintf("coder-agent-%s.dump", time.Now().Format("2006-01-02T15:04:05.000Z")))
+		// Make the time filesystem-safe, for example ":" is not
+		// permitted on many filesystems. Note that Z here only appends
+		// Z to the string, it does not actually change the time zone.
+		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
+		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 
 		f, err := os.Create(fpath)

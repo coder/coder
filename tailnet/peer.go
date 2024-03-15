@@ -19,7 +19,7 @@ type peer struct {
 	node   *proto.Node
 	resps  chan<- *proto.CoordinateResponse
 	reqs   <-chan *proto.CoordinateRequest
-	auth   TunnelAuth
+	auth   CoordinateeAuth
 	sent   map[uuid.UUID]*proto.Node
 
 	name       string

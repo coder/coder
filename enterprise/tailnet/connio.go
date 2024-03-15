@@ -30,7 +30,7 @@ type connIO struct {
 	responses    chan<- *proto.CoordinateResponse
 	bindings     chan<- binding
 	tunnels      chan<- tunnel
-	auth         agpl.TunnelAuth
+	auth         agpl.CoordinateeAuth
 	mu           sync.Mutex
 	closed       bool
 	disconnected bool
@@ -50,7 +50,7 @@ func newConnIO(coordContext context.Context,
 	responses chan<- *proto.CoordinateResponse,
 	id uuid.UUID,
 	name string,
-	auth agpl.TunnelAuth,
+	auth agpl.CoordinateeAuth,
 ) *connIO {
 	peerCtx, cancel := context.WithCancel(peerCtx)
 	now := time.Now().Unix()
@@ -126,6 +126,11 @@ var errDisconnect = xerrors.New("graceful disconnect")
 
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
+	err := c.auth.Authorize(req)
+	if err != nil {
+		return xerrors.Errorf("authorize request: %w", err)
+	}
+
 	if req.UpdateSelf != nil {
 		c.logger.Debug(c.peerCtx, "got node update", slog.F("node", req.UpdateSelf))
 		b := binding{
@@ -146,9 +151,6 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 			// this shouldn't happen unless there is a client error.  Close the connection so the client
 			// doesn't just happily continue thinking everything is fine.
 			return err
-		}
-		if !c.auth.Authorize(dst) {
-			return xerrors.New("unauthorized tunnel")
 		}
 		t := tunnel{
 			tKey: tKey{

@@ -3,11 +3,11 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import { Timeline } from "components/Timeline/Timeline";
-import { type FC } from "react";
+import type { FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { Timeline } from "components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
 
 export const Language = {

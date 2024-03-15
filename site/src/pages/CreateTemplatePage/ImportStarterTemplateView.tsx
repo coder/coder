@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -7,17 +7,17 @@ import {
   templateExamples,
   templateVersionVariables,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
+import type { CreateTemplatePageViewProps } from "./types";
 import {
   firstVersionFromExample,
   getFormPermissions,
   newTemplate,
 } from "./utils";
-import { CreateTemplatePageViewProps } from "./types";
 
 export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
@@ -27,7 +27,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
+  const { organizationId } = useAuthenticated();
   const [searchParams] = useSearchParams();
   const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const templateExample = templateExamplesQuery.data?.find(

@@ -95,6 +95,11 @@ CREATE TYPE parameter_type_system AS ENUM (
     'hcl'
 );
 
+CREATE TYPE port_share_protocol AS ENUM (
+    'http',
+    'https'
+);
+
 CREATE TYPE provisioner_job_status AS ENUM (
     'pending',
     'running',
@@ -609,7 +614,8 @@ CREATE TABLE provisioner_daemons (
     tags jsonb DEFAULT '{}'::jsonb NOT NULL,
     last_seen_at timestamp with time zone,
     version text DEFAULT ''::text NOT NULL,
-    api_version text DEFAULT '1.0'::text NOT NULL
+    api_version text DEFAULT '1.0'::text NOT NULL,
+    organization_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
@@ -1027,7 +1033,8 @@ CREATE TABLE workspace_agent_port_share (
     workspace_id uuid NOT NULL,
     agent_name text NOT NULL,
     port integer NOT NULL,
-    share_level app_sharing_level NOT NULL
+    share_level app_sharing_level NOT NULL,
+    protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
 CREATE TABLE workspace_agent_scripts (
@@ -1681,6 +1688,9 @@ ALTER TABLE ONLY organization_members
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

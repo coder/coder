@@ -1,10 +1,10 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockOrganization,
   MockTemplateACL,
   MockTemplateACLEmpty,
 } from "testHelpers/entities";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatePermissionsPageView> = {
   title: "pages/TemplateSettingsPage/TemplatePermissionsPageView",

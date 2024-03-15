@@ -1,10 +1,10 @@
+import fs from "fs";
 import { rest } from "msw";
-import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import path from "path";
+import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
-import fs from "fs";
-import path from "path";
 
 export const handlers = [
   rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {
@@ -245,6 +245,12 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/extend", async (req, res, ctx) => {
     return res(ctx.status(200));
   }),
+  rest.get(
+    "/api/v2/workspaces/:workspaceId/resolve-autostart",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json({ parameter_mismatch: false }));
+    },
+  ),
 
   // workspace builds
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
@@ -437,5 +443,9 @@ export const handlers = [
 
   rest.get("/api/v2/workspaceagents/:agent/listening-ports", (_, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockListeningPortsResponse));
+  }),
+
+  rest.get("/api/v2/integrations/jfrog/xray-scan", (_, res, ctx) => {
+    return res(ctx.status(404));
   }),
 ];

@@ -1,11 +1,13 @@
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent, { UserEvent } from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
+import { rest } from "msw";
+import { QueryClient } from "react-query";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import * as api from "api/api";
+import { templateVersionVariablesKey } from "api/queries/templates";
+import type { TemplateVersion } from "api/typesGenerated";
+import { AppProviders } from "App";
+import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
   MockTemplate,
   MockTemplateVersion,
@@ -13,15 +15,14 @@ import {
   MockTemplateVersionVariable2,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
-import { Language } from "./PublishTemplateVersionDialog";
-import { QueryClient } from "react-query";
-import { templateVersionVariablesKey } from "api/queries/templates";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { RequireAuth } from "contexts/auth/RequireAuth";
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { rest } from "msw";
-import { AppProviders } from "App";
-import { TemplateVersion } from "api/typesGenerated";
+import type { MonacoEditorProps } from "./MonacoEditor";
+import { Language } from "./PublishTemplateVersionDialog";
+import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -35,7 +36,15 @@ jest.mock(
 // Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
 // required for these tests, we can safely mock it.
 jest.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
-  MonacoEditor: () => <div />,
+  MonacoEditor: (props: MonacoEditorProps) => (
+    <textarea
+      data-testid="monaco-editor"
+      value={props.value}
+      onChange={(e) => {
+        props.onChange?.(e.target.value);
+      }}
+    />
+  ),
 }));
 
 const renderTemplateEditorPage = () => {
@@ -49,6 +58,11 @@ const renderTemplateEditorPage = () => {
       },
     ],
   });
+};
+
+const typeOnEditor = async (value: string, user: UserEvent) => {
+  const editor = await screen.findByTestId("monaco-editor");
+  await user.type(editor, value);
 };
 
 const buildTemplateVersion = async (
@@ -94,6 +108,8 @@ test("Use custom name, message and set it as active when publishing", async () =
     id: "new-version-id",
     name: "new-version",
   };
+
+  await typeOnEditor("new content", user);
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
@@ -138,6 +154,8 @@ test("Do not mark as active if promote is not checked", async () => {
     id: "new-version-id",
     name: "new-version",
   };
+
+  await typeOnEditor("new content", user);
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
@@ -181,6 +199,8 @@ test("Patch request is not send when there are no changes", async () => {
     name: "new-version",
     message: "",
   };
+
+  await typeOnEditor("new content", user);
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish

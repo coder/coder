@@ -1,10 +1,10 @@
 import Link from "@mui/material/Link";
-import { type FC } from "react";
+import type { FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { generateRandomString } from "utils/random";
-import { DisplayAppNameMap } from "../AppLink/AppLink";
 import { AgentButton } from "../AgentButton";
+import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export const Language = {
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,

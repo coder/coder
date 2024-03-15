@@ -1,6 +1,6 @@
-import { updateCheck } from "api/queries/updateCheck";
 import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
+import { updateCheck } from "api/queries/updateCheck";
 
 export const useUpdateCheck = (enabled: boolean) => {
   const [dismissedVersion, setDismissedVersion] = useState(() =>

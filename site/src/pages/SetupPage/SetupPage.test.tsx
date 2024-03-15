@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
 import { createMemoryRouter } from "react-router-dom";
+import { MockUser } from "testHelpers/entities";
 import {
   renderWithRouter,
   waitForLoaderToBeRemoved,
@@ -9,7 +10,6 @@ import {
 import { server } from "testHelpers/server";
 import { SetupPage } from "./SetupPage";
 import { Language as PageViewLanguage } from "./SetupPageView";
-import { MockUser } from "testHelpers/entities";
 
 const fillForm = async ({
   username = "someuser",

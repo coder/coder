@@ -499,6 +499,9 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevopsEntra) {
+			oauthConfig = &entraV1Oauth{oc}
+		}
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderJFrog) {
 			oauthConfig = &exchangeWithClientSecret{oc}
 		}
@@ -568,6 +571,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 		return
 	case codersdk.EnhancedExternalAuthProviderGitea:
 		copyDefaultSettings(config, giteaDefaults(config))
+		return
+	case codersdk.EnhancedExternalAuthProviderAzureDevopsEntra:
+		copyDefaultSettings(config, azureDevopsEntraDefaults(config))
 		return
 	default:
 		// No defaults for this type. We still want to run this apply with
@@ -730,6 +736,41 @@ func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCon
 	return defaults
 }
 
+func azureDevopsEntraDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "Azure DevOps (Entra)",
+		DisplayIcon: "/icon/azure-devops.svg",
+		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
+	}
+	// The tenant ID is required for urls and is in the auth url.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	// Only extract the tenant ID if the path is what we expect.
+	// The path should be /{tenantId}/oauth2/authorize.
+	parts := strings.Split(auth.Path, "/")
+	if len(parts) < 4 && parts[2] != "oauth2" || parts[3] != "authorize" {
+		// Not sure what this path is, abort.
+		return defaults
+	}
+	tenantID := parts[1]
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: fmt.Sprintf("/%s/oauth2/token", tenantID)})
+	defaults.TokenURL = tokenURL.String()
+
+	// TODO: Discover a validate url for Azure DevOps.
+
+	return defaults
+}
+
 var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
 	codersdk.EnhancedExternalAuthProviderAzureDevops: {
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
@@ -807,6 +848,26 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("assertion", code),
 			oauth2.SetAuthURLParam("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
 			oauth2.SetAuthURLParam("code", ""),
+		)...,
+	)
+}
+
+// When authenticating via Entra ID ADO only supports v1 tokens that requires the 'resource' rather than scopes
+// When ADO gets support for V2 Entra ID tokens this struct and functions can be removed
+type entraV1Oauth struct {
+	*oauth2.Config
+}
+
+const azureDevOpsAppID = "499b84ac-1321-427f-aa17-267ca6975798"
+
+func (c *entraV1Oauth) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	return c.Config.AuthCodeURL(state, append(opts, oauth2.SetAuthURLParam("resource", azureDevOpsAppID))...)
+}
+
+func (c *entraV1Oauth) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return c.Config.Exchange(ctx, code,
+		append(opts,
+			oauth2.SetAuthURLParam("resource", azureDevOpsAppID),
 		)...,
 	)
 }

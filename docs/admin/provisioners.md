@@ -47,13 +47,25 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 ## Types of provisioners
 
-> Provisioners have two important tags: `scope` and `owner`. Coder sets these
-> tags automatically.
+Provisioners can broadly be categorized by scope: `organization` or `user`. The
+scope of a provisioner can be specified with
+[`-tag=scope=<scope>`](../cli/provisionerd_start.md#t---tag) when starting the
+provisioner daemon. Only users with at least the
+[Template Admin](../admin/users.md#roles) role or higher may create
+organization-scoped provisioner daemons.
+
+There are two exceptions:
+
+- [Built-in provisioners](../cli/server.md#provisioner-daemons) are always
+  organization-scoped.
+- External provisioners started using a
+  [pre-shared key (PSK)](../cli/provisionerd_start.md#psk) are always
+  organization-scoped.
 
 ### Organization-Scoped Provisioners
 
 **Organization-scoped Provisioners** can pick up build jobs created by any user.
-These provisioners always have tags `scope=organization owner=""`.
+These provisioners always have the implicit tags `scope=organization owner=""`.
 
 ```shell
 coder provisionerd start
@@ -62,9 +74,8 @@ coder provisionerd start
 ### User-scoped Provisioners
 
 **User-scoped Provisioners** can only pick up build jobs created from
-user-tagged templates. User-scoped provisioners always have tags
-`scope=owner owner=<uuid>`. Unlike the other provisioner types, any Coder user
-can run user provisioners, but they have no impact unless there is at least one
+user-tagged templates. Unlike the other provisioner types, any Coder user can
+run user provisioners, but they have no impact unless there exists at least one
 template with the `scope=user` provisioner tag.
 
 ```shell
@@ -80,58 +91,86 @@ coder templates push on-prem \
 ### Provisioner Tags
 
 You can use **provisioner tags** to control which provisioners can pick up build
-jobs from templates (and corresponding workspaces) with matching tags.
+jobs from templates (and corresponding workspaces) with matching explicit tags.
+
+Provisioners have two implicit tags: `scope` and `owner`. Coder sets these tags
+automatically.
+
+- Organization-scoped provisioners always have the implicit tags
+  `scope=organization owner=""`
+- User-scoped provisioners always have the implicit tags
+  `scope=user owner=<uuid>`
+
+For example:
 
 ```shell
+# Start a provisioner with the explicit tags
+# environment=on_prem and datacenter=chicago
 coder provisionerd start \
   --tag environment=on_prem \
-  --tag data_center=chicago
+  --tag datacenter=chicago
 
 # In another terminal, create/push
-# a template that requires this provisioner
+# a template that requires the explicit
+# tag environment=on_prem
 coder templates push on-prem \
   --provisioner-tag environment=on_prem
 
-# Or, match the provisioner exactly
+# Or, match the provisioner's explicit tags exactly
 coder templates push on-prem-chicago \
   --provisioner-tag environment=on_prem \
-  --provisioner-tag data_center=chicago
+  --provisioner-tag datacenter=chicago
 ```
 
 A provisioner can run a given build job if one of the below is true:
 
-1. The provisioner and job tags are both organization-scoped and both have no
-   additional tags set,
-1. The set of tags of the build job is a subset of the set of tags of the
-   provisioner.
-
-This is illustrated in the below table:
-
-| Provisioner Tags                                                                      | Job Tags                                                                  | Can run job? |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------ |
-| `{"owner":"","scope":"organization"}`                                                 | `{"owner":"","scope":"organization"}`                                     | true         |
-| `{"owner":"","scope":"organization"}`                                                 | `{"environment":"on_prem","owner":"","scope":"organization"}`             | false        |
-| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"owner":"","scope":"organization"}`                                     | false        |
-| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"foo":"bar","owner":"","scope":"organization"}`                         | true         |
-| `{"environment":"on_prem","owner":"","scope":"organization"}`                         | `{"data_center":"chicago","foo":"bar","owner":"","scope":"organization"}` | false        |
-| `{"data_center":"chicago","environment":"on_prem","owner":"","scope":"organization"}` | `{"foo":"bar","owner":"","scope":"organization"}`                         | true         |
-| `{"data_center":"chicago","environment":"on_prem","owner":"","scope":"organization"}` | `{"data_center":"chicago","foo":"bar","owner":"","scope":"organization"}` | true         |
-| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"","scope":"organization"}`                                     | false        |
-| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"aaa","scope":"owner"}`                                         | true         |
-| `{"owner":"aaa","scope":"owner"}`                                                     | `{"owner":"bbb","scope":"owner"}`                                         | false        |
-| `{"owner":"","scope":"organization"}`                                                 | `{"owner":"aaa","scope":"owner"}`                                         | false        |
+1. A job with no explicit tags can only be run on a provisioner with no explicit
+   tags. This way you can introduce tagging into your deployment without
+   disrupting existing provisioners and jobs.
+1. If a job has any explicit tags, it can only run on a provisioner with those
+   explicit tags (the provisioner could have additional tags).
 
 The external provisioner in the above example can run build jobs with tags:
 
 - `environment=on_prem`
-- `data_center=chicago`
+- `datacenter=chicago`
 - `environment=on_prem datacenter=chicago`
-- `environment=cloud datacenter=chicago`
-- `environment=on_prem datacenter=new_york`
 
 However, it will not pick up any build jobs that do not have either of the
 `environment` or `datacenter` tags set. It will also not pick up any build jobs
-from templates with the `user` tag set.
+from templates with the tag `scope=user` set.
+
+This is illustrated in the below table:
+
+| Provisioner Tags                                                  | Job Tags                                                         | Can Run Job? |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- | ------------ |
+| scope=organization owner=                                         | scope=organization owner=                                        | ✅           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅           |
+| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅           |
+| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
+| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
+| scope=user owner=aaa                                              | scope=organization owner=                                        | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa                                             | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ❌           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ❌           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ❌           |
+
+> **Note to maintainers:** to generate this table, run the following command and
+> copy the output:
+>
+> ```
+> go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
+> ```
 
 ## Example: Running an external provisioner with Helm
 

@@ -84,4 +84,4 @@ echo "experiments: ${experiments}"
 echo "build: ${build}"
 echo "deploy: ${deploy}"
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"

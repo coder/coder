@@ -1,7 +1,9 @@
+import "chartjs-adapter-date-fns";
+import { useTheme } from "@emotion/react";
 import {
   CategoryScale,
   Chart as ChartJS,
-  ChartOptions,
+  type ChartOptions,
   defaults,
   Filler,
   Legend,
@@ -12,7 +14,10 @@ import {
   Tooltip,
   PointElement,
 } from "chart.js";
-import "chartjs-adapter-date-fns";
+import annotationPlugin from "chartjs-plugin-annotation";
+import dayjs from "dayjs";
+import type { FC } from "react";
+import { Line } from "react-chartjs-2";
 import {
   HelpTooltip,
   HelpTooltipTitle,
@@ -20,11 +25,6 @@ import {
   HelpTooltipContent,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import dayjs from "dayjs";
-import { useTheme } from "@emotion/react";
-import { type FC } from "react";
-import { Line } from "react-chartjs-2";
-import annotationPlugin from "chartjs-plugin-annotation";
 
 ChartJS.register(
   CategoryScale,

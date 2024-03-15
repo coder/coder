@@ -1,15 +1,15 @@
+import range from "lodash/range";
 import {
   withDefaultFeatures,
   type GetLicensesResponse,
   type DeploymentConfig,
 } from "api/api";
-import { FieldError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
-import range from "lodash/range";
+import type { FieldError } from "api/errors";
+import type * as TypesGen from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
-import { TemplateVersionFiles } from "utils/templateVersion";
-import { FileTree } from "utils/filetree";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import type { FileTree } from "utils/filetree";
+import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
@@ -3276,18 +3276,21 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
       agent_name: "a-workspace-agent",
       port: 4000,
       share_level: "authenticated",
+      protocol: "http",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
-      port: 8080,
+      port: 65535,
       share_level: "authenticated",
+      protocol: "https",
     },
     {
       workspace_id: MockWorkspace.id,
       agent_name: "a-workspace-agent",
       port: 8081,
       share_level: "public",
+      protocol: "http",
     },
   ],
 };
