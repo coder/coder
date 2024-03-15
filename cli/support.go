@@ -16,9 +16,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
+	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) support() *serpent.Cmd {

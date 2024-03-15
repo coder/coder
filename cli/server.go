@@ -2529,7 +2529,7 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	return v, nil
 }
 
-func signalNotifyContext(ctx context.Context, inv *clibase.Invocation, sig ...os.Signal) (context.Context, context.CancelFunc) {
+func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os.Signal) (context.Context, context.CancelFunc) {
 	// On Windows, some of our signal functions lack support.
 	// If we pass in no signals, we should just return the context as-is.
 	if len(sig) == 0 {

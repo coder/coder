@@ -14,7 +14,6 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
@@ -24,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/serpent"
 
 	agplcoderd "github.com/coder/coder/v2/coderd"
 )

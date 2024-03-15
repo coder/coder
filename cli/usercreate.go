@@ -10,9 +10,9 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/serpent"
 )
 
 func (r *RootCmd) userCreate() *serpent.Cmd {

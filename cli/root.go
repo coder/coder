@@ -34,10 +34,10 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
-	"github.com/coder/coder/v2/cli/serpent"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -458,11 +458,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 			Value:       serpent.BoolOf(&r.versionFlag),
 			Hidden:      true,
 		},
-	}
-
-	err := cmd.PrepareAll()
-	if err != nil {
-		return nil, err
 	}
 
 	return cmd, nil
