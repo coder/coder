@@ -325,8 +325,8 @@ considerations:
   provisioners.
 - Storage size depends on user activity, workspace builds, log verbosity,
   overhead on database encryption, etc.
-- Allocate an additional CPU core to the database instance for every 1000 active
-  users.
+- Allocate two additional CPU core to the database instance for every 1000
+  active users.
 - Enable _High Availability_ mode for database engine for large scale
   deployments.
 
