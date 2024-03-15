@@ -53,4 +53,4 @@ purposes.
 **Footnotes**:
 
 - Consider adding more replicas if the workspace activity is higher than 1500
-  workspace builds per day.
+  workspace builds per day or to achieve higher RPS.

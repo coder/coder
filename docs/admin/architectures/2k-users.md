@@ -56,4 +56,4 @@ enabling it for deployment reliability.
 **Footnotes**:
 
 - Consider adding more replicas if the workspace activity is higher than 500
-  workspace builds per day.
+  workspace builds per day or to achieve higher RPS.
