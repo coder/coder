@@ -73,6 +73,7 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Workspace.TemplateFileBase64, "workspace template file should be present")
 		require.NotNil(t, bun.Workspace.Parameters, "workspace parameters should be present")
 		assertNotNilNotEmpty(t, bun.Agent.Agent, "agent should be present")
+		assertSanitizedAgent(t, *bun.Agent.Agent)
 		assertNotNilNotEmpty(t, bun.Agent.ListeningPorts, "agent listening ports should be present")
 		assertNotNilNotEmpty(t, bun.Agent.Logs, "agent logs should be present")
 		assertNotNilNotEmpty(t, bun.Agent.AgentMagicsockHTML, "agent magicsock should be present")
@@ -163,10 +164,15 @@ func assertSanitizedWorkspace(t *testing.T, ws codersdk.Workspace) {
 	t.Helper()
 	for _, res := range ws.LatestBuild.Resources {
 		for _, agt := range res.Agents {
-			for k, v := range agt.EnvironmentVariables {
-				assert.Equal(t, "***REDACTED***", v, "environment variable %q not sanitized", k)
-			}
+			assertSanitizedAgent(t, agt)
 		}
+	}
+}
+
+func assertSanitizedAgent(t *testing.T, agt codersdk.WorkspaceAgent) {
+	t.Helper()
+	for k, v := range agt.EnvironmentVariables {
+		assert.Equal(t, "***REDACTED***", v, "agent %q environment variable %q not sanitized", agt.Name, k)
 	}
 }
 
