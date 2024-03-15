@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
@@ -18,32 +17,22 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-type fakeTracerProvider struct {
-	noop.TracerProvider
+type fakeTracer struct {
 	startCalled int64
 }
 
-type fakeTracer struct {
-	noop.Tracer
-	prov *fakeTracerProvider
-}
-
 var (
-	_ trace.TracerProvider = &fakeTracerProvider{}
+	_ trace.TracerProvider = &fakeTracer{}
 	_ trace.Tracer         = &fakeTracer{}
 )
 
-func (f *fakeTracer) Start(ctx context.Context, str string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return f.prov.Start(ctx, str, opts...)
-}
-
 // Tracer implements trace.TracerProvider.
-func (f *fakeTracerProvider) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
-	return &fakeTracer{prov: f}
+func (f *fakeTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
+	return f
 }
 
 // Start implements trace.Tracer.
-func (f *fakeTracerProvider) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
+func (f *fakeTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
 	atomic.AddInt64(&f.startCalled, 1)
 	return ctx, tracing.NoopSpan
 }
@@ -87,7 +76,7 @@ func Test_Middleware(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 
-				fake := &fakeTracerProvider{}
+				fake := &fakeTracer{}
 
 				rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
 				r := httptest.NewRequest("GET", c.path, nil)
