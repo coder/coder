@@ -19,7 +19,7 @@ locals {
     "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"     = "tcp://hildegard-sydney-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-jnb"        = "tcp://siegfried-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
