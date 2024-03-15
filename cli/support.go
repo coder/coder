@@ -176,8 +176,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"network/tailnet_debug.html":     src.Network.TailnetDebug,
 		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"agent/logs.txt":                 string(src.Agent.Logs),
-		"agent/magicsock.html":           string(src.Agent.MagicsockHTML),
+		"agent/agent_magicsock.html":     string(src.Agent.AgentMagicsockHTML),
+		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
 		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
+		"agent/prometheus.txt":           string(src.Agent.Prometheus),
 		"workspace/template_file.zip":    string(templateVersionBytes),
 		"logs.txt":                       strings.Join(src.Logs, "\n"),
 	} {
