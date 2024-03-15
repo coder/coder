@@ -1992,7 +1992,7 @@ func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 
 		metricFamilies, err := prometheusRegistry.Gather()
 		if err != nil {
-			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
+			logger.Error(context.Background(), "prometheus handler failed to gather metric families", slog.Error(err))
 			return
 		}
 
