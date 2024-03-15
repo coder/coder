@@ -125,7 +125,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
-					reaper.WithCatchSignals(InterruptSignals...),
+					reaper.WithCatchSignals(StopSignals...),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
@@ -144,7 +144,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the

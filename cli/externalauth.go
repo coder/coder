@@ -65,7 +65,7 @@ fi
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
 			client, err := r.createAgentClient()

@@ -88,7 +88,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.StopSignals...)
 			defer notifyStop()
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)

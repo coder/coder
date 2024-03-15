@@ -345,6 +345,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
+			stopCtx, stopCancel := signalNotifyContext(ctx, inv, StopSignalsNoInterrupt...)
+			defer stopCancel()
 			interruptCtx, interruptCancel := signalNotifyContext(ctx, inv, InterruptSignals...)
 			defer interruptCancel()
 
@@ -1034,10 +1036,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// exit of the server.
 			var exitErr error
 			select {
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				waitForProvisionerJobs = true
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-interruptCtx.Done():
 				exitErr = interruptCtx.Err()
-				waitForProvisionerJobs = true
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case <-pubsubWatchdogTimeout:
