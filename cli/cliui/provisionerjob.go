@@ -128,7 +128,7 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			currentQueuePos = job.QueuePosition
 			// Print an update when the queue position changes, but:
 			//   - not initially, because the stage is printed at startup
-			//   - not when we first in the queue, because it's redundant
+			//   - not when we're first in the queue, because it's redundant
 			if !initialState && currentQueuePos != 0 {
 				printStage()
 			}

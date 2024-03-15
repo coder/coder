@@ -153,13 +153,13 @@ func (e *outExpecter) ExpectRegexMatch(str string) string {
 	return e.expectMatchContextFunc(str, e.ExpectRegexMatchContext)
 }
 
-func (e *outExpecter) expectMatchContextFunc(str string, impl func(ctx context.Context, str string) string) string {
+func (e *outExpecter) expectMatchContextFunc(str string, fn func(ctx context.Context, str string) string) string {
 	e.t.Helper()
 
 	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	return impl(timeout, str)
+	return fn(timeout, str)
 }
 
 // TODO(mafredri): Rename this to ExpectMatch when refactoring.
@@ -175,7 +175,7 @@ func (e *outExpecter) ExpectRegexMatchContext(ctx context.Context, str string) s
 	})
 }
 
-func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, matchFn func(src, pattern string) bool) string {
+func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, fn func(src, pattern string) bool) string {
 	e.t.Helper()
 
 	var buffer bytes.Buffer
@@ -189,7 +189,7 @@ func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, matchFn
 			if err != nil {
 				return err
 			}
-			if matchFn(buffer.String(), str) {
+			if fn(buffer.String(), str) {
 				return nil
 			}
 		}
