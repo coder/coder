@@ -174,14 +174,16 @@ export const WorkspacesPageView = ({
               </MoreMenuContent>
             </MoreMenu>
           </>
-        ) : invalidPageNumber ? null : (
-          <PaginationHeader
-            paginationUnitLabel="workspaces"
-            limit={limit}
-            totalRecords={count}
-            currentOffsetStart={(page - 1) * limit + 1}
-            css={{ paddingBottom: "0" }}
-          />
+        ) : (
+          !invalidPageNumber && (
+            <PaginationHeader
+              paginationUnitLabel="workspaces"
+              limit={limit}
+              totalRecords={count}
+              currentOffsetStart={(page - 1) * limit + 1}
+              css={{ paddingBottom: "0" }}
+            />
+          )
         )}
       </TableToolbar>
 
@@ -216,7 +218,7 @@ export const WorkspacesPageView = ({
         />
       )}
 
-      {count !== undefined && !invalidPageNumber && (
+      {count !== undefined && (
         // Temporary styling stopgap before component is migrated to using
         // PaginationContainer (which renders PaginationWidgetBase using CSS
         // flexbox gaps)
