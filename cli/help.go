@@ -4,7 +4,9 @@ import (
 	"bufio"
 	_ "embed"
 	"fmt"
+	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -320,6 +322,25 @@ var usageWantsArgRe = regexp.MustCompile(`<.*>`)
 // output for a given command.
 func helpFn() serpent.HandlerFunc {
 	return func(inv *serpent.Invocation) error {
+		// Check for invalid subcommands before printing help.
+		if len(inv.Args) > 0 && !usageWantsArgRe.MatchString(inv.Command.Use) {
+			_, _ = fmt.Fprintf(inv.Stderr, "---\nerror: unrecognized subcommand %q\n", inv.Args[0])
+		}
+		if len(inv.Args) > 0 {
+			// Return an error so that exit status is non-zero when
+			// a subcommand is not found.
+			err := xerrors.Errorf("unrecognized subcommand %q", strings.Join(inv.Args, " "))
+			if slices.Contains(os.Args, "--help") {
+				// Subcommand error is not wrapped in RunCommandErr if command
+				// is invoked with --help with no HelpHandler
+				return &serpent.RunCommandError{
+					Cmd: inv.Command,
+					Err: err,
+				}
+			}
+			return err
+		}
+
 		// We use stdout for help and not stderr since there's no straightforward
 		// way to distinguish between a user error and a help request.
 		//
@@ -339,9 +360,6 @@ func helpFn() serpent.HandlerFunc {
 		err = outBuf.Flush()
 		if err != nil {
 			return err
-		}
-		if len(inv.Args) > 0 && !usageWantsArgRe.MatchString(inv.Command.Use) {
-			_, _ = fmt.Fprintf(inv.Stderr, "---\nerror: unknown subcommand %q\n", inv.Args[0])
 		}
 		return nil
 	}

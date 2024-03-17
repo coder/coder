@@ -69,10 +69,6 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				err = inv.Command.HelpHandler(inv)
-				if err != nil {
-					return xerrors.Errorf("generate help output: %w", err)
-				}
 				return xerrors.New("no port-forwards requested")
 			}
 
