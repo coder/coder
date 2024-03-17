@@ -142,7 +142,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.18.2
+        uses: crate-ci/typos@v1.19.0
         with:
           config: .github/workflows/typos.toml
 
@@ -155,7 +155,7 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: v3.9.2
 
