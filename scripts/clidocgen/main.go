@@ -83,7 +83,7 @@ func main() {
 	root := (&cli.RootCmd{})
 
 	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*serpent.Cmd)
+	wroteMap := make(map[string]*serpent.Command)
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")

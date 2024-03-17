@@ -84,9 +84,9 @@ var (
 	errUnauthenticatedURLSaved = xerrors.New(notLoggedInURLSavedMessage)
 )
 
-func (r *RootCmd) Core() []*serpent.Cmd {
+func (r *RootCmd) Core() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
-	return []*serpent.Cmd{
+	return []*serpent.Command{
 		r.dotfiles(),
 		r.externalAuth(),
 		r.login(),
@@ -132,13 +132,13 @@ func (r *RootCmd) Core() []*serpent.Cmd {
 	}
 }
 
-func (r *RootCmd) AGPL() []*serpent.Cmd {
+func (r *RootCmd) AGPL() []*serpent.Command {
 	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
 // Main is the entrypoint for the Coder CLI.
-func (r *RootCmd) RunMain(subcommands []*serpent.Cmd) {
+func (r *RootCmd) RunMain(subcommands []*serpent.Command) {
 	rand.Seed(time.Now().UnixMicro())
 
 	cmd, err := r.Command(subcommands)
@@ -166,10 +166,10 @@ func (r *RootCmd) RunMain(subcommands []*serpent.Cmd) {
 	}
 }
 
-func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
+func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
@@ -200,7 +200,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 	cmd.AddSubcommands(subcommands...)
 
 	// Set default help handler for all commands.
-	cmd.Walk(func(c *serpent.Cmd) {
+	cmd.Walk(func(c *serpent.Command) {
 		if c.HelpHandler == nil {
 			c.HelpHandler = helpFn()
 		}
@@ -208,7 +208,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 
 	var merr error
 	// Add [flags] to usage when appropriate.
-	cmd.Walk(func(cmd *serpent.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		const flags = "[flags]"
 		if strings.Contains(cmd.Use, flags) {
 			merr = errors.Join(
@@ -244,7 +244,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 	})
 
 	// Add alises when appropriate.
-	cmd.Walk(func(cmd *serpent.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
 			if slices.Contains(cmd.Aliases, "rm") {
@@ -259,7 +259,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 	})
 
 	// Sanity-check command options.
-	cmd.Walk(func(cmd *serpent.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		for _, opt := range cmd.Options {
 			// Verify that every option is configurable.
 			if opt.Flag == "" && opt.Env == "" {
@@ -282,7 +282,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Cmd) (*serpent.Cmd, error) {
 	var debugOptions bool
 
 	// Add a wrapper to every command to enable debugging options.
-	cmd.Walk(func(cmd *serpent.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		h := cmd.Handler
 		if h == nil {
 			// We should never have a nil handler, but if we do, do not

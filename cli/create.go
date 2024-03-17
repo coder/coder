@@ -19,7 +19,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) create() *serpent.Cmd {
+func (r *RootCmd) create() *serpent.Command {
 	var (
 		templateName  string
 		startAt       string
@@ -31,7 +31,7 @@ func (r *RootCmd) create() *serpent.Cmd {
 		copyParametersFrom string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
 		Short:       "Create a workspace",

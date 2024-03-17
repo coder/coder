@@ -70,7 +70,7 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	}
 }
 
-func (r *RootCmd) list() *serpent.Cmd {
+func (r *RootCmd) list() *serpent.Command {
 	var (
 		filter    cliui.WorkspaceFilter
 		formatter = cliui.NewOutputFormatter(
@@ -92,7 +92,7 @@ func (r *RootCmd) list() *serpent.Cmd {
 		)
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",

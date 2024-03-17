@@ -18,7 +18,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) speedtest() *serpent.Cmd {
+func (r *RootCmd) speedtest() *serpent.Command {
 	var (
 		direct    bool
 		duration  time.Duration
@@ -26,7 +26,7 @@ func (r *RootCmd) speedtest() *serpent.Cmd {
 		pcapFile  string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Short:       "Run upload and download tests from your machine to a workspace",

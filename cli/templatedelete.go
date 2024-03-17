@@ -14,9 +14,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateDelete() *serpent.Cmd {
+func (r *RootCmd) templateDelete() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		Middleware: serpent.Chain(

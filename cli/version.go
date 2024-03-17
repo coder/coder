@@ -61,7 +61,7 @@ func defaultVersionInfo() *versionInfo {
 }
 
 // version prints the coder version
-func (*RootCmd) version(versionInfo func() *versionInfo) *serpent.Cmd {
+func (*RootCmd) version(versionInfo func() *versionInfo) *serpent.Command {
 	var (
 		formatter = cliui.NewOutputFormatter(
 			cliui.TextFormat(),
@@ -70,7 +70,7 @@ func (*RootCmd) version(versionInfo func() *versionInfo) *serpent.Cmd {
 		vi = versionInfo()
 	)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "version",
 		Short:   "Show coder version",
 		Options: serpent.OptionSet{},

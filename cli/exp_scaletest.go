@@ -44,14 +44,14 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func (r *RootCmd) scaletestCmd() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) scaletestCmd() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
 			r.scaletestCreateWorkspaces(),
@@ -398,13 +398,13 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func (r *RootCmd) scaletestCleanup() *serpent.Cmd {
+func (r *RootCmd) scaletestCleanup() *serpent.Command {
 	var template string
 
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "cleanup",
 		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
@@ -521,7 +521,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Cmd {
+func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 	var (
 		count    int64
 		retry    int64
@@ -558,7 +558,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Cmd {
 
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "create-workspaces",
 		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
 		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
@@ -864,7 +864,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Cmd {
+func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	var (
 		tickInterval     time.Duration
 		bytesPerTick     int64
@@ -881,7 +881,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Cmd {
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "workspace-traffic",
 		Short: "Generate traffic to scaletest workspaces through coderd",
 		Middleware: serpent.Chain(
@@ -1109,7 +1109,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestDashboard() *serpent.Cmd {
+func (r *RootCmd) scaletestDashboard() *serpent.Command {
 	var (
 		interval    time.Duration
 		jitter      time.Duration
@@ -1125,7 +1125,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Cmd {
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "dashboard",
 		Short: "Generate traffic to the HTTP API to simulate use of the dashboard.",
 		Middleware: serpent.Chain(

@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) templateCreate() *serpent.Cmd {
+func (r *RootCmd) templateCreate() *serpent.Command {
 	var (
 		provisioner          string
 		provisionerTags      []string
@@ -34,7 +34,7 @@ func (r *RootCmd) templateCreate() *serpent.Cmd {
 		uploadFlags templateUploadFlags
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "create [name]",
 		Short: "DEPRECATED: Create a template from the current directory or as specified by flag",
 		Middleware: serpent.Chain(

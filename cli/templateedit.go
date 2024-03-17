@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) templateEdit() *serpent.Cmd {
+func (r *RootCmd) templateEdit() *serpent.Command {
 	const deprecatedFlagName = "deprecated"
 	var (
 		name                           string
@@ -40,7 +40,7 @@ func (r *RootCmd) templateEdit() *serpent.Cmd {
 	)
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use: "edit <template>",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),

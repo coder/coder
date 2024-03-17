@@ -4,8 +4,8 @@ package cli
 
 import "github.com/coder/serpent"
 
-func (r *RootCmd) Server(_ func()) *serpent.Cmd {
-	root := &serpent.Cmd{
+func (r *RootCmd) Server(_ func()) *serpent.Command {
+	root := &serpent.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
 		// We accept RawArgs so all commands and flags are accepted.

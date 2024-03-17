@@ -10,14 +10,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateList() *serpent.Cmd {
+func (r *RootCmd) templateList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},

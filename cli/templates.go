@@ -12,8 +12,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templates() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) templates() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "templates",
 		Short: "Manage templates",
 		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + formatExamples(
@@ -30,7 +30,7 @@ func (r *RootCmd) templates() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.templateCreate(),
 			r.templateEdit(),
 			r.templateInit(),

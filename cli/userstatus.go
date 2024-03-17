@@ -14,7 +14,7 @@ import (
 )
 
 // createUserStatusCommand sets a user status.
-func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpent.Cmd {
+func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpent.Command {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -36,7 +36,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 	client := new(codersdk.Client)
 
 	var columns []string
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Aliases: aliases,

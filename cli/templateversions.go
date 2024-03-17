@@ -14,8 +14,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateVersions() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) templateVersions() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
@@ -28,7 +28,7 @@ func (r *RootCmd) templateVersions() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.templateVersionsList(),
 			r.archiveTemplateVersion(),
 			r.unarchiveTemplateVersion(),
@@ -38,7 +38,7 @@ func (r *RootCmd) templateVersions() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) templateVersionsList() *serpent.Cmd {
+func (r *RootCmd) templateVersionsList() *serpent.Command {
 	defaultColumns := []string{
 		"Name",
 		"Created At",
@@ -54,7 +54,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Cmd {
 
 	var includeArchived serpent.Bool
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use: "list <template>",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),

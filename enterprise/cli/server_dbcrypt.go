@@ -18,8 +18,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (r *RootCmd) dbcryptCmd() *serpent.Cmd {
-	dbcryptCmd := &serpent.Cmd{
+func (r *RootCmd) dbcryptCmd() *serpent.Command {
+	dbcryptCmd := &serpent.Command{
 		Use:   "dbcrypt",
 		Short: "Manage database encryption.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -34,9 +34,9 @@ func (r *RootCmd) dbcryptCmd() *serpent.Cmd {
 	return dbcryptCmd
 }
 
-func (*RootCmd) dbcryptRotateCmd() *serpent.Cmd {
+func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 	var flags rotateFlags
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "rotate",
 		Short: "Rotate database encryption keys.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -107,9 +107,9 @@ func (*RootCmd) dbcryptRotateCmd() *serpent.Cmd {
 	return cmd
 }
 
-func (*RootCmd) dbcryptDecryptCmd() *serpent.Cmd {
+func (*RootCmd) dbcryptDecryptCmd() *serpent.Command {
 	var flags decryptFlags
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "decrypt",
 		Short: "Decrypt a previously encrypted database.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -164,9 +164,9 @@ func (*RootCmd) dbcryptDecryptCmd() *serpent.Cmd {
 	return cmd
 }
 
-func (*RootCmd) dbcryptDeleteCmd() *serpent.Cmd {
+func (*RootCmd) dbcryptDeleteCmd() *serpent.Command {
 	var flags deleteFlags
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "delete",
 		Short: "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
 		Handler: func(inv *serpent.Invocation) error {

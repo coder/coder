@@ -11,14 +11,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) state() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) state() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.statePull(),
 			r.statePush(),
 		},
@@ -26,10 +26,10 @@ func (r *RootCmd) state() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) statePull() *serpent.Cmd {
+func (r *RootCmd) statePull() *serpent.Command {
 	var buildNumber int64
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Middleware: serpent.Chain(
@@ -84,10 +84,10 @@ func buildNumberOption(n *int64) serpent.Option {
 	}
 }
 
-func (r *RootCmd) statePush() *serpent.Cmd {
+func (r *RootCmd) statePush() *serpent.Command {
 	var buildNumber int64
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "push <workspace> <file>",
 		Short: "Push a Terraform state file to a workspace.",
 		Middleware: serpent.Chain(

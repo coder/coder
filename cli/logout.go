@@ -12,9 +12,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) logout() *serpent.Cmd {
+func (r *RootCmd) logout() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
 		Middleware: serpent.Chain(

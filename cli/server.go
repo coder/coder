@@ -258,7 +258,7 @@ func enablePrometheus(
 	), nil
 }
 
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Cmd {
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 			api := coderd.New(o)
@@ -270,7 +270,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
 	)
-	serverCmd := &serpent.Cmd{
+	serverCmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
@@ -1148,7 +1148,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	var pgRawURL bool
 
-	postgresBuiltinURLCmd := &serpent.Cmd{
+	postgresBuiltinURLCmd := &serpent.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -1165,7 +1165,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		},
 	}
 
-	postgresBuiltinServeCmd := &serpent.Cmd{
+	postgresBuiltinServeCmd := &serpent.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		Handler: func(inv *serpent.Invocation) error {

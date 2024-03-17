@@ -26,7 +26,7 @@ func initStatterMW(tgt **clistat.Statter, fs afero.Fs) serpent.MiddlewareFunc {
 	}
 }
 
-func (r *RootCmd) stat() *serpent.Cmd {
+func (r *RootCmd) stat() *serpent.Command {
 	var (
 		st        *clistat.Statter
 		fs        = afero.NewReadOnlyFs(afero.NewOsFs())
@@ -41,11 +41,11 @@ func (r *RootCmd) stat() *serpent.Cmd {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "stat",
 		Short:      "Show resource usage for the current workspace.",
 		Middleware: initStatterMW(&st, fs),
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.statCPU(fs),
 			r.statMem(fs),
 			r.statDisk(fs),
@@ -130,13 +130,13 @@ func (r *RootCmd) stat() *serpent.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statCPU(fs afero.Fs) *serpent.Cmd {
+func (*RootCmd) statCPU(fs afero.Fs) *serpent.Command {
 	var (
 		hostArg   bool
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "cpu",
 		Short:      "Show CPU usage, in cores.",
 		Middleware: initStatterMW(&st, fs),
@@ -171,14 +171,14 @@ func (*RootCmd) statCPU(fs afero.Fs) *serpent.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statMem(fs afero.Fs) *serpent.Cmd {
+func (*RootCmd) statMem(fs afero.Fs) *serpent.Command {
 	var (
 		hostArg   bool
 		prefixArg string
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "mem",
 		Short:      "Show memory usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),
@@ -225,14 +225,14 @@ func (*RootCmd) statMem(fs afero.Fs) *serpent.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statDisk(fs afero.Fs) *serpent.Cmd {
+func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 	var (
 		pathArg   string
 		prefixArg string
 		st        *clistat.Statter
 		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "disk",
 		Short:      "Show disk usage, in gigabytes.",
 		Middleware: initStatterMW(&st, fs),

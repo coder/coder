@@ -208,7 +208,7 @@ require go.uber.org/mock v0.4.0
 
 require (
 	github.com/benbjohnson/clock v1.3.5
-	github.com/coder/serpent v0.4.0
+	github.com/coder/serpent v0.4.1-0.20240315163851-a0148c87ea3f
 	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
 )
 

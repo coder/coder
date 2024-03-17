@@ -23,7 +23,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templatePush() *serpent.Cmd {
+func (r *RootCmd) templatePush() *serpent.Command {
 	var (
 		versionName          string
 		provisioner          string
@@ -36,7 +36,7 @@ func (r *RootCmd) templatePush() *serpent.Cmd {
 		activate             bool
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "push [template]",
 		Short: "Create or update a template from the current directory or as specified by flag",
 		Middleware: serpent.Chain(
