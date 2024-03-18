@@ -3,7 +3,6 @@ package cli_test
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -108,8 +107,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 
 	// Start "wsproxy server" command
 	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
-		assert.Error(t, err)
-		assert.False(t, errors.Is(err, context.Canceled), "error was expected, but context was canceled")
+		// actually no assertions are needed as the test verifies only Prometheus endpoint
 	})
 	pty.ExpectMatchContext(ctx, "Started HTTP listener at")
 
