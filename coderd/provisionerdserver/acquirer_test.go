@@ -336,8 +336,10 @@ func TestAcquirer_MatchTags(t *testing.T) {
 	testCases := []struct {
 		name               string
 		provisionerJobTags map[string]string
-		acquireJobTags     map[string]string
-		expectAcquire      bool
+
+		acquireJobTags map[string]string
+		unmatchedOrg   bool // acquire will use a random org id
+		expectAcquire  bool
 	}{
 		{
 			name:               "untagged provisioner and untagged job",
@@ -459,6 +461,13 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
 			expectAcquire:      false,
 		},
+		{
+			name:               "matching tags with unmatched org",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			expectAcquire:      false,
+			unmatchedOrg:       true,
+		},
 	}
 	for _, tt := range testCases {
 		tt := tt
@@ -493,7 +502,12 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			require.NoError(t, err)
 			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
 			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps)
-			aj, err := acq.AcquireJob(ctx, org.ID, uuid.New(), ptypes, tt.acquireJobTags)
+
+			acquireOrgID := org.ID
+			if tt.unmatchedOrg {
+				acquireOrgID = uuid.New()
+			}
+			aj, err := acq.AcquireJob(ctx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
 			if tt.expectAcquire {
 				assert.NoError(t, err)
 				assert.Equal(t, pj.ID, aj.ID)
