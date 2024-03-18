@@ -288,7 +288,7 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.DERPServer == nil {
+	if options.DERPServer == nil && options.DeploymentValues.DERP.Server.Enable {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
 	if options.DERPMapUpdateFrequency == 0 {
@@ -577,8 +577,6 @@ func New(options *Options) *API {
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
-	derpHandler := derphttp.Handler(api.DERPServer)
-	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
 	// These are the metrics the DERP server exposes.
 	// TODO: export via prometheus
@@ -587,7 +585,9 @@ func New(options *Options) *API {
 		// register multiple times.  In production there is only one Coderd and one DERP server per
 		// process, but in testing, we create multiple of both, so the Once protects us from
 		// panicking.
-		expvar.Publish("derp", api.DERPServer.ExpVar())
+		if options.DERPServer != nil {
+			expvar.Publish("derp", api.DERPServer.ExpVar())
+		}
 	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
@@ -637,13 +637,18 @@ func New(options *Options) *API {
 		api.workspaceAppServer.Attach(r)
 	})
 
-	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derpHandler.ServeHTTP)
-		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
+	if options.DERPServer != nil {
+		derpHandler := derphttp.Handler(api.DERPServer)
+		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+
+		r.Route("/derp", func(r chi.Router) {
+			r.Get("/", derpHandler.ServeHTTP)
+			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
 		})
-	})
+	}
 
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
@@ -1067,9 +1072,11 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
-			r.Route("/derp", func(r chi.Router) {
-				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
-			})
+			if options.DERPServer != nil {
+				r.Route("/derp", func(r chi.Router) {
+					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+				})
+			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 		})
 	})
@@ -1197,7 +1204,9 @@ type API struct {
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	api.cancel()
-	api.derpCloseFunc()
+	if api.derpCloseFunc != nil {
+		api.derpCloseFunc()
+	}
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
