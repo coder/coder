@@ -363,6 +363,7 @@ func TestQueuePosition(t *testing.T) {
 	}
 
 	job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+		OrganizationID: org.ID,
 		StartedAt: sql.NullTime{
 			Time:  dbtime.Now(),
 			Valid: true,
