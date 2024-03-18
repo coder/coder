@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, type StrictResponse, http } from "msw";
+import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router-dom";
 import type { Response, User } from "api/typesGenerated";
 import { MockUser } from "testHelpers/entities";
@@ -53,21 +53,18 @@ describe("Setup Page", () => {
     let userHasBeenCreated = false;
 
     server.use(
-      http.get(
-        "/api/v2/users/me",
-        async (): Promise<StrictResponse<User | Response>> => {
-          if (!userHasBeenCreated) {
-            return HttpResponse.json(
-              { message: "no user here" },
-              { status: 401 },
-            );
-          }
-          return HttpResponse.json(MockUser);
-        },
-      ),
-      http.get(
+      http.get<never, null, User | Response>("/api/v2/users/me", async () => {
+        if (!userHasBeenCreated) {
+          return HttpResponse.json(
+            { message: "no user here" },
+            { status: 401 },
+          );
+        }
+        return HttpResponse.json(MockUser);
+      }),
+      http.get<never, null, User | Response>(
         "/api/v2/users/first",
-        async (): Promise<StrictResponse<User | Response>> => {
+        async () => {
           if (!userHasBeenCreated) {
             return HttpResponse.json(
               { message: "no first user has been created" },
