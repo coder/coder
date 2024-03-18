@@ -297,64 +297,35 @@ GROUP BY template_id, display_name, slug_or_port;
 -- time, if end time is a partial interval, it will be included in the results and
 -- that interval will be shorter than a full one. If there is no data for a selected
 -- interval/template, it will be included in the results with 0 active users.
-WITH ts AS (
-	SELECT
-		d::timestamptz AS from_,
-		CASE
-			WHEN (d::timestamptz + (@interval_days::int || ' day')::interval) <= @end_time::timestamptz
-			THEN (d::timestamptz + (@interval_days::int || ' day')::interval)
-			ELSE @end_time::timestamptz
-		END AS to_
-	FROM
-		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 microsecond'::interval, (@interval_days::int || ' day')::interval) AS d
-), unflattened_usage_by_interval AS (
-	-- We select data from both workspace agent stats and workspace app stats to
-	-- get a complete picture of usage. This matches how usage is calculated by
-	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
-	-- a union all to avoid a costly distinct operation.
-	--
-	-- Note that one query must perform a left join so that all intervals are
-	-- present at least once.
-	SELECT
-		ts.*,
-		was.template_id,
-		was.user_id
-	FROM ts
-	LEFT JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+WITH
+	ts AS (
+		SELECT
+			d::timestamptz AS from_,
+			CASE
+				WHEN (d::timestamptz + (@interval_days::int || ' day')::interval) <= @end_time::timestamptz
+				THEN (d::timestamptz + (@interval_days::int || ' day')::interval)
+				ELSE @end_time::timestamptz
+			END AS to_
+		FROM
+			-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+			generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 microsecond'::interval, (@interval_days::int || ' day')::interval) AS d
 	)
-	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
-
-	UNION ALL
-
-	SELECT
-		ts.*,
-		w.template_id,
-		was.user_id
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
-)
 
 SELECT
-	from_ AS start_time,
-	to_ AS end_time,
-	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users
-FROM unflattened_usage_by_interval
-GROUP BY from_, to_;
+	ts.from_ AS start_time,
+	ts.to_ AS end_time,
+	array_remove(array_agg(DISTINCT tus.template_id), NULL)::uuid[] AS template_ids,
+	COUNT(DISTINCT tus.user_id) AS active_users
+FROM
+	ts
+LEFT JOIN
+	template_usage_stats AS tus
+ON
+	tus.start_time >= ts.from_
+	AND tus.end_time <= ts.to_
+	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+GROUP BY
+	ts.from_, ts.to_;
 
 -- name: GetTemplateUsageStats :many
 SELECT
