@@ -76,7 +76,8 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 			_, _ = w.Write([]byte(`{"app_security_key": "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789123456012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789123456"}`))
 			return
 		}
-		if r.URL.Path == "/api/v2/workspaceproxies/me/coordinate" {
+		if r.URL.Path == "/api/v2/workspaceproxies/me/coordinate" ||
+			r.URL.Path == "/api/v2/buildinfo" {
 			// Slow down proxy registration, so that test runner can check if Prometheus endpoint is exposed.
 			wg.Wait()
 
