@@ -54,6 +54,11 @@ func (err *ProvisionerJobError) Error() string {
 	return err.Message
 }
 
+const (
+	ProvisioningStateQueued  = "Queued"
+	ProvisioningStateRunning = "Running"
+)
+
 // ProvisionerJob renders a provisioner job with interactive cancellation.
 func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
@@ -63,8 +68,9 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	defer cancelFunc()
 
 	var (
-		currentStage          = "Queued"
+		currentStage          = ProvisioningStateQueued
 		currentStageStartedAt = time.Now().UTC()
+		currentQueuePos       = -1
 
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
@@ -74,7 +80,20 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	sw := &stageWriter{w: wr, verbose: opts.Verbose, silentLogs: opts.Silent}
 
 	printStage := func() {
-		sw.Start(currentStage)
+		out := currentStage
+
+		if currentStage == ProvisioningStateQueued && currentQueuePos > 0 {
+			var queuePos string
+			if currentQueuePos == 1 {
+				queuePos = "next"
+			} else {
+				queuePos = fmt.Sprintf("position: %d", currentQueuePos)
+			}
+
+			out = pretty.Sprintf(DefaultStyles.Warn, "%s (%s)", currentStage, queuePos)
+		}
+
+		sw.Start(out)
 	}
 
 	updateStage := func(stage string, startedAt time.Time) {
@@ -103,15 +122,26 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 			errChan <- xerrors.Errorf("fetch: %w", err)
 			return
 		}
+		if job.QueuePosition != currentQueuePos {
+			initialState := currentQueuePos == -1
+
+			currentQueuePos = job.QueuePosition
+			// Print an update when the queue position changes, but:
+			//   - not initially, because the stage is printed at startup
+			//   - not when we're first in the queue, because it's redundant
+			if !initialState && currentQueuePos != 0 {
+				printStage()
+			}
+		}
 		if job.StartedAt == nil {
 			return
 		}
-		if currentStage != "Queued" {
+		if currentStage != ProvisioningStateQueued {
 			// If another stage is already running, there's no need
 			// for us to notify the user we're running!
 			return
 		}
-		updateStage("Running", *job.StartedAt)
+		updateStage(ProvisioningStateRunning, *job.StartedAt)
 	}
 
 	if opts.Cancel != nil {
@@ -143,8 +173,8 @@ func ProvisionerJob(ctx context.Context, wr io.Writer, opts ProvisionerJobOption
 	}
 
 	// The initial stage needs to print after the signal handler has been registered.
-	printStage()
 	updateJob()
+	printStage()
 
 	logs, closer, err := opts.Logs()
 	if err != nil {

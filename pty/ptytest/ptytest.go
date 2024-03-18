@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -145,16 +146,36 @@ type outExpecter struct {
 }
 
 func (e *outExpecter) ExpectMatch(str string) string {
+	return e.expectMatchContextFunc(str, e.ExpectMatchContext)
+}
+
+func (e *outExpecter) ExpectRegexMatch(str string) string {
+	return e.expectMatchContextFunc(str, e.ExpectRegexMatchContext)
+}
+
+func (e *outExpecter) expectMatchContextFunc(str string, fn func(ctx context.Context, str string) string) string {
 	e.t.Helper()
 
 	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	return e.ExpectMatchContext(timeout, str)
+	return fn(timeout, str)
 }
 
 // TODO(mafredri): Rename this to ExpectMatch when refactoring.
 func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string {
+	return e.expectMatcherFunc(ctx, str, func(src, pattern string) bool {
+		return strings.Contains(src, pattern)
+	})
+}
+
+func (e *outExpecter) ExpectRegexMatchContext(ctx context.Context, str string) string {
+	return e.expectMatcherFunc(ctx, str, func(src, pattern string) bool {
+		return regexp.MustCompile(pattern).MatchString(src)
+	})
+}
+
+func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, fn func(src, pattern string) bool) string {
 	e.t.Helper()
 
 	var buffer bytes.Buffer
@@ -168,7 +189,7 @@ func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string
 			if err != nil {
 				return err
 			}
-			if strings.Contains(buffer.String(), str) {
+			if fn(buffer.String(), str) {
 				return nil
 			}
 		}
