@@ -91,6 +91,7 @@ func main() {
 		"s/ public\\./ /g",
 		"s/::public\\./::/g",
 		"s/'public\\./'/g",
+		"s/(public\\./(/g",
 		// Remove database settings.
 		"s/SET .* = .*;//g",
 		// Remove select statements. These aren't useful
