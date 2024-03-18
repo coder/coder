@@ -182,7 +182,8 @@ export interface BuildInfoResponse {
 // From codersdk/insights.go
 export interface ConnectionLatency {
   readonly p50: number;
-  readonly p95: number;
+  readonly p90: number;
+  readonly p99: number;
 }
 
 // From codersdk/users.go

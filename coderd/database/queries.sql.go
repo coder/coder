@@ -2474,22 +2474,27 @@ func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserAct
 
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
-	workspace_agent_stats.user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-FROM workspace_agent_stats
-JOIN users ON (users.id = workspace_agent_stats.user_id)
+	tus.user_id,
+	u.username,
+	u.avatar_url,
+	array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+	COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
+	COALESCE((PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_90,
+	COALESCE((PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_99
+FROM
+	template_usage_stats tus
+JOIN
+	users u
+ON
+	u.id = tus.user_id
 WHERE
-	workspace_agent_stats.created_at >= $1
-	AND workspace_agent_stats.created_at < $2
-	AND workspace_agent_stats.connection_median_latency_ms > 0
-	AND workspace_agent_stats.connection_count > 0
-	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
-ORDER BY user_id ASC
+	tus.start_time >= $1::timestamptz
+	AND tus.end_time <= $2::timestamptz
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY
+	tus.user_id, u.username, u.avatar_url
+ORDER BY
+	tus.user_id ASC
 `
 
 type GetUserLatencyInsightsParams struct {
@@ -2504,7 +2509,8 @@ type GetUserLatencyInsightsRow struct {
 	AvatarURL                    string      `db:"avatar_url" json:"avatar_url"`
 	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
 	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	WorkspaceConnectionLatency90 float64     `db:"workspace_connection_latency_90" json:"workspace_connection_latency_90"`
+	WorkspaceConnectionLatency99 float64     `db:"workspace_connection_latency_99" json:"workspace_connection_latency_99"`
 }
 
 // GetUserLatencyInsights returns the median and 95th percentile connection
@@ -2526,7 +2532,8 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 			&i.AvatarURL,
 			pq.Array(&i.TemplateIDs),
 			&i.WorkspaceConnectionLatency50,
-			&i.WorkspaceConnectionLatency95,
+			&i.WorkspaceConnectionLatency90,
+			&i.WorkspaceConnectionLatency99,
 		); err != nil {
 			return nil, err
 		}

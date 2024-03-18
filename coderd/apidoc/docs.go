@@ -8618,9 +8618,13 @@ const docTemplate = `{
                     "type": "number",
                     "example": 31.312
                 },
-                "p95": {
+                "p90": {
                     "type": "number",
                     "example": 119.832
+                },
+                "p99": {
+                    "type": "number",
+                    "example": 432.34
                 }
             }
         },

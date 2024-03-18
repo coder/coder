@@ -318,7 +318,8 @@ func TestUserLatencyInsights(t *testing.T) {
 	require.Len(t, userLatencies.Report.Users, 1, "want only 1 user")
 	require.Equal(t, userLatencies.Report.Users[0].UserID, user.UserID, "want user id to match")
 	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P50, float64(0), "want p50 to be greater than 0")
-	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P95, float64(0), "want p95 to be greater than 0")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P90, float64(0), "want p90 to be greater than 0")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P99, float64(0), "want p99 to be greater than 0")
 }
 
 func TestUserLatencyInsights_BadRequest(t *testing.T) {

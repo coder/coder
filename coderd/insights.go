@@ -215,7 +215,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			AvatarURL:   row.AvatarURL,
 			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
-				P95: row.WorkspaceConnectionLatency95,
+				P90: row.WorkspaceConnectionLatency90,
+				P99: row.WorkspaceConnectionLatency99,
 			},
 		})
 	}

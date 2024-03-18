@@ -208,7 +208,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?before=0&after
         "avatar_url": "http://example.com",
         "latency_ms": {
           "p50": 31.312,
-          "p95": 119.832
+          "p90": 119.832,
+          "p99": 432.34
         },
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
