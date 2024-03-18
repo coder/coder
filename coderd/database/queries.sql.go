@@ -1840,51 +1840,54 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 }
 
 const getTemplateAppInsightsByTemplate = `-- name: GetTemplateAppInsightsByTemplate :many
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.slug_or_port,
-		wa.display_name,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $1::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($2::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.slug_or_port, wa.display_name, wa.slug
-)
-
 SELECT
-	template_id,
-	display_name,
-	slug_or_port,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-WHERE is_app IS TRUE
-GROUP BY template_id, display_name, slug_or_port
+	tus.template_id,
+	COUNT(DISTINCT tus.user_id) AS active_users,
+	app_usage.key::text AS slug_or_port,
+	COALESCE(wa.display_name, '') AS display_name,
+	(SUM(app_usage.value::int) * 60)::bigint AS usage_seconds
+FROM
+	template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
+LEFT JOIN LATERAL (
+	-- Fetch the latest app info for each app based on slug and template.
+	SELECT
+		app.display_name,
+		app.slug
+	FROM
+		workspace_apps AS app
+	JOIN
+		workspace_agents AS agent
+	ON
+		agent.id = app.agent_id
+	JOIN
+		workspace_resources AS resource
+	ON
+		resource.id = agent.resource_id
+	JOIN
+		workspace_builds AS build
+	ON
+		build.job_id = resource.job_id
+	JOIN
+		workspaces AS workspace
+	ON
+		workspace.id = build.workspace_id
+	WHERE
+		-- Requires lateral join.
+		app.slug = app_usage.key
+		AND workspace.owner_id = tus.user_id
+		AND workspace.template_id = tus.template_id
+	ORDER BY
+		app.created_at DESC
+	LIMIT 1
+) wa
+ON
+	true
+WHERE
+	tus.start_time >= $1::timestamptz
+	AND tus.end_time <= $2::timestamptz
+	AND wa.slug IS NOT NULL -- Check is_app.
+GROUP BY
+	tus.template_id, app_usage.key::text, wa.display_name
 `
 
 type GetTemplateAppInsightsByTemplateParams struct {
@@ -1893,11 +1896,11 @@ type GetTemplateAppInsightsByTemplateParams struct {
 }
 
 type GetTemplateAppInsightsByTemplateRow struct {
-	TemplateID   uuid.UUID      `db:"template_id" json:"template_id"`
-	DisplayName  sql.NullString `db:"display_name" json:"display_name"`
-	SlugOrPort   string         `db:"slug_or_port" json:"slug_or_port"`
-	ActiveUsers  int64          `db:"active_users" json:"active_users"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	TemplateID   uuid.UUID `db:"template_id" json:"template_id"`
+	ActiveUsers  int64     `db:"active_users" json:"active_users"`
+	SlugOrPort   string    `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	UsageSeconds int64     `db:"usage_seconds" json:"usage_seconds"`
 }
 
 func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error) {
@@ -1911,9 +1914,9 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 		var i GetTemplateAppInsightsByTemplateRow
 		if err := rows.Scan(
 			&i.TemplateID,
-			&i.DisplayName,
-			&i.SlugOrPort,
 			&i.ActiveUsers,
+			&i.SlugOrPort,
+			&i.DisplayName,
 			&i.UsageSeconds,
 		); err != nil {
 			return nil, err
