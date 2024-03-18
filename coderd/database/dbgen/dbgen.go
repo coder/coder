@@ -489,6 +489,38 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 	return resource
 }
 
+func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAppStat) database.WorkspaceAppStat {
+	// This is not going to be correct, but our query doesn't return the ID.
+	id, err := cryptorand.Int63()
+	require.NoError(t, err, "generate id")
+
+	scheme := database.WorkspaceAppStat{
+		ID:               takeFirst(orig.ID, id),
+		UserID:           takeFirst(orig.UserID, uuid.New()),
+		WorkspaceID:      takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:          takeFirst(orig.AgentID, uuid.New()),
+		AccessMethod:     takeFirst(orig.AccessMethod, ""),
+		SlugOrPort:       takeFirst(orig.SlugOrPort, ""),
+		SessionID:        takeFirst(orig.SessionID, uuid.New()),
+		SessionStartedAt: takeFirst(orig.SessionStartedAt, dbtime.Now().Add(-time.Minute)),
+		SessionEndedAt:   takeFirst(orig.SessionEndedAt, dbtime.Now()),
+		Requests:         takeFirst(orig.Requests, 1),
+	}
+	err = db.InsertWorkspaceAppStats(genCtx, database.InsertWorkspaceAppStatsParams{
+		UserID:           []uuid.UUID{scheme.UserID},
+		WorkspaceID:      []uuid.UUID{scheme.WorkspaceID},
+		AgentID:          []uuid.UUID{scheme.AgentID},
+		AccessMethod:     []string{scheme.AccessMethod},
+		SlugOrPort:       []string{scheme.SlugOrPort},
+		SessionID:        []uuid.UUID{scheme.SessionID},
+		SessionStartedAt: []time.Time{scheme.SessionStartedAt},
+		SessionEndedAt:   []time.Time{scheme.SessionEndedAt},
+		Requests:         []int32{scheme.Requests},
+	})
+	require.NoError(t, err, "insert workspace agent stat")
+	return scheme
+}
+
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(genCtx, database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
