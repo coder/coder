@@ -160,7 +160,7 @@ type UpdateUserQuietHoursScheduleRequest struct {
 	// window is. Schedule must not be empty. For new users, the schedule is set
 	// to 2am in their browser or computer's timezone. The schedule denotes the
 	// beginning of a 4 hour window where the workspace is allowed to
-	// automatically stop or restart due to maintenance or template max TTL.
+	// automatically stop or restart due to maintenance or template schedule.
 	//
 	// The schedule must be daily with a single time, and should have a timezone
 	// specified via a CRON_TZ prefix (otherwise UTC will be used).

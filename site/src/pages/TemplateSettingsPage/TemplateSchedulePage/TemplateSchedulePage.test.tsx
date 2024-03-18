@@ -63,7 +63,6 @@ type FillAndSubmitConfig = {
 
 const fillAndSubmitForm = async ({
   default_ttl_ms,
-  max_ttl_ms,
   failure_ttl_ms,
   time_til_dormant_ms,
   time_til_dormant_autodelete_ms,
@@ -76,17 +75,6 @@ const fillAndSubmitForm = async ({
     );
     await user.clear(defaultTtlField);
     await user.type(defaultTtlField, default_ttl_ms.toString());
-  }
-
-  if (max_ttl_ms) {
-    const useMaxTtlCheckbox = screen.getByRole("checkbox", {
-      name: /Use a max lifetime/i,
-    });
-    const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
-
-    await user.click(useMaxTtlCheckbox);
-    await user.clear(maxTtlField);
-    await user.type(maxTtlField, max_ttl_ms.toString());
   }
 
   if (failure_ttl_ms) {

@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
@@ -15,7 +14,6 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
   calculateAutostopRequirementDaysValue,
@@ -38,7 +36,6 @@ import {
   DormancyAutoDeletionTTLHelperText,
   DormancyTTLHelperText,
   FailureTTLHelperText,
-  MaxTTLHelperText,
 } from "./TTLHelperText";
 import {
   useWorkspacesToGoDormant,
@@ -77,15 +74,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
       activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
-      // the API ignores these values, but to avoid tripping up validation set
-      // it to zero if the user can't set the field.
-      use_max_ttl:
-        template.use_max_ttl === undefined
-          ? template.max_ttl_ms > 0
-          : template.use_max_ttl,
-      max_ttl_ms: allowAdvancedScheduling
-        ? template.max_ttl_ms / MS_HOUR_CONVERSION
-        : 0,
       failure_ttl_ms: allowAdvancedScheduling
         ? template.failure_ttl_ms / MS_DAY_CONVERSION
         : 0,
@@ -214,10 +202,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       activity_bump_ms: form.values.activity_bump_ms
         ? form.values.activity_bump_ms * MS_HOUR_CONVERSION
         : undefined,
-      max_ttl_ms:
-        form.values.max_ttl_ms && form.values.use_max_ttl
-          ? form.values.max_ttl_ms * MS_HOUR_CONVERSION
-          : undefined,
       failure_ttl_ms: form.values.failure_ttl_ms
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
@@ -228,14 +212,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
 
-      autostop_requirement: form.values.use_max_ttl
-        ? undefined
-        : {
-            days_of_week: calculateAutostopRequirementDaysValue(
-              form.values.autostop_requirement_days_of_week,
-            ),
-            weeks: autostop_requirement_weeks,
-          },
+      autostop_requirement: {
+        days_of_week: calculateAutostopRequirementDaysValue(
+          form.values.autostop_requirement_days_of_week,
+        ),
+        weeks: autostop_requirement_weeks,
+      },
       autostart_requirement: {
         days_of_week: form.values.autostart_requirement_days_of_week,
       },
@@ -330,27 +312,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     }
   };
 
-  const handleToggleUseMaxTTL = async () => {
-    const val = !form.values.use_max_ttl;
-    if (val) {
-      // set max_ttl to 1, set autostop_requirement to empty
-      await form.setValues({
-        ...form.values,
-        use_max_ttl: val,
-        max_ttl_ms: 1,
-        autostop_requirement_days_of_week: "off",
-        autostop_requirement_weeks: 1,
-      });
-    } else {
-      // set max_ttl to 0
-      await form.setValues({
-        ...form.values,
-        use_max_ttl: val,
-        max_ttl_ms: 0,
-      });
-    }
-  };
-
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
@@ -402,7 +363,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 />
               ),
             })}
-            disabled={isSubmitting || form.values.use_max_ttl}
+            disabled={isSubmitting}
             fullWidth
             select
             value={form.values.autostop_requirement_days_of_week}
@@ -433,7 +394,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             })}
             disabled={
               isSubmitting ||
-              form.values.use_max_ttl ||
               !["saturday", "sunday"].includes(
                 form.values.autostop_requirement_days_of_week || "",
               )
@@ -441,68 +401,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             fullWidth
             inputProps={{ min: 1, max: 16, step: 1 }}
             label="Weeks between required stops"
-            type="number"
-          />
-        </Stack>
-      </FormSection>
-
-      <FormSection
-        title="Max Lifetime"
-        description="Define the maximum lifetime for workspaces created from this template."
-        deprecated
-      >
-        <Stack direction="column" spacing={4}>
-          <Stack direction="row" alignItems="center">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  id="use_max_ttl"
-                  size="small"
-                  disabled={isSubmitting || !allowAdvancedScheduling}
-                  onChange={handleToggleUseMaxTTL}
-                  name="use_max_ttl"
-                  checked={form.values.use_max_ttl}
-                />
-              }
-              label={
-                <Stack spacing={0.5}>
-                  <strong>
-                    Use a max lifetime instead of a required autostop schedule.
-                  </strong>
-                  <span
-                    css={{
-                      fontSize: 12,
-                      color: theme.palette.text.secondary,
-                    }}
-                  >
-                    Use a maximum lifetime for workspaces created from this
-                    template instead of an autostop requirement as configured
-                    above.
-                  </span>
-                </Stack>
-              }
-            />
-          </Stack>
-
-          <TextField
-            {...getFieldHelpers("max_ttl_ms", {
-              helperText: allowAdvancedScheduling ? (
-                <MaxTTLHelperText ttl={form.values.max_ttl_ms} />
-              ) : (
-                <>
-                  You need an enterprise license to use it{" "}
-                  <Link href={docs("/enterprise")}>Learn more</Link>.
-                </>
-              ),
-            })}
-            disabled={
-              isSubmitting ||
-              !form.values.use_max_ttl ||
-              !allowAdvancedScheduling
-            }
-            fullWidth
-            inputProps={{ min: 0, step: 1 }}
-            label="Max lifetime (hours)"
             type="number"
           />
         </Stack>

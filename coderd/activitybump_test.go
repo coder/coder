@@ -214,6 +214,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		_ = sshConn.Close()
 
-		assertBumped(true) // also asserts max ttl not exceeded
+		assertBumped(true)
 	})
 }
