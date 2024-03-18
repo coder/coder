@@ -6,23 +6,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-
-	"golang.org/x/xerrors"
 )
 
 type WorkspaceProxyReport codersdk.WorkspaceProxyReport
 
 type WorkspaceProxyReportOptions struct {
-	// CurrentVersion is the current server version.
-	// We pass this in to make it easier to test.
-	CurrentVersion               string
 	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater
-
-	Dismissed bool
+	Dismissed                    bool
 }
 
 type WorkspaceProxiesFetchUpdater interface {
@@ -81,22 +74,27 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 		return r.WorkspaceProxies.Regions[i].CreatedAt.Before(r.WorkspaceProxies.Regions[j].CreatedAt)
 	})
 
-	var total, healthy int
+	var total, healthy, warning int
 	var errs []string
 	for _, proxy := range r.WorkspaceProxies.Regions {
 		total++
 		if proxy.Healthy {
+			// Warnings in the report are not considered unhealthy, only errors.
 			healthy++
 		}
+		if len(proxy.Status.Report.Warnings) > 0 {
+			warning++
+		}
 
-		if len(proxy.Status.Report.Errors) > 0 {
-			for _, err := range proxy.Status.Report.Errors {
-				errs = append(errs, fmt.Sprintf("%s: %s", proxy.Name, err))
-			}
+		for _, err := range proxy.Status.Report.Warnings {
+			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, "%s: %s", proxy.Name, err))
+		}
+		for _, err := range proxy.Status.Report.Errors {
+			errs = append(errs, fmt.Sprintf("%s: %s", proxy.Name, err))
 		}
 	}
 
-	r.Severity = calculateSeverity(total, healthy)
+	r.Severity = calculateSeverity(total, healthy, warning)
 	r.Healthy = r.Severity.Value() < health.SeverityError.Value()
 	for _, err := range errs {
 		switch r.Severity {
@@ -104,15 +102,6 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 			r.Warnings = append(r.Warnings, health.Messagef(health.CodeProxyUnhealthy, err))
 		case health.SeverityError:
 			r.appendError(*health.Errorf(health.CodeProxyUnhealthy, err))
-		}
-	}
-
-	// Versions _must_ match. Perform this check last. This will clobber any other severity.
-	for _, proxy := range r.WorkspaceProxies.Regions {
-		if vErr := checkVersion(proxy, opts.CurrentVersion); vErr != nil {
-			r.Healthy = false
-			r.Severity = health.SeverityError
-			r.appendError(*health.Errorf(health.CodeProxyVersionMismatch, vErr.Error()))
 		}
 	}
 }
@@ -129,30 +118,15 @@ func (r *WorkspaceProxyReport) appendError(es ...string) {
 	r.Error = ptr.Ref(strings.Join(es, "\n"))
 }
 
-func checkVersion(proxy codersdk.WorkspaceProxy, currentVersion string) error {
-	if proxy.Version == "" {
-		return nil // may have not connected yet, this is OK
-	}
-	if buildinfo.VersionsMatch(proxy.Version, currentVersion) {
-		return nil
-	}
-
-	return xerrors.Errorf("proxy %q version %q does not match primary server version %q",
-		proxy.Name,
-		proxy.Version,
-		currentVersion,
-	)
-}
-
 // calculateSeverity returns:
 // health.SeverityError if all proxies are unhealthy,
-// health.SeverityOK if all proxies are healthy,
+// health.SeverityOK if all proxies are healthy and there are no warnings,
 // health.SeverityWarning otherwise.
-func calculateSeverity(total, healthy int) health.Severity {
-	if total == 0 || total == healthy {
+func calculateSeverity(total, healthy, warning int) health.Severity {
+	if total == 0 || (total == healthy && warning == 0) {
 		return health.SeverityOK
 	}
-	if total-healthy == total {
+	if healthy == 0 {
 		return health.SeverityError
 	}
 	return health.SeverityWarning
