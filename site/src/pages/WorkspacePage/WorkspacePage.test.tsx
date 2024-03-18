@@ -307,7 +307,7 @@ describe("WorkspacePage", () => {
     });
   });
 
-  it("httpart the workspace with one time parameters when having the confirmation dialog", async () => {
+  it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
     localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
     jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
       templateVersionRichParameters: [
@@ -321,7 +321,7 @@ describe("WorkspacePage", () => {
       ],
       buildParameters: [{ name: "rebuild", value: "false" }],
     });
-    const httpartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
+    const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
     const user = userEvent.setup();
     await renderWorkspacePage(MockWorkspace);
     await user.click(screen.getByTestId("build-parameters-button"));
@@ -336,7 +336,7 @@ describe("WorkspacePage", () => {
     await user.click(screen.getByTestId("build-parameters-submit"));
     await user.click(screen.getByTestId("confirm-button"));
     await waitFor(() => {
-      expect(httpartWorkspaceSpy).toBeCalledWith({
+      expect(restartWorkspaceSpy).toBeCalledWith({
         workspace: MockWorkspace,
         buildParameters: [{ name: "rebuild", value: "true" }],
       });
