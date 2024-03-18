@@ -668,19 +668,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
-				if err != nil {
-					return xerrors.Errorf("escaping postgres URL: %w", err)
-				}
-
-				if codersdk.PostgresAuth(vals.PostgresAuth) == codersdk.PostgresAuthAWSRDSIAM {
-					sqlDriver, err = awsrdsiam.Register(inv.Context(), sqlDriver)
-					if err != nil {
-						return xerrors.Errorf("register aws rds iam auth: %w", err)
-					}
-				}
-
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+				sqlDB, dbURL, err := connectToPostgres(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2555,4 +2543,25 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 		return context.WithCancel(ctx)
 	}
 	return inv.SignalNotifyContext(ctx, sig...)
+}
+
+func connectToPostgres(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+	dbURL, err := escapePostgresURLUserInfo(postgresURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
+	}
+
+	if auth == codersdk.PostgresAuthAWSRDSIAM {
+		sqlDriver, err = awsrdsiam.Register(ctx, sqlDriver)
+		if err != nil {
+			return nil, "", xerrors.Errorf("register aws rds iam auth: %w", err)
+		}
+	}
+
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
+	}
+
+	return sqlDB, dbURL, nil
 }
