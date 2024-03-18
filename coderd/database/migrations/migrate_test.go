@@ -105,9 +105,9 @@ func testSQLDB(t testing.TB) *sql.DB {
 
 	// postgres.Open automatically runs migrations, but we want to actually test
 	// migration behavior in this package.
-	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
+	_, err = db.Exec(`DROP SCHEMA coder-test-schema CASCADE`)
 	require.NoError(t, err)
-	_, err = db.Exec(`CREATE SCHEMA public`)
+	_, err = db.Exec(`CREATE SCHEMA coder-test-schema`)
 	require.NoError(t, err)
 
 	return db
