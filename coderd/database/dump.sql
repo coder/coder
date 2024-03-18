@@ -885,7 +885,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
-   FROM (public.template_versions
+   FROM (template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
@@ -974,7 +974,7 @@ CREATE VIEW template_with_users AS
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
-   FROM (public.templates
+   FROM (templates
      LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)));
 
 COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
@@ -1246,7 +1246,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username
-   FROM (public.workspace_builds
+   FROM (workspace_builds
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
