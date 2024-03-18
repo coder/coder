@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/testutil"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -27,7 +28,11 @@ func TestProvisionerJob(t *testing.T) {
 		t.Parallel()
 
 		test := newProvisionerJob(t)
-		go func() {
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		testutil.Go(t, func() {
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobRunning
@@ -41,20 +46,26 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
-		}()
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
-		test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+		})
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+			return true
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("Stages", func(t *testing.T) {
 		t.Parallel()
 
 		test := newProvisionerJob(t)
-		go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		testutil.Go(t, func() {
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobRunning
@@ -72,13 +83,16 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
-		}()
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
-		test.PTY.ExpectMatch("Something")
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Something")
+		})
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			test.PTY.ExpectMatch("Something")
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch("Something")
+			return true
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("Queue Position", func(t *testing.T) {
@@ -120,7 +134,10 @@ func TestProvisionerJob(t *testing.T) {
 				test.Job.QueueSize = tc.queuePos
 				test.JobMutex.Unlock()
 
-				go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				testutil.Go(t, func() {
 					<-test.Next
 					test.JobMutex.Lock()
 					test.Job.Status = codersdk.ProvisionerJobRunning
@@ -134,13 +151,16 @@ func TestProvisionerJob(t *testing.T) {
 					test.Job.CompletedAt = &now
 					close(test.Logs)
 					test.JobMutex.Unlock()
-				}()
-				test.PTY.ExpectRegexMatch(tc.expected)
-				test.Next <- struct{}{}
-				test.PTY.ExpectMatch(cliui.ProvisioningStateQueued) // step completed
-				test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
-				test.Next <- struct{}{}
-				test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+				})
+				testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+					test.PTY.ExpectRegexMatch(tc.expected)
+					test.Next <- struct{}{}
+					test.PTY.ExpectMatch(cliui.ProvisioningStateQueued) // step completed
+					test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+					test.Next <- struct{}{}
+					test.PTY.ExpectMatch(cliui.ProvisioningStateRunning)
+					return true
+				}, testutil.IntervalFast)
 			})
 		}
 	})
@@ -156,7 +176,11 @@ func TestProvisionerJob(t *testing.T) {
 		}
 
 		test := newProvisionerJob(t)
-		go func() {
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		testutil.Go(t, func() {
 			<-test.Next
 			currentProcess, err := os.FindProcess(os.Getpid())
 			assert.NoError(t, err)
@@ -169,12 +193,15 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
-		}()
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch("Gracefully canceling")
-		test.Next <- struct{}{}
-		test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+		})
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch("Gracefully canceling")
+			test.Next <- struct{}{}
+			test.PTY.ExpectMatch(cliui.ProvisioningStateQueued)
+			return true
+		}, testutil.IntervalFast)
 	})
 }
 
