@@ -16,6 +16,15 @@ coder server dbcrypt delete [flags]
 
 ## Options
 
+### --postgres-url
+
+|             |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| Type        | <code>string</code>                                        |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL</code> |
+
+The connection URL for the Postgres database.
+
 ### --postgres-connection-auth
 
 |             |                                        |
@@ -25,15 +34,6 @@ coder server dbcrypt delete [flags]
 | Default     | <code>password</code>                  |
 
 Type of auth to use when connecting to postgres.
-
-### --postgres-url
-
-|             |                                                            |
-| ----------- | ---------------------------------------------------------- |
-| Type        | <code>string</code>                                        |
-| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL</code> |
-
-The connection URL for the Postgres database.
 
 ### -y, --yes
 

@@ -735,25 +735,35 @@ Deprecated and ignored.
 
 Deprecated and ignored.
 
-### --postgres-auth
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Type        | <code>enum[password\|awsrdsiam]</code> |
-| Environment | <code>$CODER_PG_AUTH</code>            |
-| YAML        | <code>pgAuth</code>                    |
-| Default     | <code>password</code>                  |
-
-Type of auth to use when connecting to postgres.
-
 ### --provisioner-force-cancel-interval
 
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Type        | <code>string</code>                   |
-| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>duration</code>                                 |
+| Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
+| YAML        | <code>provisioning.forceCancelInterval</code>         |
+| Default     | <code>10m0s</code>                                    |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+Time to force cancel provisioning tasks that are stuck.
+
+### --provisioner-daemon-psk
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
+
+Pre-shared key to authenticate external provisioner daemons to Coder server.
+
+### -l, --log-filter
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string-array</code>                 |
+| Environment | <code>$CODER_LOG_FILTER</code>            |
+| YAML        | <code>introspection.logging.filter</code> |
+
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
 
 ### --log-human
 
@@ -896,6 +906,17 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+
+### --postgres-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsrdsiam]</code> |
+| Environment | <code>$CODER_PG_AUTH</code>            |
+| YAML        | <code>pgAuth</code>                    |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
 
 ### --secure-auth-cookie
 
