@@ -7,41 +7,41 @@ import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
 export const handlers = [
-  http.get("/api/v2/templates/:templateId/daus", async () => {
+  http.get("/api/v2/templates/:templateId/daus", () => {
     return HttpResponse.json(M.MockTemplateDAUResponse);
   }),
 
-  http.get("/api/v2/insights/daus", async () => {
+  http.get("/api/v2/insights/daus", () => {
     return HttpResponse.json(M.MockDeploymentDAUResponse);
   }),
   // Workspace proxies
-  http.get("/api/v2/regions", async () => {
+  http.get("/api/v2/regions", () => {
     return HttpResponse.json({
       regions: M.MockWorkspaceProxies,
     });
   }),
-  http.get("/api/v2/workspaceproxies", async () => {
+  http.get("/api/v2/workspaceproxies", () => {
     return HttpResponse.json({
       regions: M.MockWorkspaceProxies,
     });
   }),
   // build info
-  http.get("/api/v2/buildinfo", async () => {
+  http.get("/api/v2/buildinfo", () => {
     return HttpResponse.json(M.MockBuildInfo);
   }),
 
   // experiments
-  http.get("/api/v2/experiments", async () => {
+  http.get("/api/v2/experiments", () => {
     return HttpResponse.json(M.MockExperiments);
   }),
 
   // update check
-  http.get("/api/v2/updatecheck", async () => {
+  http.get("/api/v2/updatecheck", () => {
     return HttpResponse.json(M.MockUpdateCheck);
   }),
 
   // organizations
-  http.get("/api/v2/organizations/:organizationId", async () => {
+  http.get("/api/v2/organizations/:organizationId", () => {
     return HttpResponse.json(M.MockOrganization);
   }),
   http.get("api/v2/organizations/:organizationId/templates/examples", () => {
@@ -49,83 +49,77 @@ export const handlers = [
   }),
   http.get(
     "/api/v2/organizations/:organizationId/templates/:templateId",
-    async () => {
+    () => {
       return HttpResponse.json(M.MockTemplate);
     },
   ),
-  http.get("/api/v2/organizations/:organizationId/templates", async () => {
+  http.get("/api/v2/organizations/:organizationId/templates", () => {
     return HttpResponse.json([M.MockTemplate]);
   }),
 
   // templates
-  http.get("/api/v2/templates/:templateId", async () => {
+  http.get("/api/v2/templates/:templateId", () => {
     return HttpResponse.json(M.MockTemplate);
   }),
-  http.get("/api/v2/templates/:templateId/versions", async () => {
+  http.get("/api/v2/templates/:templateId/versions", () => {
     return HttpResponse.json([M.MockTemplateVersion2, M.MockTemplateVersion]);
   }),
-  http.patch("/api/v2/templates/:templateId/versions", async () => {
+  http.patch("/api/v2/templates/:templateId/versions", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.patch("/api/v2/templates/:templateId", async () => {
+  http.patch("/api/v2/templates/:templateId", () => {
     return HttpResponse.json(M.MockTemplate);
   }),
-  http.get("/api/v2/templateversions/:templateVersionId", async () => {
+  http.get("/api/v2/templateversions/:templateVersionId", () => {
     return HttpResponse.json(M.MockTemplateVersion);
   }),
-  http.get(
-    "/api/v2/templateversions/:templateVersionId/resources",
-    async () => {
-      return HttpResponse.json([
-        M.MockWorkspaceResource,
-        M.MockWorkspaceVolumeResource,
-        M.MockWorkspaceImageResource,
-        M.MockWorkspaceContainerResource,
-      ]);
-    },
-  ),
+  http.get("/api/v2/templateversions/:templateVersionId/resources", () => {
+    return HttpResponse.json([
+      M.MockWorkspaceResource,
+      M.MockWorkspaceVolumeResource,
+      M.MockWorkspaceImageResource,
+      M.MockWorkspaceContainerResource,
+    ]);
+  }),
   http.get(
     "/api/v2/templateversions/:templateVersionId/rich-parameters",
-    async () => {
+    () => {
       return HttpResponse.json([]);
     },
   ),
-  http.get(
-    "/api/v2/templateversions/:templateVersionId/external-auth",
-    async () => {
-      return HttpResponse.json([]);
-    },
-  ),
-  http.get("/api/v2/templateversions/:templateversionId/logs", async () => {
+  http.get("/api/v2/templateversions/:templateVersionId/external-auth", () => {
+    return HttpResponse.json([]);
+  }),
+  http.get("/api/v2/templateversions/:templateversionId/logs", () => {
     return HttpResponse.json(M.MockWorkspaceBuildLogs);
   }),
   http.get(
     "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName",
-    async () => {
+    () => {
       return HttpResponse.json(M.MockTemplateVersion);
     },
   ),
   http.get(
     "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName/previous",
-    async () => {
+    () => {
       return HttpResponse.json(M.MockTemplateVersion2);
     },
   ),
-  http.delete("/api/v2/templates/:templateId", async () => {
+  http.delete("/api/v2/templates/:templateId", () => {
     return HttpResponse.json(M.MockTemplate);
   }),
 
   // users
-  http.get("/api/v2/users", async () => {
+  http.get("/api/v2/users", () => {
     return HttpResponse.json({
       users: [M.MockUser, M.MockUser2, M.SuspendedMockUser],
       count: 26,
     });
   }),
-  http.post("/api/v2/users", async () => {
+  http.post("/api/v2/users", () => {
     return HttpResponse.json(M.MockUser);
   }),
-  http.get("/api/v2/users/:userid/login-type", async () => {
+  http.get("/api/v2/users/:userid/login-type", () => {
     return HttpResponse.json({
       login_type: "password",
     });
@@ -133,28 +127,28 @@ export const handlers = [
   http.get("/api/v2/users/me/organizations", () => {
     return HttpResponse.json([M.MockOrganization]);
   }),
-  http.get("/api/v2/users/me/organizations/:organizationId", async () => {
+  http.get("/api/v2/users/me/organizations/:organizationId", () => {
     return HttpResponse.json(M.MockOrganization);
   }),
-  http.post("/api/v2/users/login", async () => {
+  http.post("/api/v2/users/login", () => {
     return HttpResponse.json(M.MockSessionToken);
   }),
-  http.post("/api/v2/users/logout", async () => {
+  http.post("/api/v2/users/logout", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.get("/api/v2/users/me", async () => {
+  http.get("/api/v2/users/me", () => {
     return HttpResponse.json(M.MockUser);
   }),
-  http.get("/api/v2/users/me/keys", async () => {
+  http.get("/api/v2/users/me/keys", () => {
     return HttpResponse.json(M.MockAPIKey);
   }),
-  http.get("/api/v2/users/authmethods", async () => {
+  http.get("/api/v2/users/authmethods", () => {
     return HttpResponse.json(M.MockAuthMethodsPasswordOnly);
   }),
-  http.get("/api/v2/users/roles", async () => {
+  http.get("/api/v2/users/roles", () => {
     return HttpResponse.json(M.MockSiteRoles);
   }),
-  http.post("/api/v2/authcheck", async () => {
+  http.post("/api/v2/authcheck", () => {
     const permissions = [
       ...Object.keys(permissionsToCheck),
       "canUpdateTemplate",
@@ -169,38 +163,38 @@ export const handlers = [
 
     return HttpResponse.json(response);
   }),
-  http.get("/api/v2/users/:userId/gitsshkey", async () => {
+  http.get("/api/v2/users/:userId/gitsshkey", () => {
     return HttpResponse.json(M.MockGitSSHKey);
   }),
-  http.get("/api/v2/users/:userId/workspace/:workspaceName", async () => {
+  http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
     return HttpResponse.json(M.MockWorkspace);
   }),
 
   // First user
-  http.get("/api/v2/users/first", async () => {
+  http.get("/api/v2/users/first", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.post("/api/v2/users/first", async () => {
+  http.post("/api/v2/users/first", () => {
     return HttpResponse.json(M.MockUser);
   }),
 
   // workspaces
-  http.get("/api/v2/workspaces", async () => {
+  http.get("/api/v2/workspaces", () => {
     return HttpResponse.json(M.MockWorkspacesResponse);
   }),
-  http.get("/api/v2/workspaces/:workspaceId", async () => {
+  http.get("/api/v2/workspaces/:workspaceId", () => {
     return HttpResponse.json(M.MockWorkspace);
   }),
-  http.put("/api/v2/workspaces/:workspaceId/autostart", async () => {
+  http.put("/api/v2/workspaces/:workspaceId/autostart", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.put("/api/v2/workspaces/:workspaceId/ttl", async () => {
+  http.put("/api/v2/workspaces/:workspaceId/ttl", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.put("/api/v2/workspaces/:workspaceId/extend", async () => {
+  http.put("/api/v2/workspaces/:workspaceId/extend", () => {
     return new HttpResponse(null, { status: 200 });
   }),
-  http.get("/api/v2/workspaces/:workspaceId/resolve-autostart", async () => {
+  http.get("/api/v2/workspaces/:workspaceId/resolve-autostart", () => {
     return HttpResponse.json({ parameter_mismatch: false });
   }),
 
@@ -216,7 +210,7 @@ export const handlers = [
     const result = transitionToBuild[transition];
     return HttpResponse.json(result);
   }),
-  http.get("/api/v2/workspaces/:workspaceId/builds", async () => {
+  http.get("/api/v2/workspaces/:workspaceId/builds", () => {
     return HttpResponse.json(M.MockBuilds);
   }),
   http.get("/api/v2/workspaces/:workspaceId/port-share", () => {
@@ -270,7 +264,7 @@ export const handlers = [
     return HttpResponse.json([MockGroup]);
   }),
 
-  http.post("/api/v2/organizations/:organizationId/groups", async () => {
+  http.post("/api/v2/organizations/:organizationId/groups", () => {
     return HttpResponse.json(M.MockGroup, { status: 201 });
   }),
 

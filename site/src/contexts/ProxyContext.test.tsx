@@ -357,7 +357,7 @@ describe("ProxyContextSelection", () => {
             regions,
           }),
         ),
-        http.get("/api/v2/workspaceproxies", async () =>
+        http.get("/api/v2/workspaceproxies", () =>
           HttpResponse.json({ regions }),
         ),
       );
