@@ -181,7 +181,6 @@ func TestTemplateEdit(t *testing.T) {
 			expectedDescription          = "My description"
 			expectedIcon                 = "icon.pjg"
 			expectedDefaultTTLMillis     = time.Hour.Milliseconds()
-			expectedMaxTTLMillis         = (time.Hour * 24).Milliseconds()
 			expectedAllowAutostart       = false
 			expectedAllowAutostop        = false
 			expectedFailureTTLMillis     = time.Minute.Milliseconds()
@@ -204,7 +203,6 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, expectedDescription, tpl.Description)
 			assert.Equal(t, expectedIcon, tpl.Icon)
 			assert.Equal(t, expectedDefaultTTLMillis, tpl.DefaultTTLMillis)
-			assert.Equal(t, expectedMaxTTLMillis, tpl.MaxTTLMillis)
 			assert.Equal(t, expectedAllowAutostart, tpl.AllowUserAutostart)
 			assert.Equal(t, expectedAllowAutostop, tpl.AllowUserAutostop)
 			assert.Equal(t, expectedFailureTTLMillis, tpl.FailureTTLMillis)
@@ -225,7 +223,6 @@ func TestTemplateEdit(t *testing.T) {
 			Description:                    expectedDescription,
 			Icon:                           expectedIcon,
 			DefaultTTLMillis:               expectedDefaultTTLMillis,
-			MaxTTLMillis:                   expectedMaxTTLMillis,
 			AllowUserAutostop:              expectedAllowAutostop,
 			AllowUserAutostart:             expectedAllowAutostart,
 			FailureTTLMillis:               expectedFailureTTLMillis,
@@ -267,7 +264,6 @@ func TestTemplateEdit(t *testing.T) {
 		expectedAutostartDaysOfWeek = []string{"monday", "wednesday", "friday"}
 		expectedAutoStopDaysOfWeek = []string{"tuesday", "thursday"}
 		expectedAutoStopWeeks = 2
-		expectedMaxTTLMillis = 0
 
 		template, err = ownerClient.UpdateTemplateMeta(ctx, dbtemplate.ID, codersdk.UpdateTemplateMeta{
 			Name:                           expectedName,
