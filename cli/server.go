@@ -668,7 +668,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, dbURL, err := connectToPostgres(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2545,7 +2545,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 	return inv.SignalNotifyContext(ctx, sig...)
 }
 
-func connectToPostgres(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
