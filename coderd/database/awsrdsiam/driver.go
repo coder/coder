@@ -59,7 +59,7 @@ func (d *awsRdsIamDriver) Open(name string) (driver.Conn, error) {
 	// make connection
 	conn, err := d.parent.Open(nURL)
 	if err != nil {
-		return nil, xerrors.Errorf("opening connection: %w", err)
+		return nil, xerrors.Errorf("opening connection with %s: %w", nURL, err)
 	}
 
 	return conn, nil
