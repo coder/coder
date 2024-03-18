@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/coder/coder/v2/testutil"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

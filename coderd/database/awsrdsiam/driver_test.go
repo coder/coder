@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -16,6 +17,9 @@ import (
 
 func TestDriver(t *testing.T) {
 	t.Parallel()
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	require.NoError(t, err)
+	t.Logf("%#v", cfg)
 	// Be sure to set AWS_DEFAULT_REGION to the database region as well.
 	url := os.Getenv("DBAWSIAMRDS_TEST_URL")
 	if url == "" {
