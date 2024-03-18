@@ -474,11 +474,11 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		if a.SlugOrPort != b.SlugOrPort {
 			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
 		}
-		if a.DisplayName.String != b.DisplayName.String {
-			return strings.Compare(a.DisplayName.String, b.DisplayName.String)
+		if a.DisplayName != b.DisplayName {
+			return strings.Compare(a.DisplayName, b.DisplayName)
 		}
-		if a.Icon.String != b.Icon.String {
-			return strings.Compare(a.Icon.String, b.Icon.String)
+		if a.Icon != b.Icon {
+			return strings.Compare(a.Icon, b.Icon)
 		}
 		if !a.IsApp && b.IsApp {
 			return -1
@@ -496,9 +496,9 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
-			DisplayName: app.DisplayName.String,
+			DisplayName: app.DisplayName,
 			Slug:        app.SlugOrPort,
-			Icon:        app.Icon.String,
+			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 		})
 	}
