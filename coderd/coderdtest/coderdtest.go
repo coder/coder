@@ -70,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -146,6 +147,7 @@ type Options struct {
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
+	WorkspaceUsageTracker              *workspaceusage.Tracker
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -306,6 +308,20 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
+	if options.WorkspaceUsageTracker == nil {
+		// Workspace usage tracking must be triggered manually in tests.
+		// To do this, pass in your own WorkspaceUsageTracker.
+		wutFlush := make(chan int)
+		wutTick := make(chan time.Time)
+		options.WorkspaceUsageTracker = workspaceusage.New(
+			options.Database,
+			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+			workspaceusage.WithFlushChannel(wutFlush),
+			workspaceusage.WithTickChannel(wutTick),
+		)
+	}
+	t.Cleanup(options.WorkspaceUsageTracker.Close)
+
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -454,6 +470,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
+			WorkspaceUsageTracker:              options.WorkspaceUsageTracker,
 		}
 }
 
