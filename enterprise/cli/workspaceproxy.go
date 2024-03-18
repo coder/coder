@@ -15,8 +15,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) workspaceProxy() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) workspaceProxy() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "workspace-proxy",
 		Short: "Workspace proxies provide low-latency experiences for geo-distributed teams.",
 		Long: "Workspace proxies provide low-latency experiences for geo-distributed teams. " +
@@ -27,7 +27,7 @@ func (r *RootCmd) workspaceProxy() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.proxyServer(),
 			r.createProxy(),
 			r.deleteProxy(),
@@ -40,10 +40,10 @@ func (r *RootCmd) workspaceProxy() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) regenerateProxyToken() *serpent.Cmd {
+func (r *RootCmd) regenerateProxyToken() *serpent.Command {
 	formatter := newUpdateProxyResponseFormatter()
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use: "regenerate-token <name|id>",
 		Short: "Regenerate a workspace proxy authentication token. " +
 			"This will invalidate the existing authentication token.",
@@ -86,7 +86,7 @@ func (r *RootCmd) regenerateProxyToken() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) patchProxy() *serpent.Cmd {
+func (r *RootCmd) patchProxy() *serpent.Command {
 	var (
 		proxyName   string
 		displayName string
@@ -113,7 +113,7 @@ func (r *RootCmd) patchProxy() *serpent.Cmd {
 		)
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "edit <name|id>",
 		Short: "Edit a workspace proxy",
 		Middleware: serpent.Chain(
@@ -186,9 +186,9 @@ func (r *RootCmd) patchProxy() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) deleteProxy() *serpent.Cmd {
+func (r *RootCmd) deleteProxy() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "delete <name|id>",
 		Short: "Delete a workspace proxy",
 		Options: serpent.OptionSet{
@@ -229,7 +229,7 @@ func (r *RootCmd) deleteProxy() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) createProxy() *serpent.Cmd {
+func (r *RootCmd) createProxy() *serpent.Command {
 	var (
 		proxyName   string
 		displayName string
@@ -245,7 +245,7 @@ func (r *RootCmd) createProxy() *serpent.Cmd {
 	}
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "create",
 		Short: "Create a workspace proxy",
 		Middleware: serpent.Chain(
@@ -335,7 +335,7 @@ func (r *RootCmd) createProxy() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) listProxies() *serpent.Cmd {
+func (r *RootCmd) listProxies() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "proxy status"}),
 		cliui.JSONFormat(),
@@ -363,7 +363,7 @@ func (r *RootCmd) listProxies() *serpent.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List all workspace proxies",

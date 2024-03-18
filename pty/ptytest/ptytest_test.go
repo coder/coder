@@ -59,7 +59,7 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := &serpent.Cmd{
+				cmd := &serpent.Command{
 					Use: "test",
 					Handler: func(inv *serpent.Invocation) error {
 						fmt.Fprint(inv.Stdout, tt.output)

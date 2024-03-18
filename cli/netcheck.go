@@ -13,10 +13,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) netcheck() *serpent.Cmd {
+func (r *RootCmd) netcheck() *serpent.Command {
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "netcheck",
 		Short: "Print network debug information for DERP and STUN",
 		Middleware: serpent.Chain(

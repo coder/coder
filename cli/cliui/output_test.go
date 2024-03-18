@@ -101,7 +101,7 @@ func Test_OutputFormatter(t *testing.T) {
 			},
 		)
 
-		cmd := &serpent.Cmd{}
+		cmd := &serpent.Command{}
 		f.AttachOptions(&cmd.Options)
 
 		fs := cmd.Options.FlagSet()

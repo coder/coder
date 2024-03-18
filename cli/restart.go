@@ -13,11 +13,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) restart() *serpent.Cmd {
+func (r *RootCmd) restart() *serpent.Command {
 	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",

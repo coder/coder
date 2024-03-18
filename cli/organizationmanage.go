@@ -12,10 +12,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) createOrganization() *serpent.Cmd {
+func (r *RootCmd) createOrganization() *serpent.Command {
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
 		// This action is currently irreversible, so it's hidden until we have a way to delete organizations.

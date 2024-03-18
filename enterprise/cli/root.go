@@ -9,8 +9,8 @@ type RootCmd struct {
 	cli.RootCmd
 }
 
-func (r *RootCmd) enterpriseOnly() []*serpent.Cmd {
-	return []*serpent.Cmd{
+func (r *RootCmd) enterpriseOnly() []*serpent.Command {
+	return []*serpent.Command{
 		r.Server(nil),
 		r.workspaceProxy(),
 		r.features(),
@@ -20,7 +20,7 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Cmd {
 	}
 }
 
-func (r *RootCmd) EnterpriseSubcommands() []*serpent.Cmd {
+func (r *RootCmd) EnterpriseSubcommands() []*serpent.Command {
 	all := append(r.Core(), r.enterpriseOnly()...)
 	return all
 }

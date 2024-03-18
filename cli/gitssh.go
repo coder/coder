@@ -18,8 +18,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) gitssh() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) gitssh() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:    "gitssh",
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,

@@ -22,7 +22,7 @@ func TestExternalAuth(t *testing.T) {
 	defer cancel()
 
 	ptty := ptytest.New(t)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			var fetched atomic.Bool
 			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{

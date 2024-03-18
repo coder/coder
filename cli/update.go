@@ -9,11 +9,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) update() *serpent.Cmd {
+func (r *RootCmd) update() *serpent.Command {
 	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date",

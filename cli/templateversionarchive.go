@@ -14,16 +14,16 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) unarchiveTemplateVersion() *serpent.Cmd {
+func (r *RootCmd) unarchiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(false)
 }
 
-func (r *RootCmd) archiveTemplateVersion() *serpent.Cmd {
+func (r *RootCmd) archiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(true)
 }
 
 //nolint:revive
-func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Cmd {
+func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 	presentVerb := "archive"
 	pastVerb := "archived"
 	if !archive {
@@ -32,7 +32,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Cmd {
 	}
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   presentVerb + " <template-name> [template-version-names...] ",
 		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
 		Middleware: serpent.Chain(
@@ -96,10 +96,10 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) archiveTemplateVersions() *serpent.Cmd {
+func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 	var all serpent.Bool
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "archive [template-name...] ",
 		Short: "Archive unused or failed template versions from a given template(s)",
 		Middleware: serpent.Chain(

@@ -31,7 +31,7 @@ func TestSelect(t *testing.T) {
 
 func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 	value := ""
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			var err error
 			value, err = cliui.Select(inv, opts)
@@ -72,7 +72,7 @@ func TestRichSelect(t *testing.T) {
 
 func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, error) {
 	value := ""
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			richOption, err := cliui.RichSelect(inv, opts)
 			if err == nil {
@@ -105,7 +105,7 @@ func TestMultiSelect(t *testing.T) {
 
 func newMultiSelect(ptty *ptytest.PTY, items []string) ([]string, error) {
 	var values []string
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			selectedItems, err := cliui.MultiSelect(inv, items)
 			if err == nil {

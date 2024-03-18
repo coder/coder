@@ -15,7 +15,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) groupEdit() *serpent.Cmd {
+func (r *RootCmd) groupEdit() *serpent.Command {
 	var (
 		avatarURL   string
 		name        string
@@ -24,7 +24,7 @@ func (r *RootCmd) groupEdit() *serpent.Cmd {
 		rmUsers     []string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "edit <name>",
 		Short: "Edit a user group",
 		Middleware: serpent.Chain(

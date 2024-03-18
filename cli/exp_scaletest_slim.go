@@ -4,8 +4,8 @@ package cli
 
 import "github.com/coder/serpent"
 
-func (r *RootCmd) scaletestCmd() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) scaletestCmd() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
 		Handler: func(inv *serpent.Invocation) error {

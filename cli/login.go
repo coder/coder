@@ -125,7 +125,7 @@ func (r *RootCmd) loginWithPassword(
 	return nil
 }
 
-func (r *RootCmd) login() *serpent.Cmd {
+func (r *RootCmd) login() *serpent.Command {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
@@ -135,7 +135,7 @@ func (r *RootCmd) login() *serpent.Cmd {
 		trial              bool
 		useTokenForSession bool
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "login [<url>]",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: serpent.RequireRangeArgs(0, 1),

@@ -19,12 +19,12 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) dotfiles() *serpent.Cmd {
+func (r *RootCmd) dotfiles() *serpent.Command {
 	var symlinkDir string
 	var gitbranch string
 	var dotfilesRepoDir string
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:        "dotfiles <git_repo_url>",
 		Middleware: serpent.RequireNArgs(1),
 		Short:      "Personalize your workspace by applying a canonical dotfiles repository",

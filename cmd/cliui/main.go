@@ -22,8 +22,8 @@ import (
 )
 
 func main() {
-	var root *serpent.Cmd
-	root = &serpent.Cmd{
+	var root *serpent.Command
+	root = &serpent.Command{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
 		HelpHandler: func(inv *serpent.Invocation) error {
@@ -37,7 +37,7 @@ func main() {
 		},
 	}
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "prompt",
 		Handler: func(inv *serpent.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
@@ -75,7 +75,7 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "select",
 		Handler: func(inv *serpent.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
@@ -87,7 +87,7 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "job",
 		Handler: func(inv *serpent.Invocation) error {
 			job := codersdk.ProvisionerJob{
@@ -173,7 +173,7 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "agent",
 		Handler: func(inv *serpent.Invocation) error {
 			var agent codersdk.WorkspaceAgent
@@ -265,7 +265,7 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "resources",
 		Handler: func(inv *serpent.Invocation) error {
 			disconnected := dbtime.Now().Add(-4 * time.Second)
@@ -315,7 +315,7 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &serpent.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "git-auth",
 		Handler: func(inv *serpent.Invocation) error {
 			var count atomic.Int32

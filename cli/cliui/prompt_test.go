@@ -147,7 +147,7 @@ func TestPrompt(t *testing.T) {
 
 func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
 	value := ""
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			var err error
 			value, err = cliui.Prompt(inv, opts)
@@ -210,7 +210,7 @@ func TestPasswordTerminalState(t *testing.T) {
 
 // nolint:unused
 func passwordHelper() {
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",

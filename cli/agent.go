@@ -34,7 +34,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) workspaceAgent() *serpent.Cmd {
+func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		auth                string
 		logDir              string
@@ -49,7 +49,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Cmd {
 		slogJSONPath        string
 		slogStackdriverPath string
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "agent",
 		Short: `Starts the Coder workspace agent.`,
 		// This command isn't useful to manually execute.

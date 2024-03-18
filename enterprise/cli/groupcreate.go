@@ -12,14 +12,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) groupCreate() *serpent.Cmd {
+func (r *RootCmd) groupCreate() *serpent.Command {
 	var (
 		avatarURL   string
 		displayName string
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "create <name>",
 		Short: "Create a user group",
 		Middleware: serpent.Chain(

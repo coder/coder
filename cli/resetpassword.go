@@ -17,10 +17,10 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
-func (*RootCmd) resetPassword() *serpent.Cmd {
+func (*RootCmd) resetPassword() *serpent.Command {
 	var postgresURL string
 
-	root := &serpent.Cmd{
+	root := &serpent.Command{
 		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
 		Middleware: serpent.RequireNArgs(1),

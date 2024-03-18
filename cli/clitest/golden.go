@@ -48,7 +48,7 @@ func DefaultCases() []CommandHelpCase {
 
 // TestCommandHelp will test the help output of the given commands
 // using golden files.
-func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *serpent.Cmd, cases []CommandHelpCase) {
+func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *serpent.Command, cases []CommandHelpCase) {
 	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
@@ -148,7 +148,7 @@ func NormalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	return byt
 }
 
-func extractVisibleCommandPaths(cmdPath []string, cmds []*serpent.Cmd) [][]string {
+func extractVisibleCommandPaths(cmdPath []string, cmds []*serpent.Command) [][]string {
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {

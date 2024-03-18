@@ -9,9 +9,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) favorite() *serpent.Cmd {
+func (r *RootCmd) favorite() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Aliases:     []string{"fav", "favou" + "rite"},
 		Annotations: workspaceCommand,
 		Use:         "favorite <workspace>",
@@ -36,9 +36,9 @@ func (r *RootCmd) favorite() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) unfavorite() *serpent.Cmd {
+func (r *RootCmd) unfavorite() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Aliases:     []string{"unfav", "unfavou" + "rite"},
 		Annotations: workspaceCommand,
 		Use:         "unfavorite <workspace>",
