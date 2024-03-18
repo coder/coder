@@ -183,8 +183,8 @@ require (
 	golang.org/x/crypto v0.21.0
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 	golang.org/x/mod v0.15.0
-	golang.org/x/net v0.21.0
-	golang.org/x/oauth2 v0.17.0
+	golang.org/x/net v0.22.0
+	golang.org/x/oauth2 v0.18.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/term v0.18.0
@@ -192,8 +192,8 @@ require (
 	golang.org/x/tools v0.18.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
-	google.golang.org/api v0.152.0
-	google.golang.org/grpc v1.62.0
+	google.golang.org/api v0.170.0
+	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -218,19 +218,19 @@ require (
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
 	github.com/pion/transport/v2 v2.0.0 // indirect
 	github.com/tdewolff/test v1.0.11-0.20240106005702-7de5f7df4739 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 )
 
 require (
-	cloud.google.com/go/compute v1.23.3 // indirect
+	cloud.google.com/go/compute v1.23.4 // indirect
 	cloud.google.com/go/logging v1.9.0 // indirect
-	cloud.google.com/go/longrunning v0.5.4 // indirect
+	cloud.google.com/go/longrunning v0.5.5 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/DataDog/appsec-internal-go v1.4.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.3.0 // indirect
-	github.com/DataDog/go-libddwaf v1.5.0 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/DataDog/sketches-go v1.4.2 // indirect
@@ -282,7 +282,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
-	github.com/felixge/httpsnoop v1.0.3 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.4.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/go-chi/hostrouter v0.2.0 // indirect
@@ -415,20 +415,17 @@ require (
 	go.opentelemetry.io/contrib v1.19.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
+	google.golang.org/genproto v0.0.0-20240205150955-31a09d347014 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240125205218-1f4bbc51befe // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240311132316-a219d84964c2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
-	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
