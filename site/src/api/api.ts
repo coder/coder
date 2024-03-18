@@ -1218,7 +1218,7 @@ export const getDeploymentSSHConfig =
 
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
-  readonly options: TypesGen.ClibaseOption[];
+  readonly options: TypesGen.SerpentOption[];
 };
 
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {

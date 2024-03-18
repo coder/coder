@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -19,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestGetAppHost(t *testing.T) {
@@ -254,9 +254,9 @@ func TestWorkspaceApps(t *testing.T) {
 
 	apptest.Run(t, true, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
 		deploymentValues := coderdtest.DeploymentValues(t)
-		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
-		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
-		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
+		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
+		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = append(deploymentValues.Experiments, string(codersdk.ExperimentSharedPorts))
 
 		if opts.DisableSubdomainApps {

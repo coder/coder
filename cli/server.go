@@ -56,7 +56,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -99,6 +98,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/pretty"
 	"github.com/coder/retry"
+	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
@@ -258,7 +258,7 @@ func enablePrometheus(
 	), nil
 }
 
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 			api := coderd.New(o)
@@ -270,16 +270,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
 	)
-	serverCmd := &clibase.Cmd{
+	serverCmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			WriteConfigMW(vals),
 			PrintDeprecatedOptions(),
-			clibase.RequireNArgs(0),
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -337,7 +337,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
-			// shadowing cancel() (from above) here because notifyStop()
+			// shadowing cancel() (from above) here because stopCancel()
 			// restores default behavior for the signals. This protects
 			// the shutdown sequence from abruptly terminating things
 			// like: database migrations, provisioner work, workspace
@@ -345,8 +345,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
-			defer notifyStop()
+			stopCtx, stopCancel := signalNotifyContext(ctx, inv, StopSignalsNoInterrupt...)
+			defer stopCancel()
+			interruptCtx, interruptCancel := signalNotifyContext(ctx, inv, InterruptSignals...)
+			defer interruptCancel()
 
 			cacheDir := vals.CacheDir.String()
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -430,7 +432,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer tunnel.Close()
 				tunnelDone = tunnel.Wait()
-				vals.AccessURL = clibase.URL(*tunnel.URL)
+				vals.AccessURL = serpent.URL(*tunnel.URL)
 
 				if vals.WildcardAccessURL.String() == "" {
 					// Suffixed wildcard access URL.
@@ -1028,13 +1030,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			hangDetector.Start()
 			defer hangDetector.Close()
 
+			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				waitForProvisionerJobs = true
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
+			case <-interruptCtx.Done():
+				exitErr = interruptCtx.Err()
 				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
@@ -1082,7 +1089,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
-					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
+					timeout := 5 * time.Second
+					if waitForProvisionerJobs {
+						// It can last for a long time...
+						timeout = 30 * time.Minute
+					}
+
+					err := shutdownWithTimeout(func(ctx context.Context) error {
+						// We only want to cancel active jobs if we aren't exiting gracefully.
+						return provisionerDaemon.Shutdown(ctx, !waitForProvisionerJobs)
+					}, timeout)
 					if err != nil {
 						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
@@ -1132,10 +1148,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	var pgRawURL bool
 
-	postgresBuiltinURLCmd := &clibase.Cmd{
+	postgresBuiltinURLCmd := &serpent.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			url, err := embeddedPostgresURL(r.createConfig())
 			if err != nil {
 				return err
@@ -1149,10 +1165,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		},
 	}
 
-	postgresBuiltinServeCmd := &clibase.Cmd{
+	postgresBuiltinServeCmd := &serpent.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
@@ -1183,10 +1199,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 
-	rawURLOpt := clibase.Option{
+	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
 
-		Value:       clibase.BoolOf(&pgRawURL),
+		Value:       serpent.BoolOf(&pgRawURL),
 		Description: "Output the raw connection URL instead of a psql command.",
 	}
 	createAdminUserCmd.Options.Add(rawURLOpt)
@@ -1203,9 +1219,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 // printDeprecatedOptions loops through all command options, and prints
 // a warning for usage of deprecated options.
-func PrintDeprecatedOptions() clibase.MiddlewareFunc {
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
+func PrintDeprecatedOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
 			opts := inv.Command.Options
 			// Print deprecation warnings.
 			for _, opt := range opts {
@@ -1213,7 +1229,7 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 					continue
 				}
 
-				if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
 					continue
 				}
 
@@ -1239,9 +1255,9 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 // writeConfigMW will prevent the main command from running if the write-config
 // flag is set. Instead, it will marshal the command options to YAML and write
 // them to stdout.
-func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
+func WriteConfigMW(cfg *codersdk.DeploymentValues) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
 			if !cfg.WriteConfig {
 				return next(inv)
 			}
@@ -1411,7 +1427,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func PrintLogo(inv *clibase.Invocation, daemonTitle string) {
+func PrintLogo(inv *serpent.Invocation, daemonTitle string) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(inv) {
 		return
@@ -2226,7 +2242,7 @@ func ConfigureTraceProvider(
 	return tracerProvider, sqlDriver, closeTracing
 }
 
-func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
 	ctx := inv.Context()
 	httpServers := &HTTPServers{}
 	defer func() {
@@ -2359,7 +2375,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 // Also, for a while we have been accepting the environment variable (but not the
 // corresponding flag!) "CODER_TLS_REDIRECT_HTTP", and it appeared in a configuration
 // example, so we keep accepting it to not break backward compat.
-func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) {
+func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *serpent.Invocation, cfg *codersdk.DeploymentValues) {
 	truthy := func(s string) bool {
 		b, err := strconv.ParseBool(s)
 		if err != nil {
@@ -2398,7 +2414,7 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	sort.Strings(environ)
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range clibase.ParseEnviron(environ, prefix) {
+	for _, v := range serpent.ParseEnviron(environ, prefix) {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -2511,4 +2527,13 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	}
 
 	return v, nil
+}
+
+func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os.Signal) (context.Context, context.CancelFunc) {
+	// On Windows, some of our signal functions lack support.
+	// If we pass in no signals, we should just return the context as-is.
+	if len(sig) == 0 {
+		return context.WithCancel(ctx)
+	}
+	return inv.SignalNotifyContext(ctx, sig...)
 }

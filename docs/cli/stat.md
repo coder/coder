@@ -15,8 +15,8 @@ coder stat [flags]
 | Name                                | Purpose                          |
 | ----------------------------------- | -------------------------------- |
 | [<code>cpu</code>](./stat_cpu.md)   | Show CPU usage, in cores.        |
-| [<code>disk</code>](./stat_disk.md) | Show disk usage, in gigabytes.   |
 | [<code>mem</code>](./stat_mem.md)   | Show memory usage, in gigabytes. |
+| [<code>disk</code>](./stat_disk.md) | Show disk usage, in gigabytes.   |
 
 ## Options
 

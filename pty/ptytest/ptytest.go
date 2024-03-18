@@ -19,9 +19,9 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func New(t *testing.T, opts ...pty.Option) *PTY {
@@ -395,7 +395,7 @@ func (p *PTY) Close() error {
 	return p.closeErr
 }
 
-func (p *PTY) Attach(inv *clibase.Invocation) *PTY {
+func (p *PTY) Attach(inv *serpent.Invocation) *PTY {
 	p.t.Helper()
 
 	inv.Stdout = p.Output()

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import type { ClibaseOption } from "api/typesGenerated";
+import type { SerpentOption } from "api/typesGenerated";
 import {
   Badges,
   DisabledBadge,
@@ -16,7 +16,7 @@ import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type SecuritySettingsPageViewProps = {
-  options: ClibaseOption[];
+  options: SerpentOption[];
   featureBrowserOnlyEnabled: boolean;
 };
 

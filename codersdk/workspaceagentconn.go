@@ -364,6 +364,9 @@ func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
 	defer res.Body.Close()
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -382,6 +385,9 @@ func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) 
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
@@ -398,6 +404,28 @@ func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
+// PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
+func (c *WorkspaceAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/prometheus", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)

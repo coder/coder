@@ -21,11 +21,14 @@ import type {
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import type { Line } from "components/Logs/LogLine";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
-import { AgentLogs, useAgentLogs } from "./AgentLogs";
+import {
+  AGENT_LOG_LINE_HEIGHT,
+  type LineWithID,
+} from "./AgentLogs/AgentLogLine";
+import { AgentLogs, useAgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -35,16 +38,6 @@ import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { XRayScanAlert } from "./XRayScanAlert";
-
-// Approximate height of a log line. Used to control virtualized list height.
-export const AGENT_LOG_LINE_HEIGHT = 20;
-
-// Logs are stored as the Line interface to make rendering
-// much more efficient. Instead of mapping objects each time, we're
-// able to just pass the array of logs to the component.
-export interface LineWithID extends Line {
-  id: number;
-}
 
 export interface AgentRowProps {
   agent: WorkspaceAgent;

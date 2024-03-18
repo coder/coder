@@ -25,6 +25,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -34,6 +35,7 @@ import (
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
+	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
 	"github.com/coder/retry"
@@ -1714,18 +1716,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (a *agent) HandleHTTPDebugToken(w http.ResponseWriter, r *http.Request) {
-	tok := a.sessionToken.Load()
-	if tok == nil {
-		a.logger.Error(r.Context(), "no session token in-memory")
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "no session token in-memory")
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, *tok)
-}
-
 func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	logPath := filepath.Join(a.logDir, "coder-agent.log")
 	f, err := os.Open(logPath)
@@ -1753,7 +1743,6 @@ func (a *agent) HTTPDebug() http.Handler {
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
-	r.Get("/debug/token", a.HandleHTTPDebugToken)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
@@ -1992,4 +1981,27 @@ func (a *apiConnRoutineManager) start(name string, b gracefulShutdownBehavior, f
 
 func (a *apiConnRoutineManager) wait() error {
 	return a.eg.Wait()
+}
+
+func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "prometheus handler failed to gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
+	})
 }

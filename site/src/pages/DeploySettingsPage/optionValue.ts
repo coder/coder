@@ -1,9 +1,9 @@
 import { intervalToDuration, formatDuration } from "date-fns";
-import type { ClibaseOption } from "api/typesGenerated";
+import type { SerpentOption } from "api/typesGenerated";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
-  option: ClibaseOption,
+  option: SerpentOption,
   additionalValues?: string[],
 ) {
   // If option annotations are present, use them to format the value.
