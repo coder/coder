@@ -1196,10 +1196,13 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 // formatter and add it to cliHumanFormatError function.
 func formatRunCommandError(err *serpent.RunCommandError, opts *formatOpts) string {
 	var str strings.Builder
-	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(),
+		fmt.Sprintf(
+			`Encountered an error running %q, see "%s --help" for more information`,
+			err.Cmd.FullName(), err.Cmd.FullName())))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), "\nerror: "))
 
 	msgString, special := cliHumanFormatError("", err.Err, opts)
-	_, _ = str.WriteString("\n")
 	if special {
 		_, _ = str.WriteString(msgString)
 	} else {

@@ -60,6 +60,49 @@ func TestCommandHelp(t *testing.T) {
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
+	t.Run("MissingRootCommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("MissingSubcommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "server", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		// subcommand error only when command has subcommands
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("BadSubcommandArgs", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "list", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`wanted no args but got 1 [idontexist]`)
+		require.Empty(t, out.String())
+	})
+
 	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 

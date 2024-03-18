@@ -218,8 +218,6 @@ github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
 github.com/coder/retry v1.5.1/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
-github.com/coder/serpent v0.4.0 h1:L/itwnCxfhLutxQ2mScP3tH1ro8z8+Kc/iKKyZZxEMk=
-github.com/coder/serpent v0.4.0/go.mod h1:Wud83ikZF/ulbdMcEMAwqvkEIQx7+l47+ef69M/arAA=
 github.com/coder/serpent v0.4.1-0.20240315163851-a0148c87ea3f h1:nqJ/Mvm+nLI22n5BIYhvSmTZ6CD+MRo/aGVZwVQgr1k=
 github.com/coder/serpent v0.4.1-0.20240315163851-a0148c87ea3f/go.mod h1:REkJ5ZFHQUWFTPLExhXYZ1CaHFjxvGNRlLXLdsI08YA=
 github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuOD6a/zVP3rcxezNsoDseTUw=
