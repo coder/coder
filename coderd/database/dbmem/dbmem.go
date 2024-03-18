@@ -6961,8 +6961,6 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.ActivityBump = arg.ActivityBump
-		tpl.UseMaxTtl = arg.UseMaxTtl
-		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
 		tpl.AutostartBlockDaysOfWeek = arg.AutostartBlockDaysOfWeek

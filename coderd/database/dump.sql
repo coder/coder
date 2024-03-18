@@ -907,7 +907,6 @@ CREATE TABLE templates (
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
-    max_ttl bigint DEFAULT '0'::bigint NOT NULL,
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
@@ -918,7 +917,6 @@ CREATE TABLE templates (
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL,
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
-    use_max_ttl boolean DEFAULT false NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
 );
@@ -958,7 +956,6 @@ CREATE VIEW template_with_users AS
     templates.group_acl,
     templates.display_name,
     templates.allow_user_cancel_workspace_jobs,
-    templates.max_ttl,
     templates.allow_user_autostart,
     templates.allow_user_autostop,
     templates.failure_ttl,
@@ -969,7 +966,6 @@ CREATE VIEW template_with_users AS
     templates.autostart_block_days_of_week,
     templates.require_active_version,
     templates.deprecated,
-    templates.use_max_ttl,
     templates.activity_bump,
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,

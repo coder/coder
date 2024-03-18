@@ -24,7 +24,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		icon                           string
 		defaultTTL                     time.Duration
 		activityBump                   time.Duration
-		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostopRequirementWeeks       int64
 		autostartRequirementDaysOfWeek []string
@@ -53,7 +52,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
-				maxTTL != 0 ||
 				failureTTL != 0 ||
 				dormancyThreshold != 0 ||
 				dormancyAutoDeletion != 0 ||
@@ -69,7 +67,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				}
 
 				if requiresScheduling && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --max-ttl, --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
+					return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivityTTL, --allow-user-autostart=false or --allow-user-autostop=false")
 				}
 
 				if requireActiveVersion {
@@ -99,10 +97,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			if !userSetOption(inv, "display-name") {
 				displayName = template.DisplayName
-			}
-
-			if !userSetOption(inv, "max-ttl") {
-				maxTTL = time.Duration(template.MaxTTLMillis) * time.Millisecond
 			}
 
 			if !userSetOption(inv, "default-ttl") {
@@ -179,7 +173,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				Icon:               icon,
 				DefaultTTLMillis:   defaultTTL.Milliseconds(),
 				ActivityBumpMillis: activityBump.Milliseconds(),
-				MaxTTLMillis:       maxTTL.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -245,11 +238,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Value:       serpent.DurationOf(&activityBump),
 		},
 		{
-			Flag:        "max-ttl",
-			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to \"Max lifetime\" in the UI.",
-			Value:       serpent.DurationOf(&maxTTL),
-		},
-		{
 			Flag: "autostart-requirement-weekdays",
 			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
 			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
@@ -268,8 +256,6 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		{
 			Flag:        "autostop-requirement-weekdays",
 			Description: "Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.",
-			// TODO(@dean): unhide when we delete max_ttl
-			Hidden: true,
 			Value: serpent.Validate(serpent.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *serpent.StringArray) error {
 				v := value.GetSlice()
 				if len(v) == 1 && v[0] == "none" {
@@ -285,9 +271,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		{
 			Flag:        "autostop-requirement-weeks",
 			Description: "Edit the template autostop requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
-			// TODO(@dean): unhide when we delete max_ttl
-			Hidden: true,
-			Value:  serpent.Int64Of(&autostopRequirementWeeks),
+			Value:       serpent.Int64Of(&autostopRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",

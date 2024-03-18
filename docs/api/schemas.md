@@ -5410,15 +5410,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
-  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z",
-  "use_max_ttl": true
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -5447,7 +5445,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `id`                               | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
-| `max_ttl_ms`                       | integer                                                                        | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                  |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -5455,7 +5452,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
-| `use_max_ttl`                      | boolean                                                                        | false    |              | Use max ttl picks whether to use the deprecated max TTL for the template or the new autostop requirement.                                                                                       |
 
 #### Enumerated Values
 

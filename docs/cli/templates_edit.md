@@ -68,14 +68,6 @@ Edit the template default time before shutdown - workspaces created from this te
 
 Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to "Activity bump" in the UI.
 
-### --max-ttl
-
-|      |                       |
-| ---- | --------------------- |
-| Type | <code>duration</code> |
-
-Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to "Max lifetime" in the UI.
-
 ### --autostart-requirement-weekdays
 
 |      |                           |
@@ -83,6 +75,22 @@ Edit the template maximum time before shutdown - workspaces created from this te
 | Type | <code>string-array</code> |
 
 Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.
+
+### --autostop-requirement-weekdays
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
+Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+
+### --autostop-requirement-weeks
+
+|      |                  |
+| ---- | ---------------- |
+| Type | <code>int</code> |
+
+Edit the template autostop requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.
 
 ### --failure-ttl
 

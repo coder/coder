@@ -11601,10 +11601,6 @@ const docTemplate = `{
                 "max_port_share_level": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
-                "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -11631,10 +11627,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "use_max_ttl": {
-                    "description": "UseMaxTTL picks whether to use the deprecated max TTL for the template or\nthe new autostop requirement.",
-                    "type": "boolean"
                 }
             }
         },
