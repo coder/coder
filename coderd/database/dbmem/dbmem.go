@@ -162,6 +162,7 @@ type data struct {
 	templateVersionParameters     []database.TemplateVersionParameter
 	templateVersionVariables      []database.TemplateVersionVariable
 	templates                     []database.TemplateTable
+	templateUsageStats            []database.TemplateUsageStat
 	workspaceAgents               []database.WorkspaceAgent
 	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs            []database.WorkspaceAgentLog
@@ -3582,6 +3583,34 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
 	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 	return rows, nil
+}
+
+func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var stats []database.TemplateUsageStat
+	for _, stat := range q.templateUsageStats {
+		// Exclude all chunks that don't fall exactly within the range.
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
+			continue
+		}
+		stats = append(stats, stat)
+	}
+
+	if len(stats) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return stats, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -7921,6 +7950,14 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	}
 
 	return database.TailnetTunnel{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) UpsertTemplateUsageStats(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// TODO(mafredri): Implement.
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
