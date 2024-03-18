@@ -1894,37 +1894,58 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at),
-		was.user_id,
-		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id
-), template_ids AS (
-	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
-	WHERE template_id IS NOT NULL
-)
+WITH
+	insights AS (
+		SELECT
+			user_id,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins,
+			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
+			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
+			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
+			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
+			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	templates AS (
+		SELECT
+			array_agg(DISTINCT template_id) AS template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
 
 SELECT
-	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateAppInsights.
-	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
+	COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
+	COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
+	COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
+	COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
+	COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
+	COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
+	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
+	COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
+	COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
+	COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+FROM
+	insights
 `
 
 type GetTemplateInsightsParams struct {
@@ -1935,26 +1956,46 @@ type GetTemplateInsightsParams struct {
 
 type GetTemplateInsightsRow struct {
 	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs               []uuid.UUID `db:"active_user_ids" json:"active_user_ids"`
+	SshTemplateIds              []uuid.UUID `db:"ssh_template_ids" json:"ssh_template_ids"`
+	SftpTemplateIds             []uuid.UUID `db:"sftp_template_ids" json:"sftp_template_ids"`
+	ReconnectingPtyTemplateIds  []uuid.UUID `db:"reconnecting_pty_template_ids" json:"reconnecting_pty_template_ids"`
+	VscodeTemplateIds           []uuid.UUID `db:"vscode_template_ids" json:"vscode_template_ids"`
+	JetbrainsTemplateIds        []uuid.UUID `db:"jetbrains_template_ids" json:"jetbrains_template_ids"`
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	UsageTotalSeconds           int64       `db:"usage_total_seconds" json:"usage_total_seconds"`
+	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+	UsageSftpSeconds            int64       `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
+	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
 	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
-	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
-// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-// in use during a minute, we will add 5 minutes to the total usage for that
-// session/app (per user).
+// GetTemplateInsights returns the aggregate user-produced usage of all
+// workspaces in a given timeframe. The template IDs, active users, and
+// usage_seconds all reflect any usage in the template, including apps.
+//
+// When combining data from multiple templates, we must make a guess at
+// how the user behaved for the 30 minute interval. In this case we make
+// the assumption that if the user used two workspaces for 15 minutes,
+// they did so sequentially, thus we sum the usage up to a maximum of
+// 30 minutes with LEAST(SUM(n), 30).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		pq.Array(&i.ActiveUserIDs),
+		pq.Array(&i.SshTemplateIds),
+		pq.Array(&i.SftpTemplateIds),
+		pq.Array(&i.ReconnectingPtyTemplateIds),
+		pq.Array(&i.VscodeTemplateIds),
+		pq.Array(&i.JetbrainsTemplateIds),
+		&i.ActiveUsers,
+		&i.UsageTotalSeconds,
+		&i.UsageSshSeconds,
+		&i.UsageSftpSeconds,
+		&i.UsageReconnectingPtySeconds,
 		&i.UsageVscodeSeconds,
 		&i.UsageJetbrainsSeconds,
-		&i.UsageReconnectingPtySeconds,
-		&i.UsageSshSeconds,
 	)
 	return i, err
 }
