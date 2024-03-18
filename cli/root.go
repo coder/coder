@@ -447,6 +447,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Env:           "CODER_ORGANIZATION",
 			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
 			Value:         serpent.StringOf(&r.organizationSelect),
+			Hidden:        true,
 			Group:         globalGroup,
 		},
 		{
