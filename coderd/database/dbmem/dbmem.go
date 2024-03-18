@@ -3290,8 +3290,8 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	}
 
 	result := database.GetTemplateInsightsRow{
-		TemplateIDs:   templateIDs,
-		ActiveUserIDs: activeUserIDs,
+		TemplateIDs: templateIDs,
+		ActiveUsers: int64(len(activeUserIDs)),
 	}
 	for _, intervals := range appUsageIntervalsByUser {
 		for _, interval := range intervals {
