@@ -33,9 +33,14 @@ export const buildPagedList = (
     return range(1, numPages);
   }
 
+  const isInvalidActivePage = activePage > numPages || activePage < 1;
   const pageBeforeLast = numPages - 1;
-  const startPage = Math.max(activePage - PAGE_NEIGHBORS, 2);
-  const endPage = Math.min(activePage + PAGE_NEIGHBORS, pageBeforeLast);
+  const startPage = isInvalidActivePage
+    ? 1 + PAGE_NEIGHBORS
+    : Math.max(activePage - PAGE_NEIGHBORS, 2);
+  const endPage = isInvalidActivePage
+    ? numPages - PAGE_NEIGHBORS
+    : Math.min(activePage + PAGE_NEIGHBORS, pageBeforeLast);
 
   let pages: ReturnType<typeof buildPagedList> = range(startPage, endPage);
 
