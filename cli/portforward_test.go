@@ -148,6 +148,10 @@ func TestPortForward(t *testing.T) {
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
+
+			updated, err := client.Workspace(context.Background(), workspace.ID)
+			require.NoError(t, err)
+			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
 
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
@@ -196,6 +200,10 @@ func TestPortForward(t *testing.T) {
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
+
+			updated, err := client.Workspace(context.Background(), workspace.ID)
+			require.NoError(t, err)
+			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
 	}
 
@@ -257,6 +265,10 @@ func TestPortForward(t *testing.T) {
 		cancel()
 		err := <-errC
 		require.ErrorIs(t, err, context.Canceled)
+
+		updated, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 	})
 }
 
