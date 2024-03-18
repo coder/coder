@@ -3000,8 +3000,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			ActiveUserIDs: activeUserIDs,
 			AccessMethod:  appKey.AccessMethod,
 			SlugOrPort:    appKey.SlugOrPort,
-			DisplayName:   sql.NullString{String: appKey.DisplayName, Valid: appKey.DisplayName != ""},
-			Icon:          sql.NullString{String: appKey.Icon, Valid: appKey.Icon != ""},
+			DisplayName:   appKey.DisplayName,
+			Icon:          appKey.Icon,
 			IsApp:         appKey.Slug != "",
 			UsageSeconds:  usage,
 		})
