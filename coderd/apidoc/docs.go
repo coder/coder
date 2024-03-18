@@ -8739,7 +8739,7 @@ const docTemplate = `{
                     ]
                 },
                 "autostop_requirement": {
-                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -8777,10 +8777,6 @@ const docTemplate = `{
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
-                },
-                "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured\nOnly one of MaxTTLMillis or AutostopRequirement can be specified.",
-                    "type": "integer"
                 },
                 "name": {
                     "description": "Name is the name of the template.",
