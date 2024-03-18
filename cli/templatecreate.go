@@ -57,7 +57,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 
 				if isTemplateSchedulingOptionsSet {
 					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivity-ttl, or --max-ttl")
+						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, or --inactivity-ttl")
 					}
 				}
 

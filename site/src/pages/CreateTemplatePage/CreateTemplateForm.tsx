@@ -41,8 +41,6 @@ export interface CreateTemplateData {
   description: string;
   icon: string;
   default_ttl_hours: number;
-  use_max_ttl: boolean;
-  max_ttl_hours: number;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
   autostop_requirement_weeks: number;
@@ -70,13 +68,6 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
-  // max_ttl is an enterprise-only feature, and the server ignores the value if
-  // you are not licensed. We hide the form value based on entitlements.
-  //
-  // The maximum value is 30 days but we default to 7 days as it's a much more
-  // sensible value for most teams.
-  use_max_ttl: false, // autostop_requirement is default
-  max_ttl_hours: 24 * 7,
   // autostop_requirement is an enterprise-only feature, and the server ignores
   // the value if you are not licensed. We hide the form value based on
   // entitlements.
@@ -110,7 +101,6 @@ const getInitialValues = ({
   if (!allowAdvancedScheduling) {
     initialValues = {
       ...initialValues,
-      max_ttl_hours: 0,
       autostop_requirement_days_of_week: "off",
       autostop_requirement_weeks: 1,
     };
