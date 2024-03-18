@@ -24,6 +24,15 @@ coder list [flags]
 
 Specifies whether all workspaces will be listed or not.
 
+### --search
+
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>string</code>   |
+| Default | <code>owner:me</code> |
+
+Search for a workspace with a query.
+
 ### -c, --column
 
 |         |                                                                                                          |
@@ -41,12 +50,3 @@ Columns to display in table output. Available columns: favorite, workspace, temp
 | Default | <code>table</code>  |
 
 Output format. Available formats: table, json.
-
-### --search
-
-|         |                       |
-| ------- | --------------------- |
-| Type    | <code>string</code>   |
-| Default | <code>owner:me</code> |
-
-Search for a workspace with a query.

@@ -13,23 +13,23 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) gitssh() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) gitssh() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:    "gitssh",
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			env := os.Environ()
 
 			// Catch interrupt signals to ensure the temporary private
 			// key file is cleaned up on most cases.
-			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
 			// Early check so errors are reported immediately.

@@ -20,42 +20,14 @@ coder create [flags] [name]
 
 ## Options
 
-### --automatic-updates
+### -t, --template
 
-|             |                                                 |
-| ----------- | ----------------------------------------------- |
-| Type        | <code>string</code>                             |
-| Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
-| Default     | <code>never</code>                              |
+|             |                                   |
+| ----------- | --------------------------------- |
+| Type        | <code>string</code>               |
+| Environment | <code>$CODER_TEMPLATE_NAME</code> |
 
-Specify automatic updates setting for the workspace (accepts 'always' or 'never').
-
-### --copy-parameters-from
-
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Type        | <code>string</code>                                |
-| Environment | <code>$CODER_WORKSPACE_COPY_PARAMETERS_FROM</code> |
-
-Specify the source workspace name to copy parameters from.
-
-### --parameter
-
-|             |                                    |
-| ----------- | ---------------------------------- |
-| Type        | <code>string-array</code>          |
-| Environment | <code>$CODER_RICH_PARAMETER</code> |
-
-Rich parameter value in the format "name=value".
-
-### --rich-parameter-file
-
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
-
-Specify a file path with values for rich parameters defined in the template.
+Specify a template name.
 
 ### --start-at
 
@@ -75,14 +47,24 @@ Specify the workspace autostart schedule. Check coder schedule start --help for 
 
 Specify a duration after which the workspace should shut down (e.g. 8h).
 
-### -t, --template
+### --automatic-updates
 
-|             |                                   |
-| ----------- | --------------------------------- |
-| Type        | <code>string</code>               |
-| Environment | <code>$CODER_TEMPLATE_NAME</code> |
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
+| Default     | <code>never</code>                              |
 
-Specify a template name.
+Specify automatic updates setting for the workspace (accepts 'always' or 'never').
+
+### --copy-parameters-from
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_WORKSPACE_COPY_PARAMETERS_FROM</code> |
+
+Specify the source workspace name to copy parameters from.
 
 ### -y, --yes
 
@@ -91,3 +73,21 @@ Specify a template name.
 | Type | <code>bool</code> |
 
 Bypass prompts.
+
+### --parameter
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>string-array</code>          |
+| Environment | <code>$CODER_RICH_PARAMETER</code> |
+
+Rich parameter value in the format "name=value".
+
+### --rich-parameter-file
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
+
+Specify a file path with values for rich parameters defined in the template.

@@ -19,7 +19,7 @@ import { Stats, StatsItem } from "components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
-import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
+import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,

@@ -12,13 +12,13 @@ coder start [flags] <workspace>
 
 ## Options
 
-### --always-prompt
+### -y, --yes
 
 |      |                   |
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Always prompt all parameters. Does not pull parameter values from existing workspace.
+Bypass prompts.
 
 ### --build-option
 
@@ -55,10 +55,10 @@ Rich parameter value in the format "name=value".
 
 Specify a file path with values for rich parameters defined in the template.
 
-### -y, --yes
+### --always-prompt
 
 |      |                   |
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Bypass prompts.
+Always prompt all parameters. Does not pull parameter values from existing workspace.

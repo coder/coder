@@ -6,11 +6,11 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil/levenshtein"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 type WorkspaceCLIAction int
@@ -69,7 +69,7 @@ func (pr *ParameterResolver) WithPromptBuildOptions(promptBuildOptions bool) *Pa
 	return pr
 }
 
-func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
 
@@ -209,7 +209,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 	return nil
 }
 
-func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	for _, tvp := range templateVersionParameters {
 		p := findWorkspaceBuildParameter(tvp.Name, resolved)
 		if p != nil {

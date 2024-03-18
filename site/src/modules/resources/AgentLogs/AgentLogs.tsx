@@ -11,10 +11,10 @@ import { FixedSizeList as List } from "react-window";
 import * as API from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import {
-  LogLine,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
-import type { LineWithID } from "./AgentRow";
+  AGENT_LOG_LINE_HEIGHT,
+  AgentLogLine,
+  type LineWithID,
+} from "./AgentLogLine";
 
 type AgentLogsProps = Omit<
   ComponentProps<typeof List>,
@@ -39,7 +39,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
         ref={ref}
         css={styles.logs}
         itemCount={logs.length}
-        itemSize={logLineHeight}
+        itemSize={AGENT_LOG_LINE_HEIGHT}
         {...listProps}
       >
         {({ index, style }) => {
@@ -58,7 +58,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
               }
             );
           };
-          const logSource = getLogSource(log.source_id);
+          const logSource = getLogSource(log.sourceId);
 
           let assignedIcon = false;
           let icon: JSX.Element;
@@ -98,7 +98,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           let nextChangesSource = false;
           if (index < logs.length - 1) {
             nextChangesSource =
-              getLogSource(logs[index + 1].source_id).id !== log.source_id;
+              getLogSource(logs[index + 1].sourceId).id !== log.sourceId;
           }
           // We don't want every line to repeat the icon, because
           // that is ugly and repetitive. This removes the icon
@@ -107,7 +107,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           // same source.
           if (
             index > 0 &&
-            getLogSource(logs[index - 1].source_id).id === log.source_id
+            getLogSource(logs[index - 1].sourceId).id === log.sourceId
           ) {
             icon = (
               <div
@@ -149,10 +149,10 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
           }
 
           return (
-            <LogLine
+            <AgentLogLine
               line={logs[index]}
               number={index + 1}
-              maxNumber={logs.length}
+              maxLineNumber={logs.length}
               style={style}
               sourceIcon={
                 <Tooltip
@@ -208,7 +208,7 @@ export const useAgentLogs = (
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
-            source_id: log.source_id,
+            sourceId: log.source_id,
           }));
 
           if (!previousLogs) {

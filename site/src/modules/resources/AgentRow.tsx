@@ -23,12 +23,12 @@ import type {
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
-import {
-  type Line,
-  logLineHeight,
-} from "modules/workspaces/WorkspaceBuildLogs/Logs";
 import { AgentLatency } from "./AgentLatency";
-import { AgentLogs, useAgentLogs } from "./AgentLogs";
+import {
+  AGENT_LOG_LINE_HEIGHT,
+  type LineWithID,
+} from "./AgentLogs/AgentLogLine";
+import { AgentLogs, useAgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -38,13 +38,6 @@ import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { XRayScanAlert } from "./XRayScanAlert";
-
-// Logs are stored as the Line interface to make rendering
-// much more efficient. Instead of mapping objects each time, we're
-// able to just pass the array of logs to the component.
-export interface LineWithID extends Line {
-  id: number;
-}
 
 export interface AgentRowProps {
   agent: WorkspaceAgent;
@@ -115,7 +108,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
-        source_id: "",
+        sourceId: "",
       });
     }
     return logs;
@@ -154,7 +147,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       const distanceFromBottom =
         logListDivRef.current.scrollHeight -
         (props.scrollOffset + parent.clientHeight);
-      setBottomOfLogs(distanceFromBottom < logLineHeight);
+      setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
     },
     [logListDivRef],
   );

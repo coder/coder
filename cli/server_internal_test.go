@@ -15,9 +15,9 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func Test_configureCipherSuites(t *testing.T) {
@@ -182,43 +182,43 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 
 	testcases := []struct {
 		name     string
-		environ  clibase.Environ
+		environ  serpent.Environ
 		flags    []string
 		expected bool
 	}{
 		{
 			name:     "AllUnset",
-			environ:  clibase.Environ{},
+			environ:  serpent.Environ{},
 			flags:    []string{},
 			expected: false,
 		},
 		{
 			name:     "CODER_TLS_REDIRECT_HTTP=true",
-			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "true"}},
+			environ:  serpent.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "true"}},
 			flags:    []string{},
 			expected: true,
 		},
 		{
 			name:     "CODER_TLS_REDIRECT_HTTP_TO_HTTPS=true",
-			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "true"}},
+			environ:  serpent.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "true"}},
 			flags:    []string{},
 			expected: true,
 		},
 		{
 			name:     "CODER_TLS_REDIRECT_HTTP=false",
-			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "false"}},
+			environ:  serpent.Environ{{Name: "CODER_TLS_REDIRECT_HTTP", Value: "false"}},
 			flags:    []string{},
 			expected: false,
 		},
 		{
 			name:     "CODER_TLS_REDIRECT_HTTP_TO_HTTPS=false",
-			environ:  clibase.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "false"}},
+			environ:  serpent.Environ{{Name: "CODER_TLS_REDIRECT_HTTP_TO_HTTPS", Value: "false"}},
 			flags:    []string{},
 			expected: false,
 		},
 		{
 			name:     "--tls-redirect-http-to-https",
-			environ:  clibase.Environ{},
+			environ:  serpent.Environ{},
 			flags:    []string{"--tls-redirect-http-to-https"},
 			expected: true,
 		},
@@ -234,7 +234,7 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 			_ = flags.Bool("tls-redirect-http-to-https", true, "")
 			err := flags.Parse(tc.flags)
 			require.NoError(t, err)
-			inv := (&clibase.Invocation{Environ: tc.environ}).WithTestParsedFlags(t, flags)
+			inv := (&serpent.Invocation{Environ: tc.environ}).WithTestParsedFlags(t, flags)
 			cfg := &codersdk.DeploymentValues{}
 			opts := cfg.Options()
 			err = opts.SetDefaults()

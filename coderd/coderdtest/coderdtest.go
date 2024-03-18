@@ -498,7 +498,7 @@ func (c *provisionerdCloser) Close() error {
 	c.closed = true
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	shutdownErr := c.d.Shutdown(ctx)
+	shutdownErr := c.d.Shutdown(ctx, true)
 	closeErr := c.d.Close()
 	if shutdownErr != nil {
 		return shutdownErr

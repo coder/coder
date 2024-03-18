@@ -2274,7 +2274,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetReplicaByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead).Errors(sql.ErrNoRows)
 	}))
-	s.Run("GetWorkspaceAgentAndOwnerByAuthToken", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetWorkspaceAgentAndLatestBuildByAuthToken", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, rbac.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetUserLinksByUserID", s.Subtest(func(db database.Store, check *expects) {

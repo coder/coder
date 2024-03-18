@@ -2,9 +2,13 @@
 
 This document provides a high level overview of Coder's architecture.
 
-## Diagram
+## Single region architecture
 
-![Architecture Diagram](../images/architecture-diagram.png)
+![Architecture Diagram](../images/architecture-single-region.png)
+
+## Multi-region architecture
+
+![Architecture Diagram](../images/architecture-multi-region.png)
 
 ## coderd
 

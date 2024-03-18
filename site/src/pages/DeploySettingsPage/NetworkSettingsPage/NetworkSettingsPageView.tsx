@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import type { ClibaseOption } from "api/typesGenerated";
+import type { SerpentOption } from "api/typesGenerated";
 import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -11,7 +11,7 @@ import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type NetworkSettingsPageViewProps = {
-  options: ClibaseOption[];
+  options: SerpentOption[];
 };
 
 export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// noopTracer is just an alias because the fakeTracer implements a method
+// with the same name 'Tracer'. Kinda dumb, but this is a workaround.
+type noopTracer = noop.Tracer
+
 type fakeTracer struct {
+	noop.TracerProvider
+	noopTracer
 	startCalled int64
 }
 

@@ -25,6 +25,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -34,6 +35,7 @@ import (
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
+	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
 	"github.com/coder/retry"
@@ -1699,11 +1701,48 @@ func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *h
 	_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 }
 
+func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) {
+	sdkManifest := a.manifest.Load()
+	if sdkManifest == nil {
+		a.logger.Error(r.Context(), "no manifest in-memory")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "no manifest in-memory")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
+	}
+}
+
+func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
+	logPath := filepath.Join(a.logDir, "coder-agent.log")
+	f, err := os.Open(logPath)
+	if err != nil {
+		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
+		return
+	}
+	defer f.Close()
+
+	// Limit to 10MB.
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
+	if err != nil && !errors.Is(err, io.EOF) {
+		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
+		return
+	}
+}
+
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
+	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
+	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
@@ -1942,4 +1981,27 @@ func (a *apiConnRoutineManager) start(name string, b gracefulShutdownBehavior, f
 
 func (a *apiConnRoutineManager) wait() error {
 	return a.eg.Wait()
+}
+
+func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "prometheus handler failed to gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
+	})
 }

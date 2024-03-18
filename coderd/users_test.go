@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/serpent"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -18,7 +19,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -218,7 +218,7 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		dc.DisablePasswordAuth = clibase.Bool(true)
+		dc.DisablePasswordAuth = serpent.Bool(true)
 
 		userClient := codersdk.New(client.URL)
 		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{

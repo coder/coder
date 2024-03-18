@@ -270,3 +270,12 @@ export const Error: Story = {
     error: mockApiError({ message: "Something went wrong" }),
   },
 };
+
+export const InvalidPageNumber: Story = {
+  args: {
+    workspaces: [],
+    count: 200,
+    limit: 25,
+    page: 1000,
+  },
+};

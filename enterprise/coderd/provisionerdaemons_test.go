@@ -441,7 +441,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 
-		err = pd.Shutdown(ctx)
+		err = pd.Shutdown(ctx, false)
 		require.NoError(t, err)
 		err = terraformServer.Close()
 		require.NoError(t, err)

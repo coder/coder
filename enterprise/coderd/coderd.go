@@ -336,7 +336,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddlewareOptional,
-					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 						DB:       options.Database,
 						Optional: true,
 					}),

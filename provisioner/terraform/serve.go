@@ -63,7 +63,7 @@ func absoluteBinaryPath(ctx context.Context, logger slog.Logger) (string, error)
 
 	logger.Info(ctx, "detected terraform version",
 		slog.F("installed_version", installedVersion.String()),
-		slog.F("min_version", maxTerraformVersion.String()),
+		slog.F("min_version", minTerraformVersion.String()),
 		slog.F("max_version", maxTerraformVersion.String()))
 
 	if installedVersion.LessThan(minTerraformVersion) {
