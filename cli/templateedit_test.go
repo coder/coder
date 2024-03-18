@@ -564,7 +564,6 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
 			})
 
 			// Test the cli command.
@@ -590,7 +589,6 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -602,7 +600,6 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -668,7 +665,6 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -679,7 +675,6 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -715,7 +710,6 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.Equal(t, time.Hour.Milliseconds(), req.MaxTTLMillis)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					atomic.AddInt64(&updateTemplateCalled, 1)
@@ -763,7 +757,6 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		})
 	})
 	t.Run("AllowUserScheduling", func(t *testing.T) {

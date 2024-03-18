@@ -212,7 +212,6 @@ type UpdateTemplateMeta struct {
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`

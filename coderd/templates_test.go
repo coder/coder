@@ -273,8 +273,6 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
 							ActivityBump:                  int64(options.ActivityBump),
-							UseMaxTtl:                     options.UseMaxTTL,
-							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -302,7 +300,6 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.False(t, got.UseMaxTTL) // default
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
@@ -326,8 +323,6 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
 							ActivityBump:                  int64(options.ActivityBump),
-							UseMaxTtl:                     options.UseMaxTTL,
-							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -360,13 +355,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.False(t, got.UseMaxTTL)
 			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 
 			got, err = client.Template(ctx, got.ID)
 			require.NoError(t, err)
-			require.False(t, got.UseMaxTTL)
 			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 		})
@@ -391,35 +384,9 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			})
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
-			require.False(t, got.UseMaxTTL)
 			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
-	})
-
-	t.Run("BothMaxTTLAndAutostopRequirement", func(t *testing.T) {
-		t.Parallel()
-
-		// Fake template schedule store is unneeded for this test since the
-		// route fails before it is called.
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:         "testing",
-			VersionID:    version.ID,
-			MaxTTLMillis: ptr.Ref(24 * time.Hour.Milliseconds()),
-			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
-				DaysOfWeek: []string{"friday", "saturday"},
-				Weeks:      2,
-			},
-		})
-		require.Error(t, err)
-		require.ErrorContains(t, err, "max_ttl_ms")
 	})
 }
 
@@ -722,136 +689,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.Deprecated)
 	})
 
-	t.Run("MaxTTL", func(t *testing.T) {
-		t.Parallel()
-
-		const (
-			defaultTTL = 1 * time.Hour
-			maxTTL     = 24 * time.Hour
-		)
-
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
-
-			var setCalled int64
-			client := coderdtest.New(t, &coderdtest.Options{
-				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						if atomic.AddInt64(&setCalled, 1) == 2 {
-							require.Equal(t, maxTTL, options.MaxTTL)
-						}
-
-						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                            template.ID,
-							UpdatedAt:                     dbtime.Now(),
-							AllowUserAutostart:            options.UserAutostartEnabled,
-							AllowUserAutostop:             options.UserAutostopEnabled,
-							DefaultTTL:                    int64(options.DefaultTTL),
-							ActivityBump:                  int64(options.ActivityBump),
-							MaxTTL:                        int64(options.MaxTTL),
-							UseMaxTtl:                     options.UseMaxTTL,
-							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
-							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
-							FailureTTL:                    int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
-						})
-						if !assert.NoError(t, err) {
-							return database.Template{}, err
-						}
-
-						return db.GetTemplateByID(ctx, template.ID)
-					},
-				},
-			})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             0,
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.NoError(t, err)
-
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.EqualValues(t, 0, got.DefaultTTLMillis)
-			require.Equal(t, maxTTL.Milliseconds(), got.MaxTTLMillis)
-			require.Empty(t, got.DeprecationMessage)
-			require.False(t, got.Deprecated)
-		})
-
-		t.Run("DefaultTTLBigger", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, nil)
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             (maxTTL * 2).Milliseconds(),
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.Error(t, err)
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-			require.Len(t, sdkErr.Validations, 1)
-			require.Equal(t, "default_ttl_ms", sdkErr.Validations[0].Field)
-			require.Contains(t, sdkErr.Validations[0].Detail, "Must be less than or equal to max_ttl_ms")
-		})
-
-		t.Run("IgnoredUnlicensed", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, nil)
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             defaultTTL.Milliseconds(),
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.NoError(t, err)
-			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
-			require.Zero(t, got.MaxTTLMillis)
-			require.Empty(t, got.DeprecationMessage)
-			require.False(t, got.Deprecated)
-		})
-	})
-
 	t.Run("CleanupTTLs", func(t *testing.T) {
 		t.Parallel()
 
@@ -1148,8 +985,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
 							ActivityBump:                  int64(options.ActivityBump),
-							UseMaxTtl:                     options.UseMaxTTL,
-							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -1221,8 +1056,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
 							ActivityBump:                  int64(options.ActivityBump),
-							UseMaxTtl:                     options.UseMaxTTL,
-							MaxTTL:                        int64(options.MaxTTL),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -1315,38 +1148,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.Empty(t, template.DeprecationMessage)
 			require.False(t, template.Deprecated)
 		})
-	})
-
-	t.Run("BothMaxTTLAndAutostopRequirement", func(t *testing.T) {
-		t.Parallel()
-
-		// Fake template schedule store is unneeded for this test since the
-		// route fails before it is called.
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-		req := codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DefaultTTLMillis:             time.Hour.Milliseconds(),
-			MaxTTLMillis:                 time.Hour.Milliseconds(),
-			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
-				DaysOfWeek: []string{"monday"},
-				Weeks:      2,
-			},
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "max_ttl_ms")
 	})
 }
 

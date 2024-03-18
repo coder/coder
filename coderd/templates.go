@@ -228,7 +228,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	var (
 		defaultTTL                     time.Duration
 		activityBump                   = time.Hour // default
-		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostartRequirementDaysOfWeek []string
 		autostopRequirementWeeks       int64
@@ -273,12 +272,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if activityBump < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-	if maxTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
-	}
-	if maxTTL != 0 && defaultTTL > maxTTL {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
-	}
+
 	if len(autostopRequirementDaysOfWeek) > 0 {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostopRequirementDaysOfWeek)
 		if err != nil {
@@ -291,12 +285,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
-	if createTemplate.MaxTTLMillis != nil {
-		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
-	}
-	if maxTTL != 0 && len(autostopRequirementDaysOfWeek) > 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
-	}
+
 	if autostopRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}

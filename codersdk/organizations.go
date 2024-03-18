@@ -92,12 +92,8 @@ type CreateTemplateRequest struct {
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
-	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
 	// for workspaces created from this template. This is an enterprise feature.

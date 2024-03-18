@@ -1047,104 +1047,84 @@ func TestCompleteJob(t *testing.T) {
 			name                  string
 			templateAllowAutostop bool
 			templateDefaultTTL    time.Duration
-			templateMaxTTL        time.Duration
 			workspaceTTL          time.Duration
 			transition            database.WorkspaceTransition
 			// The TTL is actually a deadline time on the workspace_build row,
 			// so during the test this will be compared to be within 15 seconds
 			// of the expected value.
-			expectedTTL    time.Duration
-			expectedMaxTTL time.Duration
+			expectedTTL time.Duration
 		}{
 			{
 				name:                  "OK",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
 				workspaceTTL:          0,
 				transition:            database.WorkspaceTransitionStart,
 				expectedTTL:           0,
-				expectedMaxTTL:        0,
 			},
 			{
 				name:                  "Delete",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
 				workspaceTTL:          0,
 				transition:            database.WorkspaceTransitionDelete,
 				expectedTTL:           0,
-				expectedMaxTTL:        0,
 			},
 			{
 				name:                  "WorkspaceTTL",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
 				workspaceTTL:          time.Hour,
 				transition:            database.WorkspaceTransitionStart,
 				expectedTTL:           time.Hour,
-				expectedMaxTTL:        0,
 			},
 			{
 				name:                  "TemplateDefaultTTLIgnored",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    time.Hour,
-				templateMaxTTL:        0,
 				workspaceTTL:          0,
 				transition:            database.WorkspaceTransitionStart,
 				expectedTTL:           0,
-				expectedMaxTTL:        0,
 			},
 			{
 				name:                  "WorkspaceTTLOverridesTemplateDefaultTTL",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    2 * time.Hour,
-				templateMaxTTL:        0,
 				workspaceTTL:          time.Hour,
 				transition:            database.WorkspaceTransitionStart,
 				expectedTTL:           time.Hour,
-				expectedMaxTTL:        0,
 			},
 			{
 				name:                  "TemplateMaxTTL",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
-				templateMaxTTL:        time.Hour,
 				workspaceTTL:          0,
 				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           time.Hour,
-				expectedMaxTTL:        time.Hour,
+				expectedTTL:           0,
 			},
 			{
 				name:                  "TemplateMaxTTLOverridesWorkspaceTTL",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
-				templateMaxTTL:        2 * time.Hour,
 				workspaceTTL:          3 * time.Hour,
 				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           2 * time.Hour,
-				expectedMaxTTL:        2 * time.Hour,
+				expectedTTL:           3 * time.Hour,
 			},
 			{
 				name:                  "TemplateMaxTTLOverridesTemplateDefaultTTL",
 				templateAllowAutostop: true,
 				templateDefaultTTL:    3 * time.Hour,
-				templateMaxTTL:        2 * time.Hour,
 				workspaceTTL:          0,
 				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           2 * time.Hour,
-				expectedMaxTTL:        2 * time.Hour,
+				expectedTTL:           0,
 			},
 			{
 				name:                  "TemplateBlockWorkspaceTTL",
 				templateAllowAutostop: false,
 				templateDefaultTTL:    3 * time.Hour,
-				templateMaxTTL:        6 * time.Hour,
 				workspaceTTL:          4 * time.Hour,
 				transition:            database.WorkspaceTransitionStart,
 				expectedTTL:           3 * time.Hour,
-				expectedMaxTTL:        6 * time.Hour,
 			},
 		}
 
@@ -1163,8 +1143,6 @@ func TestCompleteJob(t *testing.T) {
 							UserAutostartEnabled: false,
 							UserAutostopEnabled:  c.templateAllowAutostop,
 							DefaultTTL:           c.templateDefaultTTL,
-							MaxTTL:               c.templateMaxTTL,
-							UseMaxTTL:            true,
 						}, nil
 					},
 				}
@@ -1189,7 +1167,6 @@ func TestCompleteJob(t *testing.T) {
 					UpdatedAt:          dbtime.Now(),
 					AllowUserAutostart: c.templateAllowAutostop,
 					DefaultTTL:         int64(c.templateDefaultTTL),
-					MaxTTL:             int64(c.templateMaxTTL),
 				})
 				require.NoError(t, err)
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
@@ -1271,12 +1248,10 @@ func TestCompleteJob(t *testing.T) {
 				} else {
 					require.WithinDuration(t, time.Now().Add(c.expectedTTL), workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
 				}
-				if c.expectedMaxTTL == 0 {
-					require.True(t, workspaceBuild.MaxDeadline.IsZero())
-				} else {
-					require.WithinDuration(t, time.Now().Add(c.expectedMaxTTL), workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
-					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
-				}
+
+				// Legacy TTL does not use scheduling requirements that will set
+				// a max deadline.
+				require.True(t, workspaceBuild.MaxDeadline.IsZero())
 			})
 		}
 	})
@@ -1386,7 +1361,6 @@ func TestCompleteJob(t *testing.T) {
 							UserAutostartEnabled: false,
 							UserAutostopEnabled:  true,
 							DefaultTTL:           0,
-							UseMaxTTL:            false,
 							AutostopRequirement:  c.templateAutostopRequirement,
 						}, nil
 					},
