@@ -28,16 +28,16 @@ type Store interface {
 // It keeps an internal map of workspace IDs that have been used and
 // periodically flushes this to its configured Store.
 type Tracker struct {
-	log      slog.Logger            // you know, for logs
-	mut      sync.Mutex             // protects m
-	m        map[uuid.UUID]struct{} // stores workspace ids
-	s        Store                  // for flushing data
-	tickCh   <-chan time.Time       // controls flush interval
-	stopTick func()                 // stops flushing
-	stopCh   chan struct{}          // signals us to stop
-	stopOnce sync.Once              // because you only stop once
-	doneCh   chan struct{}          // signifies that we have stopped
-	flushCh  chan int               // used for testing.
+	log       slog.Logger      // you know, for logs
+	flushLock sync.Mutex       // protects m
+	m         *uuidSet         // stores workspace ids
+	s         Store            // for flushing data
+	tickCh    <-chan time.Time // controls flush interval
+	stopTick  func()           // stops flushing
+	stopCh    chan struct{}    // signals us to stop
+	stopOnce  sync.Once        // because you only stop once
+	doneCh    chan struct{}    // signifies that we have stopped
+	flushCh   chan int         // used for testing.
 }
 
 // New returns a new Tracker. It is the caller's responsibility
@@ -45,7 +45,7 @@ type Tracker struct {
 func New(s Store, opts ...Option) *Tracker {
 	hb := &Tracker{
 		log:      slog.Make(sloghuman.Sink(os.Stderr)),
-		m:        make(map[uuid.UUID]struct{}, 0),
+		m:        &uuidSet{},
 		s:        s,
 		tickCh:   nil,
 		stopTick: nil,
@@ -103,44 +103,40 @@ func WithTickChannel(c chan time.Time) Option {
 // Add marks the workspace with the given ID as having been used recently.
 // Tracker will periodically flush this to its configured Store.
 func (wut *Tracker) Add(workspaceID uuid.UUID) {
-	wut.mut.Lock()
-	wut.m[workspaceID] = struct{}{}
-	wut.mut.Unlock()
+	wut.m.Add(workspaceID)
 }
 
-// flushLocked updates last_used_at of all current workspace IDs.
-// MUST HOLD LOCK BEFORE CALLING
-func (wut *Tracker) flushLocked(now time.Time) {
-	if wut.mut.TryLock() {
-		panic("developer error: must lock before calling flush()")
-	}
-	count := len(wut.m)
-	defer func() { // only used for testing
-		if wut.flushCh != nil {
+// flush updates last_used_at of all current workspace IDs.
+// If this is held while a previous flush is in progress, it will
+// deadlock until the previous flush has completed.
+func (wut *Tracker) flush(now time.Time) {
+	var count int
+	if wut.flushCh != nil { // only used for testing
+		defer func() {
 			wut.flushCh <- count
-		}
-	}()
+		}()
+	}
+
+	// Copy our current set of IDs
+	ids := wut.m.UniqueAndClear()
+	count = len(ids)
 	if count == 0 {
 		wut.log.Debug(context.Background(), "nothing to flush")
 		return
 	}
-	// Copy our current set of IDs
-	ids := make([]uuid.UUID, 0)
-	for k := range wut.m {
-		ids = append(ids, k)
-	}
-	// Reset our internal map
-	wut.m = make(map[uuid.UUID]struct{})
+
 	// For ease of testing, sort the IDs lexically
 	sort.Slice(ids, func(i, j int) bool {
 		// For some unfathomable reason, byte arrays are not comparable?
 		return strings.Compare(ids[i].String(), ids[j].String()) < 0
 	})
 	// Set a short-ish timeout for this. We don't want to hang forever.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	// nolint: gocritic // system function
 	authCtx := dbauthz.AsSystemRestricted(ctx)
+	wut.flushLock.Lock()
+	defer wut.flushLock.Unlock()
 	if err := wut.s.BatchUpdateWorkspaceLastUsedAt(authCtx, database.BatchUpdateWorkspaceLastUsedAtParams{
 		LastUsedAt: now,
 		IDs:        ids,
@@ -164,9 +160,7 @@ func (wut *Tracker) Loop() {
 			if !ok {
 				return
 			}
-			wut.mut.Lock()
-			wut.flushLocked(now.UTC())
-			wut.mut.Unlock()
+			wut.flush(now.UTC())
 		}
 	}
 }
@@ -178,4 +172,36 @@ func (wut *Tracker) Close() {
 		wut.stopTick()
 		<-wut.doneCh
 	})
+}
+
+// uuidSet is a set of UUIDs. Safe for concurrent usage.
+// The zero value can be used.
+type uuidSet struct {
+	l sync.Mutex
+	m map[uuid.UUID]struct{}
+}
+
+func (s *uuidSet) Add(id uuid.UUID) {
+	s.l.Lock()
+	defer s.l.Unlock()
+	if s.m == nil {
+		s.m = make(map[uuid.UUID]struct{})
+	}
+	s.m[id] = struct{}{}
+}
+
+// UniqueAndClear returns the unique set of entries in s and
+// resets the internal map.
+func (s *uuidSet) UniqueAndClear() []uuid.UUID {
+	s.l.Lock()
+	defer s.l.Unlock()
+	if s.m == nil {
+		s.m = make(map[uuid.UUID]struct{})
+	}
+	l := make([]uuid.UUID, 0)
+	for k := range s.m {
+		l = append(l, k)
+	}
+	s.m = make(map[uuid.UUID]struct{})
+	return l
 }

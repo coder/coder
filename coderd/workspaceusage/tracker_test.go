@@ -3,6 +3,7 @@ package workspaceusage_test
 import (
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,17 +62,35 @@ func TestTracker(t *testing.T) {
 		return strings.Compare(ids[i].String(), ids[j].String()) < 0
 	})
 
-	for _, id := range ids {
-		wut.Add(id)
-	}
-
 	now = dbtime.Now()
 	mDB.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
 		LastUsedAt: now,
 		IDs:        ids,
 	}).Times(1)
-	tickCh <- now
-	count = <-flushCh
+	// Try to force a race condition.
+	var wg sync.WaitGroup
+	numTicks := 10
+	count = 0
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, id := range ids {
+			wut.Add(id)
+		}
+	}()
+	for i := 0; i < numTicks; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tickCh <- now
+		}()
+	}
+
+	for i := 0; i < numTicks; i++ {
+		count += <-flushCh
+	}
+
+	wg.Wait()
 	require.Equal(t, 11, count, "expected one flush with eleven ids")
 }
 
