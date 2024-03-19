@@ -517,7 +517,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 }
 
 // Experiments registers a metric which indicates whether each experiment is enabled or not.
-func Experiments(_ slog.Logger, registerer prometheus.Registerer, exps []string, all codersdk.Experiments) error {
+func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) error {
 	experimentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "experiments",
@@ -527,10 +527,10 @@ func Experiments(_ slog.Logger, registerer prometheus.Registerer, exps []string,
 		return err
 	}
 
-	for _, exp := range all {
+	for _, exp := range codersdk.ExperimentsAll {
 		var val float64
-		for _, enabled := range exps {
-			if string(exp) == enabled {
+		for _, enabled := range active {
+			if exp == enabled {
 				val = 1
 				break
 			}

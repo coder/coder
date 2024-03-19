@@ -894,7 +894,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer closeAgentsFunc()
 
-				if err = prometheusmetrics.Experiments(logger, options.PrometheusRegistry, options.DeploymentValues.Experiments.Value(), codersdk.ExperimentsAll); err != nil {
+				var active codersdk.Experiments
+				for _, exp := range options.DeploymentValues.Experiments.Value() {
+					active = append(active, codersdk.Experiment(exp))
+				}
+
+				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
 					return xerrors.Errorf("register experiments metric: %w", err)
 				}
 			}

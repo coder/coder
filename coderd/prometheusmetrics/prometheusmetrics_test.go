@@ -503,37 +503,82 @@ func TestAgentStats(t *testing.T) {
 func TestExperimentsMetric(t *testing.T) {
 	t.Parallel()
 
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	reg := prometheus.NewRegistry()
-
-	const (
-		a codersdk.Experiment = "a"
-		b codersdk.Experiment = "b"
-		c codersdk.Experiment = "c"
-	)
-	allExps := codersdk.Experiments{a, b, c}
-	require.NoError(t, prometheusmetrics.Experiments(log, reg, []string{string(b), string(c)}, allExps))
-
-	expectation := map[codersdk.Experiment]float64{
-		a: 0,
-		b: 1,
-		c: 1,
+	tests := []struct {
+		name        string
+		experiments codersdk.Experiments
+		expected    map[codersdk.Experiment]float64
+	}{
+		{
+			name:        "Enabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{codersdk.ExperimentSharedPorts},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentSharedPorts: 1,
+			},
+		},
+		{
+			name:        "Disabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentSharedPorts: 0,
+			},
+		},
+		{
+			name:        "Unknown experiment is not exported in metrics",
+			experiments: codersdk.Experiments{codersdk.Experiment("bob")},
+			expected:    map[codersdk.Experiment]float64{},
+		},
 	}
 
-	out, err := reg.Gather()
-	require.NoError(t, err)
-	require.Lenf(t, out, 1, "unexpected number of registered metrics")
+	for _, tc := range tests {
+		tc := tc
 
-	for _, metric := range out[0].GetMetric() {
-		require.Equal(t, "coderd_experiments", out[0].GetName())
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reg := prometheus.NewRegistry()
 
-		labels := metric.GetLabel()
-		require.Lenf(t, labels, 1, "unexpected number of labels")
+			require.NoError(t, prometheusmetrics.Experiments(reg, tc.experiments))
 
-		experiment := labels[0].GetValue()
-		expected, found := expectation[codersdk.Experiment(experiment)]
-		require.Truef(t, found, "did not find experiment %q in expectations", experiment)
-		require.EqualValues(t, expected, metric.GetGauge().GetValue())
+			out, err := reg.Gather()
+			require.NoError(t, err)
+			require.Lenf(t, out, 1, "unexpected number of registered metrics")
+
+			seen := make(map[codersdk.Experiment]float64)
+
+			for _, metric := range out[0].GetMetric() {
+				require.Equal(t, "coderd_experiments", out[0].GetName())
+
+				labels := metric.GetLabel()
+				require.Lenf(t, labels, 1, "unexpected number of labels")
+
+				experiment := codersdk.Experiment(labels[0].GetValue())
+				value := metric.GetGauge().GetValue()
+
+				seen[experiment] = value
+
+				expectedValue := 0
+
+				// Find experiment we expect to be enabled.
+				for _, exp := range tc.experiments {
+					if experiment == exp {
+						expectedValue = 1
+						break
+					}
+				}
+
+				require.EqualValuesf(t, expectedValue, value, "expected %d value for experiment %q", expectedValue, experiment)
+			}
+
+			// We don't want to define the state of all experiments because codersdk.ExperimentAll will change at some
+			// point and break these tests; so we only validate the experiments we know about.
+			for exp, val := range seen {
+				expectedVal, found := tc.expected[exp]
+				if !found {
+					t.Logf("ignoring experiment %q; it is not listed in expectations", exp)
+					continue
+				}
+				require.Equalf(t, expectedVal, val, "experiment %q did not match expected value %v", exp, expectedVal)
+			}
+		})
 	}
 }
 
