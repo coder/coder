@@ -1,16 +1,11 @@
 import "@testing-library/jest-dom";
 import "jest-location-mock";
 import { cleanup } from "@testing-library/react";
-import { Blob } from "buffer";
 import crypto from "crypto";
-import jestFetchMock from "jest-fetch-mock";
 import { useMemo } from "react";
-import { TextEncoder, TextDecoder } from "util";
 import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { server } from "testHelpers/server";
-
-jestFetchMock.enableMocks();
 
 // useProxyLatency does some http requests to determine latency.
 // This would fail unit testing, or at least make it very slow with
@@ -42,11 +37,6 @@ jest.mock("contexts/useProxyLatency", () => ({
   },
 }));
 
-global.TextEncoder = TextEncoder;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
-global.TextDecoder = TextDecoder as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
-global.Blob = Blob as any;
 global.scrollTo = jest.fn();
 
 window.HTMLElement.prototype.scrollIntoView = jest.fn();

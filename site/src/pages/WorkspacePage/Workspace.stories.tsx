@@ -1,11 +1,8 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import { withReactContext } from "storybook-react-context";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import EventSource from "eventsourcemock";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { WatchAgentMetadataContext } from "modules/resources/AgentMetadata";
 import * as Mocks from "testHelpers/entities";
 import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
@@ -68,12 +65,6 @@ const meta: Meta<typeof Workspace> = {
         </ProxyContext.Provider>
       </DashboardContext.Provider>
     ),
-    withReactContext({
-      Context: WatchAgentMetadataContext,
-      initialState: (_: string): EventSource => {
-        return new EventSource();
-      },
-    }),
   ],
 };
 

@@ -1,7 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router-dom";
+import type { Response, User } from "api/typesGenerated";
 import { MockUser } from "testHelpers/entities";
 import {
   renderWithRouter,
@@ -36,13 +37,13 @@ describe("Setup Page", () => {
   beforeEach(() => {
     // appear logged out
     server.use(
-      rest.get("/api/v2/users/me", (req, res, ctx) => {
-        return res(ctx.status(401), ctx.json({ message: "no user here" }));
+      http.get("/api/v2/users/me", () => {
+        return HttpResponse.json({ message: "no user here" }, { status: 401 });
       }),
-      rest.get("/api/v2/users/first", (req, res, ctx) => {
-        return res(
-          ctx.status(404),
-          ctx.json({ message: "no first user has been created" }),
+      http.get("/api/v2/users/first", () => {
+        return HttpResponse.json(
+          { message: "no first user has been created" },
+          { status: 404 },
         );
       }),
     );
@@ -52,30 +53,30 @@ describe("Setup Page", () => {
     let userHasBeenCreated = false;
 
     server.use(
-      rest.get("/api/v2/users/me", (req, res, ctx) => {
+      http.get<never, null, User | Response>("/api/v2/users/me", async () => {
         if (!userHasBeenCreated) {
-          return res(ctx.status(401), ctx.json({ message: "no user here" }));
-        }
-        return res(ctx.status(200), ctx.json(MockUser));
-      }),
-      rest.get("/api/v2/users/first", (req, res, ctx) => {
-        if (!userHasBeenCreated) {
-          return res(
-            ctx.status(404),
-            ctx.json({ message: "no first user has been created" }),
+          return HttpResponse.json(
+            { message: "no user here" },
+            { status: 401 },
           );
         }
-        return res(
-          ctx.status(200),
-          ctx.json({ message: "hooray, someone exists!" }),
-        );
+        return HttpResponse.json(MockUser);
       }),
-      rest.post("/api/v2/users/first", (req, res, ctx) => {
+      http.get<never, null, User | Response>(
+        "/api/v2/users/first",
+        async () => {
+          if (!userHasBeenCreated) {
+            return HttpResponse.json(
+              { message: "no first user has been created" },
+              { status: 404 },
+            );
+          }
+          return HttpResponse.json({ message: "hooray, someone exists!" });
+        },
+      ),
+      http.post("/api/v2/users/first", () => {
         userHasBeenCreated = true;
-        return res(
-          ctx.status(200),
-          ctx.json({ data: "user setup was successful!" }),
-        );
+        return HttpResponse.json({ data: "user setup was successful!" });
       }),
     );
 

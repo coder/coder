@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import * as api from "api/api";
@@ -275,22 +275,19 @@ describe.each([
       );
 
       server.use(
-        rest.get(
+        http.get(
           "/api/v2/organizations/:org/templates/:template/versions/:version",
-          (req, res, ctx) => {
-            return res(ctx.json(templateVersion));
+          () => {
+            return HttpResponse.json(templateVersion);
           },
         ),
       );
 
       if (loadedVariables) {
         server.use(
-          rest.get(
-            "/api/v2/templateversions/:version/variables",
-            (req, res, ctx) => {
-              return res(ctx.json(loadedVariables));
-            },
-          ),
+          http.get("/api/v2/templateversions/:version/variables", () => {
+            return HttpResponse.json(loadedVariables);
+          }),
         );
       }
 

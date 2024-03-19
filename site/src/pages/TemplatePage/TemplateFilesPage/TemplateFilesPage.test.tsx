@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -16,10 +16,10 @@ jest.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
 
 test("displays the template files even when there is no previous version", async () => {
   server.use(
-    rest.get(
+    http.get(
       "/api/v2/organizations/:organizationId/templates/:template/versions/:version/previous",
-      (req, res, ctx) => {
-        return res(ctx.status(404));
+      () => {
+        new HttpResponse(null, { status: 404 });
       },
     ),
   );
