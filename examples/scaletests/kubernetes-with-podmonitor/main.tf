@@ -289,8 +289,8 @@ resource "kubernetes_pod" "main" {
       }
       port {
         container_port = 21112
-        name = "prometheus-http"
-        protocol = "TCP"
+        name           = "prometheus-http"
+        protocol       = "TCP"
       }
     }
 
@@ -325,9 +325,9 @@ resource "kubernetes_pod" "main" {
         required_during_scheduling_ignored_during_execution {
           node_selector_term {
             match_expressions {
-              key = "cloud.google.com/gke-nodepool"
+              key      = "cloud.google.com/gke-nodepool"
               operator = "In"
-              values = ["big-misc"] # avoid placing on the same nodes as scaletest workspaces
+              values   = ["big-misc"] # avoid placing on the same nodes as scaletest workspaces
             }
           }
         }
@@ -339,21 +339,21 @@ resource "kubernetes_pod" "main" {
 resource "kubernetes_manifest" "pod_monitor" {
   count = data.coder_workspace.me.start_count
   manifest = {
-  apiVersion = "monitoring.coreos.com/v1"
-      kind = "PodMonitor"
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "PodMonitor"
     metadata = {
       namespace = var.namespace
-      name = "podmonitor-${local.workspace_pod_name}"
+      name      = "podmonitor-${local.workspace_pod_name}"
     }
     spec = {
       selector = {
         matchLabels = {
-          "app.kubernetes.io/instance": "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" : "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
         }
       }
       podMetricsEndpoints = [
         {
-          port = "prometheus-http"
+          port     = "prometheus-http"
           interval = "15s"
         }
       ]

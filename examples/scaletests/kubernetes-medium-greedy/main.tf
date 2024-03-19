@@ -137,7 +137,7 @@ resource "coder_agent" "main" {
     script       = "dd if=/dev/urandom bs=3072 count=1 status=none | base64"
     interval     = 1
     timeout      = 10
-  }  
+  }
 }
 
 resource "kubernetes_pod" "main" {
@@ -184,9 +184,9 @@ resource "kubernetes_pod" "main" {
         required_during_scheduling_ignored_during_execution {
           node_selector_term {
             match_expressions {
-              key = "cloud.google.com/gke-nodepool"
+              key      = "cloud.google.com/gke-nodepool"
               operator = "In"
-              values = ["big-workspaces"]
+              values   = ["big-workspaces"]
             }
           }
         }
