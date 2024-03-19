@@ -258,6 +258,7 @@ func enablePrometheus(
 	), nil
 }
 
+//nolint:gocognit // TODO(dannyk): reduce complexity of this function
 func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
