@@ -136,7 +136,6 @@ func TestUpdateGoldenFiles(t *testing.T) {
 
 		valuesPath := tc.valuesFilePath()
 		templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath)
-
 		if err != nil {
 			t.Logf("Command output:\n%s", templateOutput)
 		}
