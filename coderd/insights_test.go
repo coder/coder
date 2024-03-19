@@ -122,7 +122,8 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval: time.Millisecond * 50,
+		DBRollupInterval:          time.Millisecond * 100,
 	})
 
 	// Create two users, one that will appear in the report and another that
@@ -476,13 +477,14 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		db, pubsub := dbtestutil.NewDB(t)
+		db, pubsub := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database:                  db,
 			Pubsub:                    pubsub,
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
 			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
+			DBRollupInterval:          100 * time.Millisecond,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -1202,6 +1204,9 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client := prepare(t, templates, users, testData)
 
+			// TODO(mafredri): Remove the need for this.
+			time.Sleep(3 * time.Second)
+
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
@@ -1390,6 +1395,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
 			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
+			DBRollupInterval:          100 * time.Millisecond,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -1975,6 +1981,9 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client := prepare(t, templates, users, testData)
+
+			// TODO(mafredri): Remove the need for this.
+			time.Sleep(3 * time.Second)
 
 			for _, req := range tt.requests {
 				req := req

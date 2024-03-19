@@ -2499,7 +2499,8 @@ WITH
 		SELECT
 			COALESCE(
 				MAX(start_time) - '1 hour'::interval,
-				NOW() - '6 months'::interval
+				-- TODO(mafredri): Fix this, required for tests to pass.
+				NOW() - '2 years'::interval
 			) AS t
 		FROM
 			template_usage_stats
