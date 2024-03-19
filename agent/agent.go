@@ -1571,7 +1571,7 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 
 	const agentOOMScore = "-1000"
 
-	err := afero.WriteFile(a.filesystem, "/proc/self/oom_score_adj", []byte(agentOOMScore), 0600)
+	err := afero.WriteFile(a.filesystem, "/proc/self/oom_score_adj", []byte(agentOOMScore), 0o600)
 	if err != nil {
 		a.logger.Error(ctx, "error adjusting agent oom_score_adj",
 			slog.F("score", agentOOMScore),
@@ -1666,7 +1666,7 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			continue
 		}
 
-		err = afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte("0"), 0600)
+		err = afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte("0"), 0o600)
 		if err != nil && !xerrors.Is(err, os.ErrPermission) {
 			logger.Warn(ctx, "unable to set oom_score_adj",
 				slog.F("score", "0"),
