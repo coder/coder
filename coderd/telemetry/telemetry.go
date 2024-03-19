@@ -54,6 +54,7 @@ type Options struct {
 	SnapshotFrequency  time.Duration
 	Tunnel             bool
 	ParseLicenseJWT    func(lic *License) error
+	Experiments        []string
 }
 
 // New constructs a reporter for telemetry data.
@@ -480,6 +481,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		snapshot.Experiments = ConvertExperiments(r.options.Experiments)
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -741,6 +746,16 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
+func ConvertExperiments(experiments []string) []Experiment {
+	var out []Experiment
+
+	for _, exp := range experiments {
+		out = append(out, Experiment{Name: exp})
+	}
+
+	return out
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -763,6 +778,7 @@ type Snapshot struct {
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	Workspaces                []Workspace                 `json:"workspaces"`
+	Experiments               []Experiment                `json:"experiments"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -969,6 +985,10 @@ type ExternalProvisioner struct {
 	Provisioners []string          `json:"provisioners"`
 	StartedAt    time.Time         `json:"started_at"`
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
+}
+
+type Experiment struct {
+	Name string `json:"name"`
 }
 
 type noopReporter struct{}
