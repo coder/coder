@@ -117,12 +117,13 @@ func TestTelemetry(t *testing.T) {
 	t.Run("Experiments", func(t *testing.T) {
 		t.Parallel()
 
-		exps := []string{"my-experiment"}
+		const expName = "my-experiment"
+		exps := []string{expName}
 		_, snapshot := collectSnapshot(t, dbmem.New(), func(opts telemetry.Options) telemetry.Options {
 			opts.Experiments = exps
 			return opts
 		})
-		require.Equal(t, exps, snapshot.Experiments)
+		require.Equal(t, []telemetry.Experiment{{Name: expName}}, snapshot.Experiments)
 	})
 }
 
