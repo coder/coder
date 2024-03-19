@@ -2589,8 +2589,16 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
 		)
 
+		requireScore := func(t *testing.T, p *agentproc.Process, score string) {
+			t.Helper()
+
+			actual, err := afero.ReadFile(fs, fmt.Sprintf("/proc/%d/oom_score_adj", p.PID))
+			require.NoError(t, err)
+			require.Equal(t, score, string(actual))
+		}
+
 		// Create some processes.
-		for i := 0; i < 2; i++ {
+		for i := 0; i < 3; i++ {
 			proc := agentproctest.GenerateProcess(t, fs)
 			syscaller.EXPECT().
 				Kill(proc.PID, syscall.Signal(0)).
@@ -2618,7 +2626,10 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		})
 		actualProcs := <-modProcs
 		// We should ignore the process with a custom nice score.
-		require.Len(t, actualProcs, 1)
+		require.Len(t, actualProcs, 2)
+		for _, proc := range actualProcs {
+			requireScore(t, proc, "0")
+		}
 	})
 
 	t.Run("DisabledByDefault", func(t *testing.T) {

@@ -1569,6 +1569,20 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 		return
 	}
 
+	const agentOOMScore = "-1000"
+
+	err := afero.WriteFile(a.filesystem, "/proc/self/oom_score_adj", []byte(agentOOMScore), 0600)
+	if err != nil {
+		a.logger.Error(ctx, "error adjusting agent oom_score_adj",
+			slog.F("score", agentOOMScore),
+			slog.Error(err),
+		)
+	} else {
+		a.logger.Debug(ctx, "adjusted agent oom_score_adj to avoid OOM Killer",
+			slog.F("score", agentOOMScore),
+		)
+	}
+
 	if a.processManagementTick == nil {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -1622,12 +1636,12 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 
 		// If the process is prioritized we should adjust
 		// it's oom_score_adj and avoid lowering its niceness.
-		if slices.ContainsFunc[[]string, string](prioritizedProcs, containsFn) {
+		if slices.ContainsFunc(prioritizedProcs, containsFn) {
 			continue
 		}
 
 		score, err := proc.Niceness(a.syscaller)
-		if err != nil {
+		if err != nil && !xerrors.Is(err, os.ErrPermission) {
 			logger.Warn(ctx, "unable to get proc niceness",
 				slog.Error(err),
 			)
@@ -1644,9 +1658,18 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		}
 
 		err = proc.SetNiceness(a.syscaller, niceness)
-		if err != nil {
+		if err != nil && !xerrors.Is(err, os.ErrPermission) {
 			logger.Warn(ctx, "unable to set proc niceness",
 				slog.F("niceness", niceness),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		err = afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte("0"), 0600)
+		if err != nil && !xerrors.Is(err, os.ErrPermission) {
+			logger.Warn(ctx, "unable to set oom_score_adj",
+				slog.F("score", "0"),
 				slog.Error(err),
 			)
 			continue
