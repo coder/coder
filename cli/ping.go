@@ -17,7 +17,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) ping() *serpent.Cmd {
+func (r *RootCmd) ping() *serpent.Command {
 	var (
 		pingNum     int64
 		pingTimeout time.Duration
@@ -25,7 +25,7 @@ func (r *RootCmd) ping() *serpent.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",

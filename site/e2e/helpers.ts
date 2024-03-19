@@ -727,7 +727,7 @@ export const updateTemplateSettings = async (
   templateName: string,
   templateSettingValues: Pick<
     UpdateTemplateMeta,
-    "name" | "display_name" | "description"
+    "name" | "display_name" | "description" | "deprecation_message"
   >,
 ) => {
   await page.goto(`/templates/${templateName}/settings`, {

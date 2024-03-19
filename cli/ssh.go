@@ -44,7 +44,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func (r *RootCmd) ssh() *serpent.Cmd {
+func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio            bool
 		forwardAgent     bool
@@ -58,7 +58,7 @@ func (r *RootCmd) ssh() *serpent.Cmd {
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",

@@ -20,15 +20,15 @@ import (
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func (r *RootCmd) licenses() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) licenses() *serpent.Command {
+	cmd := &serpent.Command{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.licenseAdd(),
 			r.licensesList(),
 			r.licenseDelete(),
@@ -37,14 +37,14 @@ func (r *RootCmd) licenses() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseAdd() *serpent.Cmd {
+func (r *RootCmd) licenseAdd() *serpent.Command {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Middleware: serpent.Chain(
@@ -136,7 +136,7 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func (r *RootCmd) licensesList() *serpent.Cmd {
+func (r *RootCmd) licensesList() *serpent.Command {
 	type tableLicense struct {
 		ID         int32     `table:"id,default_sort"`
 		UUID       uuid.UUID `table:"uuid" format:"uuid"`
@@ -208,7 +208,7 @@ func (r *RootCmd) licensesList() *serpent.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List licenses (including expired)",
 		Aliases: []string{"ls"},
@@ -239,9 +239,9 @@ func (r *RootCmd) licensesList() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseDelete() *serpent.Cmd {
+func (r *RootCmd) licenseDelete() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
 		Aliases: []string{"del"},

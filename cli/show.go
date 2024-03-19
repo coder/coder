@@ -8,9 +8,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) show() *serpent.Cmd {
+func (r *RootCmd) show() *serpent.Command {
 	client := new(codersdk.Client)
-	return &serpent.Cmd{
+	return &serpent.Command{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
 		Middleware: serpent.Chain(

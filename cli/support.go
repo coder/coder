@@ -21,25 +21,25 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) support() *serpent.Cmd {
-	supportCmd := &serpent.Cmd{
+func (r *RootCmd) support() *serpent.Command {
+	supportCmd := &serpent.Command{
 		Use:   "support",
 		Short: "Commands for troubleshooting issues with a Coder deployment.",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.supportBundle(),
 		},
 	}
 	return supportCmd
 }
 
-func (r *RootCmd) supportBundle() *serpent.Cmd {
+func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,

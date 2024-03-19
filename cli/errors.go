@@ -13,9 +13,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (RootCmd) errorExample() *serpent.Cmd {
-	errorCmd := func(use string, err error) *serpent.Cmd {
-		return &serpent.Cmd{
+func (RootCmd) errorExample() *serpent.Command {
+	errorCmd := func(use string, err error) *serpent.Command {
+		return &serpent.Command{
 			Use: use,
 			Handler: func(inv *serpent.Invocation) error {
 				return err
@@ -52,7 +52,7 @@ func (RootCmd) errorExample() *serpent.Cmd {
 	// Some flags
 	var magicWord serpent.String
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "example-error",
 		Short: "Shows what different error messages look like",
 		Long: "This command is pretty pointless, but without it testing errors is" +
@@ -61,7 +61,7 @@ func (RootCmd) errorExample() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			// Typical codersdk api error
 			errorCmd("api", apiError),
 

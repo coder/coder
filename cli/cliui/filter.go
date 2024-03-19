@@ -11,12 +11,12 @@ var defaultQuery = "owner:me"
 // and allows easy integration to a CLI command.
 // Example usage:
 //
-//	func (r *RootCmd) MyCmd() *serpent.Cmd {
+//	func (r *RootCmd) MyCmd() *serpent.Command {
 //	  var (
 //	    filter cliui.WorkspaceFilter
 //	    ...
 //	  )
-//	  cmd := &serpent.Cmd{
+//	  cmd := &serpent.Command{
 //	    ...
 //	  }
 //	  filter.AttachOptions(&cmd.Options)

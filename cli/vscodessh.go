@@ -32,7 +32,7 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func (r *RootCmd) vscodeSSH() *serpent.Cmd {
+func (r *RootCmd) vscodeSSH() *serpent.Command {
 	var (
 		sessionTokenFile    string
 		urlFile             string
@@ -41,7 +41,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Cmd {
 		networkInfoInterval time.Duration
 		waitEnum            string
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Code extension.

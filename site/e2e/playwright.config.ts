@@ -10,7 +10,8 @@ export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
 const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
-export const STORAGE_STATE = path.join(__dirname, ".auth.json");
+// This is where auth cookies are stored!
+export const storageState = path.join(__dirname, ".auth.json");
 
 const localURL = (port: number, path: string): string => {
   return `http://localhost:${port}${path}`;
@@ -27,7 +28,7 @@ export default defineConfig({
       testMatch: /.*\.spec\.ts/,
       dependencies: ["setup"],
       use: {
-        storageState: STORAGE_STATE,
+        storageState: storageState,
       },
       timeout: 60_000,
     },

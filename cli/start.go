@@ -12,11 +12,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) start() *serpent.Cmd {
+func (r *RootCmd) start() *serpent.Command {
 	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",

@@ -12,9 +12,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) rename() *serpent.Cmd {
+func (r *RootCmd) rename() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",

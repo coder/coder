@@ -3,7 +3,8 @@ import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { AgentRow, type LineWithID } from "./AgentRow";
+import type { LineWithID } from "./AgentLogs/AgentLogLine";
+import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
   {

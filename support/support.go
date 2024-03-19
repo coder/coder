@@ -298,6 +298,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 		if err != nil {
 			return xerrors.Errorf("fetch workspace agent: %w", err)
 		}
+		sanitizeEnv(agt.EnvironmentVariables)
 		a.Agent = &agt
 		return nil
 	})

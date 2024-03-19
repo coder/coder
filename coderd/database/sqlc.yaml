@@ -17,6 +17,7 @@ sql:
       database: false
     rules:
       - sqlc/db-prepare
+      - do-not-use-public-schema-in-queries
     gen:
       go:
         package: "database"
@@ -104,3 +105,9 @@ sql:
           api_key_id: APIKeyID
           callback_url: CallbackURL
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
+rules:
+  - name: do-not-use-public-schema-in-queries
+    message: "do not use public schema in queries"
+    # FIXME: It would be great to run sqlc-vet against `migrations` directory and `dump.sql`.
+    rule: >
+      query.sql.matches(r'[^a-z]public\.')

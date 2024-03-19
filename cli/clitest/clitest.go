@@ -56,7 +56,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithCommand(
-	t testing.TB, cmd *serpent.Cmd, args ...string,
+	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
 	// I really would like to fail test on error logs, but realistically, turning on by default

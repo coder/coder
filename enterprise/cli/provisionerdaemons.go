@@ -32,14 +32,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) provisionerDaemons() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) provisionerDaemons() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.provisionerDaemonStart(),
 		},
 	}
@@ -57,7 +57,7 @@ func validateProvisionerDaemonName(name string) error {
 	return nil
 }
 
-func (r *RootCmd) provisionerDaemonStart() *serpent.Cmd {
+func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 	var (
 		cacheDir       string
 		logHuman       string
@@ -75,7 +75,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Cmd {
 		prometheusAddress string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
 		Middleware: serpent.Chain(

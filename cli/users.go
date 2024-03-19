@@ -5,15 +5,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) users() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) users() *serpent.Command {
+	cmd := &serpent.Command{
 		Short:   "Manage users",
 		Use:     "users [subcommand]",
 		Aliases: []string{"user"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.userCreate(),
 			r.userList(),
 			r.userSingle(),

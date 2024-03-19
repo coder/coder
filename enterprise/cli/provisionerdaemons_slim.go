@@ -7,8 +7,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) provisionerDaemons() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) provisionerDaemons() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
 		// We accept RawArgs so all commands and flags are accepted.

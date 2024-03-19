@@ -23,7 +23,7 @@ func TestBuilder(t *testing.T) {
 	t.Run("NoConfiguration", func(t *testing.T) {
 		t.Parallel()
 
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use:     "test",
 			Handler: testHandler(t),
 		}
@@ -35,7 +35,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "test.log")
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use: "test",
 			Handler: testHandler(t,
 				clilog.WithHuman(tempFile),
@@ -51,7 +51,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "test.log")
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use: "test",
 			Handler: testHandler(t,
 				clilog.WithHuman(tempFile),
@@ -68,7 +68,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "test.log")
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use:     "test",
 			Handler: testHandler(t, clilog.WithHuman(tempFile)),
 		}
@@ -81,7 +81,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "test.log")
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use:     "test",
 			Handler: testHandler(t, clilog.WithJSON(tempFile), clilog.WithVerbose()),
 		}
@@ -107,7 +107,7 @@ func TestBuilder(t *testing.T) {
 
 			// Use the default deployment values.
 			dv := coderdtest.DeploymentValues(t)
-			cmd := &serpent.Cmd{
+			cmd := &serpent.Command{
 				Use:     "test",
 				Handler: testHandler(t, clilog.FromDeploymentValues(dv)),
 			}
@@ -135,7 +135,7 @@ func TestBuilder(t *testing.T) {
 					Enable: true,
 				},
 			}
-			cmd := &serpent.Cmd{
+			cmd := &serpent.Command{
 				Use:     "test",
 				Handler: testHandler(t, clilog.FromDeploymentValues(dv)),
 			}
@@ -150,7 +150,7 @@ func TestBuilder(t *testing.T) {
 		t.Parallel()
 
 		tempFile := filepath.Join(t.TempDir(), "doesnotexist", "test.log")
-		cmd := &serpent.Cmd{
+		cmd := &serpent.Command{
 			Use: "test",
 			Handler: func(inv *serpent.Invocation) error {
 				logger, closeLog, err := clilog.New(

@@ -11,9 +11,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) autoupdate() *serpent.Cmd {
+func (r *RootCmd) autoupdate() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "autoupdate <workspace> <always|never>",
 		Short:       "Toggle auto-update policy for a workspace",

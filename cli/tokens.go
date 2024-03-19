@@ -13,8 +13,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) tokens() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) tokens() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "tokens",
 		Short: "Manage personal access tokens",
 		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
@@ -35,7 +35,7 @@ func (r *RootCmd) tokens() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.createToken(),
 			r.listTokens(),
 			r.removeToken(),
@@ -44,13 +44,13 @@ func (r *RootCmd) tokens() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) createToken() *serpent.Cmd {
+func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime time.Duration
 		name          string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "create",
 		Short: "Create a token",
 		Middleware: serpent.Chain(
@@ -118,7 +118,7 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	}
 }
 
-func (r *RootCmd) listTokens() *serpent.Cmd {
+func (r *RootCmd) listTokens() *serpent.Command {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
@@ -135,7 +135,7 @@ func (r *RootCmd) listTokens() *serpent.Cmd {
 	)
 
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
@@ -187,9 +187,9 @@ func (r *RootCmd) listTokens() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) removeToken() *serpent.Cmd {
+func (r *RootCmd) removeToken() *serpent.Command {
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "remove <name>",
 		Aliases: []string{"delete"},
 		Short:   "Delete a token",

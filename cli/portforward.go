@@ -23,14 +23,14 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) portForward() *serpent.Cmd {
+func (r *RootCmd) portForward() *serpent.Command {
 	var (
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:     "port-forward <workspace>",
 		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
@@ -69,10 +69,6 @@ func (r *RootCmd) portForward() *serpent.Cmd {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				err = inv.Command.HelpHandler(inv)
-				if err != nil {
-					return xerrors.Errorf("generate help output: %w", err)
-				}
 				return xerrors.New("no port-forwards requested")
 			}
 

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import * as API from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import {
@@ -30,8 +30,8 @@ describe("WorkspacesPage", () => {
   it("renders an empty workspaces page", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({ workspaces: [], count: 0 }));
+      http.get("/api/v2/workspaces", async () => {
+        return HttpResponse.json({ workspaces: [], count: 0 });
       }),
     );
 

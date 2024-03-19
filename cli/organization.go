@@ -16,8 +16,8 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) organizations() *serpent.Cmd {
-	cmd := &serpent.Cmd{
+func (r *RootCmd) organizations() *serpent.Command {
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "organizations [subcommand]",
 		Short:       "Organization related commands",
@@ -26,7 +26,7 @@ func (r *RootCmd) organizations() *serpent.Cmd {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Cmd{
+		Children: []*serpent.Command{
 			r.currentOrganization(),
 			r.switchOrganization(),
 			r.createOrganization(),
@@ -37,10 +37,10 @@ func (r *RootCmd) organizations() *serpent.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) switchOrganization() *serpent.Cmd {
+func (r *RootCmd) switchOrganization() *serpent.Command {
 	client := new(codersdk.Client)
 
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "set <organization name | ID>",
 		Short: "set the organization used by the CLI. Pass an empty string to reset to the default organization.",
 		Long: "set the organization used by the CLI. Pass an empty string to reset to the default organization.\n" + formatExamples(
@@ -206,7 +206,7 @@ func orgNames(orgs []codersdk.Organization) []string {
 	return names
 }
 
-func (r *RootCmd) currentOrganization() *serpent.Cmd {
+func (r *RootCmd) currentOrganization() *serpent.Command {
 	var (
 		stringFormat func(orgs []codersdk.Organization) (string, error)
 		client       = new(codersdk.Client)
@@ -224,7 +224,7 @@ func (r *RootCmd) currentOrganization() *serpent.Cmd {
 		)
 		onlyID = false
 	)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use:   "show [current|me|uuid]",
 		Short: "Show the organization, if no argument is given, the organization currently in use will be shown.",
 		Middleware: serpent.Chain(

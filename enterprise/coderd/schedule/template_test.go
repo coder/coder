@@ -28,7 +28,6 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	var (
-		org       = dbgen.Organization(t, db, database.Organization{})
 		quietUser = dbgen.User(t, db, database.User{
 			Username: "quiet",
 		})
@@ -39,18 +38,18 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			CreatedBy: quietUser.ID,
 		})
 		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-			FileID:         file.ID,
-			InitiatorID:    quietUser.ID,
+			FileID:      file.ID,
+			InitiatorID: quietUser.ID,
 			Tags: database.StringMap{
 				"foo": "bar",
 			},
 		})
 		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
+			OrganizationID: templateJob.OrganizationID,
 			CreatedBy:      quietUser.ID,
 			JobID:          templateJob.ID,
 		})
+		organizationID = templateJob.OrganizationID
 	)
 
 	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
@@ -204,17 +203,17 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			var (
 				template = dbgen.Template(t, db, database.Template{
-					OrganizationID:  org.ID,
+					OrganizationID:  organizationID,
 					ActiveVersionID: templateVersion.ID,
 					CreatedBy:       user.ID,
 				})
 				ws = dbgen.Workspace(t, db, database.Workspace{
-					OrganizationID: org.ID,
+					OrganizationID: organizationID,
 					OwnerID:        user.ID,
 					TemplateID:     template.ID,
 				})
 				job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-					OrganizationID: org.ID,
+					OrganizationID: organizationID,
 					FileID:         file.ID,
 					InitiatorID:    user.ID,
 					Provisioner:    database.ProvisionerTypeEcho,
@@ -236,6 +235,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
 
 			acquiredJob, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: job.OrganizationID,
 				StartedAt: sql.NullTime{
 					Time:  buildTime,
 					Valid: true,
@@ -324,41 +324,39 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	var (
-		org  = dbgen.Organization(t, db, database.Organization{})
 		user = dbgen.User(t, db, database.User{})
 		file = dbgen.File(t, db, database.File{
 			CreatedBy: user.ID,
 		})
 		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-			FileID:         file.ID,
-			InitiatorID:    user.ID,
+			FileID:      file.ID,
+			InitiatorID: user.ID,
 			Tags: database.StringMap{
 				"foo": "bar",
 			},
 		})
 		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 			JobID:          templateJob.ID,
+			OrganizationID: templateJob.OrganizationID,
 		})
 		template = dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
 			ActiveVersionID: templateVersion.ID,
 			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
 		})
 		otherTemplate = dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
 			ActiveVersionID: templateVersion.ID,
 			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
 		})
 	)
 
 	// Create a workspace that will be shared by two builds.
 	ws := dbgen.Workspace(t, db, database.Workspace{
-		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		TemplateID:     template.ID,
+		OrganizationID: templateJob.OrganizationID,
 	})
 
 	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
@@ -473,20 +471,20 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		wsID := b.workspaceID
 		if wsID == uuid.Nil {
 			ws := dbgen.Workspace(t, db, database.Workspace{
-				OrganizationID: org.ID,
 				OwnerID:        user.ID,
 				TemplateID:     b.templateID,
+				OrganizationID: templateJob.OrganizationID,
 			})
 			wsID = ws.ID
 		}
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-			FileID:         file.ID,
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Provisioner: database.ProvisionerTypeEcho,
 			Tags: database.StringMap{
 				wsID.String(): "yeah",
 			},
+			OrganizationID: templateJob.OrganizationID,
 		})
 		wsBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       wsID,
@@ -521,6 +519,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		}
 
 		acquiredJob, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: job.OrganizationID,
 			StartedAt: sql.NullTime{
 				Time:  buildTime,
 				Valid: true,

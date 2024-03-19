@@ -35,15 +35,10 @@ func TestPortForward_None(t *testing.T) {
 
 	inv, root := clitest.New(t, "port-forward", "blah")
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t).Attach(inv)
-	inv.Stderr = pty.Output()
 
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "no port-forwards")
-
-	// Check that the help was printed.
-	pty.ExpectMatch("port-forward <workspace>")
 }
 
 func TestPortForward(t *testing.T) {

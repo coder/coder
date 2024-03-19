@@ -81,6 +81,7 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
 	ExternalAuthConfigs         []*externalauth.Config
@@ -134,6 +135,7 @@ func NewServer(
 	lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
+	organizationID uuid.UUID,
 	logger slog.Logger,
 	provisioners []database.ProvisionerType,
 	tags Tags,
@@ -188,6 +190,7 @@ func NewServer(
 		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
 		ExternalAuthConfigs:         options.ExternalAuthConfigs,
@@ -287,7 +290,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	// database.
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
-	job, err := s.Acquirer.AcquireJob(acqCtx, s.ID, s.Provisioners, s.Tags)
+	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
 	if xerrors.Is(err, context.DeadlineExceeded) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
@@ -324,7 +327,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	}()
 	jec := make(chan jobAndErr, 1)
 	go func() {
-		job, err := s.Acquirer.AcquireJob(acqCtx, s.ID, s.Provisioners, s.Tags)
+		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
 		jec <- jobAndErr{job: job, err: err}
 	}()
 	var recvErr error

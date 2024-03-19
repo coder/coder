@@ -258,7 +258,8 @@ func enablePrometheus(
 	), nil
 }
 
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Cmd {
+//nolint:gocognit // TODO(dannyk): reduce complexity of this function
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 			api := coderd.New(o)
@@ -270,7 +271,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
 	)
-	serverCmd := &serpent.Cmd{
+	serverCmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
@@ -819,6 +820,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					Prometheus:         vals.Prometheus.Enable.Value(),
 					STUN:               len(vals.DERP.Server.STUNAddresses) != 0,
 					Tunnel:             tunnel != nil,
+					Experiments:        vals.Experiments.Value(),
 					ParseLicenseJWT: func(lic *telemetry.License) error {
 						// This will be nil when running in AGPL-only mode.
 						if options.ParseLicenseClaims == nil {
@@ -892,6 +894,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
 				defer closeAgentsFunc()
+
+				var active codersdk.Experiments
+				for _, exp := range options.DeploymentValues.Experiments.Value() {
+					active = append(active, codersdk.Experiment(exp))
+				}
+
+				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
+					return xerrors.Errorf("register experiments metric: %w", err)
+				}
 			}
 
 			client := codersdk.New(localURL)
@@ -1148,7 +1159,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	var pgRawURL bool
 
-	postgresBuiltinURLCmd := &serpent.Cmd{
+	postgresBuiltinURLCmd := &serpent.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *serpent.Invocation) error {
@@ -1165,7 +1176,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		},
 	}
 
-	postgresBuiltinServeCmd := &serpent.Cmd{
+	postgresBuiltinServeCmd := &serpent.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		Handler: func(inv *serpent.Invocation) error {

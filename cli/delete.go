@@ -10,10 +10,10 @@ import (
 )
 
 // nolint
-func (r *RootCmd) deleteWorkspace() *serpent.Cmd {
+func (r *RootCmd) deleteWorkspace() *serpent.Command {
 	var orphan bool
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",

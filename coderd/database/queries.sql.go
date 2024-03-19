@@ -3941,14 +3941,15 @@ WHERE
 			provisioner_jobs AS nested
 		WHERE
 			nested.started_at IS NULL
+			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
+			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
 			AND CASE
 				-- Special case for untagged provisioners: only match untagged jobs.
 				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = $4 :: jsonb
+				THEN nested.tags :: jsonb = $5 :: jsonb
 				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ $4 :: jsonb
+				ELSE nested.tags :: jsonb <@ $5 :: jsonb
 			END
 		ORDER BY
 			nested.created_at
@@ -3960,10 +3961,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID  uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	Types     []ProvisionerType `db:"types" json:"types"`
-	Tags      json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt      sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID       uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Types          []ProvisionerType `db:"types" json:"types"`
+	Tags           json.RawMessage   `db:"tags" json:"tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -3976,6 +3978,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	row := q.db.QueryRowContext(ctx, acquireProvisionerJob,
 		arg.StartedAt,
 		arg.WorkerID,
+		arg.OrganizationID,
 		pq.Array(arg.Types),
 		arg.Tags,
 	)

@@ -89,16 +89,17 @@ func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, p
 // done, or the database returns an error _other_ than that no jobs are available.
 // If no jobs are available, this method handles retrying as appropriate.
 func (a *Acquirer) AcquireJob(
-	ctx context.Context, worker uuid.UUID, pt []database.ProvisionerType, tags Tags,
+	ctx context.Context, organization uuid.UUID, worker uuid.UUID, pt []database.ProvisionerType, tags Tags,
 ) (
 	retJob database.ProvisionerJob, retErr error,
 ) {
 	logger := a.logger.With(
+		slog.F("organization_id", organization),
 		slog.F("worker_id", worker),
 		slog.F("provisioner_types", pt),
 		slog.F("tags", tags))
 	logger.Debug(ctx, "acquiring job")
-	dk := domainKey(pt, tags)
+	dk := domainKey(organization, pt, tags)
 	dbTags, err := tags.ToJSON()
 	if err != nil {
 		return database.ProvisionerJob{}, err
@@ -106,7 +107,7 @@ func (a *Acquirer) AcquireJob(
 	// buffer of 1 so that cancel doesn't deadlock while writing to the channel
 	clearance := make(chan struct{}, 1)
 	for {
-		a.want(pt, tags, clearance)
+		a.want(organization, pt, tags, clearance)
 		select {
 		case <-ctx.Done():
 			err := ctx.Err()
@@ -120,6 +121,7 @@ func (a *Acquirer) AcquireJob(
 		case <-clearance:
 			logger.Debug(ctx, "got clearance to call database")
 			job, err := a.store.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID: organization,
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,
@@ -152,8 +154,8 @@ func (a *Acquirer) AcquireJob(
 }
 
 // want signals that an acquiree wants clearance to query for a job with the given dKey.
-func (a *Acquirer) want(pt []database.ProvisionerType, tags Tags, clearance chan<- struct{}) {
-	dk := domainKey(pt, tags)
+func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, tags Tags, clearance chan<- struct{}) {
+	dk := domainKey(organization, pt, tags)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	cleared := false
@@ -404,13 +406,16 @@ type dKey string
 // unprintable control character and won't show up in any "reasonable" set of
 // string tags, even in non-Latin scripts.  It is important that Tags are
 // validated not to contain this control character prior to use.
-func domainKey(pt []database.ProvisionerType, tags Tags) dKey {
+func domainKey(orgID uuid.UUID, pt []database.ProvisionerType, tags Tags) dKey {
+	sb := strings.Builder{}
+	_, _ = sb.WriteString(orgID.String())
+	_ = sb.WriteByte(0x00)
+
 	// make a copy of pt before sorting, so that we don't mutate the original
 	// slice or underlying array.
 	pts := make([]database.ProvisionerType, len(pt))
 	copy(pts, pt)
 	slices.Sort(pts)
-	sb := strings.Builder{}
 	for _, t := range pts {
 		_, _ = sb.WriteString(string(t))
 		_ = sb.WriteByte(0x00)

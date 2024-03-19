@@ -97,7 +97,7 @@ orchestration capabilities, allowing Coder to efficiently deploy, scale, and
 manage workspaces across a distributed infrastructure. This ensures high
 availability, fault tolerance, and scalability for Coder deployments. Code is
 deployed on this cluster using the
-[Helm chart](../install/kubernetes#install-coder-with-helm).
+[Helm chart](../../install/kubernetes.md#install-coder-with-helm).
 
 Our scale tests include the following stages:
 

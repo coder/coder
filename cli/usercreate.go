@@ -15,7 +15,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) userCreate() *serpent.Cmd {
+func (r *RootCmd) userCreate() *serpent.Command {
 	var (
 		email        string
 		username     string
@@ -24,7 +24,7 @@ func (r *RootCmd) userCreate() *serpent.Cmd {
 		loginType    string
 	)
 	client := new(codersdk.Client)
-	cmd := &serpent.Cmd{
+	cmd := &serpent.Command{
 		Use: "create",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
