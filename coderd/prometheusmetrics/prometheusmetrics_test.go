@@ -525,6 +525,8 @@ func TestExperimentsMetric(t *testing.T) {
 	require.Lenf(t, out, 1, "unexpected number of registered metrics")
 
 	for _, metric := range out[0].GetMetric() {
+		require.Equal(t, "coderd_experiments", out[0].GetName())
+
 		labels := metric.GetLabel()
 		require.Lenf(t, labels, 1, "unexpected number of labels")
 
