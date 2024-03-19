@@ -92,6 +92,13 @@ func TestTracker(t *testing.T) {
 
 	wg.Wait()
 	require.Equal(t, 11, count, "expected one flush with eleven ids")
+
+	// 4. Closing multiple times should not be a problem.
+	wut.Close()
+	wut.Close()
+
+	// 5. Running Loop() again should panic.
+	require.Panics(t, wut.Loop)
 }
 
 func TestMain(m *testing.M) {

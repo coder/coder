@@ -1,10 +1,11 @@
 package workspaceusage
 
 import (
+	"bytes"
 	"context"
+	"flag"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -84,16 +85,22 @@ func WithFlushInterval(d time.Duration) Option {
 
 // WithFlushChannel allows passing a channel that receives
 // the number of marked workspaces every time Tracker flushes.
-// For testing only.
+// For testing only and will panic if used outside of tests.
 func WithFlushChannel(c chan int) Option {
+	if flag.Lookup("test.v") == nil {
+		panic("developer error: WithFlushChannel is not to be used outside of tests.")
+	}
 	return func(h *Tracker) {
 		h.flushCh = c
 	}
 }
 
 // WithTickChannel allows passing a channel to replace a ticker.
-// For testing only.
+// For testing only and will panic if used outside of tests.
 func WithTickChannel(c chan time.Time) Option {
+	if flag.Lookup("test.v") == nil {
+		panic("developer error: WithTickChannel is not to be used outside of tests.")
+	}
 	return func(h *Tracker) {
 		h.tickCh = c
 		h.stopTick = func() {}
@@ -125,11 +132,6 @@ func (wut *Tracker) flush(now time.Time) {
 		return
 	}
 
-	// For ease of testing, sort the IDs lexically
-	sort.Slice(ids, func(i, j int) bool {
-		// For some unfathomable reason, byte arrays are not comparable?
-		return strings.Compare(ids[i].String(), ids[j].String()) < 0
-	})
 	// Set a short-ish timeout for this. We don't want to hang forever.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -147,7 +149,15 @@ func (wut *Tracker) flush(now time.Time) {
 	wut.log.Info(ctx, "updated workspaces last_used_at", slog.F("count", count), slog.F("now", now))
 }
 
+// Loop periodically flushes every tick.
+// If Loop is called after Close, it will panic. Don't do this.
 func (wut *Tracker) Loop() {
+	// Calling Loop after Close() is an error.
+	select {
+	case <-wut.doneCh:
+		panic("developer error: Loop called after Close")
+	default:
+	}
 	defer func() {
 		wut.log.Debug(context.Background(), "workspace usage tracker loop exited")
 	}()
@@ -165,7 +175,8 @@ func (wut *Tracker) Loop() {
 	}
 }
 
-// Close stops Tracker and performs a final flush.
+// Close stops Tracker and returns once Loop has exited.
+// After calling Close(), Loop must not be called.
 func (wut *Tracker) Close() {
 	wut.stopOnce.Do(func() {
 		wut.stopCh <- struct{}{}
@@ -202,6 +213,11 @@ func (s *uuidSet) UniqueAndClear() []uuid.UUID {
 	for k := range s.m {
 		l = append(l, k)
 	}
+	// For ease of testing, sort the IDs lexically
+	sort.Slice(l, func(i, j int) bool {
+		// For some unfathomable reason, byte arrays are not comparable?
+		return bytes.Compare(l[i][:], l[j][:]) < 0
+	})
 	s.m = make(map[uuid.UUID]struct{})
 	return l
 }
