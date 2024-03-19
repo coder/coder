@@ -125,14 +125,14 @@ module "personalize" {
 
 module "code-server" {
   source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.2"
+  version  = "1.0.8"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.6"
+  version        = "1.0.9"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -142,7 +142,7 @@ module "jetbrains_gateway" {
 
 module "filebrowser" {
   source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.2"
+  version  = "1.0.8"
   agent_id = coder_agent.dev.id
 }
 
