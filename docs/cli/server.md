@@ -911,7 +911,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 |             |                                        |
 | ----------- | -------------------------------------- |
-| Type        | <code>enum[password\|awsrdsiam]</code> |
+| Type        | <code>enum[password\|awsiamrds]</code> |
 | Environment | <code>$CODER_PG_AUTH</code>            |
 | YAML        | <code>pgAuth</code>                    |
 | Default     | <code>password</code>                  |

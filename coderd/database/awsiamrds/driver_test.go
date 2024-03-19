@@ -1,4 +1,4 @@
-package awsrdsiam_test
+package awsiamrds_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/coderd/database/awsrdsiam"
+	awsrdsiam "github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/testutil"
 )
 

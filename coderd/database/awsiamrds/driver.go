@@ -1,4 +1,4 @@
-package awsrdsiam
+package awsiamrds
 
 import (
 	"context"
@@ -13,14 +13,14 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type awsRdsIamDriver struct {
+type awsIamRdsDriver struct {
 	parent driver.Driver
 	cfg    aws.Config
 }
 
-var _ driver.Driver = &awsRdsIamDriver{}
+var _ driver.Driver = &awsIamRdsDriver{}
 
-// Register initializes and registers our aws rds iam wrapped database driver.
+// Register initializes and registers our aws iam rds wrapped database driver.
 func Register(ctx context.Context, parentName string) (string, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -32,24 +32,24 @@ func Register(ctx context.Context, parentName string) (string, error) {
 		return "", err
 	}
 
-	// create a new aws rds iam driver
+	// create a new aws iam rds driver
 	d := newDriver(db.Driver(), cfg)
-	name := fmt.Sprintf("%s-awsrdsiam", parentName)
-	sql.Register(fmt.Sprintf("%s-awsrdsiam", parentName), d)
+	name := fmt.Sprintf("%s-awsiamrds", parentName)
+	sql.Register(fmt.Sprintf("%s-awsiamrds", parentName), d)
 
 	return name, nil
 }
 
-// newDriver will create a new *AwsRdsIamDriver using the environment aws session.
-func newDriver(parentDriver driver.Driver, cfg aws.Config) *awsRdsIamDriver {
-	return &awsRdsIamDriver{
+// newDriver will create a new *AwsIamRdsDriver using the environment aws session.
+func newDriver(parentDriver driver.Driver, cfg aws.Config) *awsIamRdsDriver {
+	return &awsIamRdsDriver{
 		parent: parentDriver,
 		cfg:    cfg,
 	}
 }
 
 // Open creates a new connection to the database using the provided name.
-func (d *awsRdsIamDriver) Open(name string) (driver.Conn, error) {
+func (d *awsIamRdsDriver) Open(name string) (driver.Conn, error) {
 	// set password with signed aws authentication token for the rds instance
 	nURL, err := getAuthenticatedURL(d.cfg, name)
 	if err != nil {

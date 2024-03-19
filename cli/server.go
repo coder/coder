@@ -64,7 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/awsrdsiam"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -2551,8 +2551,8 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
 	}
 
-	if auth == codersdk.PostgresAuthAWSRDSIAM {
-		sqlDriver, err = awsrdsiam.Register(ctx, sqlDriver)
+	if auth == codersdk.PostgresAuthAWSIAMRDS {
+		sqlDriver, err = awsiamrds.Register(ctx, sqlDriver)
 		if err != nil {
 			return nil, "", xerrors.Errorf("register aws rds iam auth: %w", err)
 		}

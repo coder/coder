@@ -2153,8 +2153,8 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 ];
 
 // From codersdk/deployment.go
-export type PostgresAuth = "awsrdsiam" | "password";
-export const PostgresAuths: PostgresAuth[] = ["awsrdsiam", "password"];
+export type PostgresAuth = "awsiamrds" | "password";
+export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =

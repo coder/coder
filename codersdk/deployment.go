@@ -139,12 +139,12 @@ type PostgresAuth string
 
 const (
 	PostgresAuthPassword  PostgresAuth = "password"
-	PostgresAuthAWSRDSIAM PostgresAuth = "awsrdsiam"
+	PostgresAuthAWSIAMRDS PostgresAuth = "awsiamrds"
 )
 
 var PostgresAuthDrivers = []string{
 	string(PostgresAuthPassword),
-	string(PostgresAuthAWSRDSIAM),
+	string(PostgresAuthAWSIAMRDS),
 }
 
 // DeploymentValues is the central configuration values the coder server.
