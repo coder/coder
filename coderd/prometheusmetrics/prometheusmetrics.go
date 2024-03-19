@@ -532,6 +532,7 @@ func Experiments(_ slog.Logger, registerer prometheus.Registerer, exps []string,
 		for _, enabled := range exps {
 			if string(exp) == enabled {
 				val = 1
+				break
 			}
 		}
 
