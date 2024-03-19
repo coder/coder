@@ -1,8 +1,8 @@
 package workspaceusage_test
 
 import (
+	"bytes"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -53,51 +53,55 @@ func TestTracker(t *testing.T) {
 	require.Equal(t, 1, count, "expected one flush with one id")
 
 	// 3. Lots of marked workspaces should also cause a flush.
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 31; i++ {
 		ids = append(ids, uuid.New())
 	}
 
-	// Sort ids so mockDB knows what to expect
+	// Sort ids so mDB know what to expect.
 	sort.Slice(ids, func(i, j int) bool {
-		return strings.Compare(ids[i].String(), ids[j].String()) < 0
+		return bytes.Compare(ids[i][:], ids[j][:]) < 0
 	})
 
 	now = dbtime.Now()
 	mDB.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
 		LastUsedAt: now,
 		IDs:        ids,
-	}).Times(1)
+	})
+	for _, id := range ids {
+		wut.Add(id)
+	}
+	tickCh <- now
+	count = <-flushCh
+	require.Equal(t, len(ids), count, "incorrect number of ids flushed")
+
+	// 4. Try to cause a race condition!
+	now = dbtime.Now()
+	// Difficult to know what to EXPECT here, so we won't check strictly here.
+	mDB.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), gomock.Any()).MinTimes(1).MaxTimes(len(ids))
 	// Try to force a race condition.
 	var wg sync.WaitGroup
-	numTicks := 10
 	count = 0
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for _, id := range ids {
-			wut.Add(id)
-		}
-	}()
-	for i := 0; i < numTicks; i++ {
+	for i := 0; i < len(ids); i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			tickCh <- now
 		}()
+		wut.Add(ids[i])
 	}
 
-	for i := 0; i < numTicks; i++ {
+	for i := 0; i < len(ids); i++ {
 		count += <-flushCh
 	}
 
 	wg.Wait()
-	require.Equal(t, 11, count, "expected one flush with eleven ids")
+	require.Equal(t, len(ids), count, "incorrect number of ids flushed")
 
-	// 4. Closing multiple times should not be a problem.
+	// 5. Closing multiple times should not be a problem.
 	wut.Close()
 	wut.Close()
 
-	// 5. Running Loop() again should panic.
+	// 6. Running Loop() again should panic.
 	require.Panics(t, wut.Loop)
 }
 

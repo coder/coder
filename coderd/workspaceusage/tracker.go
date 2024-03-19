@@ -117,16 +117,14 @@ func (wut *Tracker) Add(workspaceID uuid.UUID) {
 // If this is held while a previous flush is in progress, it will
 // deadlock until the previous flush has completed.
 func (wut *Tracker) flush(now time.Time) {
-	var count int
+	// Copy our current set of IDs
+	ids := wut.m.UniqueAndClear()
+	count := len(ids)
 	if wut.flushCh != nil { // only used for testing
 		defer func() {
 			wut.flushCh <- count
 		}()
 	}
-
-	// Copy our current set of IDs
-	ids := wut.m.UniqueAndClear()
-	count = len(ids)
 	if count == 0 {
 		wut.log.Debug(context.Background(), "nothing to flush")
 		return
