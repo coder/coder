@@ -500,6 +500,41 @@ func TestAgentStats(t *testing.T) {
 	assert.EqualValues(t, golden, collected)
 }
 
+func TestExperimentsMetric(t *testing.T) {
+	t.Parallel()
+
+	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	reg := prometheus.NewRegistry()
+
+	const (
+		a codersdk.Experiment = "a"
+		b codersdk.Experiment = "b"
+		c codersdk.Experiment = "c"
+	)
+	allExps := codersdk.Experiments{a, b, c}
+	require.NoError(t, prometheusmetrics.Experiments(log, reg, []string{string(b), string(c)}, allExps))
+
+	expectation := map[codersdk.Experiment]float64{
+		a: 0,
+		b: 1,
+		c: 1,
+	}
+
+	out, err := reg.Gather()
+	require.NoError(t, err)
+	require.Lenf(t, out, 1, "unexpected number of registered metrics")
+
+	for _, metric := range out[0].GetMetric() {
+		labels := metric.GetLabel()
+		require.Lenf(t, labels, 1, "unexpected number of labels")
+
+		experiment := labels[0].GetValue()
+		expected, found := expectation[codersdk.Experiment(experiment)]
+		require.Truef(t, found, "did not find experiment %q in expectations", experiment)
+		require.EqualValues(t, expected, metric.GetGauge().GetValue())
+	}
+}
+
 func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
 	authToken := uuid.NewString()
 

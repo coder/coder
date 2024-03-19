@@ -892,6 +892,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
 				defer closeAgentsFunc()
+
+				if err = prometheusmetrics.Experiments(logger, options.PrometheusRegistry, options.DeploymentValues.Experiments.Value(), codersdk.ExperimentsAll); err != nil {
+					return xerrors.Errorf("register experiments metric: %w", err)
+				}
 			}
 
 			client := codersdk.New(localURL)
