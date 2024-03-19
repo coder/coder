@@ -55,6 +55,6 @@ export const WithActionAndDismiss: Story = {
 
 export const WithNonApiError: Story = {
   args: {
-    error: new Error("Non API error here"),
+    error: new Error("Everything has gone horribly, devastatingly wrong."),
   },
 };
