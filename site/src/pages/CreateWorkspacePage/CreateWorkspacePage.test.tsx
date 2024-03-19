@@ -280,8 +280,8 @@ describe("CreateWorkspacePage", () => {
         `/workspace?param.${param}=${paramValue}&mode=auto`,
       path: "/templates/:template/workspace",
     });
-
     await waitForLoaderToBeRemoved();
+
     const warning =
       "This template requires an external authentication provider that is not connected.";
     expect(await screen.findByText(warning)).toBeInTheDocument();
