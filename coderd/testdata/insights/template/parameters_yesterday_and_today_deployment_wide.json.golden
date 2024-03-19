@@ -36,6 +36,14 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 0
+      },
+      {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SFTP",
+        "slug": "sftp",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0
       }
     ],
     "parameters_usage": [
