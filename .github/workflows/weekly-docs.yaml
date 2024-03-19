@@ -24,7 +24,7 @@ jobs:
           file-path: "./README.md"
 
       - name: Send Slack notification
-        if: failure()
+        if: failure() && github.event_name != 'workflow_dispatch'
         run: |
           curl -X POST -H 'Content-type: application/json' -d '{"msg":"Broken links found in the documentation. Please check the logs at ${{ env.LOGS_URL }}"}' ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
           echo "Sent Slack notification"

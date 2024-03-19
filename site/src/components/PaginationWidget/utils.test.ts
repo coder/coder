@@ -53,6 +53,10 @@ describe(buildPagedList.name, () => {
       expect(uniqueCount).toEqual(result.length);
     }
   });
+
+  it("works for invalid active page number", () => {
+    expect(buildPagedList(2, 4)).toEqual([1, 2]);
+  });
 });
 
 describe(getOffset.name, () => {

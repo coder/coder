@@ -4,12 +4,14 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
+import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import type { ComponentProps } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
 import {
   MoreMenu,
@@ -85,6 +87,11 @@ export const WorkspacesPageView = ({
   canCreateTemplate,
   canChangeVersions,
 }: WorkspacesPageViewProps) => {
+  // Let's say the user has 5 workspaces, but tried to hit page 100, which does
+  // not exist. In this case, the page is not valid and we want to show a better
+  // error message.
+  const invalidPageNumber = page !== 1 && workspaces?.length === 0;
+
   return (
     <Margins>
       <PageHeader
@@ -168,26 +175,48 @@ export const WorkspacesPageView = ({
             </MoreMenu>
           </>
         ) : (
-          <PaginationHeader
-            paginationUnitLabel="workspaces"
-            limit={limit}
-            totalRecords={count}
-            currentOffsetStart={(page - 1) * limit + 1}
-            css={{ paddingBottom: "0" }}
-          />
+          !invalidPageNumber && (
+            <PaginationHeader
+              paginationUnitLabel="workspaces"
+              limit={limit}
+              totalRecords={count}
+              currentOffsetStart={(page - 1) * limit + 1}
+              css={{ paddingBottom: "0" }}
+            />
+          )
         )}
       </TableToolbar>
 
-      <WorkspacesTable
-        canCreateTemplate={canCreateTemplate}
-        workspaces={workspaces}
-        isUsingFilter={filterProps.filter.used}
-        onUpdateWorkspace={onUpdateWorkspace}
-        checkedWorkspaces={checkedWorkspaces}
-        onCheckChange={onCheckChange}
-        canCheckWorkspaces={canCheckWorkspaces}
-        templates={templates}
-      />
+      {invalidPageNumber ? (
+        <EmptyState
+          css={(theme) => ({
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: theme.shape.borderRadius,
+          })}
+          message="Page not found"
+          description="The page you are trying to access does not exist."
+          cta={
+            <Button
+              onClick={() => {
+                onPageChange(1);
+              }}
+            >
+              Back to the first page
+            </Button>
+          }
+        />
+      ) : (
+        <WorkspacesTable
+          canCreateTemplate={canCreateTemplate}
+          workspaces={workspaces}
+          isUsingFilter={filterProps.filter.used}
+          onUpdateWorkspace={onUpdateWorkspace}
+          checkedWorkspaces={checkedWorkspaces}
+          onCheckChange={onCheckChange}
+          canCheckWorkspaces={canCheckWorkspaces}
+          templates={templates}
+        />
+      )}
 
       {count !== undefined && (
         // Temporary styling stopgap before component is migrated to using

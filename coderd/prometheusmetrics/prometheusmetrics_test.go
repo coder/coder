@@ -134,6 +134,7 @@ func TestWorkspaces(t *testing.T) {
 		require.NoError(t, err)
 		// This marks the job as started.
 		_, err = db.AcquireProvisionerJob(context.Background(), database.AcquireProvisionerJobParams{
+			OrganizationID: job.OrganizationID,
 			StartedAt: sql.NullTime{
 				Time:  dbtime.Now(),
 				Valid: true,
