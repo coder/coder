@@ -111,14 +111,14 @@ export const getValidationErrorMessage = (error: unknown): string => {
 };
 
 export const getErrorDetail = (error: unknown): string | undefined | null => {
+  if (error instanceof Error) {
+    return `Please check the developer console for more details.`;
+  }
   if (isApiError(error)) {
     return error.response.data.detail;
   }
   if (isApiErrorResponse(error)) {
     return error.detail;
-  }
-  if (error instanceof Error) {
-    return `Please check the developer console for more details.`;
   }
   return null;
 };
