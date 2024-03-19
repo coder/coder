@@ -803,6 +803,9 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	defer q.mutex.Unlock()
 
 	for index, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.OrganizationID != arg.OrganizationID {
+			continue
+		}
 		if provisionerJob.StartedAt.Valid {
 			continue
 		}
@@ -7861,15 +7864,16 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		}
 	}
 	d := database.ProvisionerDaemon{
-		ID:           uuid.New(),
-		CreatedAt:    arg.CreatedAt,
-		Name:         arg.Name,
-		Provisioners: arg.Provisioners,
-		Tags:         maps.Clone(arg.Tags),
-		ReplicaID:    uuid.NullUUID{},
-		LastSeenAt:   arg.LastSeenAt,
-		Version:      arg.Version,
-		APIVersion:   arg.APIVersion,
+		ID:             uuid.New(),
+		CreatedAt:      arg.CreatedAt,
+		Name:           arg.Name,
+		Provisioners:   arg.Provisioners,
+		Tags:           maps.Clone(arg.Tags),
+		ReplicaID:      uuid.NullUUID{},
+		LastSeenAt:     arg.LastSeenAt,
+		Version:        arg.Version,
+		APIVersion:     arg.APIVersion,
+		OrganizationID: arg.OrganizationID,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil

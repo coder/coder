@@ -187,6 +187,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		// import job as well
 		for {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+				OrganizationID: job.OrganizationID,
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,
