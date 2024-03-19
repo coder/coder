@@ -269,7 +269,7 @@ describe("CreateWorkspacePage", () => {
     const paramValue = "It works!";
     const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
 
-    jest
+    const externalAuthSpy = jest
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
@@ -286,6 +286,11 @@ describe("CreateWorkspacePage", () => {
       "This template requires an external authentication provider that is not connected.";
     expect(await screen.findByText(warning)).toBeInTheDocument();
     expect(createWorkspaceSpy).not.toBeCalled();
+
+    // We don't need to do this on any other tests out of hundreds of very, very,
+    // very similar tests, and yet here, I find it to be absolutely necessary for
+    // some reason that I certainly do not understand. - Kayla
+    externalAuthSpy.mockReset();
   });
 
   it("auto create a workspace if uses mode=auto and version=version-id", async () => {
