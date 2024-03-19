@@ -347,7 +347,6 @@ resource "tls_private_key" "dummy" {
 }
 
 resource "azurerm_linux_virtual_machine" "main" {
-  count               = data.coder_workspace.me.transition == "start" ? 1 : 0
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
