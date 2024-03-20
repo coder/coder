@@ -327,8 +327,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		//   })
 		//
 		// See TestPortForward for how this works in practice.
-		wutFlush := make(chan int)
-		wutTick := make(chan time.Time)
+		wutFlush := make(chan int, 1)      // buffering just in case
+		wutTick := make(chan time.Time, 1) // buffering just in case
 		options.WorkspaceUsageTracker = workspaceusage.New(
 			options.Database,
 			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
