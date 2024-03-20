@@ -137,6 +137,13 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "ParamName",
+			Query: "param:foo",
+			Expected: database.GetWorkspacesParams{
+				HasParam: []string{"foo"},
+			},
+		},
 		// Failures
 		{
 			Name:                  "NoPrefix",
@@ -181,6 +188,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.WorkspaceIds) == len(values.WorkspaceIds) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.WorkspaceIds = values.WorkspaceIds
+				}
+				if len(c.Expected.HasParam) == len(values.HasParam) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.HasParam = values.HasParam
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
