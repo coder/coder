@@ -206,6 +206,7 @@ func (s *uuidSet) UniqueAndClear() []uuid.UUID {
 	defer s.l.Unlock()
 	if s.m == nil {
 		s.m = make(map[uuid.UUID]struct{})
+		return []uuid.UUID{}
 	}
 	l := make([]uuid.UUID, 0)
 	for k := range s.m {
@@ -214,8 +215,9 @@ func (s *uuidSet) UniqueAndClear() []uuid.UUID {
 	// For ease of testing, sort the IDs lexically
 	sort.Slice(l, func(i, j int) bool {
 		// For some unfathomable reason, byte arrays are not comparable?
+		// See https://github.com/golang/go/issues/61004
 		return bytes.Compare(l[i][:], l[j][:]) < 0
 	})
-	s.m = make(map[uuid.UUID]struct{})
+	clear(s.m)
 	return l
 }

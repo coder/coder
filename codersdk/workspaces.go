@@ -336,7 +336,7 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 // process.
 func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, id uuid.UUID) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
-	// Perform one initial heartbeat
+	// Perform one initial update
 	if err := c.PostWorkspaceUsage(hbCtx, id); err != nil {
 		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
 	}
