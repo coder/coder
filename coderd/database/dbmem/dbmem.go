@@ -3407,7 +3407,7 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	return row, nil
 }
 
-func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
+func (q *FakeQuerier) GetTemplateInsightsByInterval(_ context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -3416,82 +3416,89 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	type statByInterval struct {
-		startTime, endTime time.Time
-		userSet            map[uuid.UUID]struct{}
-		templateIDSet      map[uuid.UUID]struct{}
+	/*
+		WITH
+			ts AS (
+				SELECT
+					d::timestamptz AS from_,
+					CASE
+						WHEN (d::timestamptz + (@interval_days::int || ' day')::interval) <= @end_time::timestamptz
+						THEN (d::timestamptz + (@interval_days::int || ' day')::interval)
+						ELSE @end_time::timestamptz
+					END AS to_
+				FROM
+					-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+					generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 microsecond'::interval, (@interval_days::int || ' day')::interval) AS d
+			)
+
+		SELECT
+			ts.from_ AS start_time,
+			ts.to_ AS end_time,
+			array_remove(array_agg(DISTINCT tus.template_id), NULL)::uuid[] AS template_ids,
+			COUNT(DISTINCT tus.user_id) AS active_users
+		FROM
+			ts
+		LEFT JOIN
+			template_usage_stats AS tus
+		ON
+			tus.start_time >= ts.from_
+			AND tus.end_time <= ts.to_
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		GROUP BY
+			ts.from_, ts.to_;
+	*/
+
+	type interval struct {
+		From time.Time
+		To   time.Time
+	}
+	var ts []interval
+	for d := arg.StartTime; d.Before(arg.EndTime); d = d.AddDate(0, 0, int(arg.IntervalDays)) {
+		to := d.AddDate(0, 0, int(arg.IntervalDays))
+		if to.After(arg.EndTime) {
+			to = arg.EndTime
+		}
+		ts = append(ts, interval{From: d, To: to})
 	}
 
-	statsByInterval := []statByInterval{{arg.StartTime, arg.StartTime.AddDate(0, 0, int(arg.IntervalDays)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
-	for statsByInterval[len(statsByInterval)-1].endTime.Before(arg.EndTime) {
-		statsByInterval = append(statsByInterval, statByInterval{statsByInterval[len(statsByInterval)-1].endTime, statsByInterval[len(statsByInterval)-1].endTime.AddDate(0, 0, int(arg.IntervalDays)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+	type grouped struct {
+		TemplateIDs map[uuid.UUID]struct{}
+		UserIDs     map[uuid.UUID]struct{}
 	}
-	if statsByInterval[len(statsByInterval)-1].endTime.After(arg.EndTime) {
-		statsByInterval[len(statsByInterval)-1].endTime = arg.EndTime
-	}
-
-	for _, s := range q.workspaceAgentStats {
-		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
-			continue
-		}
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
-			continue
-		}
-		if s.ConnectionCount == 0 {
-			continue
-		}
-
-		for _, ds := range statsByInterval {
-			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
+	groupedByInterval := make(map[interval]grouped)
+	for _, tus := range q.templateUsageStats {
+		for _, t := range ts {
+			if tus.StartTime.Before(t.From) || tus.EndTime.After(t.To) {
 				continue
 			}
-			ds.userSet[s.UserID] = struct{}{}
-			ds.templateIDSet[s.TemplateID] = struct{}{}
-		}
-	}
-
-	for _, s := range q.workspaceAppStats {
-		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
-			continue
-		}
-
-		for _, ds := range statsByInterval {
-			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
-				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
-				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
+			if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, tus.TemplateID) {
 				continue
 			}
-
-			ds.userSet[s.UserID] = struct{}{}
-			ds.templateIDSet[w.TemplateID] = struct{}{}
+			g, ok := groupedByInterval[t]
+			if !ok {
+				g = grouped{
+					TemplateIDs: make(map[uuid.UUID]struct{}),
+					UserIDs:     make(map[uuid.UUID]struct{}),
+				}
+			}
+			g.TemplateIDs[tus.TemplateID] = struct{}{}
+			g.UserIDs[tus.UserID] = struct{}{}
+			groupedByInterval[t] = g
 		}
 	}
 
-	var result []database.GetTemplateInsightsByIntervalRow
-	for _, ds := range statsByInterval {
-		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
-		for templateID := range ds.templateIDSet {
-			templateIDs = append(templateIDs, templateID)
+	var rows []database.GetTemplateInsightsByIntervalRow
+	for _, t := range ts { // Ordered by interval.
+		row := database.GetTemplateInsightsByIntervalRow{
+			StartTime: t.From,
+			EndTime:   t.To,
 		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-			return slice.Ascending(a.String(), b.String())
-		})
-		result = append(result, database.GetTemplateInsightsByIntervalRow{
-			StartTime:   ds.startTime,
-			EndTime:     ds.endTime,
-			TemplateIDs: templateIDs,
-			ActiveUsers: int64(len(ds.userSet)),
-		})
+		row.TemplateIDs = uniqueSortedUUIDs(maps.Keys(groupedByInterval[t].TemplateIDs))
+		row.ActiveUsers = int64(len(groupedByInterval[t].UserIDs))
+		rows = append(rows, row)
 	}
-	return result, nil
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetTemplateInsightsByTemplate(_ context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
