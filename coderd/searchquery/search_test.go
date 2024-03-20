@@ -170,6 +170,11 @@ func TestSearchWorkspace(t *testing.T) {
 			Query:                 `foo:bar`,
 			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
+		{
+			Name:                  "ParamExtraColons",
+			Query:                 "param:foo:value",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
 	}
 
 	for _, c := range testCases {
