@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -35,7 +36,7 @@ func TestTracker(t *testing.T) {
 	tickCh := make(chan time.Time)
 	flushCh := make(chan int, 1)
 	wut := workspaceusage.New(mDB, workspaceusage.WithLogger(log), workspaceusage.WithTickChannel(tickCh), workspaceusage.WithFlushChannel(flushCh))
-	t.Cleanup(wut.Close)
+	defer wut.Close()
 
 	go wut.Loop()
 
@@ -119,8 +120,11 @@ func TestTracker_MultipleInstances(t *testing.T) {
 
 	// Given we have two coderd instances connected to the same database
 	var (
-		ctx      = testutil.Context(t, testutil.WaitLong)
-		db, ps   = dbtestutil.NewDB(t)
+		ctx   = testutil.Context(t, testutil.WaitLong)
+		db, _ = dbtestutil.NewDB(t)
+		// real pubsub is not safe for concurrent use, and this test currently
+		// does not depend on pubsub
+		ps       = pubsub.NewInMemory()
 		wuTickA  = make(chan time.Time)
 		wuFlushA = make(chan int, 1)
 		wutA     = workspaceusage.New(db, workspaceusage.WithFlushChannel(wuFlushA), workspaceusage.WithTickChannel(wuTickA))
@@ -140,6 +144,8 @@ func TestTracker_MultipleInstances(t *testing.T) {
 		owner = coderdtest.CreateFirstUser(t, clientA)
 		now   = dbtime.Now()
 	)
+	defer wutA.Close()
+	defer wutB.Close()
 
 	clientB.SetSessionToken(clientA.SessionToken())
 
