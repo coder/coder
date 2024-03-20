@@ -61,7 +61,7 @@ func (p *QueryParamParser) UInt(vals url.Values, def uint64, queryParam string) 
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid positive integer (%s)", queryParam, err.Error()),
+			Detail: fmt.Sprintf("Query param %q must be a valid positive integer: %s", queryParam, err.Error()),
 		})
 		return 0
 	}
@@ -73,7 +73,7 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid integer (%s)", queryParam, err.Error()),
+			Detail: fmt.Sprintf("Query param %q must be a valid integer: %s", queryParam, err.Error()),
 		})
 	}
 	return v
@@ -97,7 +97,7 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid 32-bit positive integer (%s)", queryParam, err.Error()),
+			Detail: fmt.Sprintf("Query param %q must be a valid 32-bit positive integer: %s", queryParam, err.Error()),
 		})
 	}
 	return v
@@ -108,7 +108,7 @@ func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string)
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid boolean (%s)", queryParam, err.Error()),
+			Detail: fmt.Sprintf("Query param %q must be a valid boolean: %s", queryParam, err.Error()),
 		})
 	}
 	return v
@@ -203,9 +203,15 @@ func (p *QueryParamParser) timeWithMutate(vals url.Values, def time.Time, queryP
 }
 
 func (p *QueryParamParser) String(vals url.Values, def string, queryParam string) string {
-	v, _ := parseQueryParam(p, vals, func(v string) (string, error) {
+	v, err := parseQueryParam(p, vals, func(v string) (string, error) {
 		return v, nil
 	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid string: %s", queryParam, err.Error()),
+		})
+	}
 	return v
 }
 

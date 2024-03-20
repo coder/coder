@@ -32,6 +32,7 @@ type queryParamTestCase[T any] struct {
 
 func TestParseQueryParams(t *testing.T) {
 	t.Parallel()
+	const multipleValuesError = "multiple values provided"
 
 	t.Run("Enum", func(t *testing.T) {
 		t.Parallel()
@@ -62,6 +63,11 @@ func TestParseQueryParams(t *testing.T) {
 			{
 				QueryParam: "resource_type",
 				Value:      fmt.Sprintf("%s,%s", database.ResourceTypeWorkspace, database.ResourceTypeApiKey),
+				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
+			},
+			{
+				QueryParam: "resource_type_as_list",
+				Values:     []string{string(database.ResourceTypeWorkspace), string(database.ResourceTypeApiKey)},
 				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
 			},
 		}
@@ -156,6 +162,11 @@ func TestParseQueryParams(t *testing.T) {
 				Default:    "default",
 				Expected:   "default",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"one", "two"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -198,6 +209,11 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:              false,
 				ExpectedErrorContains: "must be a valid boolean",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"true", "false"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -234,6 +250,11 @@ func TestParseQueryParams(t *testing.T) {
 				Value:                 "bogus",
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid integer",
+			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
 			},
 		}
 
@@ -279,6 +300,11 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid 32-bit positive integer",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -315,6 +341,11 @@ func TestParseQueryParams(t *testing.T) {
 				Value:                 "bogus",
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid positive integer",
+			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
 			},
 		}
 
