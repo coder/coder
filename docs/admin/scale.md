@@ -10,7 +10,9 @@ Learn more about [Coder’s architecture](../about/architecture.md) and our
 ## Recent scale tests
 
 > Note: the below information is for reference purposes only, and are not
-> intended to be used as guidelines for infrastructure sizing.
+> intended to be used as guidelines for infrastructure sizing. Review the
+> [Reference Architectures](architectures/index.md) for hardware sizing
+> recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 | ---------------- | --------- | --------- | -------------- | ----------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
@@ -29,58 +31,76 @@ Since Coder's performance is highly dependent on the templates and workflows you
 support, you may wish to use our internal scale testing utility against your own
 environments.
 
-> Note: This utility is intended for internal use only. It is not subject to any
-> compatibility guarantees, and may cause interruptions for your users. To avoid
-> potential outages and orphaned resources, we recommend running scale tests on
-> a secondary "staging" environment. Run it against a production environment at
-> your own risk.
+> Note: This utility is experimental. It is not subject to any compatibility
+> guarantees, and may cause interruptions for your users. To avoid potential
+> outages and orphaned resources, we recommend running scale tests on a
+> secondary "staging" environment or a dedicated
+> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/templates).
+> Run it against a production environment at your own risk.
 
-### Workspace Creation
+### Create workspaces
 
-The following command will run our scale test against your own Coder deployment.
-You can also specify a template name and any parameter values.
+The following command will provision a number of Coder workspaces using the
+specified template and extra parameters.
 
 ```shell
 coder exp scaletest create-workspaces \
-    --count 1000 \
-    --template "kubernetes" \
-    --concurrency 0 \
-    --cleanup-concurrency 0 \
-    --parameter "home_disk_size=10" \
-    --run-command "sleep 2 && echo hello"
+		--retry 5 \
+		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
+		--template "${SCALETEST_PARAM_TEMPLATE}" \
+		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
+		--timeout 5h \
+		--job-timeout 5h \
+		--no-cleanup \
+		--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
 
 # Run `coder exp scaletest create-workspaces --help` for all usage
 ```
 
-The test does the following:
+The command does the following:
 
-1. create `1000` workspaces
-1. establish SSH connection to each workspace
-1. run `sleep 3 && echo hello` on each workspace via the web terminal
-1. close connections, attempt to delete all workspaces
-1. return results (e.g. `998 succeeded, 2 failed to connect`)
-
-Concurrency is configurable. `concurrency 0` means the scaletest test will
-attempt to create & connect to all workspaces immediately.
-
-If you wish to leave the workspaces running for a period of time, you can
-specify `--no-cleanup` to skip the cleanup step. You are responsible for
-deleting these resources later.
+1. Create `${SCALETEST_PARAM_NUM_WORKSPACES}` workspaces concurrently
+   (concurrency level: `${SCALETEST_PARAM_CREATE_CONCURRENCY}`) using the
+   template `${SCALETEST_PARAM_TEMPLATE}`.
+1. Leave workspaces running to use in next steps (`--no-cleanup` option).
+1. Store provisioning results in JSON format.
+1. If you don't want the creation process to be interrupted by any errors, use
+   the `--retry 5` flag.
 
 ### Traffic Generation
 
 Given an existing set of workspaces created previously with `create-workspaces`,
-the following command will generate traffic similar to that of Coder's web
-terminal against those workspaces.
+the following command will generate traffic similar to that of Coder's Web
+Terminal against those workspaces.
 
 ```shell
+# Produce load at about 1000MB/s (25MB/40ms).
 coder exp scaletest workspace-traffic \
-    --byes-per-tick 128 \
-    --tick-interval 100ms \
-    --concurrency 0
+	--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+	--bytes-per-tick $((1024 * 1024 * 25)) \
+	--tick-interval 40ms \
+	--timeout "$((delay))s" \
+	--job-timeout "$((delay))s" \
+	--scaletest-prometheus-address 0.0.0.0:21113 \
+  --target-workspaces "0:100" \
+	--trace=false \
+  --output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json"
 ```
 
-To generate SSH traffic, add the `--ssh` flag.
+Traffic generation can be parametrized:
+
+1. Send `bytes-per-tick` every `tick-interval`.
+1. Enable tracing for performance debugging.
+1. Target a range of workspaces with `--target-workspaces 0:100`.
+1. For dashboard traffic: Target a range of users with `--target-users 0:100`.
+1. Store provisioning results in JSON format.
+
+The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
+
+1. For SSH traffic: Use `--ssh` flag to generate SSH traffic instead of Web
+   Terminal.
+1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app
+   behavior. (modes: _WebSocket discard_, _WebSocket echo_, _WebSocket read_).
 
 ### Cleanup
 
@@ -88,7 +108,9 @@ The scaletest utility will attempt to clean up all workspaces it creates. If you
 wish to clean up all workspaces, you can run the following command:
 
 ```shell
-coder exp scaletest cleanup
+coder exp scaletest cleanup \
+	--cleanup-job-timeout 2h \
+	--cleanup-timeout 15min
 ```
 
 This will delete all workspaces and users with the prefix `scaletest-`.
