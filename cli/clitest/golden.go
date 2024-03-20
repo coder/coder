@@ -87,34 +87,39 @@ ExtractCommandPathsLoop:
 
 			StartWithWaiter(t, inv.WithContext(ctx)).RequireSuccess()
 
-			actual := outBuf.Bytes()
-			if len(actual) == 0 {
-				t.Fatal("no output")
-			}
-
-			for k, v := range replacements {
-				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
-			}
-
-			actual = NormalizeGoldenFile(t, actual)
-			goldenPath := filepath.Join("testdata", strings.Replace(tt.Name, " ", "_", -1)+".golden")
-			if *UpdateGoldenFiles {
-				t.Logf("update golden file for: %q: %s", tt.Name, goldenPath)
-				err := os.WriteFile(goldenPath, actual, 0o600)
-				require.NoError(t, err, "update golden file")
-			}
-
-			expected, err := os.ReadFile(goldenPath)
-			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
-
-			expected = NormalizeGoldenFile(t, expected)
-			require.Equal(
-				t, string(expected), string(actual),
-				"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
-				goldenPath,
-			)
+			TestGoldenFile(t, tt.Name, outBuf.Bytes(), replacements)
 		})
 	}
+}
+
+// TestGoldenFile will test the given bytes slice input against the
+// golden file with the given file name, optionally using the given replacements.
+func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements map[string]string) {
+	if len(actual) == 0 {
+		t.Fatal("no output")
+	}
+
+	for k, v := range replacements {
+		actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
+	}
+
+	actual = NormalizeGoldenFile(t, actual)
+	goldenPath := filepath.Join("testdata", strings.ReplaceAll(fileName, " ", "_")+".golden")
+	if *UpdateGoldenFiles {
+		t.Logf("update golden file for: %q: %s", fileName, goldenPath)
+		err := os.WriteFile(goldenPath, actual, 0o600)
+		require.NoError(t, err, "update golden file")
+	}
+
+	expected, err := os.ReadFile(goldenPath)
+	require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
+
+	expected = NormalizeGoldenFile(t, expected)
+	require.Equal(
+		t, string(expected), string(actual),
+		"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+		goldenPath,
+	)
 }
 
 // NormalizeGoldenFile replaces any strings that are system or timing dependent
