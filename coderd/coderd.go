@@ -368,7 +368,6 @@ func New(options *Options) *API {
 
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
-			workspaceusage.WithFlushInterval(workspaceusage.DefaultFlushInterval),
 			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
 		)
 	}
