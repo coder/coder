@@ -138,6 +138,9 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 			return paramMatch{name: parts[0], value: nil}, nil
 		}
 		if len(parts) == 2 {
+			if parts[1] == "" {
+				return paramMatch{}, xerrors.Errorf("query element %q has an empty value. omit the '=' to match just on the parameter name", v)
+			}
 			// Match on the parameter and value
 			return paramMatch{name: parts[0], value: &parts[1]}, nil
 		}
