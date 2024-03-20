@@ -62,8 +62,10 @@ const (
 
 // EnvProcPrioMgmt determines whether we attempt to manage
 // process CPU and OOM Killer priority.
-const EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
-const EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
+const (
+	EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
+	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
+)
 
 type Options struct {
 	Filesystem                   afero.Fs

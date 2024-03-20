@@ -2677,7 +2677,6 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		for _, proc := range actualProcs {
 			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "-567")
 		}
-
 	})
 
 	t.Run("DisabledByDefault", func(t *testing.T) {
