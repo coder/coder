@@ -91,6 +91,22 @@ coder exp scaletest cleanup
 
 This will delete all workspaces and users with the prefix `scaletest-`.
 
+## Scale testing template
+
+TODO
+
+### Parameters
+
+TODO
+
+### Kubernetes cluster
+
+TODO
+
+### Observability
+
+TODO Grafana and logs
+
 ## Autoscaling
 
 We generally do not recommend using an autoscaler that modifies the number of

@@ -736,9 +736,9 @@ resource "coder_app" "prometheus" {
   agent_id     = coder_agent.main.id
   slug         = "01-prometheus"
   display_name = "Prometheus"
-  url      = "https://grafana.corp.tld:9443"
-  icon     = "https://prometheus.io/assets/favicons/favicon-32x32.png"
-  external = true
+  url          = "https://grafana.corp.tld:9443"
+  icon         = "https://prometheus.io/assets/favicons/favicon-32x32.png"
+  external     = true
 }
 
 resource "coder_app" "manual_cleanup" {
