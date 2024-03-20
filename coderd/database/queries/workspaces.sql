@@ -433,7 +433,10 @@ UPDATE
 SET
 	last_used_at = @last_used_at
 WHERE
-	id = ANY(@ids :: uuid[]);
+	id = ANY(@ids :: uuid[])
+AND
+  -- Do not overwrite with older data
+  last_used_at < @last_used_at;
 
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (

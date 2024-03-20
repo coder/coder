@@ -1046,6 +1046,10 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		if _, found := m[q.workspaces[i].ID]; !found {
 			continue
 		}
+		// WHERE last_used_at < @last_used_at
+		if !q.workspaces[i].LastUsedAt.Before(arg.LastUsedAt) {
+			continue
+		}
 		q.workspaces[i].LastUsedAt = arg.LastUsedAt
 		n++
 	}
