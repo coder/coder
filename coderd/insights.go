@@ -468,9 +468,6 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	//
 	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
 	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.AccessMethod != b.AccessMethod {
-			return strings.Compare(a.AccessMethod, b.AccessMethod)
-		}
 		if a.SlugOrPort != b.SlugOrPort {
 			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
 		}

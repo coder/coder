@@ -262,8 +262,7 @@ WITH
 
 SELECT
 	t.template_ids,
-	array_agg(DISTINCT ai.user_id)::uuid[] AS active_user_ids,
-	''::text AS access_method, -- TODO(mafredri): Remove.
+	COUNT(DISTINCT ai.user_id) AS active_users,
 	ai.app_name AS slug_or_port,
 	ai.display_name,
 	ai.icon,

@@ -1767,8 +1767,7 @@ WITH
 
 SELECT
 	t.template_ids,
-	array_agg(DISTINCT ai.user_id)::uuid[] AS active_user_ids,
-	''::text AS access_method, -- TODO(mafredri): Remove.
+	COUNT(DISTINCT ai.user_id) AS active_users,
 	ai.app_name AS slug_or_port,
 	ai.display_name,
 	ai.icon,
@@ -1794,14 +1793,13 @@ type GetTemplateAppInsightsParams struct {
 }
 
 type GetTemplateAppInsightsRow struct {
-	TemplateIDs   []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs []uuid.UUID `db:"active_user_ids" json:"active_user_ids"`
-	AccessMethod  string      `db:"access_method" json:"access_method"`
-	SlugOrPort    string      `db:"slug_or_port" json:"slug_or_port"`
-	DisplayName   string      `db:"display_name" json:"display_name"`
-	Icon          string      `db:"icon" json:"icon"`
-	IsApp         bool        `db:"is_app" json:"is_app"`
-	UsageSeconds  int64       `db:"usage_seconds" json:"usage_seconds"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers  int64       `db:"active_users" json:"active_users"`
+	SlugOrPort   string      `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName  string      `db:"display_name" json:"display_name"`
+	Icon         string      `db:"icon" json:"icon"`
+	IsApp        bool        `db:"is_app" json:"is_app"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -1818,8 +1816,7 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 		var i GetTemplateAppInsightsRow
 		if err := rows.Scan(
 			pq.Array(&i.TemplateIDs),
-			pq.Array(&i.ActiveUserIDs),
-			&i.AccessMethod,
+			&i.ActiveUsers,
 			&i.SlugOrPort,
 			&i.DisplayName,
 			&i.Icon,
