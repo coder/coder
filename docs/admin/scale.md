@@ -1,6 +1,8 @@
 We scale-test Coder with [a built-in utility](#scale-testing-utility) that can
 be used in your environment for insights into how Coder scales with your
-infrastructure.
+infrastructure. For scale-testing Kubernetes clusters we recommend to install
+and use the dedicated Coder template,
+[scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
 Learn more about [Coder’s architecture](../about/architecture.md) and our
 [scale-testing methodology](architectures/index.md#scale-testing-methodology).
