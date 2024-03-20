@@ -63,6 +63,7 @@ const (
 // EnvProcPrioMgmt determines whether we attempt to manage
 // process CPU and OOM Killer priority.
 const EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
+const EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
 
 type Options struct {
 	Filesystem                   afero.Fs
@@ -1569,28 +1570,22 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 		return
 	}
 
-	const agentOOMScore = "-1000"
-
-	err := afero.WriteFile(a.filesystem, "/proc/self/oom_score_adj", []byte(agentOOMScore), 0o600)
-	if err != nil {
-		a.logger.Error(ctx, "error adjusting agent oom_score_adj",
-			slog.F("score", agentOOMScore),
-			slog.Error(err),
-		)
-	} else {
-		a.logger.Debug(ctx, "adjusted agent oom_score_adj to avoid OOM Killer",
-			slog.F("score", agentOOMScore),
-		)
-	}
-
 	if a.processManagementTick == nil {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		a.processManagementTick = ticker.C
 	}
 
+	oomScore := unsetOOMScore
+	if scoreStr, ok := a.environmentVariables[EnvProcOOMScore]; ok {
+		score, err := strconv.Atoi(strings.TrimSpace(scoreStr))
+		if err == nil {
+			oomScore = score
+		}
+	}
+
 	for {
-		procs, err := a.manageProcessPriority(ctx)
+		procs, err := a.manageProcessPriority(ctx, oomScore)
 		if err != nil {
 			a.logger.Error(ctx, "manage process priority",
 				slog.Error(err),
@@ -1608,10 +1603,22 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 	}
 }
 
-func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
+const unsetOOMScore = 1001
+
+func (a *agent) manageProcessPriority(ctx context.Context, oomScore int) ([]*agentproc.Process, error) {
 	const (
 		niceness = 10
 	)
+
+	agentScore, err := a.getAgentOOMScore()
+	if err != nil {
+		agentScore = unsetOOMScore
+	}
+	if oomScore == unsetOOMScore && agentScore != unsetOOMScore {
+		// If the child score has not been explicitly specified we should
+		// set it to a score relative to the agent score.
+		oomScore = childOOMScore(agentScore)
+	}
 
 	procs, err := agentproc.List(a.filesystem, a.syscaller)
 	if err != nil {
@@ -1640,10 +1647,10 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			continue
 		}
 
-		score, err := proc.Niceness(a.syscaller)
-		if err != nil && !xerrors.Is(err, os.ErrPermission) {
+		score, niceErr := proc.Niceness(a.syscaller)
+		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
 			logger.Warn(ctx, "unable to get proc niceness",
-				slog.Error(err),
+				slog.Error(niceErr),
 			)
 			continue
 		}
@@ -1653,28 +1660,31 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		// Getpriority actually returns priority for the nice value
 		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
 		if score != 20 {
-			// We don't log here since it can get spammy
 			continue
 		}
 
-		err = proc.SetNiceness(a.syscaller, niceness)
-		if err != nil && !xerrors.Is(err, os.ErrPermission) {
-			logger.Warn(ctx, "unable to set proc niceness",
-				slog.F("niceness", niceness),
-				slog.Error(err),
-			)
-			continue
+		if niceErr == nil {
+			err := proc.SetNiceness(a.syscaller, niceness)
+			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+				logger.Warn(ctx, "unable to set proc niceness",
+					slog.F("niceness", niceness),
+					slog.Error(err),
+				)
+			}
 		}
 
-		err = afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte("0"), 0o600)
-		if err != nil && !xerrors.Is(err, os.ErrPermission) {
-			logger.Warn(ctx, "unable to set oom_score_adj",
-				slog.F("score", "0"),
-				slog.Error(err),
-			)
-			continue
+		// If the oom score is valid and it's not already set and isn't a custom value set by another process
+		// then it's ok to update it.
+		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
+			oomScoreStr := strconv.Itoa(oomScore)
+			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
+			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+				logger.Warn(ctx, "unable to set oom_score_adj",
+					slog.F("score", "0"),
+					slog.Error(err),
+				)
+			}
 		}
-
 		modProcs = append(modProcs, proc)
 	}
 	return modProcs, nil
@@ -2027,4 +2037,45 @@ func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger sl
 			}
 		}
 	})
+}
+
+// childOOMScore returns the oom_score_adj for a child process. It is based
+// on the oom_score_adj of the agent process.
+func childOOMScore(agentScore int) int {
+	// If the agent has a negative oom_score_adj, we set the child to 0
+	// so it's treated like every other process.
+	if agentScore < 0 {
+		return 0
+	}
+
+	// If the agent is already almost at the maximum then set it to the max.
+	if agentScore >= 998 {
+		return 1000
+	}
+
+	// If the agent oom_score_adj is >=0, we set the child to slightly
+	// less than the maximum. If users want a different score they set it
+	// directly.
+	return 998
+}
+
+func (a *agent) getAgentOOMScore() (int, error) {
+	scoreStr, err := afero.ReadFile(a.filesystem, "/proc/self/oom_score_adj")
+	if err != nil {
+		return 0, xerrors.Errorf("read file: %w", err)
+	}
+
+	score, err := strconv.Atoi(strings.TrimSpace(string(scoreStr)))
+	if err != nil {
+		return 0, xerrors.Errorf("parse int: %w", err)
+	}
+
+	return score, nil
+}
+
+// isCustomOOMScore checks to see if the oom_score_adj is not a value that would
+// originate from an agent-spawned process.
+func isCustomOOMScore(agentScore int, process *agentproc.Process) bool {
+	score := process.OOMScoreAdj
+	return agentScore != score && score != 1000 && score != 0 && score != 998
 }
