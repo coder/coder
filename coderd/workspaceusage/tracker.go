@@ -142,10 +142,17 @@ func (wut *Tracker) flush(now time.Time) {
 		LastUsedAt: now,
 		IDs:        ids,
 	}); err != nil {
+		// A single failure to flush is likely not a huge problem. If the workspace is still connected at
+		// the next iteration, either another coderd instance will likely have this data or the CLI
+		// will tell us again that the workspace is in use.
 		wut.flushErrors++
-		wut.log.Error(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.F("consecutive_errors", wut.flushErrors), slog.Error(err))
-		// TODO: if this keeps failing, it indicates a fundamental problem with the database connection.
-		// How to surface it correctly to admins besides just screaming into the logs?
+		if wut.flushErrors > 1 {
+			wut.log.Error(ctx, "multiple failures updating workspaces last_used_at", slog.F("count", count), slog.F("consecutive_errors", wut.flushErrors), slog.Error(err))
+			// TODO: if this keeps failing, it indicates a fundamental problem with the database connection.
+			// How to surface it correctly to admins besides just screaming into the logs?
+		} else {
+			wut.log.Warn(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.Error(err))
+		}
 		return
 	}
 	wut.flushErrors = 0
