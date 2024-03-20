@@ -309,8 +309,24 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	t.Cleanup(hangDetector.Close)
 
 	if options.WorkspaceUsageTracker == nil {
+		// Did last_used_at not update? Scratching your noggin? Here's why.
 		// Workspace usage tracking must be triggered manually in tests.
-		// To do this, pass in your own WorkspaceUsageTracker.
+		// The vast majority of existing tests do not depend on last_used_at
+		// and adding an extra background goroutine to all existing tests may
+		// lead to future flakes and goleak complaints.
+		// To do this, pass in your own WorkspaceUsageTracker like so:
+		//
+		// 	db, ps  = dbtestutil.NewDB(t)
+		//   wuTick  = make(chan time.Time)
+		//   wuFlush = make(chan int, 1)
+		//   wut     = workspaceusage.New(db, workspaceusage.WithFlushChannel(wuFlush), workspaceusage.WithTickChannel(wuTick))
+		//   client  = coderdtest.New(t, &coderdtest.Options{
+		//     WorkspaceUsageTracker: wut,
+		//     Database:              db,
+		//     Pubsub:                ps,
+		//   })
+		//
+		// See TestPortForward for how this works in practice.
 		wutFlush := make(chan int)
 		wutTick := make(chan time.Time)
 		options.WorkspaceUsageTracker = workspaceusage.New(

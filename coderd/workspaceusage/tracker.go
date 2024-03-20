@@ -168,6 +168,12 @@ func (wut *Tracker) Loop() {
 			if !ok {
 				return
 			}
+			// NOTE: we do not update last_used_at with the time at which each workspace was added.
+			// Instead, we update with the time of the flush. If the BatchUpdateWorkspacesLastUsedAt
+			// query can be rewritten to update each id with a corresponding last_used_at timestamp
+			// then we could capture the exact usage time of each workspace. For now however, as
+			// we perform this query at a regular interval, the time of the flush is 'close enough'
+			// for the purposes of both dormancy (and for autostop, in future).
 			wut.flush(now.UTC())
 		}
 	}
