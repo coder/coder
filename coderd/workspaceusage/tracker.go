@@ -110,24 +110,24 @@ func WithTickChannel(c chan time.Time) Option {
 
 // Add marks the workspace with the given ID as having been used recently.
 // Tracker will periodically flush this to its configured Store.
-func (wut *Tracker) Add(workspaceID uuid.UUID) {
-	wut.m.Add(workspaceID)
+func (tr *Tracker) Add(workspaceID uuid.UUID) {
+	tr.m.Add(workspaceID)
 }
 
 // flush updates last_used_at of all current workspace IDs.
 // If this is held while a previous flush is in progress, it will
 // deadlock until the previous flush has completed.
-func (wut *Tracker) flush(now time.Time) {
+func (tr *Tracker) flush(now time.Time) {
 	// Copy our current set of IDs
-	ids := wut.m.UniqueAndClear()
+	ids := tr.m.UniqueAndClear()
 	count := len(ids)
-	if wut.flushCh != nil { // only used for testing
+	if tr.flushCh != nil { // only used for testing
 		defer func() {
-			wut.flushCh <- count
+			tr.flushCh <- count
 		}()
 	}
 	if count == 0 {
-		wut.log.Debug(context.Background(), "nothing to flush")
+		tr.log.Debug(context.Background(), "nothing to flush")
 		return
 	}
 
@@ -136,47 +136,47 @@ func (wut *Tracker) flush(now time.Time) {
 	defer cancel()
 	// nolint: gocritic // system function
 	authCtx := dbauthz.AsSystemRestricted(ctx)
-	wut.flushLock.Lock()
-	defer wut.flushLock.Unlock()
-	if err := wut.s.BatchUpdateWorkspaceLastUsedAt(authCtx, database.BatchUpdateWorkspaceLastUsedAtParams{
+	tr.flushLock.Lock()
+	defer tr.flushLock.Unlock()
+	if err := tr.s.BatchUpdateWorkspaceLastUsedAt(authCtx, database.BatchUpdateWorkspaceLastUsedAtParams{
 		LastUsedAt: now,
 		IDs:        ids,
 	}); err != nil {
 		// A single failure to flush is likely not a huge problem. If the workspace is still connected at
 		// the next iteration, either another coderd instance will likely have this data or the CLI
 		// will tell us again that the workspace is in use.
-		wut.flushErrors++
-		if wut.flushErrors > 1 {
-			wut.log.Error(ctx, "multiple failures updating workspaces last_used_at", slog.F("count", count), slog.F("consecutive_errors", wut.flushErrors), slog.Error(err))
+		tr.flushErrors++
+		if tr.flushErrors > 1 {
+			tr.log.Error(ctx, "multiple failures updating workspaces last_used_at", slog.F("count", count), slog.F("consecutive_errors", tr.flushErrors), slog.Error(err))
 			// TODO: if this keeps failing, it indicates a fundamental problem with the database connection.
 			// How to surface it correctly to admins besides just screaming into the logs?
 		} else {
-			wut.log.Warn(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.Error(err))
+			tr.log.Warn(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.Error(err))
 		}
 		return
 	}
-	wut.flushErrors = 0
-	wut.log.Info(ctx, "updated workspaces last_used_at", slog.F("count", count), slog.F("now", now))
+	tr.flushErrors = 0
+	tr.log.Info(ctx, "updated workspaces last_used_at", slog.F("count", count), slog.F("now", now))
 }
 
 // Loop periodically flushes every tick.
 // If Loop is called after Close, it will panic. Don't do this.
-func (wut *Tracker) Loop() {
+func (tr *Tracker) Loop() {
 	// Calling Loop after Close() is an error.
 	select {
-	case <-wut.doneCh:
+	case <-tr.doneCh:
 		panic("developer error: Loop called after Close")
 	default:
 	}
 	defer func() {
-		wut.log.Debug(context.Background(), "workspace usage tracker loop exited")
+		tr.log.Debug(context.Background(), "workspace usage tracker loop exited")
 	}()
 	for {
 		select {
-		case <-wut.stopCh:
-			close(wut.doneCh)
+		case <-tr.stopCh:
+			close(tr.doneCh)
 			return
-		case now, ok := <-wut.tickCh:
+		case now, ok := <-tr.tickCh:
 			if !ok {
 				return
 			}
@@ -186,18 +186,18 @@ func (wut *Tracker) Loop() {
 			// then we could capture the exact usage time of each workspace. For now however, as
 			// we perform this query at a regular interval, the time of the flush is 'close enough'
 			// for the purposes of both dormancy (and for autostop, in future).
-			wut.flush(now.UTC())
+			tr.flush(now.UTC())
 		}
 	}
 }
 
 // Close stops Tracker and returns once Loop has exited.
 // After calling Close(), Loop must not be called.
-func (wut *Tracker) Close() {
-	wut.stopOnce.Do(func() {
-		wut.stopCh <- struct{}{}
-		wut.stopTick()
-		<-wut.doneCh
+func (tr *Tracker) Close() {
+	tr.stopOnce.Do(func() {
+		tr.stopCh <- struct{}{}
+		tr.stopTick()
+		<-tr.doneCh
 	})
 }
 
