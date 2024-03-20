@@ -220,73 +220,90 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     <>
       <div
         css={{
-          padding: 20,
+          maxHeight: 320,
+          overflowY: "auto",
         }}
       >
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="start"
+        <header
+          css={(theme) => ({
+            padding: 20,
+            paddingBottom: 10,
+            position: "sticky",
+            top: 0,
+            background: theme.palette.background.paper,
+            // For some reason the Share button label has a higher z-index than
+            // the header. Probably some tricky stuff from MUI.
+            zIndex: 1,
+          })}
         >
-          <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
-          <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
-            Learn more
-          </HelpTooltipLink>
-        </Stack>
-        <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-          {filteredListeningPorts?.length === 0
-            ? "No open ports were detected."
-            : "The listening ports are exclusively accessible to you."}
-        </HelpTooltipText>
-        <form
-          css={styles.newPortForm}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const port = Number(formData.get("portNumber"));
-            const url = portForwardURL(
-              host,
-              port,
-              agent.name,
-              workspaceName,
-              username,
-            );
-            window.open(url, "_blank");
-          }}
-        >
-          <input
-            aria-label="Port number"
-            name="portNumber"
-            type="number"
-            placeholder="Connect to port..."
-            min={9}
-            max={65535}
-            required
-            css={styles.newPortInput}
-          />
-          <Button
-            type="submit"
-            size="small"
-            variant="text"
-            css={{
-              paddingLeft: 12,
-              paddingRight: 12,
-              minWidth: 0,
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="start"
+          >
+            <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+            <HelpTooltipLink
+              href={docs("/networking/port-forwarding#dashboard")}
+            >
+              Learn more
+            </HelpTooltipLink>
+          </Stack>
+          <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+            {filteredListeningPorts?.length === 0
+              ? "No open ports were detected."
+              : "The listening ports are exclusively accessible to you."}
+          </HelpTooltipText>
+          <form
+            css={styles.newPortForm}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const port = Number(formData.get("portNumber"));
+              const url = portForwardURL(
+                host,
+                port,
+                agent.name,
+                workspaceName,
+                username,
+              );
+              window.open(url, "_blank");
             }}
           >
-            <OpenInNewOutlined
-              css={{
-                flexShrink: 0,
-                width: 14,
-                height: 14,
-                color: theme.palette.text.primary,
-              }}
+            <input
+              aria-label="Port number"
+              name="portNumber"
+              type="number"
+              placeholder="Connect to port..."
+              min={9}
+              max={65535}
+              required
+              css={styles.newPortInput}
             />
-          </Button>
-        </form>
+            <Button
+              type="submit"
+              size="small"
+              variant="text"
+              css={{
+                paddingLeft: 12,
+                paddingRight: 12,
+                minWidth: 0,
+              }}
+            >
+              <OpenInNewOutlined
+                css={{
+                  flexShrink: 0,
+                  width: 14,
+                  height: 14,
+                  color: theme.palette.text.primary,
+                }}
+              />
+            </Button>
+          </form>
+        </header>
         <div
           css={{
-            paddingTop: 10,
+            padding: 20,
+            paddingTop: 0,
           }}
         >
           {filteredListeningPorts?.map((port) => {
