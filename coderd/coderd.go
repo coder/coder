@@ -465,7 +465,6 @@ func New(options *Options) *API {
 					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
-					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{

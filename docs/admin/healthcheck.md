@@ -246,18 +246,6 @@ from the database.
 **Solution:** This may be a transient issue. If it persists, it could signify an
 issue with Coder's configured database.
 
-### EWP03
-
-_Workspace Proxy Version Mismatch_
-
-**Problem:** One or more workspace proxies are more than one major or minor
-version out of date with the main deployment. It is important that workspace
-proxies are updated at the same time as the main deployment to minimize the risk
-of API incompatibility.
-
-**Solution:** Update the workspace proxy to match the currently running version
-of Coder.
-
 ### EWP04
 
 _One or more Workspace Proxies Unhealthy_

@@ -8411,7 +8411,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `EUNKNOWN` |
 | `EWP01`    |
 | `EWP02`    |
-| `EWP03`    |
 | `EWP04`    |
 | `EDB01`    |
 | `EDB02`    |
