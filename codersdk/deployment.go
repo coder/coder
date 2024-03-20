@@ -543,7 +543,7 @@ when required by your organization's security policy.`,
 		}
 		deploymentGroupUserQuietHoursSchedule = serpent.Group{
 			Name:        "User Quiet Hours Schedule",
-			Description: "Allow users to set quiet hours schedules each day for workspaces to avoid workspaces stopping during the day due to template max TTL.",
+			Description: "Allow users to set quiet hours schedules each day for workspaces to avoid workspaces stopping during the day due to template scheduling.",
 			YAML:        "userQuietHoursSchedule",
 		}
 		deploymentGroupDangerous = serpent.Group{

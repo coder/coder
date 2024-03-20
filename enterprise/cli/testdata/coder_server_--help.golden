@@ -468,7 +468,7 @@ telemetrywhen required by your organization's security policy.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid
-workspaces stopping during the day due to template max TTL.
+workspaces stopping during the day due to template scheduling.
 
       --allow-custom-quiet-hours bool, $CODER_ALLOW_CUSTOM_QUIET_HOURS (default: true)
           Allow users to set their own quiet hours schedule for workspaces to

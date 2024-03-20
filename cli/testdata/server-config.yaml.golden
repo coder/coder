@@ -462,7 +462,7 @@ externalAuthProviders: []
 # (default: <unset>, type: string)
 wgtunnelHost: ""
 # Allow users to set quiet hours schedules each day for workspaces to avoid
-# workspaces stopping during the day due to template max TTL.
+# workspaces stopping during the day due to template scheduling.
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces

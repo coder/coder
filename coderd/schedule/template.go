@@ -120,12 +120,6 @@ type TemplateScheduleOptions struct {
 	// ActivityBump dictates the duration to bump the workspace's deadline by if
 	// Coder detects activity from the user. A value of 0 means no bumping.
 	ActivityBump time.Duration `json:"activity_bump"`
-	MaxTTL       time.Duration `json:"max_ttl"`
-	// UseMaxTTL dictates whether the max_ttl should be used instead of
-	// autostop_requirement for this template. This is governed by the template
-	// and licensing.
-	// TODO(@dean): remove this when we remove max_tll
-	UseMaxTTL bool
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
 	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
@@ -187,8 +181,6 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		ActivityBump:         time.Duration(tpl.ActivityBump),
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
-		UseMaxTTL: false,
-		MaxTTL:    0,
 		AutostartRequirement: TemplateAutostartRequirement{
 			// Default to allowing all days for AGPL
 			DaysOfWeek: 0b01111111,
@@ -223,8 +215,6 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			ActivityBump: int64(opts.ActivityBump),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
-			UseMaxTtl:                     tpl.UseMaxTtl,
-			MaxTTL:                        tpl.MaxTTL,
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
 			AutostartBlockDaysOfWeek:      tpl.AutostartBlockDaysOfWeek,

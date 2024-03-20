@@ -31,10 +31,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		t.Helper()
 		const ttl = time.Hour
-		maxTTL := time.Duration(0)
-		if len(deadline) > 0 {
-			maxTTL = deadline[0]
-		}
 
 		db, pubsub := dbtestutil.NewDB(t)
 		client = coderdtest.New(t, &coderdtest.Options{
@@ -73,8 +69,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		var maxDeadline time.Time
 		// Update the max deadline.
-		if maxTTL != 0 {
-			maxDeadline = dbtime.Now().Add(maxTTL)
+		if len(deadline) > 0 {
+			maxDeadline = dbtime.Now().Add(deadline[0])
 		}
 
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
@@ -99,9 +95,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		)
 		firstDeadline := workspace.LatestBuild.Deadline.Time
 
-		if maxTTL != 0 {
+		if !maxDeadline.IsZero() {
 			require.WithinDuration(t,
-				time.Now().Add(maxTTL),
+				maxDeadline,
 				workspace.LatestBuild.MaxDeadline.Time,
 				testutil.WaitMedium,
 			)
@@ -218,6 +214,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		_ = sshConn.Close()
 
-		assertBumped(true) // also asserts max ttl not exceeded
+		assertBumped(true)
 	})
 }

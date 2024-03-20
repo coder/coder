@@ -673,8 +673,6 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		// Some of these fields are meant to be accessed using a specialized
 		// interface (for entitlement purposes), but for telemetry purposes
 		// there's minimal harm accessing them directly.
-		UseMaxTTL:                      dbTemplate.UseMaxTtl,
-		MaxTTLMillis:                   time.Duration(dbTemplate.MaxTTL).Milliseconds(),
 		DefaultTTLMillis:               time.Duration(dbTemplate.DefaultTTL).Milliseconds(),
 		AllowUserCancelWorkspaceJobs:   dbTemplate.AllowUserCancelWorkspaceJobs,
 		AllowUserAutostart:             dbTemplate.AllowUserAutostart,
@@ -919,8 +917,6 @@ type Template struct {
 	Name            string    `json:"name"`
 	Description     bool      `json:"description"`
 
-	UseMaxTTL                      bool     `json:"use_max_ttl"`
-	MaxTTLMillis                   int64    `json:"max_ttl_ms"`
 	DefaultTTLMillis               int64    `json:"default_ttl_ms"`
 	AllowUserCancelWorkspaceJobs   bool     `json:"allow_user_cancel_workspace_jobs"`
 	AllowUserAutostart             bool     `json:"allow_user_autostart"`
