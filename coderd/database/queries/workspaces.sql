@@ -77,7 +77,16 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
-WITH filtered_workspaces AS (
+WITH
+-- build_params is used to filter by build parameters if present.
+-- It has to be a CTE because the set returning function 'unnest' cannot
+-- be used in a WHERE clause.
+build_params AS (
+SELECT
+	LOWER(unnest(@param_names :: text[])) AS name,
+	LOWER(unnest(@param_values :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
@@ -200,6 +209,25 @@ WHERE
 		)
 		ELSE true
 	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length(@param_names :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN

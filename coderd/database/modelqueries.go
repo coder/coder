@@ -213,6 +213,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		pq.Array(arg.ParamNames),
+		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
