@@ -1894,23 +1894,26 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		//nolint:tparallel,paralleltest
 		t.Run("exact_param", func(t *testing.T) {
+			// All match
 			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 				FilterQuery: fmt.Sprintf("param:%s=%s", paramThreeName, "baz"),
 			})
 			require.NoError(t, err)
 			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
 
+			// Two match
 			two, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 				FilterQuery: fmt.Sprintf("param:%s=%s", paramTwoName, "bar"),
 			})
 			require.NoError(t, err)
 			expectIDs(t, []codersdk.Workspace{foo, bar}, two.Workspaces)
 
+			// Only 1 matches
 			one, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 				FilterQuery: fmt.Sprintf("param:%s=%s", paramOneName, "foo"),
 			})
 			require.NoError(t, err)
-			expectIDs(t, []codersdk.Workspace{foo, bar}, one.Workspaces)
+			expectIDs(t, []codersdk.Workspace{foo}, one.Workspaces)
 		})
 
 		//nolint:tparallel,paralleltest
