@@ -207,7 +207,9 @@ WITH
 		FROM
 			template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
 		LEFT JOIN LATERAL (
-			-- Fetch the latest app info for each app based on slug and template.
+			-- The joins in this query are necessary to associate an app with a
+			-- template, we use this to get the app metadata like display name
+			-- and icon.
 			SELECT
 				app.display_name,
 				app.icon,
