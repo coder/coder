@@ -70,6 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -146,6 +147,8 @@ type Options struct {
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
+	WorkspaceUsageTrackerFlush         chan int
+	WorkspaceUsageTrackerTick          chan time.Time
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -306,6 +309,36 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
+	// Did last_used_at not update? Scratching your noggin? Here's why.
+	// Workspace usage tracking must be triggered manually in tests.
+	// The vast majority of existing tests do not depend on last_used_at
+	// and adding an extra time-based background goroutine to all existing
+	// tests may lead to future flakes and goleak complaints.
+	// Instead, pass in your own flush and ticker like so:
+	//
+	//   tickCh = make(chan time.Time)
+	//   flushCh = make(chan int, 1)
+	//   client  = coderdtest.New(t, &coderdtest.Options{
+	//     WorkspaceUsageTrackerFlush: flushCh,
+	//     WorkspaceUsageTrackerTick: tickCh
+	//   })
+	//
+	// Now to trigger a tick, just write to `tickCh`.
+	// Reading from `flushCh` will ensure that workspaceusage.Tracker flushed.
+	// See TestPortForward or TestTracker_MultipleInstances for how this works in practice.
+	if options.WorkspaceUsageTrackerFlush == nil {
+		options.WorkspaceUsageTrackerFlush = make(chan int, 1) // buffering just in case
+	}
+	if options.WorkspaceUsageTrackerTick == nil {
+		options.WorkspaceUsageTrackerTick = make(chan time.Time, 1) // buffering just in case
+	}
+	// Close is called by API.Close()
+	wuTracker := workspaceusage.New(
+		options.Database,
+		workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+		workspaceusage.WithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
+	)
+
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -454,6 +487,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
+			WorkspaceUsageTracker:              wuTracker,
 		}
 }
 

@@ -11504,6 +11504,9 @@ SET
 	last_used_at = $1
 WHERE
 	id = ANY($2 :: uuid[])
+AND
+  -- Do not overwrite with older data
+  last_used_at < $1
 `
 
 type BatchUpdateWorkspaceLastUsedAtParams struct {

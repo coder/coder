@@ -86,6 +86,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -967,6 +968,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Ensures that old database entries are cleaned up over time!
 			purger := dbpurge.New(ctx, logger, options.Database)
 			defer purger.Close()
+
+			// Updates workspace usage
+			tracker := workspaceusage.New(options.Database,
+				workspaceusage.WithLogger(logger.Named("workspace_usage_tracker")),
+			)
+			options.WorkspaceUsageTracker = tracker
+			defer tracker.Close()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

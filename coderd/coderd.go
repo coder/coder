@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -190,6 +191,9 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
+	// WorkspaceUsageTracker tracks workspace usage by the CLI.
+	WorkspaceUsageTracker *workspaceusage.Tracker
 }
 
 // @title Coder API
@@ -362,6 +366,12 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
+	if options.WorkspaceUsageTracker == nil {
+		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
+			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+		)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
@@ -405,6 +415,7 @@ func New(options *Options) *API {
 			options.Logger.Named("acquirer"),
 			options.Database,
 			options.Pubsub),
+		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
@@ -972,6 +983,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
 				r.Put("/favorite", api.putFavoriteWorkspace)
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
@@ -1179,6 +1191,8 @@ type API struct {
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
+
+	workspaceUsageTracker *workspaceusage.Tracker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1200,6 +1214,7 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.agentProvider.Close()
+	api.workspaceUsageTracker.Close()
 	return nil
 }
 
