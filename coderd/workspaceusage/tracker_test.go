@@ -35,10 +35,11 @@ func TestTracker(t *testing.T) {
 
 	tickCh := make(chan time.Time)
 	flushCh := make(chan int, 1)
-	wut := workspaceusage.New(mDB, workspaceusage.WithLogger(log), workspaceusage.WithTickChannel(tickCh), workspaceusage.WithFlushChannel(flushCh))
+	wut := workspaceusage.New(mDB,
+		workspaceusage.WithLogger(log),
+		workspaceusage.WithTickFlush(tickCh, flushCh),
+	)
 	defer wut.Close()
-
-	go wut.Loop()
 
 	// 1. No marked workspaces should imply no flush.
 	now := dbtime.Now()
@@ -106,9 +107,6 @@ func TestTracker(t *testing.T) {
 	// 5. Closing multiple times should not be a problem.
 	wut.Close()
 	wut.Close()
-
-	// 6. Running Loop() again should panic.
-	require.Panics(t, wut.Loop)
 }
 
 // This test performs a more 'integration-style' test with multiple instances.
@@ -127,25 +125,23 @@ func TestTracker_MultipleInstances(t *testing.T) {
 		ps       = pubsub.NewInMemory()
 		wuTickA  = make(chan time.Time)
 		wuFlushA = make(chan int, 1)
-		wutA     = workspaceusage.New(db, workspaceusage.WithFlushChannel(wuFlushA), workspaceusage.WithTickChannel(wuTickA))
 		wuTickB  = make(chan time.Time)
 		wuFlushB = make(chan int, 1)
-		wutB     = workspaceusage.New(db, workspaceusage.WithFlushChannel(wuFlushB), workspaceusage.WithTickChannel(wuTickB))
 		clientA  = coderdtest.New(t, &coderdtest.Options{
-			WorkspaceUsageTracker: wutA,
-			Database:              db,
-			Pubsub:                ps,
+			WorkspaceUsageTrackerTick:  wuTickA,
+			WorkspaceUsageTrackerFlush: wuFlushA,
+			Database:                   db,
+			Pubsub:                     ps,
 		})
 		clientB = coderdtest.New(t, &coderdtest.Options{
-			WorkspaceUsageTracker: wutB,
-			Database:              db,
-			Pubsub:                ps,
+			WorkspaceUsageTrackerTick:  wuTickB,
+			WorkspaceUsageTrackerFlush: wuFlushB,
+			Database:                   db,
+			Pubsub:                     ps,
 		})
 		owner = coderdtest.CreateFirstUser(t, clientA)
 		now   = dbtime.Now()
 	)
-	defer wutA.Close()
-	defer wutB.Close()
 
 	clientB.SetSessionToken(clientA.SessionToken())
 

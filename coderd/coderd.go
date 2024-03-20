@@ -371,7 +371,6 @@ func New(options *Options) *API {
 			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
 		)
 	}
-	go options.WorkspaceUsageTracker.Loop()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()

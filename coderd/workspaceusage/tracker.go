@@ -45,7 +45,7 @@ type Tracker struct {
 // New returns a new Tracker. It is the caller's responsibility
 // to call Close().
 func New(s Store, opts ...Option) *Tracker {
-	hb := &Tracker{
+	tr := &Tracker{
 		log:      slog.Make(sloghuman.Sink(os.Stderr)),
 		m:        &uuidSet{},
 		s:        s,
@@ -56,14 +56,15 @@ func New(s Store, opts ...Option) *Tracker {
 		flushCh:  nil,
 	}
 	for _, opt := range opts {
-		opt(hb)
+		opt(tr)
 	}
-	if hb.tickCh == nil && hb.stopTick == nil {
-		ticker := time.NewTicker(DefaultFlushInterval)
-		hb.tickCh = ticker.C
-		hb.stopTick = ticker.Stop
+	if tr.tickCh == nil && tr.stopTick == nil {
+		tick := time.NewTicker(DefaultFlushInterval)
+		tr.tickCh = tick.C
+		tr.stopTick = tick.Stop
 	}
-	return hb
+	go tr.loop()
+	return tr
 }
 
 type Option func(*Tracker)
@@ -84,27 +85,18 @@ func WithFlushInterval(d time.Duration) Option {
 	}
 }
 
-// WithFlushChannel allows passing a channel that receives
-// the number of marked workspaces every time Tracker flushes.
+// WithTickFlush allows passing two channels: one that reads
+// a time.Time, and one that returns the number of marked workspaces
+// every time Tracker flushes.
 // For testing only and will panic if used outside of tests.
-func WithFlushChannel(c chan int) Option {
+func WithTickFlush(tickCh <-chan time.Time, flushCh chan int) Option {
 	if flag.Lookup("test.v") == nil {
-		panic("developer error: WithFlushChannel is not to be used outside of tests.")
+		panic("developer error: WithTickFlush is not to be used outside of tests.")
 	}
 	return func(h *Tracker) {
-		h.flushCh = c
-	}
-}
-
-// WithTickChannel allows passing a channel to replace a ticker.
-// For testing only and will panic if used outside of tests.
-func WithTickChannel(c chan time.Time) Option {
-	if flag.Lookup("test.v") == nil {
-		panic("developer error: WithTickChannel is not to be used outside of tests.")
-	}
-	return func(h *Tracker) {
-		h.tickCh = c
+		h.tickCh = tickCh
 		h.stopTick = func() {}
+		h.flushCh = flushCh
 	}
 }
 
@@ -159,13 +151,13 @@ func (tr *Tracker) flush(now time.Time) {
 	tr.log.Info(ctx, "updated workspaces last_used_at", slog.F("count", count), slog.F("now", now))
 }
 
-// Loop periodically flushes every tick.
-// If Loop is called after Close, it will panic. Don't do this.
-func (tr *Tracker) Loop() {
-	// Calling Loop after Close() is an error.
+// loop periodically flushes every tick.
+// If loop is called after Close, it will exit immediately and log an error.
+func (tr *Tracker) loop() {
 	select {
 	case <-tr.doneCh:
-		panic("developer error: Loop called after Close")
+		tr.log.Error(context.Background(), "developer error: Loop called after Close")
+		return
 	default:
 	}
 	defer func() {
@@ -193,12 +185,13 @@ func (tr *Tracker) Loop() {
 
 // Close stops Tracker and returns once Loop has exited.
 // After calling Close(), Loop must not be called.
-func (tr *Tracker) Close() {
+func (tr *Tracker) Close() error {
 	tr.stopOnce.Do(func() {
 		tr.stopCh <- struct{}{}
 		tr.stopTick()
 		<-tr.doneCh
 	})
+	return nil
 }
 
 // uuidSet is a set of UUIDs. Safe for concurrent usage.
