@@ -248,13 +248,23 @@ func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryP
 	return v
 }
 
-// ParseCustomList is a function that handles csv query params.
+// ParseCustomList is a function that handles csv query params or multiple values
+// for a query param.
+// Csv is supported as it is a common way to pass multiple values in a query param.
+// Multiple values is supported (key=value&key=value2) for feature parity with GitHub issue search.
 func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, queryParam string, parseFunc func(v string) (T, error)) []T {
-	v, err := parseQueryParam(parser, vals, func(v string) ([]T, error) {
-		terms := strings.Split(v, ",")
+	v, err := parseQueryParamSet(parser, vals, func(set []string) ([]T, error) {
+		// Gather all terms.
+		allTerms := make([]string, 0, len(set))
+		for _, s := range set {
+			// If a term is a csv, break it out into individual terms.
+			terms := strings.Split(s, ",")
+			allTerms = append(allTerms, terms...)
+		}
+
 		var badValues []string
 		var output []T
-		for _, s := range terms {
+		for _, s := range allTerms {
 			good, err := parseFunc(s)
 			if err != nil {
 				badValues = append(badValues, s)
@@ -277,7 +287,18 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 	return v
 }
 
+// parseQueryParam expects just 1 value set for the given query param.
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
+	setParse := func(set []string) (T, error) {
+		if len(set) > 1 {
+			return def, xerrors.Errorf("multiple values provided for the query param %q, only 1 is supported", queryParam)
+		}
+		return parse(set[0])
+	}
+	return parseQueryParamSet(parser, vals, setParse, def, queryParam)
+}
+
+func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse func(set []string) (T, error), def T, queryParam string) (T, error) {
 	parser.addParsed(queryParam)
 	// If the query param is required and not present, return an error.
 	if parser.RequiredNotEmptyParams[queryParam] && (!vals.Has(queryParam) || vals.Get(queryParam) == "") {
@@ -293,6 +314,5 @@ func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse fun
 		return def, nil
 	}
 
-	str := vals.Get(queryParam)
-	return parse(str)
+	return parse(vals[queryParam])
 }
