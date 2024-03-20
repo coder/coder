@@ -1707,6 +1707,7 @@ WITH
 			COALESCE(wa.display_name, '') AS display_name,
 			COALESCE(wa.icon, '') AS icon,
 			(wa.slug IS NOT NULL)::boolean AS is_app,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(app_usage.value::int), 30) AS app_usage_mins
 		FROM
 			template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
