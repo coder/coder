@@ -11957,7 +11957,8 @@ WHERE
 		ELSE true
 	END
 	-- Filter by build parameter
-	AND CASE WHEN array_length($4 :: uuid[], 1) > 0  THEN
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length($4 :: text[], 1) > 0  THEN
 		EXISTS (
 			SELECT
 				1
@@ -11965,7 +11966,8 @@ WHERE
 				workspace_build_parameters
 			WHERE
 				workspace_build_parameters.workspace_build_id = latest_build.id AND
-				workspace_build_parameters.name = ANY($4)
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY($4)
 		)
 		ELSE true
 	END
@@ -12137,7 +12139,7 @@ type GetWorkspacesParams struct {
 	Deleted                               bool         `db:"deleted" json:"deleted"`
 	Status                                string       `db:"status" json:"status"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
-	HasParam                              []uuid.UUID  `db:"has_param" json:"has_param"`
+	HasParam                              []string     `db:"has_param" json:"has_param"`
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
 	TemplateName                          string       `db:"template_name" json:"template_name"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`

@@ -186,7 +186,8 @@ WHERE
 		ELSE true
 	END
 	-- Filter by build parameter
-	AND CASE WHEN array_length(@has_param :: uuid[], 1) > 0  THEN
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length(@has_param :: text[], 1) > 0  THEN
 		EXISTS (
 			SELECT
 				1
@@ -194,7 +195,8 @@ WHERE
 				workspace_build_parameters
 			WHERE
 				workspace_build_parameters.workspace_build_id = latest_build.id AND
-				workspace_build_parameters.name = ANY(@has_param)
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY(@has_param)
 		)
 		ELSE true
 	END
