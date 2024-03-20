@@ -11990,7 +11990,7 @@ WHERE
 				build_params
 			ON
 				LOWER(workspace_build_parameters.name) = build_params.name AND
-				LOWER(workspace_build_parameters.value) = build_params.value AND
+				LOWER(workspace_build_parameters.value) LIKE build_params.value AND
 				workspace_build_parameters.workspace_build_id = latest_build.id
 		)
 		ELSE true

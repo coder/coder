@@ -151,8 +151,19 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 			filter.HasParam = append(filter.HasParam, p.name)
 			continue
 		}
+
+		// In postgres, '%' is the wildcard character for matching. But * is a more commonly
+		// used character.
+		// First escape any '%' characters in the value to treat them as literals.
+		valueMatch := strings.ReplaceAll(*p.value, "%", `\%`)
+		// Then replace wildcards with the '%' character. If someone wants the
+		// literal '*' character... then we will have to implement something.
+		// If we have to implement escaping '*', then we have to implement escaping the
+		// escape character as well, which might actually be used in a value.
+		// Let's avoid the complexity until we need it.
+		valueMatch = strings.ReplaceAll(valueMatch, "*", "%")
 		filter.ParamNames = append(filter.ParamNames, p.name)
-		filter.ParamValues = append(filter.ParamValues, *p.value)
+		filter.ParamValues = append(filter.ParamValues, valueMatch)
 	}
 
 	parser.ErrorExcessParams(values)
