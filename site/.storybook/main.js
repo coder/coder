@@ -2,6 +2,7 @@ import turbosnap from "vite-plugin-turbosnap";
 
 module.exports = {
   stories: ["../src/**/*.stories.tsx"],
+
   addons: [
     {
       name: "@storybook/addon-essentials",
@@ -15,11 +16,14 @@ module.exports = {
     "@storybook/addon-actions",
     "@storybook/addon-interactions",
   ],
+
   staticDirs: ["../static"],
+
   framework: {
     name: "@storybook/react-vite",
     options: {},
   },
+
   async viteFinal(config, { configType }) {
     config.plugins = config.plugins || [];
     // return the customized config
@@ -33,4 +37,8 @@ module.exports = {
     }
     return config;
   },
+
+  docs: {
+    autodocs: true
+  }
 };

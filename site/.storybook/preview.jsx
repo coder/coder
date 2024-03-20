@@ -49,9 +49,6 @@ export const parameters = {
       locales: "en-US",
     },
   },
-  actions: {
-    argTypesRegex: "^(on|handler)[A-Z].*",
-  },
   controls: {
     expanded: true,
     matchers: {
