@@ -297,7 +297,16 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
 	setParse := func(set []string) (T, error) {
 		if len(set) > 1 {
-			return def, xerrors.Errorf("multiple values provided for the query param %q, only 1 is supported", queryParam)
+			// Set as a parser.Error rather than return an error.
+			// Returned errors are errors from the passed in `parse` function, and
+			// imply the query param value had attempted to be parsed.
+			// By raising the error this way, we can also more easily control how it
+			// is presented to the user. A returned error is wrapped with more text.
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  queryParam,
+				Detail: fmt.Sprintf("Query param %q provided more than once, found %d times. Only provide 1 instance of this query param.", queryParam, len(set)),
+			})
+			return def, nil
 		}
 		return parse(set[0])
 	}

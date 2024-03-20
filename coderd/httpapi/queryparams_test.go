@@ -32,7 +32,7 @@ type queryParamTestCase[T any] struct {
 
 func TestParseQueryParams(t *testing.T) {
 	t.Parallel()
-	const multipleValuesError = "multiple values provided"
+	const multipleValuesError = "provided more than once"
 
 	t.Run("Enum", func(t *testing.T) {
 		t.Parallel()
