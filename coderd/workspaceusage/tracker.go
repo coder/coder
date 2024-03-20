@@ -29,16 +29,17 @@ type Store interface {
 // It keeps an internal map of workspace IDs that have been used and
 // periodically flushes this to its configured Store.
 type Tracker struct {
-	log       slog.Logger      // you know, for logs
-	flushLock sync.Mutex       // protects m
-	m         *uuidSet         // stores workspace ids
-	s         Store            // for flushing data
-	tickCh    <-chan time.Time // controls flush interval
-	stopTick  func()           // stops flushing
-	stopCh    chan struct{}    // signals us to stop
-	stopOnce  sync.Once        // because you only stop once
-	doneCh    chan struct{}    // signifies that we have stopped
-	flushCh   chan int         // used for testing.
+	log         slog.Logger      // you know, for logs
+	flushLock   sync.Mutex       // protects m
+	flushErrors int              // tracks the number of consecutive errors flushing
+	m           *uuidSet         // stores workspace ids
+	s           Store            // for flushing data
+	tickCh      <-chan time.Time // controls flush interval
+	stopTick    func()           // stops flushing
+	stopCh      chan struct{}    // signals us to stop
+	stopOnce    sync.Once        // because you only stop once
+	doneCh      chan struct{}    // signifies that we have stopped
+	flushCh     chan int         // used for testing.
 }
 
 // New returns a new Tracker. It is the caller's responsibility
@@ -141,9 +142,13 @@ func (wut *Tracker) flush(now time.Time) {
 		LastUsedAt: now,
 		IDs:        ids,
 	}); err != nil {
-		wut.log.Error(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.Error(err))
+		wut.flushErrors++
+		wut.log.Error(ctx, "failed updating workspaces last_used_at", slog.F("count", count), slog.F("consecutive_errors", wut.flushErrors), slog.Error(err))
+		// TODO: if this keeps failing, it indicates a fundamental problem with the database connection.
+		// How to surface it correctly to admins besides just screaming into the logs?
 		return
 	}
+	wut.flushErrors = 0
 	wut.log.Info(ctx, "updated workspaces last_used_at", slog.F("count", count), slog.F("now", now))
 }
 
