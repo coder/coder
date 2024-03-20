@@ -148,6 +148,8 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 			filter.HasParam = append(filter.HasParam, p.name)
 			continue
 		}
+		filter.ParamNames = append(filter.ParamNames, p.name)
+		filter.ParamValues = append(filter.ParamValues, *p.value)
 	}
 
 	parser.ErrorExcessParams(values)
