@@ -411,6 +411,9 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
+# Type of auth to use when connecting to postgres.
+# (default: password, type: enum[password\|awsiamrds])
+pgAuth: password
 # The algorithm to use for generating ssh keys. Accepted values are "ed25519",
 # "ecdsa", or "rsa4096".
 # (default: ed25519, type: string)

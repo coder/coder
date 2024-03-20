@@ -21,6 +21,16 @@ coder server dbcrypt decrypt [flags]
 
 The connection URL for the Postgres database.
 
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsiamrds]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+
 ### --keys
 
 |             |                                                            |

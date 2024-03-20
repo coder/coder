@@ -9597,6 +9597,9 @@ const docTemplate = `{
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCConfig"
                 },
+                "pg_auth": {
+                    "type": "string"
+                },
                 "pg_connection_url": {
                     "type": "string"
                 },

@@ -135,6 +135,18 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
 
+type PostgresAuth string
+
+const (
+	PostgresAuthPassword  PostgresAuth = "password"
+	PostgresAuthAWSIAMRDS PostgresAuth = "awsiamrds"
+)
+
+var PostgresAuthDrivers = []string{
+	string(PostgresAuthPassword),
+	string(PostgresAuthAWSIAMRDS),
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -154,6 +166,7 @@ type DeploymentValues struct {
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -1629,6 +1642,15 @@ when required by your organization's security policy.`,
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.PostgresURL,
+		},
+		{
+			Name:        "Postgres Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-auth",
+			Env:         "CODER_PG_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&c.PostgresAuth, PostgresAuthDrivers...),
+			YAML:        "pgAuth",
 		},
 		{
 			Name:        "Secure Auth Cookie",

@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -668,12 +669,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
-				if err != nil {
-					return xerrors.Errorf("escaping postgres URL: %w", err)
-				}
-
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2555,4 +2551,25 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 		return context.WithCancel(ctx)
 	}
 	return inv.SignalNotifyContext(ctx, sig...)
+}
+
+func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+	dbURL, err := escapePostgresURLUserInfo(postgresURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
+	}
+
+	if auth == codersdk.PostgresAuthAWSIAMRDS {
+		sqlDriver, err = awsiamrds.Register(ctx, sqlDriver)
+		if err != nil {
+			return nil, "", xerrors.Errorf("register aws rds iam auth: %w", err)
+		}
+	}
+
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
+	}
+
+	return sqlDB, dbURL, nil
 }

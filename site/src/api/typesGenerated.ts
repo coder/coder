@@ -481,6 +481,7 @@ export interface DeploymentValues {
   readonly cache_directory?: string;
   readonly in_memory_database?: boolean;
   readonly pg_connection_url?: string;
+  readonly pg_auth?: string;
   readonly oauth2?: OAuth2Config;
   readonly oidc?: OIDCConfig;
   readonly telemetry?: TelemetryConfig;
@@ -2146,6 +2147,10 @@ export type OAuth2ProviderResponseType = "code";
 export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
   "code",
 ];
+
+// From codersdk/deployment.go
+export type PostgresAuth = "awsiamrds" | "password";
+export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
