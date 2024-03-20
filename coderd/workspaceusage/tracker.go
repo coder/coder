@@ -169,12 +169,12 @@ func (tr *Tracker) Loop() {
 	default:
 	}
 	defer func() {
+		close(tr.doneCh)
 		tr.log.Debug(context.Background(), "workspace usage tracker loop exited")
 	}()
 	for {
 		select {
 		case <-tr.stopCh:
-			close(tr.doneCh)
 			return
 		case now, ok := <-tr.tickCh:
 			if !ok {
