@@ -96,6 +96,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -182,6 +183,19 @@ WHERE
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			workspaces.owner_id = @owner_id
+		ELSE true
+	END
+	-- Filter by build parameter
+	AND CASE WHEN array_length(@has_param :: uuid[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				workspace_build_parameters.name = ANY(@has_param)
+		)
 		ELSE true
 	END
 	-- Filter by owner_name
