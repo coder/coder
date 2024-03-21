@@ -13,8 +13,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -84,7 +84,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -150,7 +150,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -184,7 +184,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -224,7 +224,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())

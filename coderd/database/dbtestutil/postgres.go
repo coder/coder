@@ -1,4 +1,4 @@
-package postgres
+package dbtestutil
 
 import (
 	"database/sql"
@@ -41,10 +41,22 @@ func Open() (string, func(), error) {
 			return "", nil, xerrors.Errorf("create db with template: %w", err)
 		}
 
-		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", func() {
-			// We don't need to clean anything up here... it's just a database in a container,
-			// so cleaning up the container will clean up the database.
-		}, nil
+		dsn := "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable"
+		// Normally this would get cleaned up by removing the container but if we
+		// reuse the same container for multiple tests we run the risk of filling
+		// up our disk. Avoid this!
+		cleanup := func() {
+			cleanupConn, err := sql.Open("postgres", dbURL)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
+			}
+			defer cleanupConn.Close()
+			_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "failed to clean up database %q: %s\n", dbName, err.Error())
+			}
+		}
+		return dsn, cleanup, nil
 	}
 	return OpenContainerized(0)
 }

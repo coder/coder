@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1582,7 +1581,7 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := postgres.Open()
+	connectionURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	defer closeFunc()
 
@@ -1801,7 +1800,7 @@ func TestConnectToPostgres(t *testing.T) {
 
 	log := slogtest.Make(t, nil)
 
-	dbURL, closeFunc, err := postgres.Open()
+	dbURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

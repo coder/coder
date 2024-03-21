@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 )
 
 const minimumPostgreSQLVersion = 13
 
 func main() {
-	connection, closeFn, err := postgres.Open()
+	connection, closeFn, err := dbtestutil.Open()
 	if err != nil {
 		panic(err)
 	}
