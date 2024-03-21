@@ -1637,6 +1637,12 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 			Port:        ps.Port,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("DeleteWorkspaceAgentPortSharesByWorkspace", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+		check.Args(ws.ID).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("DeleteWorkspaceAgentPortSharesByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		t := dbgen.Template(s.T(), db, database.Template{})
