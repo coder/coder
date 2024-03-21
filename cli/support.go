@@ -30,7 +30,6 @@ func (r *RootCmd) support() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
 		Children: []*serpent.Command{
 			r.supportBundle(),
 		},
