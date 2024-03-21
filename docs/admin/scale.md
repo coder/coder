@@ -170,16 +170,31 @@ There are a few cluster options
 
 #### Greedy agent
 
-The greedy agent variant is a template modification that forces the Coder agent
-to transmit large metadata (size: 4K) while emitting stats. The transmission of
-large chunks puts extra overhead on coderd instances and agents while processing
+The greedy agent variant is a template modification that makes the Coder agent
+transmit large metadata (size: 4K) while reporting stats. The transmission of
+large chunks puts extra overhead on coderd instances and agents when handling
 and storing the data.
 
 Use this template variant to verify limits of the cluster performance.
 
 ### Observability
 
-TODO Grafana and logs
+During scale tests, operators can monitor progress using a Grafana dashboard.
+Coder offers a comprehensive overview
+[dashboard](https://github.com/coder/coder/blob/main/scaletest/scaletest_dashboard.json)
+that can seamlessly integrate into the internal Grafana deployment.
+
+This dashboard provides insights into various aspects, including:
+
+- Utilization of resources within the Coder control plane (CPU, memory, pods)
+- Database performance metrics (CPU, memory, I/O, connections, queries)
+- Coderd API performance (requests, latency, error rate)
+- Resource consumption within Coder workspaces (CPU, memory, network usage)
+- Internal metrics related to provisioner jobs
+
+It is highly recommended to deploy a solution for centralized log collection and
+aggregation. The presence of error logs may indicate an underscaled deployment
+of Coder, necessitating action from operators.
 
 ## Autoscaling
 
