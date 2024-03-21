@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -268,18 +269,18 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 			allTerms = append(allTerms, terms...)
 		}
 
-		var badValues []string
+		var badErrors error
 		var output []T
 		for _, s := range allTerms {
 			good, err := parseFunc(s)
 			if err != nil {
-				badValues = append(badValues, s)
+				badErrors = errors.Join(badErrors, err)
 				continue
 			}
 			output = append(output, good)
 		}
-		if len(badValues) > 0 {
-			return []T{}, xerrors.Errorf("%s", strings.Join(badValues, ","))
+		if badErrors != nil {
+			return []T{}, badErrors
 		}
 
 		return output, nil

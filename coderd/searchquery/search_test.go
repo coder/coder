@@ -144,7 +144,59 @@ func TestSearchWorkspace(t *testing.T) {
 				HasParam: []string{"foo"},
 			},
 		},
+		{
+			Name:  "MultipleParamNames",
+			Query: "param:foo param:bar param:baz",
+			Expected: database.GetWorkspacesParams{
+				HasParam: []string{"foo", "bar", "baz"},
+			},
+		},
+		{
+			Name:  "ParamValue",
+			Query: "param:foo=bar",
+			Expected: database.GetWorkspacesParams{
+				ParamNames:  []string{"foo"},
+				ParamValues: []string{"bar"},
+			},
+		},
+		{
+			Name:  "MultipleParamValues",
+			Query: "param:foo=bar param:fuzz=buzz",
+			Expected: database.GetWorkspacesParams{
+				ParamNames:  []string{"foo", "fuzz"},
+				ParamValues: []string{"bar", "buzz"},
+			},
+		},
+		{
+			Name:  "MixedParams",
+			Query: "param:dot    param:foo=bar param:fuzz=buzz param:tot",
+			Expected: database.GetWorkspacesParams{
+				HasParam:    []string{"dot", "tot"},
+				ParamNames:  []string{"foo", "fuzz"},
+				ParamValues: []string{"bar", "buzz"},
+			},
+		},
+		{
+			Name:  "ParamSpaces",
+			Query: `param:"   dot "     param:"   foo=bar   "`,
+			Expected: database.GetWorkspacesParams{
+				HasParam:    []string{"dot"},
+				ParamNames:  []string{"foo"},
+				ParamValues: []string{"bar"},
+			},
+		},
+
 		// Failures
+		{
+			Name:                  "ParamExcessValue",
+			Query:                 "param:foo=bar=baz",
+			ExpectedErrorContains: "can only contain 1 '='",
+		},
+		{
+			Name:                  "ParamNoValue",
+			Query:                 "param:foo=",
+			ExpectedErrorContains: "omit the '=' to match",
+		},
 		{
 			Name:                  "NoPrefix",
 			Query:                 `:foo`,
