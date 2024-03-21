@@ -1,6 +1,6 @@
 //go:build linux
 
-package postgres_test
+package dbtestutil_test
 
 import (
 	"database/sql"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 )
 
 func TestMain(m *testing.M) {
@@ -27,7 +27,7 @@ func TestPostgres(t *testing.T) {
 		return
 	}
 
-	connect, closePg, err := postgres.Open()
+	connect, closePg, err := dbtestutil.Open()
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connect)
