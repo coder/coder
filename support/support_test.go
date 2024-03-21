@@ -73,9 +73,11 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Workspace.TemplateFileBase64, "workspace template file should be present")
 		require.NotNil(t, bun.Workspace.Parameters, "workspace parameters should be present")
 		assertNotNilNotEmpty(t, bun.Agent.Agent, "agent should be present")
-		assertSanitizedAgent(t, *bun.Agent.Agent)
+		assertSanitizedEnv(t, bun.Agent.Agent.EnvironmentVariables)
 		assertNotNilNotEmpty(t, bun.Agent.ListeningPorts, "agent listening ports should be present")
 		assertNotNilNotEmpty(t, bun.Agent.Logs, "agent logs should be present")
+		assertNotNilNotEmpty(t, bun.Agent.Manifest, "agent manifest should be present")
+		assertSanitizedEnv(t, bun.Agent.Manifest.EnvironmentVariables)
 		assertNotNilNotEmpty(t, bun.Agent.AgentMagicsockHTML, "agent magicsock should be present")
 		assertNotNilNotEmpty(t, bun.Agent.ClientMagicsockHTML, "client magicsock should be present")
 		assertNotNilNotEmpty(t, bun.Agent.PeerDiagnostics, "agent peer diagnostics should be present")
@@ -164,15 +166,15 @@ func assertSanitizedWorkspace(t *testing.T, ws codersdk.Workspace) {
 	t.Helper()
 	for _, res := range ws.LatestBuild.Resources {
 		for _, agt := range res.Agents {
-			assertSanitizedAgent(t, agt)
+			assertSanitizedEnv(t, agt.EnvironmentVariables)
 		}
 	}
 }
 
-func assertSanitizedAgent(t *testing.T, agt codersdk.WorkspaceAgent) {
+func assertSanitizedEnv(t *testing.T, env map[string]string) {
 	t.Helper()
-	for k, v := range agt.EnvironmentVariables {
-		assert.Equal(t, "***REDACTED***", v, "agent %q environment variable %q not sanitized", agt.Name, k)
+	for k, v := range env {
+		assert.Equal(t, "***REDACTED***", v, "environment variable %q not sanitized", k)
 	}
 }
 
