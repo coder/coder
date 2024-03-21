@@ -2798,15 +2798,15 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	require.Equal(t, "test", string(b))
 }
 
-func requireFileWrite(t testing.TB, fs afero.Fs, path, data string) {
+func requireFileWrite(t testing.TB, fs afero.Fs, fp, data string) {
 	t.Helper()
-	err := afero.WriteFile(fs, path, []byte(data), 0o600)
+	err := afero.WriteFile(fs, fp, []byte(data), 0o600)
 	require.NoError(t, err)
 }
 
-func requireFileEquals(t testing.TB, fs afero.Fs, path, expect string) {
+func requireFileEquals(t testing.TB, fs afero.Fs, fp, expect string) {
 	t.Helper()
-	actual, err := afero.ReadFile(fs, path)
+	actual, err := afero.ReadFile(fs, fp)
 	require.NoError(t, err)
 
 	require.Equal(t, expect, string(actual))
