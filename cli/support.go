@@ -40,7 +40,7 @@ func (r *RootCmd) support() *serpent.Command {
 
 var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
 	`  - Coder deployment version
-   - Coder deployment Configuration (sanitized), including enabled experiments
+  - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
   - Coder deployment Network troubleshooting information
   - Workspace configuration, parameters, and build logs
