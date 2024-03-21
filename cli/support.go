@@ -38,6 +38,23 @@ func (r *RootCmd) support() *serpent.Command {
 	return supportCmd
 }
 
+var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
+	`  - Coder deployment version
+   - Coder deployment Configuration (sanitized), including enabled experiments
+  - Coder deployment health snapshot
+  - Coder deployment Network troubleshooting information
+  - Workspace configuration, parameters, and build logs
+  - Template version and source code for the given workspace
+  - Agent details (with environment variable sanitized)
+  - Agent network diagnostics
+  - Agent logs
+` + cliui.Bold("Note: ") +
+	cliui.Wrap(`While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n`) +
+	cliui.Bold("Please confirm that you will:\n") +
+	"  - Review the support bundle before distribution\n" +
+	"  - Only distribute it via trusted channels\n" +
+	cliui.Bold("Type 'confirm' to continue:")
+
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
@@ -72,12 +89,11 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 
 			if !confirm {
 				ans, err := cliui.Prompt(inv, cliui.PromptOptions{
-					Text:      cliui.Bold("Note: ") + cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") + cliui.Bold("Please confirm that you will:\n") + "  - Review the support bundle before distribution\n  - Only distribute it via trusted channels.\n",
-					Default:   cliui.ConfirmNo,
-					Secret:    false,
-					IsConfirm: true,
+					Text:    supportBundleBlurb,
+					Default: "",
+					Secret:  false,
 				})
-				if err != nil || ans != cliui.ConfirmYes {
+				if err != nil || ans != "confirm" {
 					return err
 				}
 				cliLog.Info(inv.Context(), "user confirmed manually", slog.F("answer", ans))
