@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -110,7 +111,7 @@ func TestCollectInsights(t *testing.T) {
 			UserID:           user.UserID,
 			WorkspaceID:      workspace.ID,
 			AgentID:          resources[0].Agents[0].ID,
-			AccessMethod:     "terminal",
+			AccessMethod:     "path",
 			SlugOrPort:       "golden-slug",
 			SessionID:        uuid.New(),
 			SessionStartedAt: time.Now().Add(-3 * time.Minute),
@@ -163,13 +164,16 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err)
 
 	collected := map[string]int{}
-	assert.Eventuallyf(t, func() bool {
+	ok := assert.Eventuallyf(t, func() bool {
 		// When
 		metrics, err := registry.Gather()
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 
 		// Then
 		for _, metric := range metrics {
+			t.Logf("metric: %s: %#v", metric.GetName(), metric)
 			switch metric.GetName() {
 			case "coderd_insights_applications_usage_seconds", "coderd_insights_templates_active_users", "coderd_insights_parameters":
 				for _, m := range metric.Metric {
@@ -180,12 +184,16 @@ func TestCollectInsights(t *testing.T) {
 					collected[key] = int(m.Gauge.GetValue())
 				}
 			default:
-				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
+				assert.Failf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
 
 		return insightsMetricsAreEqual(golden, collected)
-	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files, got: %v", collected)
+	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files")
+	if !ok {
+		diff := cmp.Diff(golden, collected)
+		assert.Empty(t, diff, "template insights are inconsistent with golden files (-golden +collected)")
+	}
 }
 
 func metricLabelAsString(m *io_prometheus_client.Metric) string {
