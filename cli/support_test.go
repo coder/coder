@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"tailscale.com/ipn/ipnstate"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
@@ -23,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,10 +41,15 @@ func TestSupportBundle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
+		randSecretValue := uuid.NewString()
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
-		}).WithAgent().Do()
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			// This should not show up in the bundle output
+			agents[0].Env["SECRET_VALUE"] = randSecretValue
+			return agents
+		}).Do()
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		tempDir := t.TempDir()
@@ -81,7 +89,7 @@ func TestSupportBundle(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		err = inv.Run()
 		require.NoError(t, err)
-		assertBundleContents(t, path)
+		assertBundleContents(t, path, randSecretValue)
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {
@@ -126,12 +134,13 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
-func assertBundleContents(t *testing.T, path string) {
+func assertBundleContents(t *testing.T, path string, badValues ...string) {
 	t.Helper()
 	r, err := zip.OpenReader(path)
 	require.NoError(t, err, "open zip file")
 	defer r.Close()
 	for _, f := range r.File {
+		assertDoesNotContain(t, f, badValues...)
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
@@ -243,4 +252,14 @@ func readBytesFromZip(t *testing.T, f *zip.File) []byte {
 	bs, err := io.ReadAll(rc)
 	require.NoError(t, err, "read bytes from zip")
 	return bs
+}
+
+func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {
+	t.Helper()
+	bs := readBytesFromZip(t, f)
+	for _, val := range vals {
+		if bytes.Contains(bs, []byte(val)) {
+			t.Fatalf("file %q should not contain value %q", f.Name, val)
+		}
+	}
 }
