@@ -24,9 +24,7 @@ type commandErrorCase struct {
 func TestErrorExamples(t *testing.T) {
 	t.Parallel()
 
-	var root cli.RootCmd
-	rootCmd, err := root.Command(root.AGPL())
-	require.NoError(t, err)
+	rootCmd := getRoot(t)
 
 	var cases []commandErrorCase
 
@@ -52,8 +50,7 @@ ExtractCommandPathsLoop:
 
 			var outBuf bytes.Buffer
 
-			rootCmd, err := root.Command(root.AGPL())
-			require.NoError(t, err)
+			rootCmd := getRoot(t)
 
 			inv, _ := clitest.NewWithCommand(t, rootCmd, tt.Cmd...)
 			inv.Stderr = &outBuf
@@ -65,7 +62,7 @@ ExtractCommandPathsLoop:
 				inv.Stdin = os.Stdin
 			}
 
-			err = inv.Run()
+			err := inv.Run()
 
 			errFormatter := cli.ExportNewPrettyErrorFormatter(&outBuf, false)
 			cli.ExportFormat(errFormatter, err)
@@ -83,4 +80,15 @@ func extractCommandPaths(cmdPath []string, cmds []*serpent.Command) [][]string {
 		cmdPaths = append(cmdPaths, extractCommandPaths(cmdPath, c.Children)...)
 	}
 	return cmdPaths
+}
+
+// Must return a fresh instance of cmds each time.
+func getRoot(t *testing.T) *serpent.Command {
+	t.Helper()
+
+	var root cli.RootCmd
+	rootCmd, err := root.Command(root.AGPL())
+	require.NoError(t, err)
+
+	return rootCmd
 }
