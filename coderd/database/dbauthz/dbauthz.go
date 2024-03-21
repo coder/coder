@@ -928,6 +928,19 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
+func (q *querier) DeleteWorkspaceAgentPortSharesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	w, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, w); err != nil {
+		return err
+	}
+
+	return q.db.DeleteWorkspaceAgentPortSharesByWorkspace(ctx, workspaceID)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)

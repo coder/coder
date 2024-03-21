@@ -1503,6 +1503,24 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
+func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByWorkspace(_ context.Context, workspaceID uuid.UUID) error {
+	err := validateDatabaseType(workspaceID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, share := range q.workspaceAgentPortShares {
+		if share.WorkspaceID == workspaceID {
+			q.workspaceAgentPortShares = append(q.workspaceAgentPortShares[:i], q.workspaceAgentPortShares[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -938,10 +939,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		dormantAt.Time = dbtime.Now()
 	}
 
-	workspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-		ID:        workspace.ID,
-		DormantAt: dormantAt,
-	})
+	workspace, err := autobuild.SetWorkspaceDormant(ctx, api.Database, workspace.ID, dormantAt)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating workspace locked status.",

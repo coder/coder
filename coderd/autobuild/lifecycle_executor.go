@@ -208,12 +208,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// threshold for inactivity.
 					if reason == database.BuildReasonDormancy {
 						wsOld := ws
-						ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-							ID: ws.ID,
-							DormantAt: sql.NullTime{
-								Time:  dbtime.Now(),
-								Valid: true,
-							},
+						ws, err := SetWorkspaceDormant(e.ctx, tx, ws.ID, sql.NullTime{
+							Time:  dbtime.Now(),
+							Valid: true,
 						})
 
 						auditLog = &auditParams{
@@ -488,4 +485,21 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 
 func useActiveVersion(opts dbauthz.TemplateAccessControl, ws database.Workspace) bool {
 	return opts.RequireActiveVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
+}
+
+func SetWorkspaceDormant(ctx context.Context, db database.Store, wsID uuid.UUID, dormantAt sql.NullTime) (database.Workspace, error) {
+	ws, err := db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+		ID:        wsID,
+		DormantAt: dormantAt,
+	})
+	if err != nil {
+		return database.Workspace{}, xerrors.Errorf("update workspace dormant at: %w", err)
+	}
+
+	err = db.DeleteWorkspaceAgentPortSharesByWorkspace(ctx, wsID)
+	if err != nil {
+		return database.Workspace{}, xerrors.Errorf("delete workspace agent port shares by workspace: %w", err)
+	}
+
+	return ws, nil
 }

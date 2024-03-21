@@ -230,3 +230,48 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func TestWorkspaceAgentPortShareDormant(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	dep := coderdtest.DeploymentValues(t)
+	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
+	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dep,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	tmpDir := t.TempDir()
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Directory = tmpDir
+		return agents
+	}).Do()
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(user, owner.OrganizationID)), r.Workspace.ID)
+	require.NoError(t, err)
+
+	// create
+	_, err = client.UpsertWorkspaceAgentPortShare(ctx, r.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+		AgentName:  agents[0].Name,
+		Port:       8080,
+		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
+	})
+	require.NoError(t, err)
+
+	// set workspace dormant
+	err = client.UpdateWorkspaceDormancy(ctx, r.Workspace.ID, codersdk.UpdateWorkspaceDormancy{
+		Dormant: true,
+	})
+	require.NoError(t, err)
+
+	// confirm that the share is deleted
+	ps, err := client.GetWorkspaceAgentPortShares(ctx, r.Workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, ps.Shares, 0)
+}

@@ -328,6 +328,13 @@ func (m metricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Conte
 	return r0
 }
 
+func (m metricsStore) DeleteWorkspaceAgentPortSharesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentPortSharesByWorkspace(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentPortSharesByWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.FavoriteWorkspace(ctx, arg)

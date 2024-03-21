@@ -8503,6 +8503,18 @@ func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Contex
 	return err
 }
 
+const deleteWorkspaceAgentPortSharesByWorkspace = `-- name: DeleteWorkspaceAgentPortSharesByWorkspace :exec
+DELETE FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id = $1
+`
+
+func (q *sqlQuerier) DeleteWorkspaceAgentPortSharesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentPortSharesByWorkspace, workspaceID)
+	return err
+}
+
 const getWorkspaceAgentPortShare = `-- name: GetWorkspaceAgentPortShare :one
 SELECT
 	workspace_id, agent_name, port, share_level, protocol

@@ -24,6 +24,12 @@ WHERE
 	AND agent_name = $2
 	AND port = $3;
 
+-- name: DeleteWorkspaceAgentPortSharesByWorkspace :exec
+DELETE FROM
+	workspace_agent_port_share
+WHERE
+	workspace_id = $1;
+
 -- name: UpsertWorkspaceAgentPortShare :one
 INSERT INTO
 	workspace_agent_port_share (

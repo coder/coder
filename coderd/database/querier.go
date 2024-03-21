@@ -81,6 +81,7 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
+	DeleteWorkspaceAgentPortSharesByWorkspace(ctx context.Context, workspaceID uuid.UUID) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
