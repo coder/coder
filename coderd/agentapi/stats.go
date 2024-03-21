@@ -47,11 +47,11 @@ func (a *StatsAPI) now() time.Time {
 }
 
 func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
-	// An empty stat means it's just looking for the report interval.
 	res := &agentproto.UpdateStatsResponse{
 		ReportInterval: durationpb.New(a.AgentStatsRefreshInterval),
 	}
-	if req.Stats == nil || len(req.Stats.ConnectionsByProto) == 0 {
+	// An empty stat means it's just looking for the report interval.
+	if req.Stats == nil {
 		return res, nil
 	}
 
