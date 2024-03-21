@@ -151,7 +151,8 @@ describe("TemplateSettingsPage", () => {
       await deprecateTemplate(MockTemplate, deprecationMessage);
 
       const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-      await waitFor(() => expect(templateId).toEqual(MockTemplate.id));
+
+      expect(templateId).toEqual(MockTemplate.id);
       expect(data).toEqual(
         expect.objectContaining({ deprecation_message: deprecationMessage }),
       );
@@ -177,7 +178,8 @@ describe("TemplateSettingsPage", () => {
       );
 
       const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-      await waitFor(() => expect(templateId).toEqual(MockTemplate.id));
+
+      expect(templateId).toEqual(MockTemplate.id);
       expect(data).toEqual(
         expect.objectContaining({ deprecation_message: "" }),
       );
