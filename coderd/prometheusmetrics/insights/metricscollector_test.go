@@ -78,11 +78,11 @@ func TestCollectInsights(t *testing.T) {
 			{WorkspaceBuildID: build1.ID, Name: param2.Name, Value: "true"},
 			{WorkspaceBuildID: build1.ID, Name: param3.Name, Value: "789"},
 		})
-		// _ = dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
-		// 	{WorkspaceBuildID: build2.ID, Name: param1.Name, Value: "Baz"},
-		// 	{WorkspaceBuildID: build2.ID, Name: param2.Name, Value: "false"},
-		// 	{WorkspaceBuildID: build2.ID, Name: param3.Name, Value: "999"},
-		// })
+		_ = dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+			{WorkspaceBuildID: build2.ID, Name: param1.Name, Value: "Baz"},
+			{WorkspaceBuildID: build2.ID, Name: param2.Name, Value: "true"},
+			{WorkspaceBuildID: build2.ID, Name: param3.Name, Value: "999"},
+		})
 	)
 
 	// Start an agent so that we can generate stats.
@@ -96,13 +96,13 @@ func TestCollectInsights(t *testing.T) {
 
 	// Fake app stats
 	_, err = agentClients[0].PostStats(context.Background(), &agentsdk.Stats{
-		// ConnectionsByProto can't be nil, otherwise stats get rejected
-		ConnectionsByProto: map[string]int64{"TCP": 1},
 		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
-		ConnectionCount: 1,
-		SessionCountSSH: 99,
-		// SessionCountJetBrains, SessionCountVSCode must be positive, but the exact value is ignored.
+		ConnectionsByProto:        map[string]int64{"TCP": 1},
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 15,
+		// Session counts must be positive, but the exact value is ignored.
 		// Database query approximates it to 60s of usage.
+		SessionCountSSH:       99,
 		SessionCountJetBrains: 47,
 		SessionCountVSCode:    34,
 	})
@@ -137,17 +137,17 @@ func TestCollectInsights(t *testing.T) {
 			SessionEndedAt:   refTime.Add(2 * time.Minute).Add(-time.Second),
 			Requests:         1,
 		},
-		// {
-		// 	UserID:           user.ID,
-		// 	WorkspaceID:      workspace2.ID,
-		// 	AgentID:          agent2.ID,
-		// 	AccessMethod:     "path",
-		// 	SlugOrPort:       app2.Slug,
-		// 	SessionID:        uuid.New(),
-		// 	SessionStartedAt: time.Now().Add(-time.Minute),
-		// 	SessionEndedAt:   time.Now().Add(-time.Minute).Add(30 * time.Second),
-		// 	Requests:         1,
-		// },
+		{
+			UserID:           user.ID,
+			WorkspaceID:      workspace2.ID,
+			AgentID:          agent2.ID,
+			AccessMethod:     "path",
+			SlugOrPort:       app2.Slug,
+			SessionID:        uuid.New(),
+			SessionStartedAt: refTime.Add(2 * time.Minute),
+			SessionEndedAt:   refTime.Add(2 * time.Minute).Add(30 * time.Second),
+			Requests:         1,
+		},
 	})
 	require.NoError(t, err, "want no error inserting app stats")
 
