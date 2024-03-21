@@ -117,54 +117,65 @@ This will delete all workspaces and users with the prefix `scaletest-`.
 
 ## Scale testing template
 
-Besides the CLI utility, consider using a dedicated
+Consider using a dedicated
 [scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner)
-template for testing large scale Kubernetes clusters.
+template alongside the CLI utility for testing large-scale Kubernetes clusters.
 
-The template deploys a main workspace with scripts used to orchestrate Coder to
-create workspaces, generate workspace traffic, or load tests workspace apps.
+The template deploys a main workspace with scripts used to orchestrate Coder,
+creating workspaces, generating workspace traffic, or load-testing workspace
+apps.
 
 ### Parameters
 
 The _scaletest-runner_ offers the following configuration options:
 
-- workspace template selecting Kubernetes cluster size:
+- Workspace template selecting Kubernetes cluster size:
   minimal/small/medium/large (_default_: minimal)
-- number of workspaces
-- wait duration between scenarios or staggered approach
+- Number of workspaces
+- Wait duration between scenarios or staggered approach
 
 The template exposes parameters to control the traffic dimensions for SSH
 connections, workspace apps, and dashboard tests:
 
-- traffic duration of the load test scenario
-- traffic percentage of targeted workspaces
-- bytes per tick and tick interval
+- Traffic duration of the load test scenario
+- Traffic percentage of targeted workspaces
+- Bytes per tick and tick interval
 - _For workspace apps_: modes (echo, read random data, or write and discard)
 
 Scale testing concurrency can be controlled with the following parameters:
 
-- enable parallel scenarios - interleave different traffic patterns (SSH,
+- Enable parallel scenarios - interleave different traffic patterns (SSH,
   workspace apps, dashboard traffic, etc.)
-- workspace creation concurrency level (_default_: 10)
-- job concurrency level - generate workspace traffic using multiple jobs
+- Workspace creation concurrency level (_default_: 10)
+- Job concurrency level - generate workspace traffic using multiple jobs
   (_default_: 0)
-- cleanup concurrency level
+- Cleanup concurrency level
 
 ### Kubernetes cluster
 
 Depending on the traffic projections, operators can deploy different sample
-clusters to perform scale tests. It is recommend to learn how to operate the
+clusters to perform scale tests. It is recommended to learn how to operate the
 scaletest-runner before running it against the staging cluster (or production at
 your own risk).
 
-There are a few cluster options available:
+There are a few cluster options
+[available](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner):
 
-- minimal
-- small
-- medium
-- large
+| Cluster size | vCPU | Memory | Persisted storage | Details                                               |
+| ------------ | ---- | ------ | ----------------- | ----------------------------------------------------- |
+| minimal      | 1    | 2 Gi   | None              |                                                       |
+| small        | 1    | 1 Gi   | None              |                                                       |
+| medium       | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
+| large        | 4    | 4 Gi   | None              |                                                       |
 
-TODO greedy
+#### Greedy agent
+
+The greedy agent variant is a template modification that forces the Coder agent
+to transmit large metadata (size: 4K) while emitting stats. The transmission of
+large chunks puts extra overhead on coderd instances and agents while processing
+and storing the data.
+
+Use this template variant to verify limits of the cluster performance.
 
 ### Observability
 
