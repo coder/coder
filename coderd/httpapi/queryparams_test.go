@@ -17,8 +17,13 @@ import (
 type queryParamTestCase[T any] struct {
 	QueryParam string
 	// No set does not set the query param, rather than setting the empty value
-	NoSet                 bool
-	Value                 string
+	NoSet bool
+	// Value vs values is the difference between a single query param and multiple
+	// to the same key.
+	//  -> key=value
+	Value string
+	// 	-> key=value1 key=value2
+	Values                []string
 	Default               T
 	Expected              T
 	ExpectedErrorContains string
@@ -27,6 +32,7 @@ type queryParamTestCase[T any] struct {
 
 func TestParseQueryParams(t *testing.T) {
 	t.Parallel()
+	const multipleValuesError = "provided more than once"
 
 	t.Run("Enum", func(t *testing.T) {
 		t.Parallel()
@@ -57,6 +63,11 @@ func TestParseQueryParams(t *testing.T) {
 			{
 				QueryParam: "resource_type",
 				Value:      fmt.Sprintf("%s,%s", database.ResourceTypeWorkspace, database.ResourceTypeApiKey),
+				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
+			},
+			{
+				QueryParam: "resource_type_as_list",
+				Values:     []string{string(database.ResourceTypeWorkspace), string(database.ResourceTypeApiKey)},
 				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
 			},
 		}
@@ -151,6 +162,11 @@ func TestParseQueryParams(t *testing.T) {
 				Default:    "default",
 				Expected:   "default",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"one", "two"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -193,6 +209,11 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:              false,
 				ExpectedErrorContains: "must be a valid boolean",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"true", "false"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -229,6 +250,11 @@ func TestParseQueryParams(t *testing.T) {
 				Value:                 "bogus",
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid integer",
+			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
 			},
 		}
 
@@ -274,6 +300,11 @@ func TestParseQueryParams(t *testing.T) {
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid 32-bit positive integer",
 			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -310,6 +341,11 @@ func TestParseQueryParams(t *testing.T) {
 				Value:                 "bogus",
 				Expected:              0,
 				ExpectedErrorContains: "must be a valid positive integer",
+			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"5", "10"},
+				ExpectedErrorContains: multipleValuesError,
 			},
 		}
 
@@ -354,6 +390,23 @@ func TestParseQueryParams(t *testing.T) {
 				Default:               []uuid.UUID{},
 				ExpectedErrorContains: "bogus",
 			},
+			{
+				QueryParam: "multiple_keys",
+				Values:     []string{"6c8ef17d-5dd8-4b92-bac9-41944f90f237", "65fb05f3-12c8-4a0a-801f-40439cf9e681"},
+				Expected: []uuid.UUID{
+					uuid.MustParse("6c8ef17d-5dd8-4b92-bac9-41944f90f237"),
+					uuid.MustParse("65fb05f3-12c8-4a0a-801f-40439cf9e681"),
+				},
+			},
+			{
+				QueryParam: "multiple_and_csv",
+				Values:     []string{"6c8ef17d-5dd8-4b92-bac9-41944f90f237", "65fb05f3-12c8-4a0a-801f-40439cf9e681, 01b94888-1eab-4bbf-aed0-dc7a8010da97"},
+				Expected: []uuid.UUID{
+					uuid.MustParse("6c8ef17d-5dd8-4b92-bac9-41944f90f237"),
+					uuid.MustParse("65fb05f3-12c8-4a0a-801f-40439cf9e681"),
+					uuid.MustParse("01b94888-1eab-4bbf-aed0-dc7a8010da97"),
+				},
+			},
 		}
 
 		parser := httpapi.NewQueryParamParser()
@@ -381,7 +434,17 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		if c.NoSet {
 			continue
 		}
-		v.Set(c.QueryParam, c.Value)
+		if len(c.Values) > 0 && c.Value != "" {
+			t.Errorf("test case %q has both value and values, choose one, not both!", c.QueryParam)
+			t.FailNow()
+		}
+		if c.Value != "" {
+			c.Values = append(c.Values, c.Value)
+		}
+
+		for _, value := range c.Values {
+			v.Add(c.QueryParam, value)
+		}
 	}
 
 	for _, c := range testCases {
