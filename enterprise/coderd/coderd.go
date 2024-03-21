@@ -418,6 +418,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
 	}
+	// We always want to run the replica manager even if we don't have DERP
+	// enabled, since it's used to detect other coder servers for licensing.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:             api.AGPL.ID,
 		RelayAddress:   options.DERPServerRelayAddress,
@@ -428,7 +430,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
-	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+	if api.DERPServer != nil {
+		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+	}
 
 	// Moon feature init. Proxyhealh is a go routine to periodically check
 	// the health of all workspace proxies.
@@ -666,11 +670,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 
 			api.replicaManager.SetCallback(func() {
-				addresses := make([]string, 0)
-				for _, replica := range api.replicaManager.Regional() {
-					addresses = append(addresses, replica.RelayAddress)
+				// Only update DERP mesh if the built-in server is enabled.
+				if api.Options.DeploymentValues.DERP.Server.Enable {
+					addresses := make([]string, 0)
+					for _, replica := range api.replicaManager.Regional() {
+						// Don't add replicas with an empty relay address.
+						if replica.RelayAddress == "" {
+							continue
+						}
+						addresses = append(addresses, replica.RelayAddress)
+					}
+					api.derpMesh.SetAddresses(addresses, false)
 				}
-				api.derpMesh.SetAddresses(addresses, false)
 				_ = api.updateEntitlements(ctx)
 			})
 		} else {
