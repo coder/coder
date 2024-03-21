@@ -3280,7 +3280,7 @@ func (q *FakeQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg 
 	for _, usageKey := range usageKeys {
 		r := database.GetTemplateAppInsightsByTemplateRow{
 			TemplateID:  usageKey.TemplateID,
-			DisplayName: usageKey.DisplayName,
+			DisplayName: sql.NullString{String: usageKey.DisplayName, Valid: true},
 			SlugOrPort:  usageKey.Slug,
 		}
 		for _, mUserUsage := range usageByTemplateAppUser[usageKey] {
