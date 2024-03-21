@@ -103,7 +103,7 @@ func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements m
 		actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 	}
 
-	actual = NormalizeGoldenFile(t, actual)
+	actual = normalizeGoldenFile(t, actual)
 	goldenPath := filepath.Join("testdata", strings.ReplaceAll(fileName, " ", "_")+".golden")
 	if *UpdateGoldenFiles {
 		t.Logf("update golden file for: %q: %s", fileName, goldenPath)
@@ -114,7 +114,7 @@ func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements m
 	expected, err := os.ReadFile(goldenPath)
 	require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
-	expected = NormalizeGoldenFile(t, expected)
+	expected = normalizeGoldenFile(t, expected)
 	require.Equal(
 		t, string(expected), string(actual),
 		"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
@@ -122,10 +122,10 @@ func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements m
 	)
 }
 
-// NormalizeGoldenFile replaces any strings that are system or timing dependent
+// normalizeGoldenFile replaces any strings that are system or timing dependent
 // with a placeholder so that the golden files can be compared with a simple
 // equality check.
-func NormalizeGoldenFile(t *testing.T, byt []byte) []byte {
+func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	// Replace any timestamps with a placeholder.
 	byt = timestampRegex.ReplaceAll(byt, []byte("[timestamp]"))
 
