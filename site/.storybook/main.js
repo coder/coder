@@ -15,7 +15,7 @@ module.exports = {
     "@storybook/addon-themes",
     "@storybook/addon-actions",
     "@storybook/addon-interactions",
-    'storybook-addon-remix-react-router'
+    "storybook-addon-remix-react-router",
   ],
 
   staticDirs: ["../static"],
