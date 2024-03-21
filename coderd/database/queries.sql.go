@@ -2120,32 +2120,57 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 }
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at) AS created_at_trunc,
-		was.template_id,
-		was.user_id,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-	GROUP BY created_at_trunc, was.template_id, was.user_id
-)
+WITH
+	-- This CTE is used to truncate agent usage into minute buckets, then
+	-- flatten the users agent usage within the template so that usage in
+	-- multiple workspaces under one template is only counted once for
+	-- every minute (per user).
+	insights AS (
+		SELECT
+			template_id,
+			user_id,
+			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			-- TODO(mafredri): Enable when we have the column.
+			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
+			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			-- NOTE(mafredri): The agent stats are currently very unreliable, and
+			-- sometimes the connections are missing, even during active sessions.
+			-- Since we can't fully rely on this, we check for "any connection
+			-- within this bucket". A better solution here would be preferable.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			workspace_agent_stats
+		WHERE
+			created_at >= $1::timestamptz
+			AND created_at < $2::timestamptz
+			-- Inclusion criteria to filter out empty results.
+			AND (
+				session_count_ssh > 0
+				-- TODO(mafredri): Enable when we have the column.
+				-- OR session_count_sftp > 0
+				OR session_count_reconnecting_pty > 0
+				OR session_count_vscode > 0
+				OR session_count_jetbrains > 0
+			)
+		GROUP BY
+			template_id, user_id
+	)
 
 SELECT
 	template_id,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
-GROUP BY template_id
+	COUNT(DISTINCT user_id)::bigint AS active_users,
+	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
+	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds,
+	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
+	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds
+FROM
+	insights
+WHERE
+	has_connection
+GROUP BY
+	template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
@@ -2162,6 +2187,8 @@ type GetTemplateInsightsByTemplateRow struct {
 	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
+// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
+// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
