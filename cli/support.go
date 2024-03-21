@@ -86,7 +86,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 
 			// Check if we're running inside a workspace
-			if _, found := os.LookupEnv("CODER_AGENT_URL"); found {
+			if val, found := os.LookupEnv("CODER"); found && val == "true" {
 				cliLog.Warn(inv.Context(), "running inside coder workspace")
 			}
 
@@ -170,16 +170,15 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	}
 	cmd.Options = serpent.OptionSet{
 		{
-			Flag:          "confirm",
-			FlagShorthand: "y",
-			Env:           "CODER_SUPPORT_BUNDLE_CONFIRM",
-			Description:   "By setting this to true, you confirm that you will treat the resulting support bundle as if it contained sensitive information.",
-			Value:         serpent.BoolOf(&confirm),
+			Flag:        "confirm",
+			Env:         "CODER_SUPPORT_BUNDLE_CONFIRM",
+			Description: "By setting this, you confirm that you will treat the resulting support bundle as if it contained sensitive information.",
+			Value:       serpent.BoolOf(&confirm),
 		},
 		{
-			Flag:          "output",
-			FlagShorthand: "o",
-			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT",
+			Flag:          "output-file",
+			FlagShorthand: "O",
+			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT_FILE",
 			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
 			Value:         serpent.StringOf(&outputPath),
 		},
