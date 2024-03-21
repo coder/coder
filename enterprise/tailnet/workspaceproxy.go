@@ -68,6 +68,7 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	go func() {
 		err := forwardNodesToWorkspaceProxy(ctx, conn, ma)
+		//nolint:staticcheck
 		if err != nil {
 			_ = conn.Close()
 		}
