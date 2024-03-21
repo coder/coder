@@ -117,15 +117,54 @@ This will delete all workspaces and users with the prefix `scaletest-`.
 
 ## Scale testing template
 
-TODO
+Besides the CLI utility, consider using a dedicated
+[scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner)
+template for testing large scale Kubernetes clusters.
+
+The template deploys a main workspace with scripts used to orchestrate Coder to
+create workspaces, generate workspace traffic, or load tests workspace apps.
 
 ### Parameters
 
-TODO
+The _scaletest-runner_ offers the following configuration options:
+
+- workspace template selecting Kubernetes cluster size:
+  minimal/small/medium/large (_default_: minimal)
+- number of workspaces
+- wait duration between scenarios or staggered approach
+
+The template exposes parameters to control the traffic dimensions for SSH
+connections, workspace apps, and dashboard tests:
+
+- traffic duration of the load test scenario
+- traffic percentage of targeted workspaces
+- bytes per tick and tick interval
+- _For workspace apps_: modes (echo, read random data, or write and discard)
+
+Scale testing concurrency can be controlled with the following parameters:
+
+- enable parallel scenarios - interleave different traffic patterns (SSH,
+  workspace apps, dashboard traffic, etc.)
+- workspace creation concurrency level (_default_: 10)
+- job concurrency level - generate workspace traffic using multiple jobs
+  (_default_: 0)
+- cleanup concurrency level
 
 ### Kubernetes cluster
 
-TODO
+Depending on the traffic projections, operators can deploy different sample
+clusters to perform scale tests. It is recommend to learn how to operate the
+scaletest-runner before running it against the staging cluster (or production at
+your own risk).
+
+There are a few cluster options available:
+
+- minimal
+- small
+- medium
+- large
+
+TODO greedy
 
 ### Observability
 
