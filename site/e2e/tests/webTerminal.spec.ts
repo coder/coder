@@ -37,9 +37,8 @@ test("web terminal", async ({ context, page }) => {
   const agent = await startAgent(page, token);
 
   // Wait for the web terminal to open in a new tab
-  const pagePromise = context.waitForEvent("page");
   await page.getByTestId("terminal").click();
-  const terminal = await pagePromise;
+  const terminal = await context.waitForEvent("page");
   await terminal.waitForLoadState("domcontentloaded");
 
   await terminal.waitForSelector("div.xterm-rows", {
