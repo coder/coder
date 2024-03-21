@@ -53,12 +53,11 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
 	cliui.Bold("Please confirm that you will:\n") +
 	"  - Review the support bundle before distribution\n" +
 	"  - Only distribute it via trusted channels\n" +
-	cliui.Bold("Type 'confirm' to continue:")
+	cliui.Bold("Continue? ")
 
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
 	var coderURLOverride string
-	var confirm bool
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
@@ -71,13 +70,26 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			var cliLogBuf bytes.Buffer
 			cliLogW := sloghuman.Sink(&cliLogBuf)
-			cliLog := slog.Make(sloghuman.Sink(inv.Stderr), cliLogW)
+			cliLog := slog.Make(cliLogW).Leveled(slog.LevelDebug)
 			if r.verbose {
-				cliLog = cliLog.Leveled(slog.LevelDebug)
+				cliLog = cliLog.AppendSinks(sloghuman.Sink(inv.Stderr))
+			}
+			ans, err := cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      supportBundleBlurb,
+				Secret:    false,
+				IsConfirm: true,
+			})
+			if err != nil || ans != cliui.ConfirmYes {
+				return err
+			}
+			if skip, _ := inv.ParsedFlags().GetBool("yes"); skip {
+				cliLog.Debug(inv.Context(), "user auto-confirmed")
+			} else {
+				cliLog.Debug(inv.Context(), "user confirmed manually", slog.F("answer", ans))
 			}
 
 			vi := defaultVersionInfo()
-			cliLog.Info(inv.Context(), "version info",
+			cliLog.Debug(inv.Context(), "version info",
 				slog.F("version", vi.Version),
 				slog.F("build_time", vi.BuildTime),
 				slog.F("external_url", vi.ExternalURL),
@@ -85,25 +97,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				slog.F("agpl", vi.AGPL),
 				slog.F("boring_crypto", vi.BoringCrypto),
 			)
-			cliLog.Info(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
-
-			if !confirm {
-				ans, err := cliui.Prompt(inv, cliui.PromptOptions{
-					Text:    supportBundleBlurb,
-					Default: "",
-					Secret:  false,
-				})
-				if err != nil || ans != "confirm" {
-					return err
-				}
-				cliLog.Info(inv.Context(), "user confirmed manually", slog.F("answer", ans))
-			} else {
-				cliLog.Info(inv.Context(), "user auto-confirmed")
-			}
+			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
 
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
-				cliLog.Warn(inv.Context(), "running inside coder workspace")
+				_, _ = fmt.Fprintln(inv.Stderr, "Running inside Coder workspace; this can affect results!")
+				cliLog.Debug(inv.Context(), "running inside coder workspace")
 			}
 
 			if coderURLOverride != "" && coderURLOverride != client.URL.String() {
@@ -111,7 +110,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("invalid value for Coder URL override: %w", err)
 				}
-				cliLog.Warn(inv.Context(), "coder url overridden", slog.F("url", coderURLOverride))
+				_, _ = fmt.Fprintf(inv.Stderr, "Overrode Coder URL to %q; this can affect results!\n", coderURLOverride)
+				cliLog.Debug(inv.Context(), "coder url overridden", slog.F("url", coderURLOverride))
 				client.URL = u
 			}
 
@@ -122,7 +122,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("invalid workspace: %w", err)
 			}
-			cliLog.Info(inv.Context(), "found workspace",
+			cliLog.Debug(inv.Context(), "found workspace",
 				slog.F("workspace_name", ws.Name),
 				slog.F("workspace_id", ws.ID),
 			)
@@ -136,7 +136,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if !found {
 				return xerrors.Errorf("could not find agent named %q for workspace", agentName)
 			}
-			cliLog.Info(inv.Context(), "found workspace agent",
+			cliLog.Debug(inv.Context(), "found workspace agent",
 				slog.F("agent_name", agt.Name),
 				slog.F("agent_id", agt.ID),
 			)
@@ -149,7 +149,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				fname := fmt.Sprintf("coder-support-%d.zip", time.Now().Unix())
 				outputPath = filepath.Join(cwd, fname)
 			}
-			cliLog.Info(inv.Context(), "output path", slog.F("path", outputPath))
+			cliLog.Debug(inv.Context(), "output path", slog.F("path", outputPath))
 
 			w, err := os.Create(outputPath)
 			if err != nil {
@@ -181,16 +181,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
+			_, _ = fmt.Fprintln(inv.Stderr, "Wrote support bundle to "+outputPath)
 			return nil
 		},
 	}
 	cmd.Options = serpent.OptionSet{
-		{
-			Flag:        "confirm",
-			Env:         "CODER_SUPPORT_BUNDLE_CONFIRM",
-			Description: "By setting this, you confirm that you will treat the resulting support bundle as if it contained sensitive information.",
-			Value:       serpent.BoolOf(&confirm),
-		},
+		cliui.SkipPromptOption(),
 		{
 			Flag:          "output-file",
 			FlagShorthand: "O",

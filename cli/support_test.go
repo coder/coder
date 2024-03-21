@@ -76,7 +76,7 @@ func TestSupportBundle(t *testing.T) {
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output", path, "--confirm")
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err = inv.Run()
@@ -88,7 +88,7 @@ func TestSupportBundle(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.New(t, "support", "bundle", "--confirm")
+		inv, root := clitest.New(t, "support", "bundle", "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -103,7 +103,7 @@ func TestSupportBundle(t *testing.T) {
 			OrganizationID: admin.OrganizationID,
 			OwnerID:        admin.UserID,
 		}).Do() // without agent!
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--confirm")
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -119,7 +119,7 @@ func TestSupportBundle(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        member.ID,
 		}).WithAgent().Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--confirm")
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
 		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
 		require.ErrorContains(t, err, "failed authorization check")
