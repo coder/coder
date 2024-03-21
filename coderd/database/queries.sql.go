@@ -2120,40 +2120,31 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 }
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
-WITH
-	-- The purpose of this CTE is to flatten the data so that a user is
-	-- only counted once per interval/template.
-	insights AS (
-		SELECT
-			template_id,
-			user_id,
-			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(usage_mins), 30) AS usage_mins,
-			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
-			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
-			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
-			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
-			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
-		FROM
-			template_usage_stats
-		WHERE
-			start_time >= $1::timestamptz
-			AND end_time <= $2::timestamptz
-		GROUP BY
-			start_time, template_id, user_id
-	)
+WITH agent_stats_by_interval_and_user AS (
+	SELECT
+		date_trunc('minute', was.created_at) AS created_at_trunc,
+		was.template_id,
+		was.user_id,
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= $1::timestamptz
+		AND was.created_at < $2::timestamptz
+		AND was.connection_count > 0
+	GROUP BY created_at_trunc, was.template_id, was.user_id
+)
 
 SELECT
 	template_id,
-	COUNT(DISTINCT user_id) AS active_users,
-	(SUM(usage_mins) * 60)::bigint AS usage_total_seconds, -- Includes app usage.
-	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds,
-	(SUM(sftp_mins) * 60)::bigint AS usage_sftp_seconds,
-	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
-	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
-	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds
-FROM
-	insights
+	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
+	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
+	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
+FROM agent_stats_by_interval_and_user
 GROUP BY template_id
 `
 
@@ -2165,12 +2156,10 @@ type GetTemplateInsightsByTemplateParams struct {
 type GetTemplateInsightsByTemplateRow struct {
 	TemplateID                  uuid.UUID `db:"template_id" json:"template_id"`
 	ActiveUsers                 int64     `db:"active_users" json:"active_users"`
-	UsageTotalSeconds           int64     `db:"usage_total_seconds" json:"usage_total_seconds"`
-	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
-	UsageSftpSeconds            int64     `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
-	UsageReconnectingPtySeconds int64     `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
 	UsageVscodeSeconds          int64     `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64     `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	UsageReconnectingPtySeconds int64     `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
+	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
@@ -2185,12 +2174,10 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 		if err := rows.Scan(
 			&i.TemplateID,
 			&i.ActiveUsers,
-			&i.UsageTotalSeconds,
-			&i.UsageSshSeconds,
-			&i.UsageSftpSeconds,
-			&i.UsageReconnectingPtySeconds,
 			&i.UsageVscodeSeconds,
 			&i.UsageJetbrainsSeconds,
+			&i.UsageReconnectingPtySeconds,
+			&i.UsageSshSeconds,
 		); err != nil {
 			return nil, err
 		}
