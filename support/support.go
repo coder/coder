@@ -33,6 +33,7 @@ type Bundle struct {
 	Workspace  Workspace  `json:"workspace"`
 	Agent      Agent      `json:"agent"`
 	Logs       []string   `json:"logs"`
+	CLILogs    []byte     `json:"cli_logs"`
 }
 
 type Deployment struct {

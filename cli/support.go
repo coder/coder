@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/serpent"
@@ -36,8 +38,26 @@ func (r *RootCmd) support() *serpent.Command {
 	return supportCmd
 }
 
+var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
+	`  - Coder deployment version
+   - Coder deployment Configuration (sanitized), including enabled experiments
+  - Coder deployment health snapshot
+  - Coder deployment Network troubleshooting information
+  - Workspace configuration, parameters, and build logs
+  - Template version and source code for the given workspace
+  - Agent details (with environment variable sanitized)
+  - Agent network diagnostics
+  - Agent logs
+` + cliui.Bold("Note: ") +
+	cliui.Wrap(`While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n`) +
+	cliui.Bold("Please confirm that you will:\n") +
+	"  - Review the support bundle before distribution\n" +
+	"  - Only distribute it via trusted channels\n" +
+	cliui.Bold("Continue? ")
+
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
+	var coderURLOverride string
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
@@ -48,14 +68,52 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var (
-				log = slog.Make(sloghuman.Sink(inv.Stderr)).
-					Leveled(slog.LevelDebug)
-				deps = support.Deps{
-					Client: client,
-					Log:    log,
-				}
+			var cliLogBuf bytes.Buffer
+			cliLogW := sloghuman.Sink(&cliLogBuf)
+			cliLog := slog.Make(cliLogW).Leveled(slog.LevelDebug)
+			if r.verbose {
+				cliLog = cliLog.AppendSinks(sloghuman.Sink(inv.Stderr))
+			}
+			ans, err := cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      supportBundleBlurb,
+				Secret:    false,
+				IsConfirm: true,
+			})
+			if err != nil || ans != cliui.ConfirmYes {
+				return err
+			}
+			if skip, _ := inv.ParsedFlags().GetBool("yes"); skip {
+				cliLog.Debug(inv.Context(), "user auto-confirmed")
+			} else {
+				cliLog.Debug(inv.Context(), "user confirmed manually", slog.F("answer", ans))
+			}
+
+			vi := defaultVersionInfo()
+			cliLog.Debug(inv.Context(), "version info",
+				slog.F("version", vi.Version),
+				slog.F("build_time", vi.BuildTime),
+				slog.F("external_url", vi.ExternalURL),
+				slog.F("slim", vi.Slim),
+				slog.F("agpl", vi.AGPL),
+				slog.F("boring_crypto", vi.BoringCrypto),
 			)
+			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
+
+			// Check if we're running inside a workspace
+			if val, found := os.LookupEnv("CODER"); found && val == "true" {
+				_, _ = fmt.Fprintln(inv.Stderr, "Running inside Coder workspace; this can affect results!")
+				cliLog.Debug(inv.Context(), "running inside coder workspace")
+			}
+
+			if coderURLOverride != "" && coderURLOverride != client.URL.String() {
+				u, err := url.Parse(coderURLOverride)
+				if err != nil {
+					return xerrors.Errorf("invalid value for Coder URL override: %w", err)
+				}
+				_, _ = fmt.Fprintf(inv.Stderr, "Overrode Coder URL to %q; this can affect results!\n", coderURLOverride)
+				cliLog.Debug(inv.Context(), "coder url overridden", slog.F("url", coderURLOverride))
+				client.URL = u
+			}
 
 			if len(inv.Args) == 0 {
 				return xerrors.Errorf("must specify workspace name")
@@ -64,8 +122,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("invalid workspace: %w", err)
 			}
-
-			deps.WorkspaceID = ws.ID
+			cliLog.Debug(inv.Context(), "found workspace",
+				slog.F("workspace_name", ws.Name),
+				slog.F("workspace_id", ws.ID),
+			)
 
 			agentName := ""
 			if len(inv.Args) > 1 {
@@ -76,8 +136,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			if !found {
 				return xerrors.Errorf("could not find agent named %q for workspace", agentName)
 			}
-
-			deps.AgentID = agt.ID
+			cliLog.Debug(inv.Context(), "found workspace agent",
+				slog.F("agent_name", agt.Name),
+				slog.F("agent_id", agt.ID),
+			)
 
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
@@ -87,6 +149,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				fname := fmt.Sprintf("coder-support-%d.zip", time.Now().Unix())
 				outputPath = filepath.Join(cwd, fname)
 			}
+			cliLog.Debug(inv.Context(), "output path", slog.F("path", outputPath))
 
 			w, err := os.Create(outputPath)
 			if err != nil {
@@ -95,26 +158,47 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			zwr := zip.NewWriter(w)
 			defer zwr.Close()
 
+			clientLog := slog.Make().Leveled(slog.LevelDebug)
+			if r.verbose {
+				clientLog.AppendSinks(sloghuman.Sink(inv.Stderr))
+			}
+			deps := support.Deps{
+				Client: client,
+				// Support adds a sink so we don't need to supply one ourselves.
+				Log:         clientLog,
+				WorkspaceID: ws.ID,
+				AgentID:     agt.ID,
+			}
+
 			bun, err := support.Run(inv.Context(), &deps)
 			if err != nil {
 				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("create support bundle: %w", err)
 			}
+			bun.CLILogs = cliLogBuf.Bytes()
 
 			if err := writeBundle(bun, zwr); err != nil {
 				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
+			_, _ = fmt.Fprintln(inv.Stderr, "Wrote support bundle to "+outputPath)
 			return nil
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+		cliui.SkipPromptOption(),
 		{
-			Flag:          "output",
-			FlagShorthand: "o",
-			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT",
+			Flag:          "output-file",
+			FlagShorthand: "O",
+			Env:           "CODER_SUPPORT_BUNDLE_OUTPUT_FILE",
 			Description:   "File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.",
 			Value:         serpent.StringOf(&outputPath),
+		},
+		{
+			Flag:        "url-override",
+			Env:         "CODER_SUPPORT_BUNDLE_URL_OVERRIDE",
+			Description: "Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.",
+			Value:       serpent.StringOf(&coderURLOverride),
 		},
 	}
 
@@ -182,6 +266,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"agent/prometheus.txt":           string(src.Agent.Prometheus),
 		"workspace/template_file.zip":    string(templateVersionBytes),
 		"logs.txt":                       strings.Join(src.Logs, "\n"),
+		"cli_logs.txt":                   string(src.CLILogs),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
