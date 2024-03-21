@@ -1766,9 +1766,10 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	require.NoError(t, err)
 	// Wait for stats to fully flush.
 	details.FlushStats()
-	after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
-	require.NoError(t, err)
-	require.Greater(t, after.LastUsedAt, before.LastUsedAt, "workspace LastUsedAt not updated when it should have been")
+	require.Eventually(t, func() bool {
+		after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
+		return assert.NoError(t, err) && after.LastUsedAt.After(before.LastUsedAt)
+	}, testutil.WaitShort, testutil.IntervalMedium)
 }
 
 // Except when it sometimes shouldn't (e.g. no access)
