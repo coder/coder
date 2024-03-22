@@ -156,13 +156,13 @@ Scale testing concurrency can be controlled with the following parameters:
 
 ### Kubernetes cluster
 
-Depending on the traffic projections, operators can deploy different sample
-clusters to perform scale tests. It is recommended to learn how to operate the
-scaletest-runner before running it against the staging cluster (or production at
-your own risk).
+It is recommended to learn how to operate the _scaletest-runner_ before running
+it against the staging cluster (or production at your own risk). Coder provides
+different
+[workspace configurations](https://github.com/coder/coder/tree/main/scaletest/templates)
+that operators can deploy depending on the traffic projections.
 
-There are a few cluster options
-[available](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner):
+There are a few cluster options available:
 
 | Workspace size | vCPU | Memory | Persisted storage | Details                                               |
 | -------------- | ---- | ------ | ----------------- | ----------------------------------------------------- |
