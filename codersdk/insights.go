@@ -98,8 +98,7 @@ type UserActivity struct {
 // ConnectionLatency shows the latency for a connection.
 type ConnectionLatency struct {
 	P50 float64 `json:"p50" example:"31.312"`
-	P90 float64 `json:"p90" example:"119.832"`
-	P99 float64 `json:"p99" example:"432.34"`
+	P95 float64 `json:"p95" example:"119.832"`
 }
 
 type UserLatencyInsightsRequest struct {

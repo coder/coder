@@ -9,8 +9,7 @@ SELECT
 	u.avatar_url,
 	array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
 	COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
-	COALESCE((PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_90,
-	COALESCE((PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_99
+	COALESCE((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_95
 FROM
 	template_usage_stats tus
 JOIN

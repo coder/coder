@@ -4352,8 +4352,7 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 			AvatarURL:                    user.AvatarURL,
 			TemplateIDs:                  templateIDs,
 			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
-			WorkspaceConnectionLatency90: tryPercentile(latencies, 90),
-			WorkspaceConnectionLatency99: tryPercentile(latencies, 99),
+			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
 		}
 		rows = append(rows, row)
 	}
