@@ -35,7 +35,7 @@ environments.
 > guarantees, and may cause interruptions for your users. To avoid potential
 > outages and orphaned resources, we recommend running scale tests on a
 > secondary "staging" environment or a dedicated
-> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/templates).
+> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
 > Run it against a production environment at your own risk.
 
 ### Create workspaces
@@ -82,7 +82,7 @@ coder exp scaletest workspace-traffic \
 	--timeout "$((delay))s" \
 	--job-timeout "$((delay))s" \
 	--scaletest-prometheus-address 0.0.0.0:21113 \
-  --target-workspaces "0:100" \
+	--target-workspaces "0:100" \
 	--trace=false \
   --output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json"
 ```
@@ -94,6 +94,8 @@ Traffic generation can be parametrized:
 1. Target a range of workspaces with `--target-workspaces 0:100`.
 1. For dashboard traffic: Target a range of users with `--target-users 0:100`.
 1. Store provisioning results in JSON format.
+1. Expose a dedicated Prometheus address (`--scaletest-prometheus-address`) for
+   scaletest-specific metrics.
 
 The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
 
@@ -129,8 +131,9 @@ apps.
 
 The _scaletest-runner_ offers the following configuration options:
 
-- Workspace template selecting Kubernetes cluster size:
-  minimal/small/medium/large (_default_: minimal)
+- Workspace size selection: minimal/small/medium/large (_default_: minimal,
+  which contains just enough resources for a Coder agent to run without
+  additional workloads)
 - Number of workspaces
 - Wait duration between scenarios or staggered approach
 
@@ -161,12 +164,12 @@ your own risk).
 There are a few cluster options
 [available](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner):
 
-| Cluster size | vCPU | Memory | Persisted storage | Details                                               |
-| ------------ | ---- | ------ | ----------------- | ----------------------------------------------------- |
-| minimal      | 1    | 2 Gi   | None              |                                                       |
-| small        | 1    | 1 Gi   | None              |                                                       |
-| medium       | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
-| large        | 4    | 4 Gi   | None              |                                                       |
+| Workspace size | vCPU | Memory | Persisted storage | Details                                               |
+| -------------- | ---- | ------ | ----------------- | ----------------------------------------------------- |
+| minimal        | 1    | 2 Gi   | None              |                                                       |
+| small          | 1    | 1 Gi   | None              |                                                       |
+| medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
+| large          | 4    | 4 Gi   | None              |                                                       |
 
 #### Greedy agent
 
