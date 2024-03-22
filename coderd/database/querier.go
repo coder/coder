@@ -193,6 +193,7 @@ type sqlcQuerier interface {
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
+	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
@@ -416,6 +417,11 @@ type sqlcQuerier interface {
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
+	// This query aggregates the workspace_agent_stats and workspace_app_stats data
+	// into a single table for efficient storage and querying. Half-hour buckets are
+	// used to store the data, and the minutes are summed for each user and template
+	// combination. The result is stored in the template_usage_stats table.
+	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 }
 

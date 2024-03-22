@@ -956,6 +956,12 @@ func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetTemplateAppInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
+	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
