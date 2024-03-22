@@ -60,6 +60,7 @@ export interface CreateWorkspacePageViewProps {
   externalAuth: TypesGen.TemplateVersionExternalAuth[];
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
+  hasAllRequiredExternalAuth: boolean;
   parameters: TypesGen.TemplateVersionParameter[];
   autofillParameters: AutofillBuildParameter[];
   permissions: CreateWSPermissions;
@@ -82,6 +83,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   externalAuth,
   externalAuthPollingState,
   startPollingExternalAuth,
+  hasAllRequiredExternalAuth,
   parameters,
   autofillParameters,
   permissions,
@@ -92,7 +94,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   const [owner, setOwner] = useState(defaultOwner);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
-  const requiresExternalAuth = externalAuth.some((auth) => !auth.authenticated);
   const [suggestedName, setSuggestedName] = useState(() =>
     generateWorkspaceName(),
   );
@@ -117,7 +118,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (requiresExternalAuth) {
+        if (!hasAllRequiredExternalAuth) {
           return;
         }
 
@@ -142,10 +143,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         autofillParameters.map((param) => [param.name, param]),
       ),
     [autofillParameters],
-  );
-
-  const hasAllRequiredExternalAuth = externalAuth.every(
-    (auth) => auth.optional || auth.authenticated,
   );
 
   return (
