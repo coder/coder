@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -192,6 +193,9 @@ type Options struct {
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
 
+	// DatabaseRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspaceusage.Tracker
 }
@@ -366,6 +370,10 @@ func New(options *Options) *API {
 		OIDC:   options.OIDCConfig,
 	}
 
+	if options.DatabaseRolluper == nil {
+		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
+	}
+
 	if options.WorkspaceUsageTracker == nil {
 		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
 			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
@@ -414,7 +422,9 @@ func New(options *Options) *API {
 			ctx,
 			options.Logger.Named("acquirer"),
 			options.Database,
-			options.Pubsub),
+			options.Pubsub,
+		),
+		dbRolluper:            options.DatabaseRolluper,
 		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
@@ -1197,7 +1207,9 @@ type API struct {
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
-
+	// dbRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	dbRolluper            *dbrollup.Rolluper
 	workspaceUsageTracker *workspaceusage.Tracker
 }
 
@@ -1212,6 +1224,7 @@ func (api *API) Close() error {
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()
 
+	api.dbRolluper.Close()
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
