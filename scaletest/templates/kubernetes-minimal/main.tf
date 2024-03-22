@@ -152,7 +152,7 @@ resource "kubernetes_deployment" "main" {
                 match_expressions {
                   key      = "cloud.google.com/gke-nodepool"
                   operator = "In"
-                  values   = ["big-workspaces", "big-workspaces2"]
+                  values   = ["big-workspaces"]
                 }
               }
             }
