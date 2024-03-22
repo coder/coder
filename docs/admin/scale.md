@@ -171,6 +171,9 @@ There are a few cluster options available:
 | medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
 | large          | 4    | 4 Gi   | None              |                                                       |
 
+Note: Review the selected cluster template and edit the node affinity to match
+your setup.
+
 #### Greedy agent
 
 The greedy agent variant is a template modification that makes the Coder agent
