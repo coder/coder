@@ -44,7 +44,7 @@ locals {
   scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
   scaletest_run_start_time                       = time_static.start_time.rfc3339
-  grafana_url                                    = "https://stats.dev.c8s.io"
+  grafana_url                                    = "https://grafana.corp.tld"
   grafana_dashboard_uid                          = "qLVSTR-Vz"
   grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
 }
@@ -625,6 +625,8 @@ resource "coder_agent" "main" {
     vscode     = false
     ssh_helper = false
   }
+  startup_script_timeout  = 86400
+  shutdown_script_timeout = 7200
   startup_script_behavior = "blocking"
   startup_script          = file("startup.sh")
   shutdown_script         = file("shutdown.sh")
@@ -734,10 +736,9 @@ resource "coder_app" "prometheus" {
   agent_id     = coder_agent.main.id
   slug         = "01-prometheus"
   display_name = "Prometheus"
-  // https://stats.dev.c8s.io:9443/classic/graph?g0.range_input=2h&g0.end_input=2023-09-08%2015%3A58&g0.stacked=0&g0.expr=rate(pg_stat_database_xact_commit%7Bcluster%3D%22big%22%2Cdatname%3D%22big-coder%22%7D%5B1m%5D)&g0.tab=0
-  url      = "https://stats.dev.c8s.io:9443"
-  icon     = "https://prometheus.io/assets/favicons/favicon-32x32.png"
-  external = true
+  url          = "https://grafana.corp.tld:9443"
+  icon         = "https://prometheus.io/assets/favicons/favicon-32x32.png"
+  external     = true
 }
 
 resource "coder_app" "manual_cleanup" {
