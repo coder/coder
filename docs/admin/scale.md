@@ -195,6 +195,9 @@ This dashboard provides insights into various aspects, including:
 - Resource consumption within Coder workspaces (CPU, memory, network usage)
 - Internal metrics related to provisioner jobs
 
+Note: Database metrics are disabled by default and can be enabled by setting the
+environment variable `CODER_PROMETHEUS_COLLECT_DB_METRICS` to `true`.
+
 It is highly recommended to deploy a solution for centralized log collection and
 aggregation. The presence of error logs may indicate an underscaled deployment
 of Coder, necessitating action from operators.
