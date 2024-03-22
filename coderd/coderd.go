@@ -181,7 +181,6 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       *batchstats.Batcher
-	DBRollupInterval   time.Duration
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -194,6 +193,9 @@ type Options struct {
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
 
+	// DatabaseRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspaceusage.Tracker
 }
@@ -344,9 +346,6 @@ func New(options *Options) *API {
 	if options.StatsBatcher == nil {
 		panic("developer error: options.StatsBatcher is nil")
 	}
-	if options.DBRollupInterval == 0 {
-		options.DBRollupInterval = dbrollup.DefaultInterval
-	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -369,6 +368,10 @@ func New(options *Options) *API {
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
+	}
+
+	if options.DatabaseRolluper == nil {
+		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
 
 	if options.WorkspaceUsageTracker == nil {
@@ -421,11 +424,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		rolluper: dbrollup.New(
-			options.Logger,
-			options.Database,
-			options.DBRollupInterval,
-		),
+		dbRolluper:            options.DatabaseRolluper,
 		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
@@ -1208,9 +1207,9 @@ type API struct {
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
-	// rolluper rolls up template usage stats from raw agent and app
+	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
-	rolluper              *dbrollup.Rolluper
+	dbRolluper            *dbrollup.Rolluper
 	workspaceUsageTracker *workspaceusage.Tracker
 }
 
@@ -1225,7 +1224,7 @@ func (api *API) Close() error {
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()
 
-	api.rolluper.Close()
+	api.dbRolluper.Close()
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()

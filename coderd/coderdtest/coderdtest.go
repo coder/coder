@@ -57,6 +57,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -147,7 +148,7 @@ type Options struct {
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
-	DBRollupInterval                   time.Duration
+	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
 }
@@ -492,7 +493,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
-			DBRollupInterval:                   options.DBRollupInterval,
+			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
 		}
 }

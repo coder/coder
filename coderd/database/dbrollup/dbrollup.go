@@ -2,6 +2,7 @@ package dbrollup
 
 import (
 	"context"
+	"flag"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -19,11 +20,38 @@ const (
 	DefaultInterval = 5 * time.Minute
 )
 
+type Event struct {
+	TemplateUsageStats bool
+}
+
 type Rolluper struct {
-	cancel context.CancelFunc
-	closed chan struct{}
-	db     database.Store
-	logger slog.Logger
+	cancel   context.CancelFunc
+	closed   chan struct{}
+	db       database.Store
+	logger   slog.Logger
+	interval time.Duration
+	event    chan<- Event
+}
+
+type Option func(*Rolluper)
+
+// WithInterval sets the interval between rollups.
+func WithInterval(interval time.Duration) Option {
+	return func(r *Rolluper) {
+		r.interval = interval
+	}
+}
+
+// WithEventChannel sets the event channel to use for rollup events.
+//
+// This is only used for testing.
+func WithEventChannel(ch chan<- Event) Option {
+	if flag.Lookup("test.v") == nil {
+		panic("developer error: WithEventChannel is not to be used outside of tests")
+	}
+	return func(r *Rolluper) {
+		r.event = ch
+	}
 }
 
 // New creates a new DB rollup service that periodically runs rollup queries.
@@ -31,24 +59,29 @@ type Rolluper struct {
 //
 // This is for e.g. generating insights data (template_usage_stats) from
 // raw data (workspace_agent_stats, workspace_app_stats).
-func New(logger slog.Logger, db database.Store, interval time.Duration) *Rolluper {
+func New(logger slog.Logger, db database.Store, opts ...Option) *Rolluper {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	r := &Rolluper{
-		cancel: cancel,
-		closed: make(chan struct{}),
-		db:     db,
-		logger: logger.Named("dbrollup"),
+		cancel:   cancel,
+		closed:   make(chan struct{}),
+		db:       db,
+		logger:   logger,
+		interval: DefaultInterval,
+	}
+
+	for _, opt := range opts {
+		opt(r)
 	}
 
 	//nolint:gocritic // The system rolls up database tables without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-	go r.start(ctx, interval)
+	go r.start(ctx)
 
 	return r
 }
 
-func (r *Rolluper) start(ctx context.Context, interval time.Duration) {
+func (r *Rolluper) start(ctx context.Context) {
 	defer close(r.closed)
 
 	do := func() {
@@ -58,7 +91,7 @@ func (r *Rolluper) start(ctx context.Context, interval time.Duration) {
 		now := time.Now()
 
 		// Track whether or not we performed a rollup (we got the advisory lock).
-		templateUsageStats := false
+		var ev Event
 
 		eg.Go(func() error {
 			return r.db.InTx(func(tx database.Store) error {
@@ -72,7 +105,7 @@ func (r *Rolluper) start(ctx context.Context, interval time.Duration) {
 					return nil
 				}
 
-				templateUsageStats = true
+				ev.TemplateUsageStats = true
 				return tx.UpsertTemplateUsageStats(ctx)
 			}, nil)
 		})
@@ -86,12 +119,22 @@ func (r *Rolluper) start(ctx context.Context, interval time.Duration) {
 			if ctx.Err() == nil {
 				r.logger.Error(ctx, "failed to rollup data", slog.Error(err))
 			}
-		} else {
-			r.logger.Debug(ctx,
-				"rolled up data",
-				slog.F("took", time.Since(now)),
-				slog.F("template_usage_stats", templateUsageStats),
-			)
+			return
+		}
+
+		r.logger.Debug(ctx,
+			"rolled up data",
+			slog.F("took", time.Since(now)),
+			slog.F("event", ev),
+		)
+
+		// For testing.
+		if r.event != nil {
+			select {
+			case <-ctx.Done():
+				return
+			case r.event <- ev:
+			}
 		}
 	}
 
@@ -108,11 +151,11 @@ func (r *Rolluper) start(ctx context.Context, interval time.Duration) {
 		case <-t.C:
 			// Ensure we're on the interval.
 			now := time.Now()
-			next := now.Add(interval).Truncate(interval) // Ensure we're on the interval and synced with the clock.
+			next := now.Add(r.interval).Truncate(r.interval) // Ensure we're on the interval and synced with the clock.
 			d := next.Sub(now)
 			// Safety check (shouldn't be possible).
 			if d <= 0 {
-				d = interval
+				d = r.interval
 			}
 			t.Reset(d)
 
