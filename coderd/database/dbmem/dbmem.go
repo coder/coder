@@ -7963,23 +7963,37 @@ func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 	/*
 		latest_start AS (
 			SELECT
-				COALESCE(
-					MAX(start_time) - '1 hour'::interval,
-					-- TODO(mafredri): Fix this, required for tests to pass.
-					NOW() - '2 years'::interval
-				) AS t
+				-- Truncate to hour so that we always look at even ranges of data.
+				date_trunc('hour', COALESCE(
+					MAX(start_time) - '1 hour'::interval),
+					-- Fallback when there are no template usage stats yet.
+					-- App stats can exist before this, but not agent stats,
+					-- limit the lookback to avoid inconsistency.
+					(SELECT MIN(created_at) FROM workspace_agent_stats)
+				)) AS t
 			FROM
 				template_usage_stats
 		),
 	*/
 
 	now := time.Now()
-	latestStart := now.AddDate(-2, 0, 0)
+	latestStart := time.Time{}
 	for _, stat := range q.templateUsageStats {
 		if stat.StartTime.After(latestStart) {
 			latestStart = stat.StartTime.Add(-time.Hour)
 		}
 	}
+	if latestStart.IsZero() {
+		for _, stat := range q.workspaceAgentStats {
+			if latestStart.IsZero() || stat.CreatedAt.Before(latestStart) {
+				latestStart = stat.CreatedAt
+			}
+		}
+	}
+	if latestStart.IsZero() {
+		return nil
+	}
+	latestStart = latestStart.Truncate(time.Hour)
 
 	/*
 		workspace_app_stat_buckets AS (

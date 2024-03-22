@@ -2497,10 +2497,14 @@ const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
 WITH
 	latest_start AS (
 		SELECT
-			COALESCE(
+			-- Truncate to hour so that we always look at even ranges of data.
+			date_trunc('hour', COALESCE(
 				MAX(start_time) - '1 hour'::interval,
-				NOW() - '6 months'::interval
-			) AS t
+				-- Fallback when there are no template usage stats yet.
+				-- App stats can exist before this, but not agent stats,
+				-- limit the lookback to avoid inconsistency.
+				(SELECT MIN(created_at) FROM workspace_agent_stats)
+			)) AS t
 		FROM
 			template_usage_stats
 	),
