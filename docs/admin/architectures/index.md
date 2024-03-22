@@ -342,3 +342,17 @@ We provide the following general recommendations for PostgreSQL settings:
   and memory utilization is high.
 - Utilize faster disk options (higher IOPS) such as SSDs or NVMe drives for
   optimal performance enhancement and possibly reduce database load.
+
+## Operational readiness
+
+TODO Configuration: Helm values, environment variables
+
+TODO Template configuration managed via CI/CD.
+
+TODO Observability, e.g. Promethus/Grafana
+
+TODO Database backups link scripts if we have any
+
+TODO Custom support links
+
+TODO Custom agent troubleshooting links
