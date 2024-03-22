@@ -8739,6 +8739,55 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			continue
 		}
 
+		if len(arg.HasParam) > 0 || len(arg.ParamNames) > 0 {
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			params := make([]database.WorkspaceBuildParameter, 0)
+			for _, param := range q.workspaceBuildParameters {
+				if param.WorkspaceBuildID != build.ID {
+					continue
+				}
+				params = append(params, param)
+			}
+
+			var innerErr error
+			index := slices.IndexFunc(params, func(buildParam database.WorkspaceBuildParameter) bool {
+				// If hasParam matches, then we are done. This is a good match.
+				if slices.ContainsFunc(arg.HasParam, func(name string) bool {
+					return strings.EqualFold(buildParam.Name, name)
+				}) {
+					return true
+				}
+
+				// Check name + value
+				match := false
+				for i := range arg.ParamNames {
+					matchName := arg.ParamNames[i]
+					if !strings.EqualFold(matchName, buildParam.Name) {
+						continue
+					}
+
+					matchValue := arg.ParamValues[i]
+					if !strings.EqualFold(matchValue, buildParam.Value) {
+						continue
+					}
+					match = true
+					break
+				}
+
+				return match
+			})
+			if innerErr != nil {
+				return nil, xerrors.Errorf("error searching workspace build params: %w", innerErr)
+			}
+			if index < 0 {
+				continue
+			}
+		}
+
 		if arg.OwnerUsername != "" {
 			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {

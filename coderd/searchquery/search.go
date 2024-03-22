@@ -121,6 +121,40 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		Valid: values.Has("outdated"),
 	}
 
+	type paramMatch struct {
+		name  string
+		value *string
+	}
+	// parameter matching takes the form of:
+	//	`param:<name>[=<value>]`
+	// If the value is omitted, then we match on the presence of the parameter.
+	// If the value is provided, then we match on the parameter and value.
+	params := httpapi.ParseCustomList(parser, values, []paramMatch{}, "param", func(v string) (paramMatch, error) {
+		// Ignore excess spaces
+		v = strings.TrimSpace(v)
+		parts := strings.Split(v, "=")
+		if len(parts) == 1 {
+			// Only match on the presence of the parameter
+			return paramMatch{name: parts[0], value: nil}, nil
+		}
+		if len(parts) == 2 {
+			if parts[1] == "" {
+				return paramMatch{}, xerrors.Errorf("query element %q has an empty value. omit the '=' to match just on the parameter name", v)
+			}
+			// Match on the parameter and value
+			return paramMatch{name: parts[0], value: &parts[1]}, nil
+		}
+		return paramMatch{}, xerrors.Errorf("query element %q can only contain 1 '='", v)
+	})
+	for _, p := range params {
+		if p.value == nil {
+			filter.HasParam = append(filter.HasParam, p.name)
+			continue
+		}
+		filter.ParamNames = append(filter.ParamNames, p.name)
+		filter.ParamValues = append(filter.ParamValues, *p.value)
+	}
+
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }

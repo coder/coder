@@ -12162,7 +12162,13 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
-WITH filtered_workspaces AS (
+WITH
+build_params AS (
+SELECT
+	LOWER(unnest($1 :: text[])) AS name,
+	LOWER(unnest($2 :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite,
 	COALESCE(template.name, 'unknown') as template_name,
@@ -12181,6 +12187,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -12218,32 +12225,32 @@ LEFT JOIN LATERAL (
 ) template ON true
 WHERE
 	-- Optionally include deleted workspaces
-	workspaces.deleted = $1
+	workspaces.deleted = $3
 	AND CASE
-		WHEN $2 :: text != '' THEN
+		WHEN $4 :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
 			    -- 'running' states
-				WHEN $2 = 'starting' THEN
+				WHEN $4 = 'starting' THEN
 				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-				WHEN $2 = 'stopping' THEN
+				WHEN $4 = 'stopping' THEN
 					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'deleting' THEN
+				WHEN $4 = 'deleting' THEN
 					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
 			    -- 'succeeded' states
-			    WHEN $2 = 'deleted' THEN
+			    WHEN $4 = 'deleted' THEN
 			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
 			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $2 = 'stopped' THEN
+				WHEN $4 = 'stopped' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'started' THEN
+				WHEN $4 = 'started' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
@@ -12251,13 +12258,13 @@ WHERE
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN $2 = 'running' THEN
+			    WHEN $4 = 'running' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $2 != '' THEN
+				WHEN $4 != '' THEN
 				    -- By default just match the job status exactly
-			    	latest_build.job_status = $2::provisioner_job_status
+			    	latest_build.job_status = $4::provisioner_job_status
 				ELSE
 					true
 			END
@@ -12265,46 +12272,80 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.owner_id = $3
+		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $5
 		ELSE true
 	END
+	-- Filter by build parameter
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length($6 :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY($6)
+		)
+		ELSE true
+	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+		WHEN $7 :: text != '' THEN
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
+		WHEN $8 :: text != '' THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			workspaces.template_id = ANY($6)
+		WHEN array_length($9 :: uuid[], 1) > 0 THEN
+			workspaces.template_id = ANY($9)
 		ELSE true
 	END
   	-- Filter by workspace_ids
   	AND CASE
-		  WHEN array_length($7 :: uuid[], 1) > 0 THEN
-			  workspaces.id = ANY($7)
+		  WHEN array_length($10 :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY($10)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			workspaces.name ILIKE '%' || $8 || '%'
+		WHEN $11 :: text != '' THEN
+			workspaces.name ILIKE '%' || $11 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $9 :: text != '' THEN
+		WHEN $12 :: text != '' THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -12316,7 +12357,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
-					$9 = (
+					$12 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -12327,7 +12368,7 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $10 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $13 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
@@ -12340,24 +12381,24 @@ WHERE
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $11 :: boolean != 'false' THEN
+		WHEN $14 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $12 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $12
+		  WHEN $15 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $15
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $13 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $13
+		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $16
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $14 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $14 :: boolean
+		  WHEN $17 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $17 :: boolean
 		  ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -12369,7 +12410,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $15 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $18 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -12378,11 +12419,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $17 :: integer > 0 THEN
-				$17
+			WHEN $20 :: integer > 0 THEN
+				$20
 		END
 	OFFSET
-		$16
+		$19
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
@@ -12417,7 +12458,7 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition -- latest_build_transition
 	WHERE
-		$18 :: boolean = true
+		$21 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -12434,9 +12475,12 @@ CROSS JOIN
 `
 
 type GetWorkspacesParams struct {
+	ParamNames                            []string     `db:"param_names" json:"param_names"`
+	ParamValues                           []string     `db:"param_values" json:"param_values"`
 	Deleted                               bool         `db:"deleted" json:"deleted"`
 	Status                                string       `db:"status" json:"status"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
+	HasParam                              []string     `db:"has_param" json:"has_param"`
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
 	TemplateName                          string       `db:"template_name" json:"template_name"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
@@ -12481,11 +12525,17 @@ type GetWorkspacesRow struct {
 	Count                  int64               `db:"count" json:"count"`
 }
 
+// build_params is used to filter by build parameters if present.
+// It has to be a CTE because the set returning function 'unnest' cannot
+// be used in a WHERE clause.
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
+		pq.Array(arg.ParamNames),
+		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
