@@ -2024,9 +2024,6 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client, events := prepare(t, templates, users, testData)
 
-			// TODO(mafredri): Remove the need for this.
-			time.Sleep(3 * time.Second)
-
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {

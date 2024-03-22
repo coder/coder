@@ -110,6 +110,8 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 	)
 	defer closeRolluper(rolluper2, resume2)
 
+	_, _ = <-events1, <-events2 // Deplete init event, resume operation.
+
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	// One of the rollup instances should roll up and the other should not.
@@ -221,6 +223,8 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	events := make(chan dbrollup.Event, 1)
 	rolluper := dbrollup.New(logger, db, dbrollup.WithInterval(250*time.Millisecond), dbrollup.WithEventChannel(events))
 	defer rolluper.Close()
+
+	<-events // Deplete init event, resume operation.
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
