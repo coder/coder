@@ -351,62 +351,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       </FormSection>
 
       <FormSection
-        title="Autostop Requirement"
-        description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
-      >
-        <Stack direction="row" css={styles.ttlFields}>
-          <TextField
-            {...getFieldHelpers("autostop_requirement_days_of_week", {
-              helperText: (
-                <AutostopRequirementDaysHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                />
-              ),
-            })}
-            disabled={isSubmitting}
-            fullWidth
-            select
-            value={form.values.autostop_requirement_days_of_week}
-            label="Days with required stop"
-          >
-            <MenuItem key="off" value="off">
-              Off
-            </MenuItem>
-            <MenuItem key="daily" value="daily">
-              Daily
-            </MenuItem>
-            <MenuItem key="saturday" value="saturday">
-              Saturday
-            </MenuItem>
-            <MenuItem key="sunday" value="sunday">
-              Sunday
-            </MenuItem>
-          </TextField>
-
-          <TextField
-            {...getFieldHelpers("autostop_requirement_weeks", {
-              helperText: (
-                <AutostopRequirementWeeksHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                  weeks={form.values.autostop_requirement_weeks}
-                />
-              ),
-            })}
-            disabled={
-              isSubmitting ||
-              !["saturday", "sunday"].includes(
-                form.values.autostop_requirement_days_of_week || "",
-              )
-            }
-            fullWidth
-            inputProps={{ min: 1, max: 16, step: 1 }}
-            label="Weeks between required stops"
-            type="number"
-          />
-        </Stack>
-      </FormSection>
-
-      <FormSection
         title="Allow users scheduling"
         description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
       >
@@ -479,6 +423,63 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
+
+      <FormSection
+        title="Autostop Requirement"
+        description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
+      >
+        <Stack direction="row" css={styles.ttlFields}>
+          <TextField
+            {...getFieldHelpers("autostop_requirement_days_of_week", {
+              helperText: (
+                <AutostopRequirementDaysHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                />
+              ),
+            })}
+            disabled={isSubmitting}
+            fullWidth
+            select
+            value={form.values.autostop_requirement_days_of_week}
+            label="Days with required stop"
+          >
+            <MenuItem key="off" value="off">
+              Off
+            </MenuItem>
+            <MenuItem key="daily" value="daily">
+              Daily
+            </MenuItem>
+            <MenuItem key="saturday" value="saturday">
+              Saturday
+            </MenuItem>
+            <MenuItem key="sunday" value="sunday">
+              Sunday
+            </MenuItem>
+          </TextField>
+
+          <TextField
+            {...getFieldHelpers("autostop_requirement_weeks", {
+              helperText: (
+                <AutostopRequirementWeeksHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                  weeks={form.values.autostop_requirement_weeks}
+                />
+              ),
+            })}
+            disabled={
+              isSubmitting ||
+              !["saturday", "sunday"].includes(
+                form.values.autostop_requirement_days_of_week || "",
+              )
+            }
+            fullWidth
+            inputProps={{ min: 1, max: 16, step: 1 }}
+            label="Weeks between required stops"
+            type="number"
+          />
+        </Stack>
+      </FormSection>
+
       {allowAdvancedScheduling && (
         <>
           <FormSection
