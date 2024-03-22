@@ -21,7 +21,8 @@ const (
 )
 
 type Event struct {
-	TemplateUsageStats bool
+	Init               bool `json:"-"`
+	TemplateUsageStats bool `json:"template_usage_stats"`
 }
 
 type Rolluper struct {
@@ -135,6 +136,15 @@ func (r *Rolluper) start(ctx context.Context) {
 				return
 			case r.event <- ev:
 			}
+		}
+	}
+
+	// For testing.
+	if r.event != nil {
+		select {
+		case <-ctx.Done():
+			return
+		case r.event <- Event{Init: true}:
 		}
 	}
 

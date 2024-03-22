@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -44,10 +45,19 @@ func TestDeploymentInsights(t *testing.T) {
 	clientTz, err := time.LoadLocation("America/Chicago")
 	require.NoError(t, err)
 
+	db, ps := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil)
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon:    true,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		Database:                  db,
+		Pubsub:                    ps,
+		Logger:                    &logger,
+		IncludeProvisionerDaemon:  true,
+		AgentStatsRefreshInterval: time.Millisecond * 50,
+		DatabaseRolluper: dbrollup.New(
+			logger.Named("dbrollup"),
+			db,
+			dbrollup.WithInterval(time.Millisecond*100),
+		),
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -119,10 +129,19 @@ func TestDeploymentInsights(t *testing.T) {
 func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil)
 	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                  db,
+		Pubsub:                    ps,
+		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval: time.Millisecond * 50,
+		DatabaseRolluper: dbrollup.New(
+			logger.Named("dbrollup"),
+			db,
+			dbrollup.WithInterval(time.Millisecond*100),
+		),
 	})
 
 	// Create two users, one that will appear in the report and another that
@@ -207,10 +226,19 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 func TestUserLatencyInsights(t *testing.T) {
 	t.Parallel()
 
+	db, ps := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil)
 	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                  db,
+		Pubsub:                    ps,
+		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval: time.Millisecond * 50,
+		DatabaseRolluper: dbrollup.New(
+			logger.Named("dbrollup"),
+			db,
+			dbrollup.WithInterval(time.Millisecond*100),
+		),
 	})
 
 	// Create two users, one that will appear in the report and another that
@@ -474,16 +502,24 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return templates, users, testData
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, chan dbrollup.Event) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		db, pubsub := dbtestutil.NewDB(t)
+		db, ps := dbtestutil.NewDB(t)
+		events := make(chan dbrollup.Event)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database:                  db,
-			Pubsub:                    pubsub,
+			Pubsub:                    ps,
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
 			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
+			DatabaseRolluper: dbrollup.New(
+				logger.Named("dbrollup"),
+				db,
+				dbrollup.WithInterval(time.Millisecond*50),
+				dbrollup.WithEventChannel(events),
+			),
 		})
+
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Prepare all test users.
@@ -706,7 +742,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
-		return client
+		return client, events
 	}
 
 	baseTemplateAndUserFixture := func() ([]*testTemplate, []*testUser) {
@@ -1200,7 +1236,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
 			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
-			client := prepare(t, templates, users, testData)
+			client, events := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
 				req := req
@@ -1208,6 +1244,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
+
+					// Drain two events, the first one resumes rolluper
+					// operation and the second one waits for the rollup
+					// to complete.
+					_, _ = <-events, <-events
 
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
@@ -1381,15 +1422,22 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		return templates, users, testData
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, chan dbrollup.Event) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		db, pubsub := dbtestutil.NewDB(t)
+		db, ps := dbtestutil.NewDB(t)
+		events := make(chan dbrollup.Event)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database:                  db,
-			Pubsub:                    pubsub,
+			Pubsub:                    ps,
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
 			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
+			DatabaseRolluper: dbrollup.New(
+				logger.Named("dbrollup"),
+				db,
+				dbrollup.WithInterval(time.Millisecond*50),
+				dbrollup.WithEventChannel(events),
+			),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -1593,7 +1641,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
-		return client
+		return client, events
 	}
 
 	baseTemplateAndUserFixture := func() ([]*testTemplate, []*testUser) {
@@ -1974,7 +2022,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
 			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
-			client := prepare(t, templates, users, testData)
+			client, events := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
 				req := req
@@ -1982,6 +2030,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
+
+					// Drain two events, the first one resumes rolluper
+					// operation and the second one waits for the rollup
+					// to complete.
+					_, _ = <-events, <-events
 
 					report, err := client.UserActivityInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
