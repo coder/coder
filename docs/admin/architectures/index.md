@@ -345,14 +345,38 @@ We provide the following general recommendations for PostgreSQL settings:
 
 ## Operational readiness
 
-TODO Configuration: Helm values, environment variables
+Operational readiness in Coder is about ensuring that everything is set up
+correctly before launching a platform into production. It involves making sure
+that the service is reliable, secure, and easily scales accordingly to user-base
+needs. Operational readiness is crucial because it helps prevent issues that
+could affect workspace users experience once the platform is live.
 
-TODO Template configuration managed via CI/CD.
+### Configuration
 
-TODO Observability, e.g. Promethus/Grafana
+#### Helm values
 
-TODO Database backups link scripts if we have any
+TODO
 
-TODO Custom support links
+#### Environment variables
 
-TODO Custom agent troubleshooting links
+TODO
+
+### Template configuration
+
+TODO managed via CI/CD
+
+### Observability
+
+TODO Prometheus, Grafana, logging
+
+### Database backups
+
+TODO link scripts if we have any
+
+### Support links
+
+TODO
+
+### Troubleshooting agent
+
+TODO links
