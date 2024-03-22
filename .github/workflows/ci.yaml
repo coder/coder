@@ -604,6 +604,9 @@ jobs:
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
 
+      - name: make gen
+        run: "make --output-sync -j -B gen"
+
       - name: Format
         run: |
           cd offlinedocs
