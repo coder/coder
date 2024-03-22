@@ -43,11 +43,6 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 		msgType = websocket.MessageBinary
 	}
 
-	api.AGPL.WebsocketWaitMutex.Lock()
-	api.AGPL.WebsocketWaitGroup.Add(1)
-	api.AGPL.WebsocketWaitMutex.Unlock()
-	defer api.AGPL.WebsocketWaitGroup.Done()
-
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

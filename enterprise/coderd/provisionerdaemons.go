@@ -267,11 +267,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.AGPL.WebsocketWaitMutex.Lock()
-	api.AGPL.WebsocketWaitGroup.Add(1)
-	api.AGPL.WebsocketWaitMutex.Unlock()
-	defer api.AGPL.WebsocketWaitGroup.Done()
-
 	tep := telemetry.ConvertExternalProvisioner(id, tags, provisioners)
 	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	defer func() {

@@ -56,10 +56,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	build := httpmw.LatestBuild(r)
 

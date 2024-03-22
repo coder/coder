@@ -61,10 +61,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 
 	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
 	follower.follow()
 }
 

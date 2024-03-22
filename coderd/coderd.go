@@ -1187,9 +1187,9 @@ type API struct {
 	// SiteHandler serves static files for the dashboard.
 	SiteHandler *site.Handler
 
-	WebsocketWaitMutex sync.Mutex
-	WebsocketWaitGroup sync.WaitGroup
-	derpCloseFunc      func()
+	ProvisionerWaitMutex sync.Mutex
+	ProvisionerWaitGroup sync.WaitGroup
+	derpCloseFunc        func()
 
 	metricsCache          *metricscache.Cache
 	updateChecker         *updatecheck.Checker
@@ -1220,9 +1220,10 @@ func (api *API) Close() error {
 		api.derpCloseFunc()
 	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Wait()
-	api.WebsocketWaitMutex.Unlock()
+	// Wait for in-memory provisioners to close.
+	api.ProvisionerWaitMutex.Lock()
+	api.ProvisionerWaitGroup.Wait()
+	api.ProvisionerWaitMutex.Unlock()
 
 	api.dbRolluper.Close()
 	api.metricsCache.Close()
@@ -1343,14 +1344,12 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 			},
 		},
 	)
-	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
-	// API is concerned: they are long-lived connections that we need to close before completing
-	// shutdown of the API.
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
+
+	api.ProvisionerWaitMutex.Lock()
+	api.ProvisionerWaitGroup.Add(1)
+	api.ProvisionerWaitMutex.Unlock()
 	go func() {
-		defer api.WebsocketWaitGroup.Done()
+		defer api.ProvisionerWaitGroup.Done()
 		// here we pass the background context, since we want the server to keep serving until the
 		// client hangs up.  If we, say, pass the API context, then when it is canceled, we could
 		// drop a job that we locked in the database but never passed to the provisionerd.  The

@@ -515,11 +515,6 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	workspace := row.Workspace
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
-
 	opts := &websocket.AcceptOptions{}
 
 	// Allow client to request no compression. This is useful for buggy
@@ -867,11 +862,6 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
-
 	ws, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -950,10 +940,6 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
 	// The middleware only accept agents for resources on the latest build.
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	build := httpmw.LatestBuild(r)
@@ -1058,10 +1044,6 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	conn, err := websocket.Accept(rw, r, nil)
