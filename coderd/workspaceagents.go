@@ -1171,6 +1171,13 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
 			// If the template schedule fails to load, just default to bumping without the next transition and log it.
 			if err != nil {
+				// There's nothing we can do if the query was canceled, the
+				// client most likely went away so we just return an internal
+				// server error.
+				if database.IsQueryCanceledError(err) {
+					httpapi.InternalServerError(rw, err)
+					return
+				}
 				api.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
 					slog.F("workspace_id", workspace.ID),
 					slog.F("template_id", workspace.TemplateID),
