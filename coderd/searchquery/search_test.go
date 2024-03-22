@@ -161,7 +161,7 @@ func TestSearchWorkspace(t *testing.T) {
 		},
 		{
 			Name:  "QuotedParamValue",
-			Query: `param:"image=ghcr.io/coder/coder-preview:main`,
+			Query: `param:"image=ghcr.io/coder/coder-preview:main"`,
 			Expected: database.GetWorkspacesParams{
 				ParamNames:  []string{"image"},
 				ParamValues: []string{"ghcr.io/coder/coder-preview:main"},
