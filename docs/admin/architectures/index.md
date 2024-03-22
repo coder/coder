@@ -351,32 +351,43 @@ that the service is reliable, secure, and easily scales accordingly to user-base
 needs. Operational readiness is crucial because it helps prevent issues that
 could affect workspace users experience once the platform is live.
 
+Learn about Coder design principles and architectural best practices described
+in the
+[Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+
 ### Configuration
 
-#### Helm values
-
-TODO
-
-#### Environment variables
-
-TODO
+1. Create `values.yaml` and add it to a version control system.
+1. Determine the necessary environment variables.
+1. Identify the required Helm values for configuration.
 
 ### Template configuration
 
-TODO managed via CI/CD
+1. Establish a dedicated user account for the _Template Administrator_.
+1. Maintain Coder templates using version control.
+1. Consider implementing a GitOps workflow to automatically push new template
+   versions to Coder.
+1. Evaluate enabling automatic template updates upon workspace startup.
 
 ### Observability
 
-TODO Prometheus, Grafana, logging
+1. Enable the Prometheus endpoint (environment variable:
+   `CODER_PROMETHEUS_ENABLE`).
+1. Deploy a visual monitoring system such as Grafana for metrics visualization.
+1. Deploy a centralized logs aggregation solution to collect and monitor
+   application logs.
+1. Review the [Prometheus response](../prometheus.md) and set up alarms on
+   selected metrics.
 
 ### Database backups
 
-TODO link scripts if we have any
+1. Prepare internal scripts for dumping and restoring databases.
+1. Schedule regular database backups, especially before release upgrades.
 
-### Support links
+### User support
 
-TODO
-
-### Troubleshooting agent
-
-TODO links
+1. Incorporate [support links](../appearance.md#support-links) into internal
+   documentation accessible from the user context menu. Ensure that hyperlinks
+   are valid and lead to up-to-date materials.
+1. Encourage the use of `coder support bundle` to allow workspace users to
+   generate and provide network-related diagnostic data.
