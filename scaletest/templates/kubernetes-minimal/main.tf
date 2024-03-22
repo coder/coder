@@ -17,6 +17,12 @@ provider "kubernetes" {
   config_path = null # always use host
 }
 
+variable "kubernetes_nodepool_workspaces" {
+  description = "Kubernetes nodepool for Coder workspaces"
+  type        = string
+  default     = "big-workspaces"
+}
+
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "m" {
@@ -152,7 +158,7 @@ resource "kubernetes_deployment" "main" {
                 match_expressions {
                   key      = "cloud.google.com/gke-nodepool"
                   operator = "In"
-                  values   = ["big-workspaces"]
+                  values   = ["${var.kubernetes_nodepool_workspaces}"]
                 }
               }
             }
