@@ -388,7 +388,7 @@ func TestParseQueryParams(t *testing.T) {
 				Value:                 "6c8ef17d-5dd8-4b92-bac9-41944f90f237,bogus",
 				Expected:              []uuid.UUID{},
 				Default:               []uuid.UUID{},
-				ExpectedErrorContains: "bogus",
+				ExpectedErrorContains: "invalid UUID length",
 			},
 			{
 				QueryParam: "multiple_keys",
