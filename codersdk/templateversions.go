@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/terraform-provider-coder/provider"
 	"github.com/google/uuid"
 )
 
@@ -48,8 +47,8 @@ type TemplateVersionExternalAuth struct {
 type ValidationMonotonicOrder string
 
 const (
-	MonotonicOrderIncreasing ValidationMonotonicOrder = provider.ValidationMonotonicIncreasing
-	MonotonicOrderDecreasing ValidationMonotonicOrder = provider.ValidationMonotonicDecreasing
+	MonotonicOrderIncreasing ValidationMonotonicOrder = "increasing"
+	MonotonicOrderDecreasing ValidationMonotonicOrder = "decreasing"
 )
 
 // TemplateVersionParameter represents a parameter for a template version.
