@@ -239,7 +239,6 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string;
   readonly default_ttl_ms?: number;
   readonly activity_bump_ms?: number;
-  readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;
   readonly allow_user_cancel_workspace_jobs?: boolean;
@@ -482,6 +481,7 @@ export interface DeploymentValues {
   readonly cache_directory?: string;
   readonly in_memory_database?: boolean;
   readonly pg_connection_url?: string;
+  readonly pg_auth?: string;
   readonly oauth2?: OAuth2Config;
   readonly oidc?: OIDCConfig;
   readonly telemetry?: TelemetryConfig;
@@ -1165,8 +1165,6 @@ export interface Template {
   readonly icon: string;
   readonly default_ttl_ms: number;
   readonly activity_bump_ms: number;
-  readonly use_max_ttl: boolean;
-  readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
   readonly autostart_requirement: TemplateAutostartRequirement;
   readonly created_by_id: string;
@@ -1425,7 +1423,6 @@ export interface UpdateTemplateMeta {
   readonly icon?: string;
   readonly default_ttl_ms?: number;
   readonly activity_bump_ms?: number;
-  readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
   readonly autostart_requirement?: TemplateAutostartRequirement;
   readonly allow_user_autostart?: boolean;
@@ -2151,6 +2148,10 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
   "code",
 ];
 
+// From codersdk/deployment.go
+export type PostgresAuth = "awsiamrds" | "password";
+export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
+
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
   | "canceled"
@@ -2458,7 +2459,6 @@ export type HealthCode =
   | "EUNKNOWN"
   | "EWP01"
   | "EWP02"
-  | "EWP03"
   | "EWP04"
   | "EWS01"
   | "EWS02"
@@ -2478,7 +2478,6 @@ export const HealthCodes: HealthCode[] = [
   "EUNKNOWN",
   "EWP01",
   "EWP02",
-  "EWP03",
   "EWP04",
   "EWS01",
   "EWS02",

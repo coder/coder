@@ -88,8 +88,6 @@ sql:
           group_acl: GroupACL
           troubleshooting_url: TroubleshootingURL
           default_ttl: DefaultTTL
-          max_ttl: MaxTTL
-          template_max_ttl: TemplateMaxTTL
           motd_file: MOTDFile
           uuid: UUID
           failure_ttl: FailureTTL

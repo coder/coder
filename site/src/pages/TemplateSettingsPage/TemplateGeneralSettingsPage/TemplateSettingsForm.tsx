@@ -236,24 +236,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
       >
         <FormFields>
-          <Stack direction="column" spacing={0.5}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={0.5}
-              css={styles.optionText}
-            >
-              Deprecation Message
-            </Stack>
-            <span css={styles.optionHelperText}>
-              Leave the message empty to keep the template active. Any message
-              provided will mark the template as deprecated. Use this message to
-              inform users of the deprecation and how to migrate to a new
-              template.
-            </span>
-          </Stack>
           <TextField
-            {...getFieldHelpers("deprecation_message")}
+            {...getFieldHelpers("deprecation_message", {
+              helperText:
+                "Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
+            })}
             disabled={isSubmitting || !accessControlEnabled}
             fullWidth
             label="Deprecation Message"

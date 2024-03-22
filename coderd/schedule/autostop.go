@@ -110,14 +110,8 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		}
 	}
 
-	// Use the old algorithm for calculating max_deadline if the instance isn't
-	// configured or entitled to use the new feature flag yet.
-	if templateSchedule.UseMaxTTL && templateSchedule.MaxTTL > 0 {
-		autostop.MaxDeadline = now.Add(templateSchedule.MaxTTL)
-	}
-
 	// Otherwise, use the autostop_requirement algorithm.
-	if !templateSchedule.UseMaxTTL && templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
+	if templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
 		// The template has a autostop requirement, so determine the max deadline
 		// of this workspace build.
 

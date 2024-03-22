@@ -163,17 +163,6 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 		}
 	}
 
-	for k := range searchValues {
-		if len(searchValues[k]) > 1 {
-			return nil, []codersdk.ValidationError{
-				{
-					Field:  "q",
-					Detail: fmt.Sprintf("Query parameter %q provided more than once, found %d times", k, len(searchValues[k])),
-				},
-			}
-		}
-	}
-
 	return searchValues, nil
 }
 

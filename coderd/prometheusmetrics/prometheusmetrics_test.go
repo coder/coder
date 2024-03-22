@@ -500,6 +500,88 @@ func TestAgentStats(t *testing.T) {
 	assert.EqualValues(t, golden, collected)
 }
 
+func TestExperimentsMetric(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		experiments codersdk.Experiments
+		expected    map[codersdk.Experiment]float64
+	}{
+		{
+			name:        "Enabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{codersdk.ExperimentSharedPorts},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentSharedPorts: 1,
+			},
+		},
+		{
+			name:        "Disabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentSharedPorts: 0,
+			},
+		},
+		{
+			name:        "Unknown experiment is not exported in metrics",
+			experiments: codersdk.Experiments{codersdk.Experiment("bob")},
+			expected:    map[codersdk.Experiment]float64{},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reg := prometheus.NewRegistry()
+
+			require.NoError(t, prometheusmetrics.Experiments(reg, tc.experiments))
+
+			out, err := reg.Gather()
+			require.NoError(t, err)
+			require.Lenf(t, out, 1, "unexpected number of registered metrics")
+
+			seen := make(map[codersdk.Experiment]float64)
+
+			for _, metric := range out[0].GetMetric() {
+				require.Equal(t, "coderd_experiments", out[0].GetName())
+
+				labels := metric.GetLabel()
+				require.Lenf(t, labels, 1, "unexpected number of labels")
+
+				experiment := codersdk.Experiment(labels[0].GetValue())
+				value := metric.GetGauge().GetValue()
+
+				seen[experiment] = value
+
+				expectedValue := 0
+
+				// Find experiment we expect to be enabled.
+				for _, exp := range tc.experiments {
+					if experiment == exp {
+						expectedValue = 1
+						break
+					}
+				}
+
+				require.EqualValuesf(t, expectedValue, value, "expected %d value for experiment %q", expectedValue, experiment)
+			}
+
+			// We don't want to define the state of all experiments because codersdk.ExperimentAll will change at some
+			// point and break these tests; so we only validate the experiments we know about.
+			for exp, val := range seen {
+				expectedVal, found := tc.expected[exp]
+				if !found {
+					t.Logf("ignoring experiment %q; it is not listed in expectations", exp)
+					continue
+				}
+				require.Equalf(t, expectedVal, val, "experiment %q did not match expected value %v", exp, expectedVal)
+			}
+		})
+	}
+}
+
 func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
 	authToken := uuid.NewString()
 

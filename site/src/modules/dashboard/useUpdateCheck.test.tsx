@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MockUpdateCheck } from "testHelpers/entities";
@@ -26,14 +26,11 @@ it("is dismissed when does not have permission to see it", () => {
 
 it("is dismissed when it is already using current version", async () => {
   server.use(
-    rest.get("/api/v2/updatecheck", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          ...MockUpdateCheck,
-          current: true,
-        }),
-      );
+    http.get("/api/v2/updatecheck", () => {
+      return HttpResponse.json({
+        ...MockUpdateCheck,
+        current: true,
+      });
     }),
   );
   const { result } = renderHook(() => useUpdateCheck(true), {
@@ -47,14 +44,11 @@ it("is dismissed when it is already using current version", async () => {
 
 it("is dismissed when it was dismissed previously", async () => {
   server.use(
-    rest.get("/api/v2/updatecheck", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          ...MockUpdateCheck,
-          current: false,
-        }),
-      );
+    http.get("/api/v2/updatecheck", () => {
+      return HttpResponse.json({
+        ...MockUpdateCheck,
+        current: false,
+      });
     }),
   );
   localStorage.setItem("dismissedVersion", MockUpdateCheck.version);
@@ -69,14 +63,11 @@ it("is dismissed when it was dismissed previously", async () => {
 
 it("shows when has permission and is outdated", async () => {
   server.use(
-    rest.get("/api/v2/updatecheck", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          ...MockUpdateCheck,
-          current: false,
-        }),
-      );
+    http.get("/api/v2/updatecheck", () => {
+      return HttpResponse.json({
+        ...MockUpdateCheck,
+        current: false,
+      });
     }),
   );
   const { result } = renderHook(() => useUpdateCheck(true), {
@@ -90,14 +81,11 @@ it("shows when has permission and is outdated", async () => {
 
 it("shows when has permission and is outdated", async () => {
   server.use(
-    rest.get("/api/v2/updatecheck", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          ...MockUpdateCheck,
-          current: false,
-        }),
-      );
+    http.get("/api/v2/updatecheck", () => {
+      return HttpResponse.json({
+        ...MockUpdateCheck,
+        current: false,
+      });
     }),
   );
   const { result } = renderHook(() => useUpdateCheck(true), {

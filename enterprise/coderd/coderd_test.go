@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -27,7 +29,10 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
+	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
@@ -369,6 +374,83 @@ func TestExternalTokenEncryption(t *testing.T) {
 			return feature.Enabled && !entitled && warningExists
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+}
+
+func TestMultiReplica_EmptyRelayAddress(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil)
+
+	_, _ = coderdenttest.New(t, &coderdenttest.Options{
+		EntitlementsUpdateInterval: 25 * time.Millisecond,
+		ReplicaSyncUpdateInterval:  25 * time.Millisecond,
+		Options: &coderdtest.Options{
+			Logger:   &logger,
+			Database: db,
+			Pubsub:   ps,
+		},
+	})
+
+	mgr, err := replicasync.New(ctx, logger, db, ps, &replicasync.Options{
+		ID:             uuid.New(),
+		RelayAddress:   "",
+		RegionID:       999,
+		UpdateInterval: testutil.IntervalFast,
+	})
+	require.NoError(t, err)
+	defer mgr.Close()
+
+	// Send a bunch of updates to see if the coderd will log errors.
+	{
+		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+		for r := retry.New(testutil.IntervalFast, testutil.IntervalFast); r.Wait(ctx); {
+			require.NoError(t, mgr.PublishUpdate())
+		}
+		cancel()
+	}
+}
+
+func TestMultiReplica_EmptyRelayAddress_DisabledDERP(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.DERP.Server.Enable = serpent.Bool(false)
+	dv.DERP.Config.URL = serpent.String("https://controlplane.tailscale.com/derpmap/default")
+
+	_, _ = coderdenttest.New(t, &coderdenttest.Options{
+		EntitlementsUpdateInterval: 25 * time.Millisecond,
+		ReplicaSyncUpdateInterval:  25 * time.Millisecond,
+		Options: &coderdtest.Options{
+			Logger:           &logger,
+			Database:         db,
+			Pubsub:           ps,
+			DeploymentValues: dv,
+		},
+	})
+
+	mgr, err := replicasync.New(ctx, logger, db, ps, &replicasync.Options{
+		ID:             uuid.New(),
+		RelayAddress:   "",
+		RegionID:       999,
+		UpdateInterval: testutil.IntervalFast,
+	})
+	require.NoError(t, err)
+	defer mgr.Close()
+
+	// Send a bunch of updates to see if the coderd will log errors.
+	{
+		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+		for r := retry.New(testutil.IntervalFast, testutil.IntervalFast); r.Wait(ctx); {
+			require.NoError(t, mgr.PublishUpdate())
+		}
+		cancel()
+	}
 }
 
 // testDBAuthzRole returns a context with a subject that has a role

@@ -51,6 +51,24 @@ export const WithPorts: Story = {
   },
 };
 
+export const WithManyPorts: Story = {
+  args: {
+    listeningPorts: Array.from({ length: 20 }).map((_, i) => ({
+      process_name: `port-${i}`,
+      network: "",
+      port: 3000 + i,
+    })),
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: MockSharedPortsResponse,
+      },
+    ],
+  },
+};
+
 export const Empty: Story = {
   args: {
     listeningPorts: [],

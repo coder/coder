@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
@@ -12,24 +12,18 @@ import StarterTemplatesPage from "./StarterTemplatesPage";
 
 test("does not display the scratch template", async () => {
   server.use(
-    rest.get(
-      "api/v2/organizations/:organizationId/templates/examples",
-      (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json([
-            MockTemplateExample,
-            MockTemplateExample2,
-            {
-              ...MockTemplateExample,
-              id: "scratch",
-              name: "Scratch",
-              description: "Create a template from scratch",
-            },
-          ]),
-        );
-      },
-    ),
+    http.get("api/v2/organizations/:organizationId/templates/examples", () => {
+      return HttpResponse.json([
+        MockTemplateExample,
+        MockTemplateExample2,
+        {
+          ...MockTemplateExample,
+          id: "scratch",
+          name: "Scratch",
+          description: "Create a template from scratch",
+        },
+      ]);
+    }),
   );
 
   render(

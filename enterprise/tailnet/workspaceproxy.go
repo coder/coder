@@ -67,7 +67,9 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	go func() {
+		//nolint:staticcheck
 		err := forwardNodesToWorkspaceProxy(ctx, conn, ma)
+		//nolint:staticcheck
 		if err != nil {
 			_ = conn.Close()
 		}
@@ -111,6 +113,10 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 	}
 }
 
+// Linter fails because this function always returns an error. This function blocks
+// until it errors, so this is ok.
+//
+//nolint:staticcheck
 func forwardNodesToWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	var lastData []byte
 	for {

@@ -46,26 +46,6 @@ export const ActivityBumpHelperText = (props: { bump?: number }) => {
   );
 };
 
-export const MaxTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces may run indefinitely.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
-      any active connections.
-    </span>
-  );
-};
-
 export const FailureTTLHelperText = (props: { ttl?: number }) => {
   const { ttl = 0 } = props;
 

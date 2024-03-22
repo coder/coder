@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
@@ -97,7 +96,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 				err     error
 				closePg func()
 			)
-			connectionURL, closePg, err = postgres.Open()
+			connectionURL, closePg, err = Open()
 			require.NoError(t, err)
 			t.Cleanup(closePg)
 		}

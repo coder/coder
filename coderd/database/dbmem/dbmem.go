@@ -1046,6 +1046,10 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		if _, found := m[q.workspaces[i].ID]; !found {
 			continue
 		}
+		// WHERE last_used_at < @last_used_at
+		if !q.workspaces[i].LastUsedAt.Before(arg.LastUsedAt) {
+			continue
+		}
 		q.workspaces[i].LastUsedAt = arg.LastUsedAt
 		n++
 	}
@@ -6961,8 +6965,6 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.ActivityBump = arg.ActivityBump
-		tpl.UseMaxTtl = arg.UseMaxTtl
-		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
 		tpl.AutostartBlockDaysOfWeek = arg.AutostartBlockDaysOfWeek

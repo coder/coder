@@ -293,8 +293,6 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				UserAutostartEnabled:     false,
 				UserAutostopEnabled:      false,
 				DefaultTTL:               0,
-				MaxTTL:                   0,
-				UseMaxTTL:                false,
 				AutostopRequirement:      autostopReq,
 				FailureTTL:               0,
 				TimeTilDormant:           0,
@@ -571,8 +569,6 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		UserAutostartEnabled: false,
 		UserAutostopEnabled:  false,
 		DefaultTTL:           0,
-		MaxTTL:               0,
-		UseMaxTTL:            false,
 		AutostopRequirement: agplschedule.TemplateAutostopRequirement{
 			// Every day
 			DaysOfWeek: 0b01111111,

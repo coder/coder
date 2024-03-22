@@ -251,13 +251,46 @@ describe("CreateWorkspacePage", () => {
         MockOrganization.id,
         "me",
         expect.objectContaining({
-          template_id: MockTemplate.id,
+          template_version_id: MockTemplate.active_version_id,
           rich_parameter_values: [
-            expect.objectContaining({ name: param, value: paramValue }),
+            expect.objectContaining({
+              name: param,
+              source: "url",
+              value: paramValue,
+            }),
           ],
         }),
       );
     });
+  });
+
+  it("disables mode=auto if a required external auth provider is not connected", async () => {
+    const param = "first_parameter";
+    const paramValue = "It works!";
+    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+
+    const externalAuthSpy = jest
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}&mode=auto`,
+      path: "/templates/:template/workspace",
+    });
+    await waitForLoaderToBeRemoved();
+
+    const warning =
+      "This template requires an external authentication provider that is not connected.";
+    expect(await screen.findByText(warning)).toBeInTheDocument();
+    expect(createWorkspaceSpy).not.toBeCalled();
+
+    // We don't need to do this on any other tests out of hundreds of very, very,
+    // very similar tests, and yet here, I find it to be absolutely necessary for
+    // some reason that I certainly do not understand. - Kayla
+    externalAuthSpy.mockReset();
   });
 
   it("auto create a workspace if uses mode=auto and version=version-id", async () => {

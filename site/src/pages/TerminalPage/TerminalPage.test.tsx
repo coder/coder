@@ -1,8 +1,7 @@
 import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
-import { rest } from "msw";
-import { TextDecoder, TextEncoder } from "util";
+import { HttpResponse, http } from "msw";
 import * as API from "api/api";
 import {
   MockUser,
@@ -28,10 +27,6 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-});
-
-Object.defineProperty(window, "TextEncoder", {
-  value: TextEncoder,
 });
 
 const renderTerminal = async (
@@ -87,12 +82,9 @@ describe("TerminalPage", () => {
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(
-      rest.get(
-        "/api/v2/users/:userId/workspace/:workspaceName",
-        (req, res, ctx) => {
-          return res(ctx.status(500), ctx.json({ id: "workspace-id" }));
-        },
-      ),
+      http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
+        return HttpResponse.json({ id: "workspace-id" }, { status: 500 });
+      }),
     );
 
     // When
@@ -105,8 +97,8 @@ describe("TerminalPage", () => {
   it("shows an error if the websocket fails", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/workspaceagents/:agentId/pty", (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({}));
+      http.get("/api/v2/workspaceagents/:agentId/pty", () => {
+        return HttpResponse.json({}, { status: 500 });
       }),
     );
 

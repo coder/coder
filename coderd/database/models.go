@@ -2083,7 +2083,6 @@ type Template struct {
 	GroupACL                      TemplateACL     `db:"group_acl" json:"group_acl"`
 	DisplayName                   string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs  bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                        int64           `db:"max_ttl" json:"max_ttl"`
 	AllowUserAutostart            bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
 	AllowUserAutostop             bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL                    int64           `db:"failure_ttl" json:"failure_ttl"`
@@ -2094,7 +2093,6 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
@@ -2120,8 +2118,7 @@ type TemplateTable struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
@@ -2138,7 +2135,6 @@ type TemplateTable struct {
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }

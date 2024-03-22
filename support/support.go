@@ -33,6 +33,7 @@ type Bundle struct {
 	Workspace  Workspace  `json:"workspace"`
 	Agent      Agent      `json:"agent"`
 	Logs       []string   `json:"logs"`
+	CLILogs    []byte     `json:"cli_logs"`
 }
 
 type Deployment struct {
@@ -406,6 +407,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 		if err := json.NewDecoder(bytes.NewReader(manifestRes)).Decode(&a.Manifest); err != nil {
 			return xerrors.Errorf("decode agent manifest: %w", err)
 		}
+		sanitizeEnv(a.Manifest.EnvironmentVariables)
 
 		return nil
 	})

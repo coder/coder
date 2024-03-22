@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/trace"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -139,6 +140,22 @@ func (r *RootCmd) AGPL() []*serpent.Command {
 
 // Main is the entrypoint for the Coder CLI.
 func (r *RootCmd) RunMain(subcommands []*serpent.Command) {
+	// This configuration is not available as a standard option because we
+	// want to trace the entire program, including Options parsing.
+	goTraceFilePath, ok := os.LookupEnv("CODER_GO_TRACE")
+	if ok {
+		traceFile, err := os.OpenFile(goTraceFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			panic(fmt.Sprintf("failed to open trace file: %v", err))
+		}
+		defer traceFile.Close()
+
+		if err := trace.Start(traceFile); err != nil {
+			panic(fmt.Sprintf("failed to start trace: %v", err))
+		}
+		defer trace.Stop()
+	}
+
 	rand.Seed(time.Now().UnixMicro())
 
 	cmd, err := r.Command(subcommands)

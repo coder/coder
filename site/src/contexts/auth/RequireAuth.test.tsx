@@ -1,11 +1,11 @@
-import { renderHook, screen } from "@testing-library/react";
-import { rest } from "msw";
+import { screen, renderHook } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { MockPermissions, MockUser } from "testHelpers/entities";
 import {
-  createTestQueryClient,
   renderWithAuth,
+  createTestQueryClient,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { AuthContext, type AuthContextValue } from "./AuthProvider";
@@ -15,8 +15,8 @@ describe("RequireAuth", () => {
   it("redirects to /login if user is not authenticated", async () => {
     // appear logged out
     server.use(
-      rest.get("/api/v2/users/me", (req, res, ctx) => {
-        return res(ctx.status(401), ctx.json({ message: "no user here" }));
+      http.get("/api/v2/users/me", () => {
+        return HttpResponse.json({ message: "no user here" }, { status: 401 });
       }),
     );
 
