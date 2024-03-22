@@ -51,7 +51,7 @@
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
-        "seconds": 21600
+        "seconds": 25200
       }
     ],
     "parameters_usage": []
