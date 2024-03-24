@@ -2276,6 +2276,170 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 // From codersdk/workspaceproxy.go
 export type RegionTypes = Region | WorkspaceProxy;
 
+// The code below is generated from codersdk/healthsdk.
+
+// From healthsdk/health.go
+export interface HealthsdkAccessURLReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly access_url: string;
+  readonly reachable: boolean;
+  readonly status_code: number;
+  readonly healthz_response: string;
+  readonly error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkDERPHealthReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly regions: Record<number, HealthsdkDERPRegionReport>;
+  // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly netcheck?: any;
+  readonly netcheck_err?: string;
+  readonly netcheck_logs: string[];
+  readonly error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkDERPNodeReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly node?: any;
+  // Named type "tailscale.com/derp.ServerInfoMessage" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly node_info: any;
+  readonly can_exchange_messages: boolean;
+  readonly round_trip_ping: string;
+  readonly round_trip_ping_ms: number;
+  readonly uses_websocket: boolean;
+  readonly client_logs: string[][];
+  readonly client_errs: string[][];
+  readonly error?: string;
+  readonly stun: HealthsdkSTUNReport;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkDERPRegionReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly region?: any;
+  readonly node_reports: HealthsdkDERPNodeReport[];
+  readonly error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkDatabaseReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly reachable: boolean;
+  readonly latency: string;
+  readonly latency_ms: number;
+  readonly threshold_ms: number;
+  readonly error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkHealthClient {}
+
+// From healthsdk/health.go
+export interface HealthsdkHealthSettings {
+  readonly dismissed_healthchecks: HealthsdkHealthSection[];
+}
+
+// From healthsdk/health.go
+export interface HealthsdkHealthcheckReport {
+  readonly time: string;
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly failing_sections: HealthsdkHealthSection[];
+  readonly derp: HealthsdkDERPHealthReport;
+  readonly access_url: HealthsdkAccessURLReport;
+  readonly websocket: HealthsdkWebsocketReport;
+  readonly database: HealthsdkDatabaseReport;
+  readonly workspace_proxy: HealthsdkWorkspaceProxyReport;
+  readonly provisioner_daemons: HealthsdkProvisionerDaemonsReport;
+  readonly coder_version: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkProvisionerDaemonsReport {
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly items: HealthsdkProvisionerDaemonsReportItem[];
+}
+
+// From healthsdk/health.go
+export interface HealthsdkProvisionerDaemonsReportItem {
+  readonly provisioner_daemon: ProvisionerDaemon;
+  readonly warnings: HealthMessage[];
+}
+
+// From healthsdk/health.go
+export interface HealthsdkSTUNReport {
+  readonly Enabled: boolean;
+  readonly CanSTUN: boolean;
+  readonly Error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkUpdateHealthSettings {
+  readonly dismissed_healthchecks: HealthsdkHealthSection[];
+}
+
+// From healthsdk/health.go
+export interface HealthsdkWebsocketReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: string[];
+  readonly dismissed: boolean;
+  readonly body: string;
+  readonly code: number;
+  readonly error?: string;
+}
+
+// From healthsdk/health.go
+export interface HealthsdkWorkspaceProxyReport {
+  readonly healthy: boolean;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
+  readonly error?: string;
+  readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
+}
+
+// From healthsdk/health.go
+export type HealthsdkHealthSection =
+  | "AccessURL"
+  | "DERP"
+  | "Database"
+  | "ProvisionerDaemons"
+  | "Websocket"
+  | "WorkspaceProxy";
+export const HealthsdkHealthSections: HealthsdkHealthSection[] = [
+  "AccessURL",
+  "DERP",
+  "Database",
+  "ProvisionerDaemons",
+  "Websocket",
+  "WorkspaceProxy",
+];
+
 // The code below is generated from coderd/healthcheck/health.
 
 // From health/model.go
