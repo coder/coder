@@ -13,10 +13,10 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
-type WebsocketReport codersdk.WebsocketReport
+type WebsocketReport healthsdk.WebsocketReport
 
 type WebsocketReportOptions struct {
 	APIKey     string

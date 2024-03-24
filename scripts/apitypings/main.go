@@ -879,7 +879,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "HealthMessage"}, nil
 		case "github.com/coder/coder/v2/coderd/healthcheck/health.Severity":
 			return TypescriptType{ValueType: "HealthSeverity"}, nil
-		case "github.com/coder/coder/v2/codersdk.HealthSection":
+		case "github.com/coder/coder/v2/healthsdk.HealthSection":
 			return TypescriptType{ValueType: "HealthSection"}, nil
 		case "github.com/coder/coder/v2/codersdk.ProvisionerDaemon":
 			return TypescriptType{ValueType: "ProvisionerDaemon"}, nil

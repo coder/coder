@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
-type AccessURLReport codersdk.AccessURLReport
+type AccessURLReport healthsdk.AccessURLReport
 
 type AccessURLReportOptions struct {
 	AccessURL *url.URL

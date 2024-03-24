@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -38,10 +39,10 @@ type Bundle struct {
 }
 
 type Deployment struct {
-	BuildInfo    *codersdk.BuildInfoResponse `json:"build"`
-	Config       *codersdk.DeploymentConfig  `json:"config"`
-	Experiments  codersdk.Experiments        `json:"experiments"`
-	HealthReport *codersdk.HealthcheckReport `json:"health_report"`
+	BuildInfo    *codersdk.BuildInfoResponse  `json:"build"`
+	Config       *codersdk.DeploymentConfig   `json:"config"`
+	Experiments  codersdk.Experiments         `json:"experiments"`
+	HealthReport *healthsdk.HealthcheckReport `json:"health_report"`
 }
 
 type Network struct {
@@ -111,7 +112,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	})
 
 	eg.Go(func() error {
-		hr, err := client.DebugHealth(ctx)
+		hr, err := healthsdk.NewHealthClient(client).DebugHealth(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch health report: %w", err)
 		}
