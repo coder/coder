@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -189,9 +190,10 @@ func TestDERPForceWebSockets(t *testing.T) {
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
+	wsclient := workspacesdk.NewWorkspaceClient(client)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	gen, err := client.WorkspaceAgentConnectionInfoGeneric(context.Background())
+	gen, err := wsclient.WorkspaceAgentConnectionInfoGeneric(context.Background())
 	require.NoError(t, err)
 	t.Log(spew.Sdump(gen))
 
@@ -213,8 +215,8 @@ func TestDERPForceWebSockets(t *testing.T) {
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID,
-		&codersdk.DialWorkspaceAgentOptions{
+	conn, err := wsclient.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID,
+		&workspacesdk.DialWorkspaceAgentOptions{
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("client"),
 		},
 	)

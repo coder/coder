@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -44,9 +45,9 @@ type Deployment struct {
 }
 
 type Network struct {
-	CoordinatorDebug string                                 `json:"coordinator_debug"`
-	TailnetDebug     string                                 `json:"tailnet_debug"`
-	Netcheck         *codersdk.WorkspaceAgentConnectionInfo `json:"netcheck"`
+	CoordinatorDebug string                                     `json:"coordinator_debug"`
+	TailnetDebug     string                                     `json:"tailnet_debug"`
+	Netcheck         *workspacesdk.WorkspaceAgentConnectionInfo `json:"netcheck"`
 }
 
 type Workspace struct {
@@ -173,7 +174,7 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 			log.Warn(ctx, "agent id required for agent connection info")
 			return nil
 		}
-		connInfo, err := client.WorkspaceAgentConnectionInfo(ctx, agentID)
+		connInfo, err := workspacesdk.NewWorkspaceClient(client).WorkspaceAgentConnectionInfo(ctx, agentID)
 		if err != nil {
 			return xerrors.Errorf("fetch agent conn info: %w", err)
 		}
@@ -331,10 +332,11 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 }
 
 func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
-	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger:         log.Named("dial-agent"),
-		BlockEndpoints: false,
-	})
+	conn, err := workspacesdk.NewWorkspaceClient(client).
+		DialWorkspaceAgent(ctx, agentID, &workspacesdk.DialWorkspaceAgentOptions{
+			Logger:         log.Named("dial-agent"),
+			BlockEndpoints: false,
+		})
 
 	closer = func() {}
 

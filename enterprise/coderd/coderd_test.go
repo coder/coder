@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -237,7 +238,7 @@ func TestAuditLogging(t *testing.T) {
 			DontAddLicense: true,
 		})
 		r := setupWorkspaceAgent(t, client, user, 0)
-		conn, err := client.DialWorkspaceAgent(ctx, r.sdkAgent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
+		conn, err := workspacesdk.NewWorkspaceClient(client).DialWorkspaceAgent(ctx, r.sdkAgent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
 		require.NoError(t, err)
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)

@@ -1,4 +1,4 @@
-package codersdk
+package workspacesdk
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -325,34 +326,20 @@ func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, ad
 	}
 }
 
-type WorkspaceAgentListeningPortsResponse struct {
-	// If there are no ports in the list, nothing should be displayed in the UI.
-	// There must not be a "no ports available" message or anything similar, as
-	// there will always be no ports displayed on platforms where our port
-	// detection logic is unsupported.
-	Ports []WorkspaceAgentListeningPort `json:"ports"`
-}
-
-type WorkspaceAgentListeningPort struct {
-	ProcessName string `json:"process_name"` // may be empty
-	Network     string `json:"network"`      // only "tcp" at the moment
-	Port        uint16 `json:"port"`
-}
-
 // ListeningPorts lists the ports that are currently in use by the workspace.
-func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgentListeningPortsResponse, error) {
+func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
-		return WorkspaceAgentListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
+		return codersdk.WorkspaceAgentListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentListeningPortsResponse{}, ReadBodyAsError(res)
+		return codersdk.WorkspaceAgentListeningPortsResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var resp WorkspaceAgentListeningPortsResponse
+	var resp codersdk.WorkspaceAgentListeningPortsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -365,7 +352,7 @@ func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error)
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	defer res.Body.Close()
 	bs, err := io.ReadAll(res.Body)
@@ -386,7 +373,7 @@ func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -405,7 +392,7 @@ func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -424,7 +411,7 @@ func (c *WorkspaceAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {

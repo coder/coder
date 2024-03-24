@@ -6,13 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/net/netcheck"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-
-	"golang.org/x/xerrors"
 )
 
 type HealthSection string

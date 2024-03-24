@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
@@ -165,7 +166,7 @@ func assertBundleContents(t *testing.T, path string, badValues ...string) {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
 		case "network/netcheck.json":
-			var v codersdk.WorkspaceAgentConnectionInfo
+			var v workspacesdk.WorkspaceAgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "connection info should not be empty")
 		case "workspace/workspace.json":
