@@ -187,8 +187,8 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 // @Accept json
 // @Produce json
 // @Tags Debug
-// @Param request body codersdk.UpdateHealthSettings true "Update health settings"
-// @Success 200 {object} codersdk.UpdateHealthSettings
+// @Param request body healthsdk.UpdateHealthSettings true "Update health settings"
+// @Success 200 {object} healthsdk.UpdateHealthSettings
 // @Router /debug/health/settings [put]
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
