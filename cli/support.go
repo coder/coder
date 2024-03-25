@@ -48,7 +48,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent network diagnostics
   - Agent logs
 ` + cliui.Bold("Note: ") +
-	cliui.Wrap(`While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n`) +
+	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
 	cliui.Bold("Please confirm that you will:\n") +
 	"  - Review the support bundle before distribution\n" +
 	"  - Only distribute it via trusted channels\n" +
