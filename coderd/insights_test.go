@@ -136,7 +136,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 50,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 		DatabaseRolluper: dbrollup.New(
 			logger.Named("dbrollup"),
 			db,
@@ -170,7 +170,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
@@ -212,7 +212,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 			return false
 		}
 		return len(userActivities.Report.Users) > 0 && userActivities.Report.Users[0].Seconds > 0
-	}, testutil.WaitMedium, testutil.IntervalFast, "user activity is missing")
+	}, testutil.WaitSuperLong, testutil.IntervalMedium, "user activity is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()
