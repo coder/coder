@@ -253,7 +253,7 @@ func TestHandlersOK(t *testing.T) {
 	t.Parallel()
 
 	var root cli.RootCmd
-	cmd, err := root.Command(root.Core())
+	cmd, err := root.Command(root.CoreSubcommands())
 	require.NoError(t, err)
 
 	clitest.HandlersOK(t, cmd)

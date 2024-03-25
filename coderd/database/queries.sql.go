@@ -1698,81 +1698,118 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 }
 
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.access_method,
-		was.slug_or_port,
-		wa.display_name,
-		wa.icon,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+WITH
+	app_insights AS (
+		SELECT
+			tus.user_id,
+			array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+			app_usage.key::text AS app_name,
+			COALESCE(wa.display_name, '') AS display_name,
+			COALESCE(wa.icon, '') AS icon,
+			(wa.slug IS NOT NULL)::boolean AS is_app,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(app_usage.value::int), 30) AS app_usage_mins
+		FROM
+			template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
+		LEFT JOIN LATERAL (
+			-- The joins in this query are necessary to associate an app with a
+			-- template, we use this to get the app metadata like display name
+			-- and icon.
+			SELECT
+				app.display_name,
+				app.icon,
+				app.slug
+			FROM
+				workspace_apps AS app
+			JOIN
+				workspace_agents AS agent
+			ON
+				agent.id = app.agent_id
+			JOIN
+				workspace_resources AS resource
+			ON
+				resource.id = agent.resource_id
+			JOIN
+				workspace_builds AS build
+			ON
+				build.job_id = resource.job_id
+			JOIN
+				workspaces AS workspace
+			ON
+				workspace.id = build.workspace_id
+			WHERE
+				-- Requires lateral join.
+				app.slug = app_usage.key
+				AND workspace.owner_id = tus.user_id
+				AND workspace.template_id = tus.template_id
+			ORDER BY
+				app.created_at DESC
+			LIMIT 1
+		) AS wa
+		ON
+			true
+		WHERE
+			tus.start_time >= $1::timestamptz
+			AND tus.end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			tus.start_time, tus.user_id, app_usage.key::text, wa.display_name, wa.icon, wa.slug
+	),
+	templates AS (
+		SELECT
+			app_name,
+			display_name,
+			icon,
+			is_app,
+			array_agg(DISTINCT template_id)::uuid[] AS template_ids
+		FROM
+			app_insights, unnest(template_ids) AS template_id
+		GROUP BY
+			app_name, display_name, icon, is_app
 	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $2::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
-)
 
 SELECT
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateInsights.
-	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
-	access_method,
-	slug_or_port,
-	display_name,
-	icon,
-	is_app,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-GROUP BY access_method, slug_or_port, display_name, icon, is_app
+	t.template_ids,
+	COUNT(DISTINCT ai.user_id) AS active_users,
+	ai.app_name AS slug_or_port,
+	ai.display_name,
+	ai.icon,
+	ai.is_app,
+	(SUM(ai.app_usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	app_insights AS ai
+JOIN
+	templates AS t
+ON
+	ai.app_name = t.app_name
+	AND ai.display_name = t.display_name
+	AND ai.icon = t.icon
+	AND ai.is_app = t.is_app
+GROUP BY
+	t.template_ids, ai.app_name, ai.display_name, ai.icon, ai.is_app
 `
 
 type GetTemplateAppInsightsParams struct {
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateAppInsightsRow struct {
-	TemplateIDs   []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs []uuid.UUID    `db:"active_user_ids" json:"active_user_ids"`
-	AccessMethod  string         `db:"access_method" json:"access_method"`
-	SlugOrPort    string         `db:"slug_or_port" json:"slug_or_port"`
-	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
-	Icon          sql.NullString `db:"icon" json:"icon"`
-	IsApp         bool           `db:"is_app" json:"is_app"`
-	UsageSeconds  int64          `db:"usage_seconds" json:"usage_seconds"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers  int64       `db:"active_users" json:"active_users"`
+	SlugOrPort   string      `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName  string      `db:"display_name" json:"display_name"`
+	Icon         string      `db:"icon" json:"icon"`
+	IsApp        bool        `db:"is_app" json:"is_app"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
 // timeframe. The result can be filtered on template_ids, meaning only user data
 // from workspaces based on those templates will be included.
 func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -1782,8 +1819,7 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 		var i GetTemplateAppInsightsRow
 		if err := rows.Scan(
 			pq.Array(&i.TemplateIDs),
-			pq.Array(&i.ActiveUserIDs),
-			&i.AccessMethod,
+			&i.ActiveUsers,
 			&i.SlugOrPort,
 			&i.DisplayName,
 			&i.Icon,
@@ -1804,51 +1840,67 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 }
 
 const getTemplateAppInsightsByTemplate = `-- name: GetTemplateAppInsightsByTemplate :many
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.slug_or_port,
-		wa.display_name,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
+WITH
+	-- This CTE is used to explode app usage into minute buckets, then
+	-- flatten the users app usage within the template so that usage in
+	-- multiple workspaces under one template is only counted once for
+	-- every minute.
+	app_insights AS (
+		SELECT
+			w.template_id,
+			was.user_id,
+			-- Both app stats and agent stats track web terminal usage, but
+			-- by different means. The app stats value should be more
+			-- accurate so we don't want to discard it just yet.
+			CASE
+				WHEN was.access_method = 'terminal'
+				THEN '[terminal]' -- Unique name, app names can't contain brackets.
+				ELSE was.slug_or_port
+			END::text AS app_name,
+			COALESCE(wa.display_name, '') AS display_name,
+			(wa.slug IS NOT NULL)::boolean AS is_app,
+			COUNT(DISTINCT s.minute_bucket) AS app_minutes
+		FROM
+			workspace_app_stats AS was
+		JOIN
+			workspaces AS w
+		ON
+			w.id = was.workspace_id
+		-- We do a left join here because we want to include user IDs that have used
+		-- e.g. ports when counting active users.
+		LEFT JOIN
+			workspace_apps wa
+		ON
+			wa.agent_id = was.agent_id
+			AND wa.slug = was.slug_or_port
+		-- Generate a series of minute buckets for each session for computing the
+		-- mintes/bucket.
+		CROSS JOIN
+			generate_series(
+				date_trunc('minute', was.session_started_at),
+				-- Subtract 1 microsecond to avoid creating an extra series.
+				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				'1 minute'::interval
+			) AS s(minute_bucket)
+		WHERE
+			s.minute_bucket >= $1::timestamptz
+			AND s.minute_bucket < $2::timestamptz
+		GROUP BY
+			w.template_id, was.user_id, was.access_method, was.slug_or_port, wa.display_name, wa.slug
 	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $1::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($2::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.slug_or_port, wa.display_name, wa.slug
-)
 
 SELECT
 	template_id,
-	display_name,
-	slug_or_port,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-WHERE is_app IS TRUE
-GROUP BY template_id, display_name, slug_or_port
+	app_name AS slug_or_port,
+	display_name AS display_name,
+	COUNT(DISTINCT user_id)::bigint AS active_users,
+	(SUM(app_minutes) * 60)::bigint AS usage_seconds
+FROM
+	app_insights
+WHERE
+	is_app IS TRUE
+GROUP BY
+	template_id, slug_or_port, display_name
 `
 
 type GetTemplateAppInsightsByTemplateParams struct {
@@ -1857,13 +1909,15 @@ type GetTemplateAppInsightsByTemplateParams struct {
 }
 
 type GetTemplateAppInsightsByTemplateRow struct {
-	TemplateID   uuid.UUID      `db:"template_id" json:"template_id"`
-	DisplayName  sql.NullString `db:"display_name" json:"display_name"`
-	SlugOrPort   string         `db:"slug_or_port" json:"slug_or_port"`
-	ActiveUsers  int64          `db:"active_users" json:"active_users"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	TemplateID   uuid.UUID `db:"template_id" json:"template_id"`
+	SlugOrPort   string    `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	ActiveUsers  int64     `db:"active_users" json:"active_users"`
+	UsageSeconds int64     `db:"usage_seconds" json:"usage_seconds"`
 }
 
+// GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
+// in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateAppInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
@@ -1875,8 +1929,8 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 		var i GetTemplateAppInsightsByTemplateRow
 		if err := rows.Scan(
 			&i.TemplateID,
-			&i.DisplayName,
 			&i.SlugOrPort,
+			&i.DisplayName,
 			&i.ActiveUsers,
 			&i.UsageSeconds,
 		); err != nil {
@@ -1894,37 +1948,58 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at),
-		was.user_id,
-		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id
-), template_ids AS (
-	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
-	WHERE template_id IS NOT NULL
-)
+WITH
+	insights AS (
+		SELECT
+			user_id,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins,
+			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
+			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
+			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
+			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
+			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	templates AS (
+		SELECT
+			array_agg(DISTINCT template_id) AS template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
 
 SELECT
-	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateAppInsights.
-	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
+	COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
+	COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
+	COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
+	COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
+	COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
+	COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
+	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
+	COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
+	COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
+	COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+FROM
+	insights
 `
 
 type GetTemplateInsightsParams struct {
@@ -1935,96 +2010,87 @@ type GetTemplateInsightsParams struct {
 
 type GetTemplateInsightsRow struct {
 	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs               []uuid.UUID `db:"active_user_ids" json:"active_user_ids"`
+	SshTemplateIds              []uuid.UUID `db:"ssh_template_ids" json:"ssh_template_ids"`
+	SftpTemplateIds             []uuid.UUID `db:"sftp_template_ids" json:"sftp_template_ids"`
+	ReconnectingPtyTemplateIds  []uuid.UUID `db:"reconnecting_pty_template_ids" json:"reconnecting_pty_template_ids"`
+	VscodeTemplateIds           []uuid.UUID `db:"vscode_template_ids" json:"vscode_template_ids"`
+	JetbrainsTemplateIds        []uuid.UUID `db:"jetbrains_template_ids" json:"jetbrains_template_ids"`
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	UsageTotalSeconds           int64       `db:"usage_total_seconds" json:"usage_total_seconds"`
+	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+	UsageSftpSeconds            int64       `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
+	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
 	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
-	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
-// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-// in use during a minute, we will add 5 minutes to the total usage for that
-// session/app (per user).
+// GetTemplateInsights returns the aggregate user-produced usage of all
+// workspaces in a given timeframe. The template IDs, active users, and
+// usage_seconds all reflect any usage in the template, including apps.
+//
+// When combining data from multiple templates, we must make a guess at
+// how the user behaved for the 30 minute interval. In this case we make
+// the assumption that if the user used two workspaces for 15 minutes,
+// they did so sequentially, thus we sum the usage up to a maximum of
+// 30 minutes with LEAST(SUM(n), 30).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		pq.Array(&i.ActiveUserIDs),
+		pq.Array(&i.SshTemplateIds),
+		pq.Array(&i.SftpTemplateIds),
+		pq.Array(&i.ReconnectingPtyTemplateIds),
+		pq.Array(&i.VscodeTemplateIds),
+		pq.Array(&i.JetbrainsTemplateIds),
+		&i.ActiveUsers,
+		&i.UsageTotalSeconds,
+		&i.UsageSshSeconds,
+		&i.UsageSftpSeconds,
+		&i.UsageReconnectingPtySeconds,
 		&i.UsageVscodeSeconds,
 		&i.UsageJetbrainsSeconds,
-		&i.UsageReconnectingPtySeconds,
-		&i.UsageSshSeconds,
 	)
 	return i, err
 }
 
 const getTemplateInsightsByInterval = `-- name: GetTemplateInsightsByInterval :many
-WITH ts AS (
-	SELECT
-		d::timestamptz AS from_,
-		CASE
-			WHEN (d::timestamptz + ($1::int || ' day')::interval) <= $2::timestamptz
-			THEN (d::timestamptz + ($1::int || ' day')::interval)
-			ELSE $2::timestamptz
-		END AS to_
-	FROM
-		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
-		generate_series($3::timestamptz, ($2::timestamptz) - '1 microsecond'::interval, ($1::int || ' day')::interval) AS d
-), unflattened_usage_by_interval AS (
-	-- We select data from both workspace agent stats and workspace app stats to
-	-- get a complete picture of usage. This matches how usage is calculated by
-	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
-	-- a union all to avoid a costly distinct operation.
-	--
-	-- Note that one query must perform a left join so that all intervals are
-	-- present at least once.
-	SELECT
-		ts.from_, ts.to_,
-		was.template_id,
-		was.user_id
-	FROM ts
-	LEFT JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN was.template_id = ANY($4::uuid[]) ELSE TRUE END
+WITH
+	ts AS (
+		SELECT
+			d::timestamptz AS from_,
+			CASE
+				WHEN (d::timestamptz + ($2::int || ' day')::interval) <= $3::timestamptz
+				THEN (d::timestamptz + ($2::int || ' day')::interval)
+				ELSE $3::timestamptz
+			END AS to_
+		FROM
+			-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+			generate_series($4::timestamptz, ($3::timestamptz) - '1 microsecond'::interval, ($2::int || ' day')::interval) AS d
 	)
-	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
-
-	UNION ALL
-
-	SELECT
-		ts.from_, ts.to_,
-		w.template_id,
-		was.user_id
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN w.template_id = ANY($4::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
-)
 
 SELECT
-	from_ AS start_time,
-	to_ AS end_time,
-	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users
-FROM unflattened_usage_by_interval
-GROUP BY from_, to_
+	ts.from_ AS start_time,
+	ts.to_ AS end_time,
+	array_remove(array_agg(DISTINCT tus.template_id), NULL)::uuid[] AS template_ids,
+	COUNT(DISTINCT tus.user_id) AS active_users
+FROM
+	ts
+LEFT JOIN
+	template_usage_stats AS tus
+ON
+	tus.start_time >= ts.from_
+	AND tus.end_time <= ts.to_
+	AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
+GROUP BY
+	ts.from_, ts.to_
 `
 
 type GetTemplateInsightsByIntervalParams struct {
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 	IntervalDays int32       `db:"interval_days" json:"interval_days"`
 	EndTime      time.Time   `db:"end_time" json:"end_time"`
 	StartTime    time.Time   `db:"start_time" json:"start_time"`
-	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateInsightsByIntervalRow struct {
@@ -2040,10 +2106,10 @@ type GetTemplateInsightsByIntervalRow struct {
 // interval/template, it will be included in the results with 0 active users.
 func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByInterval,
+		pq.Array(arg.TemplateIDs),
 		arg.IntervalDays,
 		arg.EndTime,
 		arg.StartTime,
-		pq.Array(arg.TemplateIDs),
 	)
 	if err != nil {
 		return nil, err
@@ -2072,32 +2138,57 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 }
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at) AS created_at_trunc,
-		was.template_id,
-		was.user_id,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-	GROUP BY created_at_trunc, was.template_id, was.user_id
-)
+WITH
+	-- This CTE is used to truncate agent usage into minute buckets, then
+	-- flatten the users agent usage within the template so that usage in
+	-- multiple workspaces under one template is only counted once for
+	-- every minute (per user).
+	insights AS (
+		SELECT
+			template_id,
+			user_id,
+			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			-- TODO(mafredri): Enable when we have the column.
+			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
+			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			-- NOTE(mafredri): The agent stats are currently very unreliable, and
+			-- sometimes the connections are missing, even during active sessions.
+			-- Since we can't fully rely on this, we check for "any connection
+			-- within this bucket". A better solution here would be preferable.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			workspace_agent_stats
+		WHERE
+			created_at >= $1::timestamptz
+			AND created_at < $2::timestamptz
+			-- Inclusion criteria to filter out empty results.
+			AND (
+				session_count_ssh > 0
+				-- TODO(mafredri): Enable when we have the column.
+				-- OR session_count_sftp > 0
+				OR session_count_reconnecting_pty > 0
+				OR session_count_vscode > 0
+				OR session_count_jetbrains > 0
+			)
+		GROUP BY
+			template_id, user_id
+	)
 
 SELECT
 	template_id,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
-GROUP BY template_id
+	COUNT(DISTINCT user_id)::bigint AS active_users,
+	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
+	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds,
+	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
+	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds
+FROM
+	insights
+WHERE
+	has_connection
+GROUP BY
+	template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
@@ -2114,6 +2205,8 @@ type GetTemplateInsightsByTemplateRow struct {
 	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
+// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
+// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
@@ -2304,80 +2397,59 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 }
 
 const getUserActivityInsights = `-- name: GetUserActivityInsights :many
-WITH app_stats AS (
-	SELECT
-		s.start_time,
-		was.user_id,
-		w.template_id,
-		60 as seconds
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+WITH
+	deployment_stats AS (
+		SELECT
+			start_time,
+			user_id,
+			array_agg(template_id) AS template_ids,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	template_ids AS (
+		SELECT
+			user_id,
+			array_agg(DISTINCT template_id) AS ids
+		FROM
+			deployment_stats, unnest(template_ids) template_id
+		GROUP BY
+			user_id
 	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $2::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id
-), session_stats AS (
-	SELECT
-		date_trunc('minute', was.created_at) as start_time,
-		was.user_id,
-		was.template_id,
-		CASE WHEN
-			SUM(was.session_count_vscode) > 0 OR
-			SUM(was.session_count_jetbrains) > 0 OR
-			SUM(was.session_count_reconnecting_pty) > 0 OR
-			SUM(was.session_count_ssh) > 0
-		THEN 60 ELSE 0 END as seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $2::timestamptz
-		AND was.created_at < $3::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN was.template_id = ANY($1::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id, was.template_id
-), combined_stats AS (
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM app_stats
-	UNION
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM session_stats
-)
+
 SELECT
-	users.id as user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	SUM(seconds) AS usage_seconds
-FROM combined_stats
-JOIN users ON (users.id = combined_stats.user_id)
-GROUP BY users.id, username, avatar_url
-ORDER BY user_id ASC
+	ds.user_id,
+	u.username,
+	u.avatar_url,
+	t.ids::uuid[] AS template_ids,
+	(SUM(ds.usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	deployment_stats ds
+JOIN
+	users u
+ON
+	u.id = ds.user_id
+JOIN
+	template_ids t
+ON
+	ds.user_id = t.user_id
+GROUP BY
+	ds.user_id, u.username, u.avatar_url, t.ids
+ORDER BY
+	ds.user_id ASC
 `
 
 type GetUserActivityInsightsParams struct {
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetUserActivityInsightsRow struct {
@@ -2389,14 +2461,14 @@ type GetUserActivityInsightsRow struct {
 }
 
 // GetUserActivityInsights returns the ranking with top active users.
-// The result can be filtered on template_ids, meaning only user data from workspaces
-// based on those templates will be included.
-// Note: When selecting data from multiple templates or the entire deployment,
-// be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
-// users may be counted multiple times for the same time interval if they have used multiple templates
+// The result can be filtered on template_ids, meaning only user data
+// from workspaces based on those templates will be included.
+// Note: The usage_seconds and usage_seconds_cumulative differ only when
+// requesting deployment-wide (or multiple template) data. Cumulative
+// produces a bloated value if a user has used multiple templates
 // simultaneously.
 func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -2426,22 +2498,26 @@ func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserAct
 
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
-	workspace_agent_stats.user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-FROM workspace_agent_stats
-JOIN users ON (users.id = workspace_agent_stats.user_id)
+	tus.user_id,
+	u.username,
+	u.avatar_url,
+	array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+	COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
+	COALESCE((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_95
+FROM
+	template_usage_stats tus
+JOIN
+	users u
+ON
+	u.id = tus.user_id
 WHERE
-	workspace_agent_stats.created_at >= $1
-	AND workspace_agent_stats.created_at < $2
-	AND workspace_agent_stats.connection_median_latency_ms > 0
-	AND workspace_agent_stats.connection_count > 0
-	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
-ORDER BY user_id ASC
+	tus.start_time >= $1::timestamptz
+	AND tus.end_time <= $2::timestamptz
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY
+	tus.user_id, u.username, u.avatar_url
+ORDER BY
+	tus.user_id ASC
 `
 
 type GetUserLatencyInsightsParams struct {

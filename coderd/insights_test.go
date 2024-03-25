@@ -138,7 +138,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 50,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 		DatabaseRolluper: dbrollup.New(
 			logger.Named("dbrollup"),
 			db,
@@ -172,7 +172,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
@@ -215,7 +215,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 			return false
 		}
 		return len(userActivities.Report.Users) > 0 && userActivities.Report.Users[0].Seconds > 0
-	}, testutil.WaitMedium, testutil.IntervalFast, "user activity is missing")
+	}, testutil.WaitSuperLong, testutil.IntervalMedium, "user activity is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()
@@ -960,15 +960,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
@@ -1242,17 +1239,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client, events := prepare(t, templates, users, testData)
 
+			// Drain two events, the first one resumes rolluper
+			// operation and the second one waits for the rollup
+			// to complete.
+			_, _ = <-events, <-events
+
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
-
-					// Drain two events, the first one resumes rolluper
-					// operation and the second one waits for the rollup
-					// to complete.
-					_, _ = <-events, <-events
 
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
@@ -1815,15 +1812,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
@@ -2028,17 +2022,17 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client, events := prepare(t, templates, users, testData)
 
+			// Drain two events, the first one resumes rolluper
+			// operation and the second one waits for the rollup
+			// to complete.
+			_, _ = <-events, <-events
+
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
-
-					// Drain two events, the first one resumes rolluper
-					// operation and the second one waits for the rollup
-					// to complete.
-					_, _ = <-events, <-events
 
 					report, err := client.UserActivityInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")

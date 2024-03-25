@@ -1,5 +1,7 @@
 // Default port from the server
-export const defaultPort = 3000;
+export const coderPort = process.env.CODER_E2E_PORT
+  ? Number(process.env.CODER_E2E_PORT)
+  : 3111;
 export const prometheusPort = 2114;
 
 // Use alternate ports in case we're running in a Coder Workspace.

@@ -91,7 +91,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(ctx, client, serverURL)
+			err = r.configureClient(ctx, client, serverURL, inv)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}
