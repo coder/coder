@@ -4,22 +4,26 @@
 -- template_ids, meaning only user data from workspaces based on those templates
 -- will be included.
 SELECT
-	workspace_agent_stats.user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-FROM workspace_agent_stats
-JOIN users ON (users.id = workspace_agent_stats.user_id)
+	tus.user_id,
+	u.username,
+	u.avatar_url,
+	array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+	COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
+	COALESCE((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_95
+FROM
+	template_usage_stats tus
+JOIN
+	users u
+ON
+	u.id = tus.user_id
 WHERE
-	workspace_agent_stats.created_at >= @start_time
-	AND workspace_agent_stats.created_at < @end_time
-	AND workspace_agent_stats.connection_median_latency_ms > 0
-	AND workspace_agent_stats.connection_count > 0
-	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
-ORDER BY user_id ASC;
+	tus.start_time >= @start_time::timestamptz
+	AND tus.end_time <= @end_time::timestamptz
+	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+GROUP BY
+	tus.user_id, u.username, u.avatar_url
+ORDER BY
+	tus.user_id ASC;
 
 -- name: GetUserActivityInsights :many
 -- GetUserActivityInsights returns the ranking with top active users.

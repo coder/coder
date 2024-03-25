@@ -4300,27 +4300,44 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	/*
+		SELECT
+			tus.user_id,
+			u.username,
+			u.avatar_url,
+			array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+			COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
+			COALESCE((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_95
+		FROM
+			template_usage_stats tus
+		JOIN
+			users u
+		ON
+			u.id = tus.user_id
+		WHERE
+			tus.start_time >= @start_time::timestamptz
+			AND tus.end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		GROUP BY
+			tus.user_id, u.username, u.avatar_url
+		ORDER BY
+			tus.user_id ASC;
+	*/
+
 	latenciesByUserID := make(map[uuid.UUID][]float64)
-	seenTemplatesByUserID := make(map[uuid.UUID]map[uuid.UUID]struct{})
-	for _, s := range q.workspaceAgentStats {
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+	seenTemplatesByUserID := make(map[uuid.UUID][]uuid.UUID)
+	for _, stat := range q.templateUsageStats {
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
 			continue
 		}
-		if !arg.StartTime.Equal(s.CreatedAt) && (s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.After(arg.EndTime)) {
-			continue
-		}
-		if s.ConnectionCount == 0 {
-			continue
-		}
-		if s.ConnectionMedianLatencyMS <= 0 {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
 			continue
 		}
 
-		latenciesByUserID[s.UserID] = append(latenciesByUserID[s.UserID], s.ConnectionMedianLatencyMS)
-		if seenTemplatesByUserID[s.UserID] == nil {
-			seenTemplatesByUserID[s.UserID] = make(map[uuid.UUID]struct{})
+		if stat.MedianLatencyMs.Valid {
+			latenciesByUserID[stat.UserID] = append(latenciesByUserID[stat.UserID], stat.MedianLatencyMs.Float64)
 		}
-		seenTemplatesByUserID[s.UserID][s.TemplateID] = struct{}{}
+		seenTemplatesByUserID[stat.UserID] = uniqueSortedUUIDs(append(seenTemplatesByUserID[stat.UserID], stat.TemplateID))
 	}
 
 	tryPercentile := func(fs []float64, p float64) float64 {
@@ -4333,15 +4350,6 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 
 	var rows []database.GetUserLatencyInsightsRow
 	for userID, latencies := range latenciesByUserID {
-		sort.Float64s(latencies)
-		templateIDSet := seenTemplatesByUserID[userID]
-		templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
-		for templateID := range templateIDSet {
-			templateIDs = append(templateIDs, templateID)
-		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-			return slice.Ascending(a.String(), b.String())
-		})
 		user, err := q.getUserByIDNoLock(userID)
 		if err != nil {
 			return nil, err
@@ -4350,7 +4358,7 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 			UserID:                       userID,
 			Username:                     user.Username,
 			AvatarURL:                    user.AvatarURL,
-			TemplateIDs:                  templateIDs,
+			TemplateIDs:                  seenTemplatesByUserID[userID],
 			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
 			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
 		}
