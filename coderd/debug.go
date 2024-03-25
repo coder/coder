@@ -106,19 +106,19 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc healthsdk.HealthcheckReport, dismissed ...healthsdk.Section) {
+func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc healthsdk.HealthcheckReport, dismissed ...healthsdk.HealthSection) {
 	// Mark any sections previously marked as dismissed.
 	for _, d := range dismissed {
 		switch d {
-		case healthsdk.SectionAccessURL:
+		case healthsdk.HealthSectionAccessURL:
 			hc.AccessURL.Dismissed = true
-		case healthsdk.SectionDERP:
+		case healthsdk.HealthSectionDERP:
 			hc.DERP.Dismissed = true
-		case healthsdk.SectionDatabase:
+		case healthsdk.HealthSectionDatabase:
 			hc.Database.Dismissed = true
-		case healthsdk.SectionWebsocket:
+		case healthsdk.HealthSectionWebsocket:
 			hc.Websocket.Dismissed = true
-		case healthsdk.SectionWorkspaceProxy:
+		case healthsdk.HealthSectionWorkspaceProxy:
 			hc.WorkspaceProxy.Dismissed = true
 		}
 	}
@@ -164,7 +164,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var settings healthsdk.Settings
+	var settings healthsdk.HealthSettings
 	err = json.Unmarshal([]byte(settingsJSON), &settings)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
@@ -175,7 +175,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 	}
 
 	if len(settings.DismissedHealthchecks) == 0 {
-		settings.DismissedHealthchecks = []healthsdk.Section{}
+		settings.DismissedHealthchecks = []healthsdk.HealthSection{}
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
@@ -200,7 +200,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	var settings healthsdk.Settings
+	var settings healthsdk.HealthSettings
 	if !httpapi.Read(ctx, rw, r, &settings) {
 		return
 	}
@@ -264,9 +264,9 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
 
-func validateHealthSettings(settings healthsdk.Settings) error {
+func validateHealthSettings(settings healthsdk.HealthSettings) error {
 	for _, dismissed := range settings.DismissedHealthchecks {
-		ok := slices.Contains(healthsdk.Sections, dismissed)
+		ok := slices.Contains(healthsdk.HealthSections, dismissed)
 		if !ok {
 			return xerrors.Errorf("unknown healthcheck section: %s", dismissed)
 		}
@@ -306,11 +306,11 @@ func _debugDERPTraffic(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @x-apidocgen {"skip": true}
 func _debugExpVar(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []healthsdk.Section {
-	dismissedHealthchecks := []healthsdk.Section{}
+func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger slog.Logger) []healthsdk.HealthSection {
+	dismissedHealthchecks := []healthsdk.HealthSection{}
 	settingsJSON, err := db.GetHealthSettings(ctx)
 	if err == nil {
-		var settings healthsdk.Settings
+		var settings healthsdk.HealthSettings
 		err = json.Unmarshal([]byte(settingsJSON), &settings)
 		if len(settings.DismissedHealthchecks) > 0 {
 			dismissedHealthchecks = settings.DismissedHealthchecks

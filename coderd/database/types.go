@@ -25,8 +25,8 @@ type AuditOAuthConvertState struct {
 }
 
 type HealthSettings struct {
-	ID                    uuid.UUID           `db:"id" json:"id"`
-	DismissedHealthchecks []healthsdk.Section `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
+	ID                    uuid.UUID                 `db:"id" json:"id"`
+	DismissedHealthchecks []healthsdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
 }
 
 type Actions []rbac.Action

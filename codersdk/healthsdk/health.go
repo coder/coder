@@ -15,45 +15,45 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @typescript-ignore Client
-type Client struct {
+// @typescript-ignore HealthClient
+type HealthClient struct {
 	client *codersdk.Client
 }
 
-func NewClient(c *codersdk.Client) *Client {
-	return &Client{client: c}
+func NewHealthClient(c *codersdk.Client) *HealthClient {
+	return &HealthClient{client: c}
 }
 
-type Section string
+type HealthSection string
 
 // If you add another const below, make sure to add it to HealthSections!
 const (
-	SectionDERP               Section = "DERP"
-	SectionAccessURL          Section = "AccessURL"
-	SectionWebsocket          Section = "Websocket"
-	SectionDatabase           Section = "Database"
-	SectionWorkspaceProxy     Section = "WorkspaceProxy"
-	SectionProvisionerDaemons Section = "ProvisionerDaemons"
+	HealthSectionDERP               HealthSection = "DERP"
+	HealthSectionAccessURL          HealthSection = "AccessURL"
+	HealthSectionWebsocket          HealthSection = "Websocket"
+	HealthSectionDatabase           HealthSection = "Database"
+	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
+	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
 )
 
-var Sections = []Section{
-	SectionDERP,
-	SectionAccessURL,
-	SectionWebsocket,
-	SectionDatabase,
-	SectionWorkspaceProxy,
-	SectionProvisionerDaemons,
+var HealthSections = []HealthSection{
+	HealthSectionDERP,
+	HealthSectionAccessURL,
+	HealthSectionWebsocket,
+	HealthSectionDatabase,
+	HealthSectionWorkspaceProxy,
+	HealthSectionProvisionerDaemons,
 }
 
-type Settings struct {
-	DismissedHealthchecks []Section `json:"dismissed_healthchecks"`
+type HealthSettings struct {
+	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
-type UpdateSettings struct {
-	DismissedHealthchecks []Section `json:"dismissed_healthchecks"`
+type UpdateHealthSettings struct {
+	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
-func (c *Client) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
+func (c *HealthClient) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
 	res, err := c.client.Request(ctx, http.MethodGet, "/api/v2/debug/health", nil)
 	if err != nil {
 		return HealthcheckReport{}, err
@@ -66,20 +66,20 @@ func (c *Client) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
 	return rpt, json.NewDecoder(res.Body).Decode(&rpt)
 }
 
-func (c *Client) Settings(ctx context.Context) (Settings, error) {
+func (c *HealthClient) HealthSettings(ctx context.Context) (HealthSettings, error) {
 	res, err := c.client.Request(ctx, http.MethodGet, "/api/v2/debug/health/settings", nil)
 	if err != nil {
-		return Settings{}, err
+		return HealthSettings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Settings{}, codersdk.ReadBodyAsError(res)
+		return HealthSettings{}, codersdk.ReadBodyAsError(res)
 	}
-	var settings Settings
+	var settings HealthSettings
 	return settings, json.NewDecoder(res.Body).Decode(&settings)
 }
 
-func (c *Client) PutSettings(ctx context.Context, settings Settings) error {
+func (c *HealthClient) PutHealthSettings(ctx context.Context, settings HealthSettings) error {
 	res, err := c.client.Request(ctx, http.MethodPut, "/api/v2/debug/health/settings", settings)
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ type HealthcheckReport struct {
 	// Severity indicates the status of Coder health.
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 	// FailingSections is a list of sections that have failed their healthcheck.
-	FailingSections []Section `json:"failing_sections"`
+	FailingSections []HealthSection `json:"failing_sections"`
 
 	DERP               DERPHealthReport         `json:"derp"`
 	AccessURL          AccessURLReport          `json:"access_url"`
