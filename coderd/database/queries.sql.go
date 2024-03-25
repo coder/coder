@@ -2352,30 +2352,32 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 }
 
 const getUserActivityInsights = `-- name: GetUserActivityInsights :many
-WITH deployment_stats AS (
-	SELECT
-		start_time,
-		user_id,
-		array_agg(template_id) AS template_ids,
-		-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-		LEAST(SUM(usage_mins), 30) AS usage_mins
-	FROM
-		template_usage_stats
-	WHERE
-		start_time >= $1::timestamptz
-		AND end_time <= $2::timestamptz
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-	GROUP BY
-		start_time, user_id
-), template_ids AS (
-	SELECT
-		user_id,
-		array_agg(DISTINCT template_id) AS ids
-	FROM
-		deployment_stats, unnest(template_ids) template_id
-	GROUP BY
-		user_id
-)
+WITH
+	deployment_stats AS (
+		SELECT
+			start_time,
+			user_id,
+			array_agg(template_id) AS template_ids,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	template_ids AS (
+		SELECT
+			user_id,
+			array_agg(DISTINCT template_id) AS ids
+		FROM
+			deployment_stats, unnest(template_ids) template_id
+		GROUP BY
+			user_id
+	)
 
 SELECT
 	ds.user_id,

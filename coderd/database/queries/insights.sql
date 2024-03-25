@@ -33,30 +33,32 @@ ORDER BY
 -- requesting deployment-wide (or multiple template) data. Cumulative
 -- produces a bloated value if a user has used multiple templates
 -- simultaneously.
-WITH deployment_stats AS (
-	SELECT
-		start_time,
-		user_id,
-		array_agg(template_id) AS template_ids,
-		-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-		LEAST(SUM(usage_mins), 30) AS usage_mins
-	FROM
-		template_usage_stats
-	WHERE
-		start_time >= @start_time::timestamptz
-		AND end_time <= @end_time::timestamptz
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-	GROUP BY
-		start_time, user_id
-), template_ids AS (
-	SELECT
-		user_id,
-		array_agg(DISTINCT template_id) AS ids
-	FROM
-		deployment_stats, unnest(template_ids) template_id
-	GROUP BY
-		user_id
-)
+WITH
+	deployment_stats AS (
+		SELECT
+			start_time,
+			user_id,
+			array_agg(template_id) AS template_ids,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= @start_time::timestamptz
+			AND end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	template_ids AS (
+		SELECT
+			user_id,
+			array_agg(DISTINCT template_id) AS ids
+		FROM
+			deployment_stats, unnest(template_ids) template_id
+		GROUP BY
+			user_id
+	)
 
 SELECT
 	ds.user_id,

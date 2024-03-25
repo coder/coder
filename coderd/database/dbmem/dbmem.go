@@ -4119,7 +4119,7 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
-func (q *FakeQuerier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+func (q *FakeQuerier) GetUserActivityInsights(_ context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -4128,130 +4128,140 @@ func (q *FakeQuerier) GetUserActivityInsights(ctx context.Context, arg database.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	type uniqueKey struct {
-		TemplateID uuid.UUID
-		UserID     uuid.UUID
+	/*
+		WITH
+	*/
+	/*
+		deployment_stats AS (
+			SELECT
+				start_time,
+				user_id,
+				array_agg(template_id) AS template_ids,
+				-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+				LEAST(SUM(usage_mins), 30) AS usage_mins
+			FROM
+				template_usage_stats
+			WHERE
+				start_time >= @start_time::timestamptz
+				AND end_time <= @end_time::timestamptz
+				AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			GROUP BY
+				start_time, user_id
+		),
+	*/
+
+	type deploymentStatsGroupBy struct {
+		StartTime time.Time
+		UserID    uuid.UUID
 	}
-
-	combinedStats := make(map[uniqueKey]map[time.Time]int64)
-
-	// Get application stats
-	for _, s := range q.workspaceAppStats {
-		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+	type deploymentStatsRow struct {
+		deploymentStatsGroupBy
+		TemplateIDs []uuid.UUID
+		UsageMins   int16
+	}
+	deploymentStatsRows := make(map[deploymentStatsGroupBy]deploymentStatsRow)
+	for _, stat := range q.templateUsageStats {
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
 			continue
 		}
-
-		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
 			continue
 		}
-
-		key := uniqueKey{
-			TemplateID: w.TemplateID,
-			UserID:     s.UserID,
+		key := deploymentStatsGroupBy{
+			StartTime: stat.StartTime,
+			UserID:    stat.UserID,
 		}
-		if combinedStats[key] == nil {
-			combinedStats[key] = make(map[time.Time]int64)
+		row, ok := deploymentStatsRows[key]
+		if !ok {
+			row = deploymentStatsRow{
+				deploymentStatsGroupBy: key,
+			}
 		}
-
-		t := s.SessionStartedAt.Truncate(time.Minute)
-		if t.Before(arg.StartTime) {
-			t = arg.StartTime
-		}
-		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
-			combinedStats[key][t] = 60
-			t = t.Add(1 * time.Minute)
-		}
+		row.TemplateIDs = append(row.TemplateIDs, stat.TemplateID)
+		row.UsageMins = least(row.UsageMins+stat.UsageMins, 30)
+		deploymentStatsRows[key] = row
 	}
 
-	// Get session stats
-	for _, s := range q.workspaceAgentStats {
-		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
-			continue
-		}
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
-			continue
-		}
-		if s.ConnectionCount == 0 {
-			continue
-		}
+	/*
+		template_ids AS (
+			SELECT
+				user_id,
+				array_agg(DISTINCT template_id) AS ids
+			FROM
+				deployment_stats, unnest(template_ids) template_id
+			GROUP BY
+				user_id
+		)
+	*/
 
-		key := uniqueKey{
-			TemplateID: s.TemplateID,
-			UserID:     s.UserID,
+	type templateIDsRow struct {
+		UserID      uuid.UUID
+		TemplateIDs []uuid.UUID
+	}
+	templateIDs := make(map[uuid.UUID]templateIDsRow)
+	for _, dsRow := range deploymentStatsRows {
+		row, ok := templateIDs[dsRow.UserID]
+		if !ok {
+			row = templateIDsRow{
+				UserID: row.UserID,
+			}
 		}
-
-		if combinedStats[key] == nil {
-			combinedStats[key] = make(map[time.Time]int64)
-		}
-
-		if s.SessionCountJetBrains > 0 || s.SessionCountVSCode > 0 || s.SessionCountReconnectingPTY > 0 || s.SessionCountSSH > 0 {
-			t := s.CreatedAt.Truncate(time.Minute)
-			combinedStats[key][t] = 60
-		}
+		row.TemplateIDs = uniqueSortedUUIDs(append(row.TemplateIDs, dsRow.TemplateIDs...))
+		templateIDs[dsRow.UserID] = row
 	}
 
-	// Use temporary maps for aggregation purposes
-	mUserIDTemplateIDs := map[uuid.UUID]map[uuid.UUID]struct{}{}
-	mUserIDUsageSeconds := map[uuid.UUID]int64{}
+	/*
+		SELECT
+			ds.user_id,
+			u.username,
+			u.avatar_url,
+			t.ids::uuid[] AS template_ids,
+			(SUM(ds.usage_mins) * 60)::bigint AS usage_seconds
+		FROM
+			deployment_stats ds
+		JOIN
+			users u
+		ON
+			u.id = ds.user_id
+		JOIN
+			template_ids t
+		ON
+			ds.user_id = t.user_id
+		GROUP BY
+			ds.user_id, u.username, u.avatar_url, t.ids
+		ORDER BY
+			ds.user_id ASC;
+	*/
 
-	for key, times := range combinedStats {
-		if mUserIDTemplateIDs[key.UserID] == nil {
-			mUserIDTemplateIDs[key.UserID] = make(map[uuid.UUID]struct{})
-			mUserIDUsageSeconds[key.UserID] = 0
-		}
-
-		if _, ok := mUserIDTemplateIDs[key.UserID][key.TemplateID]; !ok {
-			mUserIDTemplateIDs[key.UserID][key.TemplateID] = struct{}{}
-		}
-
-		for _, t := range times {
-			mUserIDUsageSeconds[key.UserID] += t
-		}
-	}
-
-	userIDs := make([]uuid.UUID, 0, len(mUserIDUsageSeconds))
-	for userID := range mUserIDUsageSeconds {
-		userIDs = append(userIDs, userID)
-	}
-	sort.Slice(userIDs, func(i, j int) bool {
-		return userIDs[i].String() < userIDs[j].String()
-	})
-
-	// Finally, select stats
 	var rows []database.GetUserActivityInsightsRow
-
-	for _, userID := range userIDs {
-		user, err := q.getUserByIDNoLock(userID)
-		if err != nil {
-			return nil, err
+	groupedRows := make(map[uuid.UUID]database.GetUserActivityInsightsRow)
+	for _, dsRow := range deploymentStatsRows {
+		row, ok := groupedRows[dsRow.UserID]
+		if !ok {
+			user, err := q.getUserByIDNoLock(dsRow.UserID)
+			if err != nil {
+				return nil, err
+			}
+			row = database.GetUserActivityInsightsRow{
+				UserID:      user.ID,
+				Username:    user.Username,
+				AvatarURL:   user.AvatarURL,
+				TemplateIDs: templateIDs[user.ID].TemplateIDs,
+			}
 		}
-
-		tids := mUserIDTemplateIDs[userID]
-		templateIDs := make([]uuid.UUID, 0, len(tids))
-		for key := range tids {
-			templateIDs = append(templateIDs, key)
-		}
-		sort.Slice(templateIDs, func(i, j int) bool {
-			return templateIDs[i].String() < templateIDs[j].String()
-		})
-
-		row := database.GetUserActivityInsightsRow{
-			UserID:       user.ID,
-			Username:     user.Username,
-			AvatarURL:    user.AvatarURL,
-			TemplateIDs:  templateIDs,
-			UsageSeconds: mUserIDUsageSeconds[userID],
-		}
-
+		row.UsageSeconds += int64(dsRow.UsageMins) * 60
+		groupedRows[dsRow.UserID] = row
+	}
+	for _, row := range groupedRows {
 		rows = append(rows, row)
 	}
+	if len(rows) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	slices.SortFunc(rows, func(a, b database.GetUserActivityInsightsRow) int {
+		return slice.Ascending(a.UserID.String(), b.UserID.String())
+	})
+
 	return rows, nil
 }
 
