@@ -395,8 +395,8 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
-			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
-			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
+			TemplateIDs:     usage.TemplateIDs,
+			ActiveUsers:     usage.ActiveUsers,
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
 		}
@@ -416,39 +416,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func convertTemplateInsightsTemplateIDs(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []uuid.UUID {
-	templateIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.TemplateIDs {
-		templateIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.TemplateIDs {
-			templateIDSet[id] = struct{}{}
-		}
-	}
-	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
-	for id := range templateIDSet {
-		templateIDs = append(templateIDs, id)
-	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-		return slice.Ascending(a.String(), b.String())
-	})
-	return templateIDs
-}
-
-func convertTemplateInsightsActiveUsers(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) int64 {
-	activeUserIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.ActiveUserIDs {
-		activeUserIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.ActiveUserIDs {
-			activeUserIDSet[id] = struct{}{}
-		}
-	}
-	return int64(len(activeUserIDSet))
-}
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
@@ -456,7 +423,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	// Builtin apps.
 	apps := []codersdk.TemplateAppUsage{
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.VscodeTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
@@ -464,7 +431,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageVscodeSeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.JetbrainsTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
@@ -478,7 +445,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		// condition finding the corresponding app entry in appUsage is:
 		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.ReconnectingPtyTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
@@ -486,7 +453,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageReconnectingPtySeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.SshTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",

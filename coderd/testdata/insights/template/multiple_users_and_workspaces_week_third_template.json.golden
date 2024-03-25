@@ -8,9 +8,7 @@
     "active_users": 1,
     "apps_usage": [
       {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000003"
-        ],
+        "template_ids": [],
         "type": "builtin",
         "display_name": "Visual Studio Code",
         "slug": "vscode",
@@ -18,9 +16,7 @@
         "seconds": 0
       },
       {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000003"
-        ],
+        "template_ids": [],
         "type": "builtin",
         "display_name": "JetBrains",
         "slug": "jetbrains",

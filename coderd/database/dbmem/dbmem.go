@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -790,6 +791,13 @@ func tagsSubset(m1, m2 map[string]string) bool {
 
 // default tags when no tag is specified for a provisioner or job
 var tagsUntagged = provisionersdk.MutateTags(uuid.Nil, nil)
+
+func least[T constraints.Ordered](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
@@ -3237,71 +3245,166 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 		return database.GetTemplateInsightsRow{}, err
 	}
 
-	templateIDSet := make(map[uuid.UUID]struct{})
-	appUsageIntervalsByUser := make(map[uuid.UUID]map[time.Time]*database.GetTemplateInsightsRow)
-
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, s := range q.workspaceAgentStats {
-		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+	/*
+		WITH
+	*/
+
+	/*
+		insights AS (
+			SELECT
+				user_id,
+				-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+				LEAST(SUM(usage_mins), 30) AS usage_mins,
+				LEAST(SUM(ssh_mins), 30) AS ssh_mins,
+				LEAST(SUM(sftp_mins), 30) AS sftp_mins,
+				LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
+				LEAST(SUM(vscode_mins), 30) AS vscode_mins,
+				LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+			FROM
+				template_usage_stats
+			WHERE
+				start_time >= @start_time::timestamptz
+				AND end_time <= @end_time::timestamptz
+				AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			GROUP BY
+				start_time, user_id
+		),
+	*/
+
+	type insightsGroupBy struct {
+		StartTime time.Time
+		UserID    uuid.UUID
+	}
+	type insightsRow struct {
+		insightsGroupBy
+		UsageMins           int16
+		SSHMins             int16
+		SFTPMins            int16
+		ReconnectingPTYMins int16
+		VSCodeMins          int16
+		JetBrainsMins       int16
+	}
+	insights := make(map[insightsGroupBy]insightsRow)
+	for _, stat := range q.templateUsageStats {
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
 			continue
 		}
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
 			continue
 		}
-		if s.ConnectionCount == 0 {
+		key := insightsGroupBy{
+			StartTime: stat.StartTime,
+			UserID:    stat.UserID,
+		}
+		row, ok := insights[key]
+		if !ok {
+			row = insightsRow{
+				insightsGroupBy: key,
+			}
+		}
+		row.UsageMins = least(row.UsageMins+stat.UsageMins, 30)
+		row.SSHMins = least(row.SSHMins+stat.SshMins, 30)
+		row.SFTPMins = least(row.SFTPMins+stat.SftpMins, 30)
+		row.ReconnectingPTYMins = least(row.ReconnectingPTYMins+stat.ReconnectingPtyMins, 30)
+		row.VSCodeMins = least(row.VSCodeMins+stat.VscodeMins, 30)
+		row.JetBrainsMins = least(row.JetBrainsMins+stat.JetbrainsMins, 30)
+		insights[key] = row
+	}
+
+	/*
+		templates AS (
+			SELECT
+				array_agg(DISTINCT template_id) AS template_ids,
+				array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
+				array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
+				array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
+				array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
+				array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+			FROM
+				template_usage_stats
+			WHERE
+				start_time >= @start_time::timestamptz
+				AND end_time <= @end_time::timestamptz
+				AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		)
+	*/
+
+	type templateRow struct {
+		TemplateIDs          []uuid.UUID
+		SSHTemplateIDs       []uuid.UUID
+		SFTPTemplateIDs      []uuid.UUID
+		ReconnectingPTYIDs   []uuid.UUID
+		VSCodeTemplateIDs    []uuid.UUID
+		JetBrainsTemplateIDs []uuid.UUID
+	}
+	templates := templateRow{}
+	for _, stat := range q.templateUsageStats {
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
 			continue
 		}
-
-		templateIDSet[s.TemplateID] = struct{}{}
-		if appUsageIntervalsByUser[s.UserID] == nil {
-			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
+			continue
 		}
-		t := s.CreatedAt.Truncate(time.Minute)
-		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
-			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
+		templates.TemplateIDs = append(templates.TemplateIDs, stat.TemplateID)
+		if stat.SshMins > 0 {
+			templates.SSHTemplateIDs = append(templates.SSHTemplateIDs, stat.TemplateID)
 		}
-
-		if s.SessionCountJetBrains > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 60
+		if stat.SftpMins > 0 {
+			templates.SFTPTemplateIDs = append(templates.SFTPTemplateIDs, stat.TemplateID)
 		}
-		if s.SessionCountVSCode > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 60
+		if stat.ReconnectingPtyMins > 0 {
+			templates.ReconnectingPTYIDs = append(templates.ReconnectingPTYIDs, stat.TemplateID)
 		}
-		if s.SessionCountReconnectingPTY > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 60
+		if stat.VscodeMins > 0 {
+			templates.VSCodeTemplateIDs = append(templates.VSCodeTemplateIDs, stat.TemplateID)
 		}
-		if s.SessionCountSSH > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 60
+		if stat.JetbrainsMins > 0 {
+			templates.JetBrainsTemplateIDs = append(templates.JetBrainsTemplateIDs, stat.TemplateID)
 		}
 	}
 
-	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
-	for templateID := range templateIDSet {
-		templateIDs = append(templateIDs, templateID)
-	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-		return slice.Ascending(a.String(), b.String())
-	})
-	activeUserIDs := make([]uuid.UUID, 0, len(appUsageIntervalsByUser))
-	for userID := range appUsageIntervalsByUser {
-		activeUserIDs = append(activeUserIDs, userID)
-	}
+	/*
+		SELECT
+			COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
+			COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
+			COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
+			COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
+			COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
+			COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+			COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
+			COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
+			COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
+			COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
+			COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
+			COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
+			COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+		FROM
+			insights;
+	*/
 
-	result := database.GetTemplateInsightsRow{
-		TemplateIDs:   templateIDs,
-		ActiveUserIDs: activeUserIDs,
+	var row database.GetTemplateInsightsRow
+	row.TemplateIDs = uniqueSortedUUIDs(templates.TemplateIDs)
+	row.SshTemplateIds = uniqueSortedUUIDs(templates.SSHTemplateIDs)
+	row.SftpTemplateIds = uniqueSortedUUIDs(templates.SFTPTemplateIDs)
+	row.ReconnectingPtyTemplateIds = uniqueSortedUUIDs(templates.ReconnectingPTYIDs)
+	row.VscodeTemplateIds = uniqueSortedUUIDs(templates.VSCodeTemplateIDs)
+	row.JetbrainsTemplateIds = uniqueSortedUUIDs(templates.JetBrainsTemplateIDs)
+	activeUserIDs := make(map[uuid.UUID]struct{})
+	for _, insight := range insights {
+		activeUserIDs[insight.UserID] = struct{}{}
+		row.UsageTotalSeconds += int64(insight.UsageMins) * 60
+		row.UsageSshSeconds += int64(insight.SSHMins) * 60
+		row.UsageSftpSeconds += int64(insight.SFTPMins) * 60
+		row.UsageReconnectingPtySeconds += int64(insight.ReconnectingPTYMins) * 60
+		row.UsageVscodeSeconds += int64(insight.VSCodeMins) * 60
+		row.UsageJetbrainsSeconds += int64(insight.JetBrainsMins) * 60
 	}
-	for _, intervals := range appUsageIntervalsByUser {
-		for _, interval := range intervals {
-			result.UsageJetbrainsSeconds += interval.UsageJetbrainsSeconds
-			result.UsageVscodeSeconds += interval.UsageVscodeSeconds
-			result.UsageReconnectingPtySeconds += interval.UsageReconnectingPtySeconds
-			result.UsageSshSeconds += interval.UsageSshSeconds
-		}
-	}
-	return result, nil
+	row.ActiveUsers = int64(len(activeUserIDs))
+
+	return row, nil
 }
 
 func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
