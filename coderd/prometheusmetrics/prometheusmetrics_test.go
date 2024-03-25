@@ -229,7 +229,7 @@ func TestWorkspaces(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), registry, tc.Database(), time.Millisecond)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil), registry, tc.Database(), time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 

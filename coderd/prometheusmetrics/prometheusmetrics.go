@@ -72,36 +72,42 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 }
 
 // Workspaces tracks the total number of workspaces with labels on status.
-func Workspaces(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 5 * time.Minute
 	}
 
-	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	workspacesByStatus := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build_total",
-		Help:      "The latest workspace builds with a status.",
+		Help:      "The current number of workspace builds by status.",
 	}, []string{"status"})
-	err := registerer.Register(gauge)
-	if err != nil {
+	if err := registerer.Register(workspacesByStatus); err != nil {
+		return nil, err
+	}
+
+	workspacesDetail := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "workspace_detail",
+		Help:      "The current workspace details by template, transition, owner, and status.",
+	}, []string{"status", "template_name", "template_version", "workspace_name", "workspace_owner", "workspace_transition"})
+	if err := registerer.Register(workspacesDetail); err != nil {
 		return nil, err
 	}
 	// This exists so the prometheus metric exports immediately when set.
 	// It helps with tests so they don't have to wait for a tick.
-	gauge.WithLabelValues("pending").Set(0)
+	workspacesByStatus.WithLabelValues(string(database.ProvisionerJobStatusPending)).Set(0)
+	workspacesDetail.WithLabelValues(string(database.ProvisionerJobStatusPending), "", "", "", "", "").Set(0)
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	// Use time.Nanosecond to force an initial tick. It will be reset to the
-	// correct duration after executing once.
-	ticker := time.NewTicker(time.Nanosecond)
-	doTick := func() {
-		defer ticker.Reset(duration)
-
+	updateWorkspacesByStatus := func() {
 		builds, err := db.GetLatestWorkspaceBuilds(ctx)
 		if err != nil {
+			logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
 			return
 		}
 		jobIDs := make([]uuid.UUID, 0, len(builds))
@@ -110,14 +116,54 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 		}
 		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
 		if err != nil {
+			ids := make([]string, 0, len(jobIDs))
+			for _, id := range jobIDs {
+				ids = append(ids, id.String())
+			}
+
+			logger.Warn(ctx, "failed to load provisioner jobs", slog.F("ids", ids), slog.Error(err))
 			return
 		}
 
-		gauge.Reset()
+		workspacesByStatus.Reset()
 		for _, job := range jobs {
 			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			gauge.WithLabelValues(string(status)).Add(1)
+			workspacesByStatus.WithLabelValues(string(status)).Add(1)
 		}
+	}
+
+	updateWorkspacesDetail := func() {
+		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
+			Deleted:     false,
+			WithSummary: false,
+		})
+		if err != nil {
+			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
+			return
+		}
+
+		workspacesDetail.Reset()
+		for _, w := range ws {
+			// TODO: there may be a more elegant/idiomatic way to do this?
+			buildStatus := string(database.ProvisionerJobStatusUnknown)
+			if val, err := w.LatestBuildStatus.Value(); err == nil {
+				if status, ok := val.(string); ok {
+					buildStatus = status
+				}
+			}
+
+			workspacesDetail.WithLabelValues(buildStatus, w.TemplateName, w.TemplateVersionName.String, w.Name, w.Username, string(w.LatestBuildTransition)).Set(1)
+		}
+	}
+
+	// Use time.Nanosecond to force an initial tick. It will be reset to the
+	// correct duration after executing once.
+	ticker := time.NewTicker(time.Nanosecond)
+	doTick := func() {
+		defer ticker.Reset(duration)
+
+		updateWorkspacesByStatus()
+		updateWorkspacesDetail()
 	}
 
 	go func() {
