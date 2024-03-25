@@ -39,15 +39,19 @@ func TestSupportBundle(t *testing.T) {
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		var dc codersdk.DeploymentConfig
+		secretValue := uuid.NewString()
+		seedSecretDeploymentOptions(t, &dc, secretValue)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dc.Values,
+		})
 		owner := coderdtest.CreateFirstUser(t, client)
-		randSecretValue := uuid.NewString()
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 			// This should not show up in the bundle output
-			agents[0].Env["SECRET_VALUE"] = randSecretValue
+			agents[0].Env["SECRET_VALUE"] = secretValue
 			return agents
 		}).Do()
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
@@ -89,7 +93,7 @@ func TestSupportBundle(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		err = inv.Run()
 		require.NoError(t, err)
-		assertBundleContents(t, path, randSecretValue)
+		assertBundleContents(t, path, secretValue)
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {
@@ -260,6 +264,18 @@ func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {
 	for _, val := range vals {
 		if bytes.Contains(bs, []byte(val)) {
 			t.Fatalf("file %q should not contain value %q", f.Name, val)
+		}
+	}
+}
+
+func seedSecretDeploymentOptions(t *testing.T, dc *codersdk.DeploymentConfig, secretValue string) {
+	t.Helper()
+	if dc == nil {
+		dc = &codersdk.DeploymentConfig{}
+	}
+	for _, opt := range dc.Options {
+		if codersdk.IsSecretDeploymentOption(opt) {
+			opt.Value.Set(secretValue)
 		}
 	}
 }

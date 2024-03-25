@@ -30,7 +30,6 @@ func (r *RootCmd) support() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Hidden: true, // TODO: un-hide once the must-haves from #12160 are completed.
 		Children: []*serpent.Command{
 			r.supportBundle(),
 		},
@@ -40,7 +39,7 @@ func (r *RootCmd) support() *serpent.Command {
 
 var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
 	`  - Coder deployment version
-   - Coder deployment Configuration (sanitized), including enabled experiments
+  - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
   - Coder deployment Network troubleshooting information
   - Workspace configuration, parameters, and build logs
