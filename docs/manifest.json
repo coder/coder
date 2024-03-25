@@ -901,6 +901,16 @@
           "path": "cli/stop.md"
         },
         {
+          "title": "support",
+          "description": "Commands for troubleshooting issues with a Coder deployment.",
+          "path": "cli/support.md"
+        },
+        {
+          "title": "support bundle",
+          "description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
+          "path": "cli/support_bundle.md"
+        },
+        {
           "title": "templates",
           "description": "Manage templates",
           "path": "cli/templates.md"
