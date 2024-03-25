@@ -193,57 +193,95 @@ GROUP BY template_id;
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given
 -- timeframe. The result can be filtered on template_ids, meaning only user data
 -- from workspaces based on those templates will be included.
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.access_method,
-		was.slug_or_port,
-		wa.display_name,
-		wa.icon,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+WITH
+	app_insights AS (
+		SELECT
+			tus.user_id,
+			array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+			app_usage.key::text AS app_name,
+			COALESCE(wa.display_name, '') AS display_name,
+			COALESCE(wa.icon, '') AS icon,
+			(wa.slug IS NOT NULL)::boolean AS is_app,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(app_usage.value::int), 30) AS app_usage_mins
+		FROM
+			template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
+		LEFT JOIN LATERAL (
+			-- The joins in this query are necessary to associate an app with a
+			-- template, we use this to get the app metadata like display name
+			-- and icon.
+			SELECT
+				app.display_name,
+				app.icon,
+				app.slug
+			FROM
+				workspace_apps AS app
+			JOIN
+				workspace_agents AS agent
+			ON
+				agent.id = app.agent_id
+			JOIN
+				workspace_resources AS resource
+			ON
+				resource.id = agent.resource_id
+			JOIN
+				workspace_builds AS build
+			ON
+				build.job_id = resource.job_id
+			JOIN
+				workspaces AS workspace
+			ON
+				workspace.id = build.workspace_id
+			WHERE
+				-- Requires lateral join.
+				app.slug = app_usage.key
+				AND workspace.owner_id = tus.user_id
+				AND workspace.template_id = tus.template_id
+			ORDER BY
+				app.created_at DESC
+			LIMIT 1
+		) AS wa
+		ON
+			true
+		WHERE
+			tus.start_time >= @start_time::timestamptz
+			AND tus.end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		GROUP BY
+			tus.start_time, tus.user_id, app_usage.key::text, wa.display_name, wa.icon, wa.slug
+	),
+	templates AS (
+		SELECT
+			app_name,
+			display_name,
+			icon,
+			is_app,
+			array_agg(DISTINCT template_id)::uuid[] AS template_ids
+		FROM
+			app_insights, unnest(template_ids) AS template_id
+		GROUP BY
+			app_name, display_name, icon, is_app
 	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= @start_time::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
-)
 
 SELECT
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateInsights.
-	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
-	access_method,
-	slug_or_port,
-	display_name,
-	icon,
-	is_app,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-GROUP BY access_method, slug_or_port, display_name, icon, is_app;
+	t.template_ids,
+	COUNT(DISTINCT ai.user_id) AS active_users,
+	ai.app_name AS slug_or_port,
+	ai.display_name,
+	ai.icon,
+	ai.is_app,
+	(SUM(ai.app_usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	app_insights AS ai
+JOIN
+	templates AS t
+ON
+	ai.app_name = t.app_name
+	AND ai.display_name = t.display_name
+	AND ai.icon = t.icon
+	AND ai.is_app = t.is_app
+GROUP BY
+	t.template_ids, ai.app_name, ai.display_name, ai.icon, ai.is_app;
 
 -- name: GetTemplateAppInsightsByTemplate :many
 WITH app_stats_by_user_and_agent AS (
