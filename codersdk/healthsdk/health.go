@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// @typescript-ignore HealthClient
 type HealthClient struct {
 	client *codersdk.Client
 }
