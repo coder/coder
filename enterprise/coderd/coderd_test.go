@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -194,6 +195,40 @@ func TestEntitlements(t *testing.T) {
 			assert.NoError(t, err)
 			return entitlements.HasLicense
 		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+}
+
+func TestEntitlements_HeaderWarnings(t *testing.T) {
+	t.Parallel()
+	t.Run("ExistForAdmin", func(t *testing.T) {
+		t.Parallel()
+		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				AllFeatures: false,
+			},
+		})
+		//nolint:gocritic // This isn't actually bypassing any RBAC checks
+		res, err := adminClient.Request(context.Background(), http.MethodGet, "/api/v2/users/me", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.NotEmpty(t, res.Header.Values(codersdk.EntitlementsWarningHeader))
+	})
+	t.Run("NoneForNormalUser", func(t *testing.T) {
+		t.Parallel()
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				AllFeatures: false,
+			},
+		})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		res, err := anotherClient.Request(context.Background(), http.MethodGet, "/api/v2/users/me", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Empty(t, res.Header.Values(codersdk.EntitlementsWarningHeader))
 	})
 }
 
