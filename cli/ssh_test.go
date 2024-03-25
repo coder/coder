@@ -96,24 +96,36 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		authToken := uuid.NewString()
-		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		// TODO(cian): make this less verbose
+		echoRes := &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		// Stop the workspace
-		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+		}
+		echoData, err := echo.TarWithOptions(context.Background(), client.Logger(), echoRes)
+		require.NoError(t, err)
+		echoFile, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(echoData))
+		require.NoError(t, err)
+		version := dbfake.TemplateVersion(t, db).Seed(
+			database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      user.ID,
+			},
+		).FileID(echoFile.ID).Do()
+		wb := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     version.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition:        database.WorkspaceTransitionStop,
+			TemplateVersionID: version.TemplateVersion.ID,
+		}).Do() // no need to set agent token here as echo provisioner takes care of that
 
 		// SSH to the workspace which should autostart it
-		inv, root := clitest.New(t, "ssh", workspace.Name)
+		inv, root := clitest.New(t, "ssh", wb.Workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -127,8 +139,8 @@ func TestSSH(t *testing.T) {
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
-		_ = agenttest.New(t, client.URL, authToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		_ = agenttest.New(t, ownerClient.URL, authToken)
+		_ = coderdtest.NewWorkspaceAgentWaiter(t, ownerClient, wb.Workspace.ID).Wait()
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
