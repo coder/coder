@@ -826,7 +826,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Success 200 {object} workspacesdk.WorkspaceAgentConnectionInfo
+// @Success 200 {object} workspacesdk.AgentConnectionInfo
 // @Router /workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -846,7 +846,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} workspacesdk.WorkspaceAgentConnectionInfo
+// @Success 200 {object} workspacesdk.AgentConnectionInfo
 // @Router /workspaceagents/connection [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.Request) {

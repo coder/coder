@@ -9029,7 +9029,7 @@ _None_
 | `user_id`            | string                                                   | false    |              |                                                                                         |
 | `workspace_id`       | string                                                   | false    |              |                                                                                         |
 
-## workspacesdk.WorkspaceAgentConnectionInfo
+## workspacesdk.AgentConnectionInfo
 
 ```json
 {

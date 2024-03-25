@@ -5479,7 +5479,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/workspacesdk.WorkspaceAgentConnectionInfo"
+                            "$ref": "#/definitions/workspacesdk.AgentConnectionInfo"
                         }
                     }
                 },
@@ -6088,7 +6088,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/workspacesdk.WorkspaceAgentConnectionInfo"
+                            "$ref": "#/definitions/workspacesdk.AgentConnectionInfo"
                         }
                     }
                 }
@@ -14476,7 +14476,7 @@ const docTemplate = `{
                 }
             }
         },
-        "workspacesdk.WorkspaceAgentConnectionInfo": {
+        "workspacesdk.AgentConnectionInfo": {
             "type": "object",
             "properties": {
                 "derp_force_websockets": {
