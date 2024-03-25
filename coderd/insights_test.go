@@ -956,15 +956,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
@@ -1811,15 +1808,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
