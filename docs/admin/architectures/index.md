@@ -357,17 +357,25 @@ in the
 
 ### Configuration
 
-1. Create `values.yaml` and add it to a version control system.
-1. Determine the necessary environment variables.
 1. Identify the required Helm values for configuration.
+1. Create `values.yaml` and add it to a version control system. _Note:_ it is
+   highly recommended that you create a custom `values.yaml` as opposed to
+   copying the entire default values.
+1. Determine the necessary environment variables.
 
 ### Template configuration
 
 1. Establish a dedicated user account for the _Template Administrator_.
 1. Maintain Coder templates using version control.
-1. Consider implementing a GitOps workflow to automatically push new template
-   versions to Coder.
+1. Consider implementing a GitOps workflow to automatically push new template.
+   For example, on Github, you can use the
+   [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)
+   action.
 1. Evaluate enabling automatic template updates upon workspace startup.
+
+### Deployment
+
+1. Leverage automation tooling to automate deployment and upgrades of Coder.
 
 ### Observability
 
