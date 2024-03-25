@@ -381,7 +381,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           <HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
           <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
             {canSharePorts
-              ? "Ports can be shared with other Coder users or with the public."
+              ? "Ports can be shared with other Coder users or with the public. Changing the protocol may take up to 1 minute to take effect."
               : "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
           </HelpTooltipText>
           {canSharePorts && (
