@@ -666,7 +666,7 @@ jobs:
     # to main branch. We are only building this for amd64 platform. (>95% pulls
     # are for amd64)
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
