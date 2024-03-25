@@ -251,11 +251,11 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		// when
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.NewClient(adminClient).Settings(ctx)
 		require.NoError(t, err)
 
 		// then
-		require.Equal(t, healthsdk.HealthSettings{DismissedHealthchecks: []healthsdk.HealthSection{}}, settings)
+		require.Equal(t, healthsdk.Settings{DismissedHealthchecks: []healthsdk.Section{}}, settings)
 	})
 
 	t.Run("DismissSection", func(t *testing.T) {
@@ -268,16 +268,16 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		expected := healthsdk.Settings{
+			DismissedHealthchecks: []healthsdk.Section{healthsdk.SectionDERP, healthsdk.SectionWebsocket},
 		}
 
 		// when: dismiss "derp" and "websocket"
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err := healthsdk.NewClient(adminClient).PutSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.NewClient(adminClient).Settings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -303,23 +303,23 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		initial := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		initial := healthsdk.Settings{
+			DismissedHealthchecks: []healthsdk.Section{healthsdk.SectionDERP, healthsdk.SectionWebsocket},
 		}
 
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, initial)
+		err := healthsdk.NewClient(adminClient).PutSettings(ctx, initial)
 		require.NoError(t, err)
 
-		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
+		expected := healthsdk.Settings{
+			DismissedHealthchecks: []healthsdk.Section{healthsdk.SectionDERP},
 		}
 
 		// when: undismiss "websocket"
-		err = healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err = healthsdk.NewClient(adminClient).PutSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.NewClient(adminClient).Settings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -345,15 +345,15 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		expected := healthsdk.Settings{
+			DismissedHealthchecks: []healthsdk.Section{healthsdk.SectionDERP, healthsdk.SectionWebsocket},
 		}
 
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err := healthsdk.NewClient(adminClient).PutSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// when
-		err = healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err = healthsdk.NewClient(adminClient).PutSettings(ctx, expected)
 
 		// then
 		require.Error(t, err)

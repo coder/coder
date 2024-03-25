@@ -112,7 +112,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	})
 
 	eg.Go(func() error {
-		hr, err := healthsdk.NewHealthClient(client).DebugHealth(ctx)
+		hr, err := healthsdk.NewClient(client).DebugHealth(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch health report: %w", err)
 		}

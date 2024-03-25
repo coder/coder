@@ -53,7 +53,7 @@ func TestHealthcheck(t *testing.T) {
 		checker         *testChecker
 		healthy         bool
 		severity        health.Severity
-		failingSections []healthsdk.HealthSection
+		failingSections []healthsdk.Section
 	}{{
 		name: "OK",
 		checker: &testChecker{
@@ -83,7 +83,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         true,
 		severity:        health.SeverityOK,
-		failingSections: []healthsdk.HealthSection{},
+		failingSections: []healthsdk.Section{},
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
@@ -113,7 +113,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
+		failingSections: []healthsdk.Section{healthsdk.SectionDERP},
 	}, {
 		name: "DERPWarning",
 		checker: &testChecker{
@@ -144,7 +144,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         true,
 		severity:        health.SeverityWarning,
-		failingSections: []healthsdk.HealthSection{},
+		failingSections: []healthsdk.Section{},
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
@@ -174,7 +174,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityWarning,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionAccessURL},
+		failingSections: []healthsdk.Section{healthsdk.SectionAccessURL},
 	}, {
 		name: "WebsocketFail",
 		checker: &testChecker{
@@ -204,7 +204,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionWebsocket},
+		failingSections: []healthsdk.Section{healthsdk.SectionWebsocket},
 	}, {
 		name: "DatabaseFail",
 		checker: &testChecker{
@@ -234,7 +234,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		healthy:         false,
 		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionDatabase},
+		failingSections: []healthsdk.Section{healthsdk.SectionDatabase},
 	}, {
 		name: "ProxyFail",
 		checker: &testChecker{
@@ -264,7 +264,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityError,
 		healthy:         false,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionWorkspaceProxy},
+		failingSections: []healthsdk.Section{healthsdk.SectionWorkspaceProxy},
 	}, {
 		name: "ProxyWarn",
 		checker: &testChecker{
@@ -295,7 +295,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityWarning,
 		healthy:         true,
-		failingSections: []healthsdk.HealthSection{},
+		failingSections: []healthsdk.Section{},
 	}, {
 		name: "ProvisionerDaemonsFail",
 		checker: &testChecker{
@@ -325,7 +325,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityError,
 		healthy:         false,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionProvisionerDaemons},
+		failingSections: []healthsdk.Section{healthsdk.SectionProvisionerDaemons},
 	}, {
 		name: "ProvisionerDaemonsWarn",
 		checker: &testChecker{
@@ -356,7 +356,7 @@ func TestHealthcheck(t *testing.T) {
 		},
 		severity:        health.SeverityWarning,
 		healthy:         true,
-		failingSections: []healthsdk.HealthSection{},
+		failingSections: []healthsdk.Section{},
 	}, {
 		name:    "AllFail",
 		healthy: false,
@@ -386,13 +386,13 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		severity: health.SeverityError,
-		failingSections: []healthsdk.HealthSection{
-			healthsdk.HealthSectionDERP,
-			healthsdk.HealthSectionAccessURL,
-			healthsdk.HealthSectionWebsocket,
-			healthsdk.HealthSectionDatabase,
-			healthsdk.HealthSectionWorkspaceProxy,
-			healthsdk.HealthSectionProvisionerDaemons,
+		failingSections: []healthsdk.Section{
+			healthsdk.SectionDERP,
+			healthsdk.SectionAccessURL,
+			healthsdk.SectionWebsocket,
+			healthsdk.SectionDatabase,
+			healthsdk.SectionWorkspaceProxy,
+			healthsdk.SectionProvisionerDaemons,
 		},
 	}} {
 		c := c
