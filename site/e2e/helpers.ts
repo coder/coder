@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type BrowserContext, expect, type Page } from "@playwright/test";
 import axios from "axios";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
@@ -445,7 +445,7 @@ const createTemplateVersionTar = async (
       resource.agents = resource.agents?.map(
         (agent: RecursivePartial<Agent>) => {
           if (agent.apps) {
-            agent.apps = agent.apps?.map((app: RecursivePartial<App>) => {
+            agent.apps = agent.apps.map((app) => {
               return {
                 command: "",
                 displayName: "example",
@@ -791,3 +791,23 @@ export const updateWorkspaceParameters = async (
     state: "visible",
   });
 };
+
+export async function openTerminalWindow(
+  page: Page,
+  context: BrowserContext,
+  workspaceName: string,
+): Promise<Page> {
+  // Wait for the web terminal to open in a new tab
+  const pagePromise = context.waitForEvent("page");
+  await page.getByTestId("terminal").click();
+  const terminal = await pagePromise;
+  await terminal.waitForLoadState("domcontentloaded");
+
+  // Specify that the shell should be `bash`, to prevent inheriting a shell that
+  // isn't POSIX compatible, such as Fish.
+  const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
+  await expect(terminal).toHaveURL(`/@admin/${workspaceName}.dev/terminal`);
+  await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
+
+  return terminal;
+}
