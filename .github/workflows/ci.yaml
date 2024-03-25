@@ -605,7 +605,7 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: make gen
-        run: "make --output-sync -j -B gen"
+        run: "make --output-sync -B gen"
 
       - name: Format
         run: |
