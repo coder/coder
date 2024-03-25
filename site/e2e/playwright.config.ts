@@ -1,10 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import path from "path";
-import { defaultPort, coderdPProfPort, gitAuth } from "./constants";
-
-export const port = process.env.CODER_E2E_PORT
-  ? Number(process.env.CODER_E2E_PORT)
-  : defaultPort;
+import { coderPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
@@ -35,7 +31,7 @@ export default defineConfig({
   ],
   reporter: [["./reporter.ts"]],
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: `http://localhost:${coderPort}`,
     video: "retain-on-failure",
     ...(wsEndpoint
       ? {
@@ -50,12 +46,12 @@ export default defineConfig({
         }),
   },
   webServer: {
-    url: `http://localhost:${port}/api/v2/deployment/config`,
+    url: `http://localhost:${coderPort}/api/v2/deployment/config`,
     command:
       `go run -tags embed ${coderMain} server ` +
       `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
-      `--access-url=http://localhost:${port} ` +
-      `--http-address=localhost:${port} ` +
+      `--access-url=http://localhost:${coderPort} ` +
+      `--http-address=localhost:${coderPort} ` +
       `--in-memory --telemetry=false ` +
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
