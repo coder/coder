@@ -1081,6 +1081,13 @@ func isConnectionError(err error) bool {
 	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
 }
 
+func newPrettyErrorFormatter(w io.Writer, verbose bool) *prettyErrorFormatter {
+	return &prettyErrorFormatter{
+		w:       w,
+		verbose: verbose,
+	}
+}
+
 type prettyErrorFormatter struct {
 	w io.Writer
 	// verbose turns on more detailed error logs, such as stack traces.
