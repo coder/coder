@@ -1107,7 +1107,7 @@ func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
 			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
 			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(workspacesdk.WorkspaceAgentIP, 128),
+			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		}
 	}
 
@@ -1147,7 +1147,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		}
 	}()
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.WorkspaceAgentSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
@@ -1162,7 +1162,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.WorkspaceAgentReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
@@ -1211,7 +1211,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				if err != nil {
 					return
 				}
-				var msg workspacesdk.WorkspaceAgentReconnectingPTYInit
+				var msg workspacesdk.AgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
 					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
@@ -1225,7 +1225,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.WorkspaceAgentSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
@@ -1273,7 +1273,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.WorkspaceAgentHTTPAPIServerPort))
+	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
 		return nil, xerrors.Errorf("api listener: %w", err)
 	}
@@ -1386,7 +1386,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, networ
 	}
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg workspacesdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg workspacesdk.AgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 	a.metrics.connectionsTotal.Add(1)
 

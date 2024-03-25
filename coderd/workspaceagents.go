@@ -804,13 +804,13 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	// common non-HTTP ports such as databases, FTP, SSH, etc.
 	filteredPorts := make([]codersdk.WorkspaceAgentListeningPort, 0, len(portsResponse.Ports))
 	for _, port := range portsResponse.Ports {
-		if port.Port < workspacesdk.WorkspaceAgentMinimumListeningPort {
+		if port.Port < workspacesdk.AgentMinimumListeningPort {
 			continue
 		}
 		if _, ok := appPorts[port.Port]; ok {
 			continue
 		}
-		if _, ok := workspacesdk.WorkspaceAgentIgnoredListeningPorts[port.Port]; ok {
+		if _, ok := workspacesdk.AgentIgnoredListeningPorts[port.Port]; ok {
 			continue
 		}
 		filteredPorts = append(filteredPorts, port)
@@ -831,7 +831,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.WorkspaceAgentConnectionInfo{
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.AgentConnectionInfo{
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
@@ -852,7 +852,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.WorkspaceAgentConnectionInfo{
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.AgentConnectionInfo{
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),

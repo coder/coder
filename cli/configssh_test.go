@@ -84,8 +84,8 @@ func TestConfigSSH(t *testing.T) {
 	}).WithAgent().Do()
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
-	agentConn, err := workspacesdk.NewWorkspaceClient(client).
-		DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+	agentConn, err := workspacesdk.NewClient(client).
+		DialAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
 

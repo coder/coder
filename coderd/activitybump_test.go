@@ -166,8 +166,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		client, workspace, assertBumped := setupActivityTest(t)
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := workspacesdk.NewWorkspaceClient(client).
-			DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialWorkspaceAgentOptions{
+		conn, err := workspacesdk.NewClient(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 				Logger: slogtest.Make(t, nil),
 			})
 		require.NoError(t, err)
@@ -204,8 +204,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		// Bump by dialing the workspace and sending traffic.
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := workspacesdk.NewWorkspaceClient(client).
-			DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialWorkspaceAgentOptions{
+		conn, err := workspacesdk.NewClient(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 				Logger: slogtest.Make(t, nil),
 			})
 		require.NoError(t, err)

@@ -171,7 +171,7 @@ func assertBundleContents(t *testing.T, path string, badValues ...string) {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
 		case "network/netcheck.json":
-			var v workspacesdk.WorkspaceAgentConnectionInfo
+			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "connection info should not be empty")
 		case "workspace/workspace.json":

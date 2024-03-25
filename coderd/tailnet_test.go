@@ -80,7 +80,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		agents, serverTailnet := setupServerTailnetAgent(t, 1)
 		a := agents[0]
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.WorkspaceAgentHTTPAPIServerPort))
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
 		rp := serverTailnet.ReverseProxy(u, u, a.id)
@@ -111,7 +111,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		registry := prometheus.NewRegistry()
 		require.NoError(t, registry.Register(serverTailnet))
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.WorkspaceAgentHTTPAPIServerPort))
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
 		rp := serverTailnet.ReverseProxy(u, u, a.id)
@@ -145,7 +145,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		agents, serverTailnet := setupServerTailnetAgent(t, 1)
 		a := agents[0]
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.WorkspaceAgentHTTPAPIServerPort))
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
 		rp := serverTailnet.ReverseProxy(u, u, a.id)
@@ -156,7 +156,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		// Ensure the reverse proxy director rewrites the url host to the agent's IP.
 		rp.Director(req)
 		assert.Equal(t,
-			fmt.Sprintf("[%s]:%d", tailnet.IPFromUUID(a.id).String(), workspacesdk.WorkspaceAgentHTTPAPIServerPort),
+			fmt.Sprintf("[%s]:%d", tailnet.IPFromUUID(a.id).String(), workspacesdk.AgentHTTPAPIServerPort),
 			req.URL.Host,
 		)
 	})
@@ -315,7 +315,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 
 		require.True(t, serverTailnet.Conn().GetBlockEndpoints(), "expected BlockEndpoints to be set")
 
-		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.WorkspaceAgentHTTPAPIServerPort))
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
 		rp := serverTailnet.ReverseProxy(u, u, a.id)

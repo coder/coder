@@ -155,7 +155,7 @@ func TestCoordinator(t *testing.T) {
 		}()
 		sendNode(&tailnet.Node{
 			Addresses: []netip.Prefix{
-				netip.PrefixFrom(workspacesdk.WorkspaceAgentIP, 128),
+				netip.PrefixFrom(workspacesdk.AgentIP, 128),
 			},
 			PreferredDERP: 10,
 		})

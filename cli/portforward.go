@@ -103,8 +103,8 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
-			conn, err := workspacesdk.NewWorkspaceClient(client).
-				DialWorkspaceAgent(ctx, workspaceAgent.ID, &workspacesdk.DialWorkspaceAgentOptions{
+			conn, err := workspacesdk.NewClient(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:         logger,
 					BlockEndpoints: r.disableDirect,
 				})
@@ -195,7 +195,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
-	conn *workspacesdk.WorkspaceAgentConn,
+	conn *workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,

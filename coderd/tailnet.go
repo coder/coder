@@ -427,9 +427,9 @@ func (s *ServerTailnet) acquireTicket(agentID uuid.UUID) (release func()) {
 	}
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.WorkspaceAgentConn, func(), error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.AgentConn, func(), error) {
 	var (
-		conn *workspacesdk.WorkspaceAgentConn
+		conn *workspacesdk.AgentConn
 		ret  func()
 	)
 
@@ -440,7 +440,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*work
 	}
 	ret = s.acquireTicket(agentID)
 
-	conn = workspacesdk.NewWorkspaceAgentConn(s.conn, workspacesdk.WorkspaceAgentConnOptions{
+	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
 		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
 	})

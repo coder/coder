@@ -65,7 +65,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	_, _ = fmt.Fprintf(logs, "\tHeight:  %d\n", height)
 	_, _ = fmt.Fprintf(logs, "\tCommand: %q\n\n", r.cfg.Init.Command)
 
-	conn, err := workspacesdk.NewWorkspaceClient(r.client).WorkspaceAgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
+	conn, err := workspacesdk.NewClient(r.client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   r.cfg.AgentID,
 		Reconnect: id,
 		Width:     width,

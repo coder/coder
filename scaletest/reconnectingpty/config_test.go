@@ -31,7 +31,7 @@ func Test_Config(t *testing.T) {
 			name: "OKFull",
 			config: reconnectingpty.Config{
 				AgentID: id,
-				Init: workspacesdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					ID:      id,
 					Width:   80,
 					Height:  24,

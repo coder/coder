@@ -33,7 +33,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 	seen := make(map[uint16]struct{}, len(tabs))
 	ports := []codersdk.WorkspaceAgentListeningPort{}
 	for _, tab := range tabs {
-		if tab.LocalAddr == nil || tab.LocalAddr.Port < workspacesdk.WorkspaceAgentMinimumListeningPort {
+		if tab.LocalAddr == nil || tab.LocalAddr.Port < workspacesdk.AgentMinimumListeningPort {
 			continue
 		}
 

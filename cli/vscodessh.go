@@ -165,8 +165,8 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			if r.disableDirect {
 				logger.Info(ctx, "direct connections disabled")
 			}
-			agentConn, err := workspacesdk.NewWorkspaceClient(client).
-				DialWorkspaceAgent(ctx, workspaceAgent.ID, &workspacesdk.DialWorkspaceAgentOptions{
+			agentConn, err := workspacesdk.NewClient(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:         logger,
 					BlockEndpoints: r.disableDirect,
 				})
@@ -282,7 +282,7 @@ type sshNetworkStats struct {
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err

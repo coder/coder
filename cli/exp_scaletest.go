@@ -668,7 +668,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 				if runCommand != "" {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
-						Init: workspacesdk.WorkspaceAgentReconnectingPTYInit{
+						Init: workspacesdk.AgentReconnectingPTYInit{
 							ID:      uuid.Nil,
 							Height:  24,
 							Width:   80,

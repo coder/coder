@@ -228,7 +228,7 @@ func TestPGCoordinatorSingle_AgentValidIPLegacy(t *testing.T) {
 	defer agent.close()
 	agent.sendNode(&agpl.Node{
 		Addresses: []netip.Prefix{
-			netip.PrefixFrom(workspacesdk.WorkspaceAgentIP, 128),
+			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		},
 		PreferredDERP: 10,
 	})

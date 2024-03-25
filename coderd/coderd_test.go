@@ -190,10 +190,10 @@ func TestDERPForceWebSockets(t *testing.T) {
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
-	wsclient := workspacesdk.NewWorkspaceClient(client)
+	wsclient := workspacesdk.NewClient(client)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	gen, err := wsclient.WorkspaceAgentConnectionInfoGeneric(context.Background())
+	gen, err := wsclient.AgentConnectionInfoGeneric(context.Background())
 	require.NoError(t, err)
 	t.Log(spew.Sdump(gen))
 
@@ -215,8 +215,8 @@ func TestDERPForceWebSockets(t *testing.T) {
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	conn, err := wsclient.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID,
-		&workspacesdk.DialWorkspaceAgentOptions{
+	conn, err := wsclient.DialAgent(ctx, resources[0].Agents[0].ID,
+		&workspacesdk.DialAgentOptions{
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("client"),
 		},
 	)

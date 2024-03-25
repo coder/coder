@@ -951,7 +951,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			defer cancel()
 
 			app := appDetails.Apps.Port
-			app.AppSlugOrPort = strconv.Itoa(workspacesdk.WorkspaceAgentMinimumListeningPort - 1)
+			app.AppSlugOrPort = strconv.Itoa(workspacesdk.AgentMinimumListeningPort - 1)
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -1721,7 +1721,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 		return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 	}
 
-	conn, err := workspacesdk.NewWorkspaceClient(client).WorkspaceAgentReconnectingPTY(ctx, opts)
+	conn, err := workspacesdk.NewClient(client).AgentReconnectingPTY(ctx, opts)
 	require.NoError(t, err)
 	defer conn.Close()
 

@@ -26,65 +26,65 @@ import (
 	"github.com/coder/retry"
 )
 
-type WorkspaceClient struct {
+type Client struct {
 	client *codersdk.Client
 }
 
-func NewWorkspaceClient(c *codersdk.Client) *WorkspaceClient {
-	return &WorkspaceClient{client: c}
+func NewClient(c *codersdk.Client) *Client {
+	return &Client{client: c}
 }
 
-// WorkspaceAgentConnectionInfo returns required information for establishing
+// AgentConnectionInfo returns required information for establishing
 // a connection with a workspace.
-// @typescript-ignore WorkspaceAgentConnectionInfo
-type WorkspaceAgentConnectionInfo struct {
+// @typescript-ignore AgentConnectionInfo
+type AgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
 	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
-func (c *WorkspaceClient) WorkspaceAgentConnectionInfoGeneric(ctx context.Context) (WorkspaceAgentConnectionInfo, error) {
+func (c *Client) AgentConnectionInfoGeneric(ctx context.Context) (AgentConnectionInfo, error) {
 	res, err := c.client.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/connection", nil)
 	if err != nil {
-		return WorkspaceAgentConnectionInfo{}, err
+		return AgentConnectionInfo{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentConnectionInfo{}, codersdk.ReadBodyAsError(res)
+		return AgentConnectionInfo{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var connInfo WorkspaceAgentConnectionInfo
+	var connInfo AgentConnectionInfo
 	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
-func (c *WorkspaceClient) WorkspaceAgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentConnectionInfo, error) {
+func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (AgentConnectionInfo, error) {
 	res, err := c.client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
-		return WorkspaceAgentConnectionInfo{}, err
+		return AgentConnectionInfo{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentConnectionInfo{}, codersdk.ReadBodyAsError(res)
+		return AgentConnectionInfo{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var connInfo WorkspaceAgentConnectionInfo
+	var connInfo AgentConnectionInfo
 	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
-// @typescript-ignore DialWorkspaceAgentOptions
-type DialWorkspaceAgentOptions struct {
+// @typescript-ignore DialAgentOptions
+type DialAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP. The Client may
 	// have DisableDirect set which will override this value.
 	BlockEndpoints bool
 }
 
-func (c *WorkspaceClient) DialWorkspaceAgent(dialCtx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
+func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn *AgentConn, err error) {
 	if options == nil {
-		options = &DialWorkspaceAgentOptions{}
+		options = &DialAgentOptions{}
 	}
 
-	connInfo, err := c.WorkspaceAgentConnectionInfo(dialCtx, agentID)
+	connInfo, err := c.AgentConnectionInfo(dialCtx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
@@ -161,7 +161,7 @@ func (c *WorkspaceClient) DialWorkspaceAgent(dialCtx context.Context, agentID uu
 		options.Logger.Debug(ctx, "connected to tailnet v2+ API")
 	}
 
-	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
+	agentConn = NewAgentConn(conn, AgentConnOptions{
 		AgentID: agentID,
 		CloseFunc: func() error {
 			cancel()
@@ -405,10 +405,10 @@ type WorkspaceAgentReconnectingPTYOpts struct {
 	SignedToken string
 }
 
-// WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
+// AgentReconnectingPTY spawns a PTY that reconnects using the token provided.
 // It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
 // Responses are PTY output that can be rendered.
-func (c *WorkspaceClient) WorkspaceAgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentReconnectingPTYOpts) (net.Conn, error) {
+func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentReconnectingPTYOpts) (net.Conn, error) {
 	serverURL, err := c.client.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", opts.AgentID))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)

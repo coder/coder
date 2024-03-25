@@ -1783,7 +1783,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.WorkspaceAgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   derpMap,
@@ -1812,7 +1812,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		// Force DERP.
 		conn.SetBlockEndpoints(true)
 
-		sdkConn := workspacesdk.NewWorkspaceAgentConn(conn, workspacesdk.WorkspaceAgentConnOptions{
+		sdkConn := workspacesdk.NewAgentConn(conn, workspacesdk.AgentConnOptions{
 			AgentID:   agentID,
 			CloseFunc: func() error { return workspacesdk.ErrSkipClose },
 		})
@@ -2223,7 +2223,7 @@ func setupSSHSession(
 }
 
 func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
-	*workspacesdk.WorkspaceAgentConn,
+	*workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
 	afero.Fs,
@@ -2296,7 +2296,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 			t.Logf("error closing in-mem coordination: %s", err.Error())
 		}
 	})
-	agentConn := workspacesdk.NewWorkspaceAgentConn(conn, workspacesdk.WorkspaceAgentConnOptions{
+	agentConn := workspacesdk.NewAgentConn(conn, workspacesdk.AgentConnOptions{
 		AgentID: metadata.AgentID,
 	})
 	t.Cleanup(func() {

@@ -197,7 +197,7 @@ resourceLoop:
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		connInfo, err := workspacesdk.NewWorkspaceClient(client).WorkspaceAgentConnectionInfo(ctx, agentID)
+		connInfo, err := workspacesdk.NewClient(client).AgentConnectionInfo(ctx, agentID)
 		require.NoError(t, err)
 
 		// There should be three DERP regions in the map: the primary, and each
@@ -270,7 +270,7 @@ resourceLoop:
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		connInfo, err := workspacesdk.NewWorkspaceClient(client).WorkspaceAgentConnectionInfo(ctx, agentID)
+		connInfo, err := workspacesdk.NewClient(client).AgentConnectionInfo(ctx, agentID)
 		require.NoError(t, err)
 		require.NotNil(t, connInfo.DERPMap)
 		require.Len(t, connInfo.DERPMap.Regions, 3+len(api.DeploymentValues.DERP.Server.STUNAddresses.Value()))
@@ -430,8 +430,8 @@ resourceLoop:
 	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Connect to the workspace agent.
-	conn, err := workspacesdk.NewWorkspaceClient(client).
-		DialWorkspaceAgent(ctx, agentID, &workspacesdk.DialWorkspaceAgentOptions{
+	conn, err := workspacesdk.NewClient(client).
+		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 			Logger: slogtest.Make(t, &slogtest.Options{
 				IgnoreErrors: true,
 			}).Named("client").Leveled(slog.LevelDebug),

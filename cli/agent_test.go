@@ -92,8 +92,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := workspacesdk.NewWorkspaceClient(client).
-			DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.NewClient(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))
@@ -132,8 +132,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := workspacesdk.NewWorkspaceClient(client).
-			DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.NewClient(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))
@@ -176,7 +176,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := workspacesdk.NewWorkspaceClient(client).DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.NewClient(client).DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))

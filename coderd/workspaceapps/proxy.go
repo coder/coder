@@ -69,7 +69,7 @@ type AgentProvider interface {
 	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
-	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.WorkspaceAgentConn, release func(), _ error)
+	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
 
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
@@ -514,10 +514,10 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		if portInt < workspacesdk.WorkspaceAgentMinimumListeningPort {
+		if portInt < workspacesdk.AgentMinimumListeningPort {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.",
-					portInt, workspacesdk.WorkspaceAgentMinimumListeningPort,
+					portInt, workspacesdk.AgentMinimumListeningPort,
 				),
 			})
 			return

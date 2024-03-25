@@ -128,7 +128,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: workspacesdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",
@@ -417,7 +417,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: workspacesdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",
