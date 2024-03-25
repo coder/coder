@@ -94,17 +94,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
 	options.Database = cryptDB
-
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
-		AGPL:    coderd.New(options.Options),
 		Options: options,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
 	}
+	// This must happen before coderd initialization!
+	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
+	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {
 			_ = api.Close()
@@ -144,29 +145,32 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               true,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -529,6 +533,38 @@ type API struct {
 
 	licenseMetricsCollector license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+}
+
+// writeEntitlementWarningsHeader writes the entitlement warnings to the response header
+// for all authenticated users with roles. If there are no warnings, this header will not be written.
+//
+// This header is used by the CLI to display warnings to the user without having
+// to make additional requests!
+func (api *API) writeEntitlementWarningsHeader(a httpmw.Authorization, header http.Header) {
+	roles, err := a.Actor.Roles.Expand()
+	if err != nil {
+		return
+	}
+	nonMemberRoles := 0
+	for _, role := range roles {
+		// The member role is implied, and not assignable.
+		// If there is no display name, then the role is also unassigned.
+		// This is not the ideal logic, but works for now.
+		if role.Name == rbac.RoleMember() || (role.DisplayName == "") {
+			continue
+		}
+		nonMemberRoles++
+	}
+	if nonMemberRoles == 0 {
+		// Don't show entitlement warnings if the user
+		// has no roles. This is a normal user!
+		return
+	}
+	api.entitlementsMu.RLock()
+	defer api.entitlementsMu.RUnlock()
+	for _, warning := range api.entitlements.Warnings {
+		header.Add(codersdk.EntitlementsWarningHeader, warning)
+	}
 }
 
 func (api *API) Close() error {

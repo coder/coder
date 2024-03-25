@@ -129,6 +129,12 @@ type Options struct {
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
+	// PostAuthAdditionalHeadersFunc is used to add additional headers to the response
+	// after a successful authentication.
+	// This is somewhat janky, but seemingly the only reasonable way to add a header
+	// for all authenticated users under a condition, only in Enterprise.
+	PostAuthAdditionalHeadersFunc func(auth httpmw.Authorization, header http.Header)
+
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -557,30 +563,33 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               true,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
