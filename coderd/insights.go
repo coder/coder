@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -102,6 +103,19 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		// No data is not an error.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
+				Report: codersdk.UserActivityInsightsReport{
+					StartTime:   startTime,
+					EndTime:     endTime,
+					TemplateIDs: []uuid.UUID{},
+					Users:       []codersdk.UserActivity{},
+				},
+			})
+			return
+		}
+		// Check authorization.
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return

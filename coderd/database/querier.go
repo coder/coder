@@ -212,11 +212,11 @@ type sqlcQuerier interface {
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// GetUserActivityInsights returns the ranking with top active users.
-	// The result can be filtered on template_ids, meaning only user data from workspaces
-	// based on those templates will be included.
-	// Note: When selecting data from multiple templates or the entire deployment,
-	// be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
-	// users may be counted multiple times for the same time interval if they have used multiple templates
+	// The result can be filtered on template_ids, meaning only user data
+	// from workspaces based on those templates will be included.
+	// Note: The usage_seconds and usage_seconds_cumulative differ only when
+	// requesting deployment-wide (or multiple template) data. Cumulative
+	// produces a bloated value if a user has used multiple templates
 	// simultaneously.
 	GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)

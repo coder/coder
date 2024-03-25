@@ -27,80 +27,59 @@ ORDER BY
 
 -- name: GetUserActivityInsights :many
 -- GetUserActivityInsights returns the ranking with top active users.
--- The result can be filtered on template_ids, meaning only user data from workspaces
--- based on those templates will be included.
--- Note: When selecting data from multiple templates or the entire deployment,
--- be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
--- users may be counted multiple times for the same time interval if they have used multiple templates
+-- The result can be filtered on template_ids, meaning only user data
+-- from workspaces based on those templates will be included.
+-- Note: The usage_seconds and usage_seconds_cumulative differ only when
+-- requesting deployment-wide (or multiple template) data. Cumulative
+-- produces a bloated value if a user has used multiple templates
 -- simultaneously.
-WITH app_stats AS (
-	SELECT
-		s.start_time,
-		was.user_id,
-		w.template_id,
-		60 as seconds
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+WITH
+	deployment_stats AS (
+		SELECT
+			start_time,
+			user_id,
+			array_agg(template_id) AS template_ids,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= @start_time::timestamptz
+			AND end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	template_ids AS (
+		SELECT
+			user_id,
+			array_agg(DISTINCT template_id) AS ids
+		FROM
+			deployment_stats, unnest(template_ids) template_id
+		GROUP BY
+			user_id
 	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= @start_time::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id
-), session_stats AS (
-	SELECT
-		date_trunc('minute', was.created_at) as start_time,
-		was.user_id,
-		was.template_id,
-		CASE WHEN
-			SUM(was.session_count_vscode) > 0 OR
-			SUM(was.session_count_jetbrains) > 0 OR
-			SUM(was.session_count_reconnecting_pty) > 0 OR
-			SUM(was.session_count_ssh) > 0
-		THEN 60 ELSE 0 END as seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= @start_time::timestamptz
-		AND was.created_at < @end_time::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id, was.template_id
-), combined_stats AS (
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM app_stats
-	UNION
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM session_stats
-)
+
 SELECT
-	users.id as user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	SUM(seconds) AS usage_seconds
-FROM combined_stats
-JOIN users ON (users.id = combined_stats.user_id)
-GROUP BY users.id, username, avatar_url
-ORDER BY user_id ASC;
+	ds.user_id,
+	u.username,
+	u.avatar_url,
+	t.ids::uuid[] AS template_ids,
+	(SUM(ds.usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	deployment_stats ds
+JOIN
+	users u
+ON
+	u.id = ds.user_id
+JOIN
+	template_ids t
+ON
+	ds.user_id = t.user_id
+GROUP BY
+	ds.user_id, u.username, u.avatar_url, t.ids
+ORDER BY
+	ds.user_id ASC;
 
 -- name: GetTemplateInsights :one
 -- GetTemplateInsights returns the aggregate user-produced usage of all
