@@ -202,7 +202,9 @@ jobs:
           popd
 
       - name: make gen
-        run: "make --output-sync -j -B gen"
+        # no `-j` flag as `make` fails with:
+        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
+        run: "make --output-sync -B gen"
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -604,9 +606,6 @@ jobs:
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
 
-      - name: make gen
-        run: "make --output-sync -j -B gen"
-
       - name: Format
         run: |
           cd offlinedocs
@@ -618,8 +617,10 @@ jobs:
           pnpm lint
 
       - name: Build
+        # no `-j` flag as `make` fails with:
+        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
         run: |
-          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
+          make build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
