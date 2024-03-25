@@ -3058,7 +3058,7 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	// FROM
 	for _, stat := range q.templateUsageStats {
 		// WHERE
-		if stat.StartTime.Before(arg.StartTime) || stat.StartTime.After(arg.EndTime) {
+		if stat.StartTime.Before(arg.StartTime) || stat.EndTime.After(arg.EndTime) {
 			continue
 		}
 		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, stat.TemplateID) {
@@ -3118,12 +3118,12 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	}
 
 	templateRows := make(map[appGroupBy]templateRow)
-	for _, row := range appInsightRows {
+	for _, aiRow := range appInsightRows {
 		key := appGroupBy{
-			AppName:     row.AppName,
-			DisplayName: row.DisplayName,
-			Icon:        row.Icon,
-			IsApp:       row.IsApp,
+			AppName:     aiRow.AppName,
+			DisplayName: aiRow.DisplayName,
+			Icon:        aiRow.Icon,
+			IsApp:       aiRow.IsApp,
 		}
 		row, ok := templateRows[key]
 		if !ok {
@@ -3131,7 +3131,7 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 				appGroupBy: key,
 			}
 		}
-		row.TemplateIDs = append(row.TemplateIDs, row.TemplateIDs...)
+		row.TemplateIDs = uniqueSortedUUIDs(append(row.TemplateIDs, aiRow.TemplateIDs...))
 		templateRows[key] = row
 	}
 
@@ -3171,18 +3171,20 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			IsApp:       aiRow.IsApp,
 		}
 		row := groupedRows[key]
-		row.TemplateIDs = append(row.TemplateIDs, aiRow.TemplateIDs...)
 		row.ActiveUserIDs = append(row.ActiveUserIDs, aiRow.UserID)
 		row.UsageSeconds += aiRow.AppUsageMins * 60
+		groupedRows[key] = row
 	}
 
 	var rows []database.GetTemplateAppInsightsRow
-	for k, gr := range groupedRows {
+	for key, gr := range groupedRows {
 		rows = append(rows, database.GetTemplateAppInsightsRow{
-			TemplateIDs:  uniqueSortedUUIDs(gr.TemplateIDs),
+			TemplateIDs:  templateRows[key].TemplateIDs,
 			ActiveUsers:  int64(len(uniqueSortedUUIDs(gr.ActiveUserIDs))),
-			DisplayName:  k.DisplayName,
-			SlugOrPort:   k.AppName,
+			SlugOrPort:   key.AppName,
+			DisplayName:  key.DisplayName,
+			Icon:         key.Icon,
+			IsApp:        key.IsApp,
 			UsageSeconds: gr.UsageSeconds,
 		})
 	}
@@ -8354,7 +8356,7 @@ func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 			return err
 		}
 		// CROSS JOIN generate_series
-		for t := was.SessionStartedAt; t.Before(was.SessionEndedAt); t = t.Add(time.Minute) {
+		for t := was.SessionStartedAt.Truncate(time.Minute); t.Before(was.SessionEndedAt); t = t.Add(time.Minute) {
 			// WHERE
 			if t.Before(latestStart) || t.After(now) || t.Equal(now) {
 				continue
