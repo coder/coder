@@ -19,12 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/identityprovider"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -34,11 +32,8 @@ func TestOAuth2ProviderApps(t *testing.T) {
 	t.Run("Validation", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		}})
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		topCtx := testutil.Context(t, testutil.WaitLong)
 
@@ -178,11 +173,8 @@ func TestOAuth2ProviderApps(t *testing.T) {
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
 
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		}})
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
 		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -194,11 +186,8 @@ func TestOAuth2ProviderApps(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		}})
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
 		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -269,11 +258,8 @@ func TestOAuth2ProviderApps(t *testing.T) {
 
 	t.Run("ByUser", func(t *testing.T) {
 		t.Parallel()
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		}})
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
 		another, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_ = generateApps(ctx, t, client, "by-user")
@@ -288,11 +274,8 @@ func TestOAuth2ProviderApps(t *testing.T) {
 func TestOAuth2ProviderAppSecrets(t *testing.T) {
 	t.Parallel()
 
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureOAuth2Provider: 1,
-		},
-	}})
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
 
 	topCtx := testutil.Context(t, testutil.WaitLong)
 
@@ -383,17 +366,11 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
-	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		},
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
 	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	topCtx := testutil.Context(t, testutil.WaitLong)
 	apps := generateApps(topCtx, t, ownerClient, "token-exchange")
 
@@ -764,17 +741,11 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	topCtx := testutil.Context(t, testutil.WaitLong)
 
 	db, pubsub := dbtestutil.NewDB(t)
-	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureOAuth2Provider: 1,
-			},
-		},
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
 	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	apps := generateApps(topCtx, t, ownerClient, "token-refresh")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -935,11 +906,8 @@ type exchangeSetup struct {
 func TestOAuth2ProviderRevoke(t *testing.T) {
 	t.Parallel()
 
-	client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureOAuth2Provider: 1,
-		},
-	}})
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
 
 	tests := []struct {
 		name string
@@ -1137,4 +1105,11 @@ func authorizationFlow(ctx context.Context, client *codersdk.Client, cfg *oauth2
 			})
 		},
 	)
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

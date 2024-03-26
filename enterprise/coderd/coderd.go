@@ -153,16 +153,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
-	// Same as above but it redirects to the login page.
-	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                            options.Database,
-		OAuth2Configs:                 oauthConfigs,
-		RedirectToLogin:               true,
-		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                      false,
-		SessionTokenFunc:              nil, // Default behavior
-		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
-	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		OAuth2Configs:                 oauthConfigs,
@@ -178,33 +168,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
 	}
 
-	api.AGPL.RootHandler.Group(func(r chi.Router) {
-		// OAuth2 linking routes do not make sense under the /api/v2 path.
-		r.Route("/oauth2", func(r chi.Router) {
-			r.Use(
-				api.oAuth2ProviderMiddleware,
-				// Fetch the app as system because in the /tokens route there will be no
-				// authenticated user.
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
-			)
-			r.Route("/authorize", func(r chi.Router) {
-				r.Use(apiKeyMiddlewareRedirect)
-				r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			})
-			r.Route("/tokens", func(r chi.Router) {
-				r.Group(func(r chi.Router) {
-					r.Use(apiKeyMiddleware)
-					// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-					// route used to revoke permissions from an application.  It is here for
-					// parity with POST on /tokens.
-					r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-				})
-				// The POST /tokens endpoint will be called from an unauthorized client so we
-				// cannot require an API key.
-				r.Post("/", api.postOAuth2ProviderAppToken())
-			})
-		})
-	})
 	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
 		return api.refreshEntitlements(ctx)
 	}
@@ -364,33 +327,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
-		})
-		r.Route("/oauth2-provider", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				api.oAuth2ProviderMiddleware,
-			)
-			r.Route("/apps", func(r chi.Router) {
-				r.Get("/", api.oAuth2ProviderApps)
-				r.Post("/", api.postOAuth2ProviderApp)
-
-				r.Route("/{app}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
-					r.Get("/", api.oAuth2ProviderApp)
-					r.Put("/", api.putOAuth2ProviderApp)
-					r.Delete("/", api.deleteOAuth2ProviderApp)
-
-					r.Route("/secrets", func(r chi.Router) {
-						r.Get("/", api.oAuth2ProviderAppSecrets)
-						r.Post("/", api.postOAuth2ProviderAppSecret)
-
-						r.Route("/{secretID}", func(r chi.Router) {
-							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
-							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
-						})
-					})
-				})
-			})
 		})
 		r.Route("/integrations", func(r chi.Router) {
 			r.Use(
@@ -596,7 +532,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
-			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,

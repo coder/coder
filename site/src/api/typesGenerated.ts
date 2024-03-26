@@ -1909,7 +1909,6 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
-  | "oauth2_provider"
   | "scim"
   | "template_rbac"
   | "user_limit"
@@ -1927,7 +1926,6 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
-  "oauth2_provider",
   "scim",
   "template_rbac",
   "user_limit",
