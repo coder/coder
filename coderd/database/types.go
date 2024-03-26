@@ -90,3 +90,25 @@ func (m *StringMap) Scan(src interface{}) error {
 func (m StringMap) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
+
+type StringMapOfInt map[string]int64
+
+func (m *StringMapOfInt) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	switch src := src.(type) {
+	case []byte:
+		err := json.Unmarshal(src, m)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
+	}
+	return nil
+}
+
+func (m StringMapOfInt) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}

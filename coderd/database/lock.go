@@ -6,10 +6,9 @@ import "hash/fnv"
 // change. If locks are deprecated, they should be kept in this list to avoid
 // reusing the same ID.
 const (
-	// Keep the unused iota here so we don't need + 1 every time
-	lockIDUnused = iota
-	LockIDDeploymentSetup
+	LockIDDeploymentSetup = iota + 1
 	LockIDEnterpriseDeploymentSetup
+	LockIDDBRollup
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

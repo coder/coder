@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -102,6 +103,19 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		// No data is not an error.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
+				Report: codersdk.UserActivityInsightsReport{
+					StartTime:   startTime,
+					EndTime:     endTime,
+					TemplateIDs: []uuid.UUID{},
+					Users:       []codersdk.UserActivity{},
+				},
+			})
+			return
+		}
+		// Check authorization.
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -395,8 +409,8 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
-			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
-			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
+			TemplateIDs:     usage.TemplateIDs,
+			ActiveUsers:     usage.ActiveUsers,
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
 		}
@@ -416,39 +430,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func convertTemplateInsightsTemplateIDs(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []uuid.UUID {
-	templateIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.TemplateIDs {
-		templateIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.TemplateIDs {
-			templateIDSet[id] = struct{}{}
-		}
-	}
-	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
-	for id := range templateIDSet {
-		templateIDs = append(templateIDs, id)
-	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-		return slice.Ascending(a.String(), b.String())
-	})
-	return templateIDs
-}
-
-func convertTemplateInsightsActiveUsers(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) int64 {
-	activeUserIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.ActiveUserIDs {
-		activeUserIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.ActiveUserIDs {
-			activeUserIDSet[id] = struct{}{}
-		}
-	}
-	return int64(len(activeUserIDSet))
-}
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
@@ -456,7 +437,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	// Builtin apps.
 	apps := []codersdk.TemplateAppUsage{
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.VscodeTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
@@ -464,7 +445,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageVscodeSeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.JetbrainsTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
@@ -478,7 +459,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		// condition finding the corresponding app entry in appUsage is:
 		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.ReconnectingPtyTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
@@ -486,7 +467,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageReconnectingPtySeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.SshTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
@@ -501,17 +482,14 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	//
 	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
 	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.AccessMethod != b.AccessMethod {
-			return strings.Compare(a.AccessMethod, b.AccessMethod)
-		}
 		if a.SlugOrPort != b.SlugOrPort {
 			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
 		}
-		if a.DisplayName.String != b.DisplayName.String {
-			return strings.Compare(a.DisplayName.String, b.DisplayName.String)
+		if a.DisplayName != b.DisplayName {
+			return strings.Compare(a.DisplayName, b.DisplayName)
 		}
-		if a.Icon.String != b.Icon.String {
-			return strings.Compare(a.Icon.String, b.Icon.String)
+		if a.Icon != b.Icon {
+			return strings.Compare(a.Icon, b.Icon)
 		}
 		if !a.IsApp && b.IsApp {
 			return -1
@@ -529,9 +507,9 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
-			DisplayName: app.DisplayName.String,
+			DisplayName: app.DisplayName,
 			Slug:        app.SlugOrPort,
-			Icon:        app.Icon.String,
+			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 		})
 	}

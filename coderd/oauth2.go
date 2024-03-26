@@ -13,26 +13,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/identityprovider"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/identityprovider"
 )
 
-func (api *API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
+func (*API) oAuth2ProviderMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !buildinfo.IsDev() {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
 				Message: "OAuth2 provider is under development.",
-			})
-			return
-		}
-
-		api.entitlementsMu.RLock()
-		entitled := api.entitlements.Features[codersdk.FeatureOAuth2Provider].Entitlement != codersdk.EntitlementNotEntitled
-		api.entitlementsMu.RUnlock()
-
-		if !entitled {
-			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "OAuth2 provider is an Enterprise feature. Contact sales!",
 			})
 			return
 		}
@@ -111,7 +100,7 @@ func (api *API) oAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -157,7 +146,7 @@ func (api *API) putOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		app               = httpmw.OAuth2ProviderApp(r)
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -200,7 +189,7 @@ func (api *API) deleteOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request)
 	var (
 		ctx               = r.Context()
 		app               = httpmw.OAuth2ProviderApp(r)
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -263,7 +252,7 @@ func (api *API) postOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Requ
 	var (
 		ctx               = r.Context()
 		app               = httpmw.OAuth2ProviderApp(r)
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -317,7 +306,7 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 	var (
 		ctx               = r.Context()
 		secret            = httpmw.OAuth2ProviderAppSecret(r)
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.OAuth2ProviderAppSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,

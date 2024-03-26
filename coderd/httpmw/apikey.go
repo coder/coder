@@ -113,6 +113,13 @@ type ExtractAPIKeyConfig struct {
 	// SessionTokenFunc is a custom function that can be used to extract the API
 	// key. If nil, the default behavior is used.
 	SessionTokenFunc func(r *http.Request) string
+
+	// PostAuthAdditionalHeadersFunc is a function that can be used to add
+	// headers to the response after the user has been authenticated.
+	//
+	// This is originally implemented to send entitlement warning headers after
+	// a user is authenticated to prevent additional CLI invocations.
+	PostAuthAdditionalHeadersFunc func(a Authorization, header http.Header)
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -452,6 +459,10 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			Groups: roles.Groups,
 			Scope:  rbac.ScopeName(key.Scope),
 		}.WithCachedASTValue(),
+	}
+
+	if cfg.PostAuthAdditionalHeadersFunc != nil {
+		cfg.PostAuthAdditionalHeadersFunc(authz, rw.Header())
 	}
 
 	return key, &authz, true

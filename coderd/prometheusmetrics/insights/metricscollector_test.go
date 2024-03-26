@@ -3,12 +3,13 @@ package insights_test
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -17,17 +18,14 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,7 +33,7 @@ func TestCollectInsights(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	db, ps := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 
 	options := &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
@@ -43,8 +41,10 @@ func TestCollectInsights(t *testing.T) {
 		Database:                  db,
 		Pubsub:                    ps,
 	}
-	client := coderdtest.New(t, options)
-	client.SetLogger(logger.Named("client").Leveled(slog.LevelDebug))
+	ownerClient := coderdtest.New(t, options)
+	ownerClient.SetLogger(logger.Named("ownerClient").Leveled(slog.LevelDebug))
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	// Given
 	// Initialize metrics collector
@@ -54,49 +54,55 @@ func TestCollectInsights(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	registry.Register(mc)
 
-	// Create two users, one that will appear in the report and another that
-	// won't (due to not having/using a workspace).
-	user := coderdtest.CreateFirstUser(t, client)
-	_, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  provisionPlanWithParameters(),
-		ProvisionApply: provisionApplyWithAgentAndApp(authToken),
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-		ctr.Name = "golden-template"
-	})
-	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
-
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-			{Name: "first_parameter", Value: "Foobar"},
-			{Name: "second_parameter", Value: "true"},
-			{Name: "third_parameter", Value: "789"},
-		}
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	var (
+		orgID      = owner.OrganizationID
+		tpl        = dbgen.Template(t, db, database.Template{OrganizationID: orgID, CreatedBy: user.ID, Name: "golden-template"})
+		ver        = dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: orgID, CreatedBy: user.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+		param1     = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{TemplateVersionID: ver.ID, Name: "first_parameter"})
+		param2     = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{TemplateVersionID: ver.ID, Name: "second_parameter", Type: "bool"})
+		param3     = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{TemplateVersionID: ver.ID, Name: "third_parameter", Type: "number"})
+		workspace1 = dbgen.Workspace(t, db, database.Workspace{OrganizationID: orgID, TemplateID: tpl.ID, OwnerID: user.ID})
+		workspace2 = dbgen.Workspace(t, db, database.Workspace{OrganizationID: orgID, TemplateID: tpl.ID, OwnerID: user.ID})
+		job1       = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: orgID})
+		job2       = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: orgID})
+		build1     = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{TemplateVersionID: ver.ID, WorkspaceID: workspace1.ID, JobID: job1.ID})
+		build2     = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{TemplateVersionID: ver.ID, WorkspaceID: workspace2.ID, JobID: job2.ID})
+		res1       = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build1.JobID})
+		res2       = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build2.JobID})
+		agent1     = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res1.ID})
+		agent2     = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res2.ID})
+		app1       = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agent1.ID, Slug: "golden-slug", DisplayName: "Golden Slug"})
+		app2       = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agent2.ID, Slug: "golden-slug", DisplayName: "Golden Slug"})
+		_          = dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+			{WorkspaceBuildID: build1.ID, Name: param1.Name, Value: "Foobar"},
+			{WorkspaceBuildID: build1.ID, Name: param2.Name, Value: "true"},
+			{WorkspaceBuildID: build1.ID, Name: param3.Name, Value: "789"},
+		})
+		_ = dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
+			{WorkspaceBuildID: build2.ID, Name: param1.Name, Value: "Baz"},
+			{WorkspaceBuildID: build2.ID, Name: param2.Name, Value: "true"},
+			{WorkspaceBuildID: build2.ID, Name: param3.Name, Value: "999"},
+		})
+	)
 
 	// Start an agent so that we can generate stats.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named("agent"))
-
-	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
-		o.Client = agentClient
-	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	var agentClients []*agentsdk.Client
+	for i, agent := range []database.WorkspaceAgent{agent1, agent2} {
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agent.AuthToken.String())
+		agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named(fmt.Sprintf("agent%d", i+1)))
+		agentClients = append(agentClients, agentClient)
+	}
 
 	// Fake app stats
-	_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
-		// ConnectionsByProto can't be nil, otherwise stats get rejected
-		ConnectionsByProto: map[string]int64{"TCP": 1},
+	_, err = agentClients[0].PostStats(context.Background(), &agentsdk.Stats{
 		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
-		ConnectionCount: 74,
-		// SessionCountJetBrains, SessionCountVSCode must be positive, but the exact value is ignored.
+		ConnectionsByProto:        map[string]int64{"TCP": 1},
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 15,
+		// Session counts must be positive, but the exact value is ignored.
 		// Database query approximates it to 60s of usage.
+		SessionCountSSH:       99,
 		SessionCountJetBrains: 47,
 		SessionCountVSCode:    34,
 	})
@@ -104,17 +110,42 @@ func TestCollectInsights(t *testing.T) {
 
 	// Fake app usage
 	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
 	//nolint:gocritic // This is a test.
 	err = reporter.Report(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
 		{
-			UserID:           user.UserID,
-			WorkspaceID:      workspace.ID,
-			AgentID:          resources[0].Agents[0].ID,
-			AccessMethod:     "terminal",
-			SlugOrPort:       "golden-slug",
+			UserID:           user.ID,
+			WorkspaceID:      workspace1.ID,
+			AgentID:          agent1.ID,
+			AccessMethod:     "path",
+			SlugOrPort:       app1.Slug,
 			SessionID:        uuid.New(),
-			SessionStartedAt: time.Now().Add(-3 * time.Minute),
-			SessionEndedAt:   time.Now().Add(-time.Minute).Add(-time.Second),
+			SessionStartedAt: refTime,
+			SessionEndedAt:   refTime.Add(2 * time.Minute).Add(-time.Second),
+			Requests:         1,
+		},
+		// Same usage on differrent workspace/agent in same template,
+		// should not be counted as extra.
+		{
+			UserID:           user.ID,
+			WorkspaceID:      workspace2.ID,
+			AgentID:          agent2.ID,
+			AccessMethod:     "path",
+			SlugOrPort:       app2.Slug,
+			SessionID:        uuid.New(),
+			SessionStartedAt: refTime,
+			SessionEndedAt:   refTime.Add(2 * time.Minute).Add(-time.Second),
+			Requests:         1,
+		},
+		{
+			UserID:           user.ID,
+			WorkspaceID:      workspace2.ID,
+			AgentID:          agent2.ID,
+			AccessMethod:     "path",
+			SlugOrPort:       app2.Slug,
+			SessionID:        uuid.New(),
+			SessionStartedAt: refTime.Add(2 * time.Minute),
+			SessionEndedAt:   refTime.Add(2 * time.Minute).Add(30 * time.Second),
 			Requests:         1,
 		},
 	})
@@ -128,34 +159,6 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err)
 	defer closeFunc()
 
-	// Connect to the agent to generate usage/latency stats.
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client"),
-	})
-	require.NoError(t, err)
-	defer conn.Close()
-
-	sshConn, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshConn.Close()
-
-	sess, err := sshConn.NewSession()
-	require.NoError(t, err)
-	defer sess.Close()
-
-	r, w := io.Pipe()
-	defer r.Close()
-	defer w.Close()
-	sess.Stdin = r
-	sess.Stdout = io.Discard
-	err = sess.Start("cat")
-	require.NoError(t, err)
-
-	defer func() {
-		_ = sess.Close()
-		_ = sshConn.Close()
-	}()
-
 	goldenFile, err := os.ReadFile("testdata/insights-metrics.json")
 	require.NoError(t, err)
 	golden := map[string]int{}
@@ -163,13 +166,16 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err)
 
 	collected := map[string]int{}
-	assert.Eventuallyf(t, func() bool {
+	ok := assert.Eventuallyf(t, func() bool {
 		// When
 		metrics, err := registry.Gather()
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 
 		// Then
 		for _, metric := range metrics {
+			t.Logf("metric: %s: %#v", metric.GetName(), metric)
 			switch metric.GetName() {
 			case "coderd_insights_applications_usage_seconds", "coderd_insights_templates_active_users", "coderd_insights_parameters":
 				for _, m := range metric.Metric {
@@ -180,12 +186,16 @@ func TestCollectInsights(t *testing.T) {
 					collected[key] = int(m.Gauge.GetValue())
 				}
 			default:
-				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
+				assert.Failf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 			}
 		}
 
-		return insightsMetricsAreEqual(golden, collected)
-	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files, got: %v", collected)
+		return assert.ObjectsAreEqualValues(golden, collected)
+	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are inconsistent with golden files")
+	if !ok {
+		diff := cmp.Diff(golden, collected)
+		assert.Empty(t, diff, "template insights are inconsistent with golden files (-golden +collected)")
+	}
 }
 
 func metricLabelAsString(m *io_prometheus_client.Metric) string {
@@ -194,68 +204,4 @@ func metricLabelAsString(m *io_prometheus_client.Metric) string {
 		labels = append(labels, labelPair.GetName()+"="+labelPair.GetValue())
 	}
 	return strings.Join(labels, ",")
-}
-
-func provisionPlanWithParameters() []*proto.Response {
-	return []*proto.Response{
-		{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
-					Parameters: []*proto.RichParameter{
-						{Name: "first_parameter", Type: "string", Mutable: true},
-						{Name: "second_parameter", Type: "bool", Mutable: true},
-						{Name: "third_parameter", Type: "number", Mutable: true},
-					},
-				},
-			},
-		},
-	}
-}
-
-func provisionApplyWithAgentAndApp(authToken string) []*proto.Response {
-	return []*proto.Response{{
-		Type: &proto.Response_Apply{
-			Apply: &proto.ApplyComplete{
-				Resources: []*proto.Resource{{
-					Name: "example",
-					Type: "aws_instance",
-					Agents: []*proto.Agent{{
-						Id:   uuid.NewString(),
-						Name: "example",
-						Auth: &proto.Agent_Token{
-							Token: authToken,
-						},
-						Apps: []*proto.App{
-							{
-								Slug:         "golden-slug",
-								DisplayName:  "Golden Slug",
-								SharingLevel: proto.AppSharingLevel_OWNER,
-								Url:          "http://localhost:1234",
-							},
-						},
-					}},
-				}},
-			},
-		},
-	}}
-}
-
-// insightsMetricsAreEqual patches collected metrics to be used
-// in comparison with golden metrics using `assert.ObjectsAreEqualValues`.
-// Collected metrics must be patched as sometimes they may slip
-// due to timestamp truncation.
-// See:
-// https://github.com/coder/coder/blob/92ef0baff3b632c52c2335aae1d643a3cc49e26a/coderd/database/dbmem/dbmem.go#L2463
-// https://github.com/coder/coder/blob/9b6433e3a7c788b7e87b7d8f539ea111957a0cf1/coderd/database/queries/insights.sql#L246
-func insightsMetricsAreEqual(golden, collected map[string]int) bool {
-	greaterOrEqualKeys := []string{
-		"coderd_insights_applications_usage_seconds[application_name=Golden Slug,slug=golden-slug,template_name=golden-template]",
-		"coderd_insights_applications_usage_seconds[application_name=SSH,slug=,template_name=golden-template]",
-	}
-	for _, key := range greaterOrEqualKeys {
-		if v, ok := collected[key]; ok && v > golden[key] {
-			collected[key] = golden[key]
-		}
-	}
-	return assert.ObjectsAreEqualValues(golden, collected)
 }

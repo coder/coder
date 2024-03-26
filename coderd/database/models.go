@@ -2139,6 +2139,34 @@ type TemplateTable struct {
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 }
 
+// Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
+type TemplateUsageStat struct {
+	// Start time of the usage period.
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	// End time of the usage period.
+	EndTime time.Time `db:"end_time" json:"end_time"`
+	// ID of the template being used.
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	// ID of the user using the template.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Median latency the user is experiencing, in milliseconds. Null means no value was recorded.
+	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
+	// Total minutes the user has been using the template.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
+	// Total minutes the user has been using SSH.
+	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
+	// Total minutes the user has been using SFTP.
+	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
+	// Total minutes the user has been using the reconnecting PTY.
+	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
+	// Total minutes the user has been using VSCode.
+	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
+	// Total minutes the user has been using JetBrains.
+	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
+	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
+	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
 	ID                    uuid.UUID       `db:"id" json:"id"`

@@ -741,6 +741,47 @@ CREATE TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
+CREATE TABLE template_usage_stats (
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NOT NULL,
+    template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    median_latency_ms real,
+    usage_mins smallint NOT NULL,
+    ssh_mins smallint NOT NULL,
+    sftp_mins smallint NOT NULL,
+    reconnecting_pty_mins smallint NOT NULL,
+    vscode_mins smallint NOT NULL,
+    jetbrains_mins smallint NOT NULL,
+    app_usage_mins jsonb
+);
+
+COMMENT ON TABLE template_usage_stats IS 'Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.';
+
+COMMENT ON COLUMN template_usage_stats.start_time IS 'Start time of the usage period.';
+
+COMMENT ON COLUMN template_usage_stats.end_time IS 'End time of the usage period.';
+
+COMMENT ON COLUMN template_usage_stats.template_id IS 'ID of the template being used.';
+
+COMMENT ON COLUMN template_usage_stats.user_id IS 'ID of the user using the template.';
+
+COMMENT ON COLUMN template_usage_stats.median_latency_ms IS 'Median latency the user is experiencing, in milliseconds. Null means no value was recorded.';
+
+COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has been using the template.';
+
+COMMENT ON COLUMN template_usage_stats.ssh_mins IS 'Total minutes the user has been using SSH.';
+
+COMMENT ON COLUMN template_usage_stats.sftp_mins IS 'Total minutes the user has been using SFTP.';
+
+COMMENT ON COLUMN template_usage_stats.reconnecting_pty_mins IS 'Total minutes the user has been using the reconnecting PTY.';
+
+COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user has been using VSCode.';
+
+COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
+
+COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -1468,6 +1509,9 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY template_usage_stats
+    ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -1589,6 +1633,14 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
+CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
+
+COMMENT ON INDEX template_usage_stats_start_time_idx IS 'Index for querying MAX(start_time).';
+
+CREATE UNIQUE INDEX template_usage_stats_start_time_template_id_user_id_idx ON template_usage_stats USING btree (start_time, template_id, user_id);
+
+COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Index for primary key.';
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 

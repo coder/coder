@@ -173,26 +173,37 @@ type sqlcQuerier interface {
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
 	GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error)
+	// GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
+	// in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
 	GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error)
 	GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
 	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)
-	// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-	// in use during a minute, we will add 5 minutes to the total usage for that
-	// session/app (per user).
+	// GetTemplateInsights returns the aggregate user-produced usage of all
+	// workspaces in a given timeframe. The template IDs, active users, and
+	// usage_seconds all reflect any usage in the template, including apps.
+	//
+	// When combining data from multiple templates, we must make a guess at
+	// how the user behaved for the 30 minute interval. In this case we make
+	// the assumption that if the user used two workspaces for 15 minutes,
+	// they did so sequentially, thus we sum the usage up to a maximum of
+	// 30 minutes with LEAST(SUM(n), 30).
 	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
 	// GetTemplateInsightsByInterval returns all intervals between start and end
 	// time, if end time is a partial interval, it will be included in the results and
 	// that interval will be shorter than a full one. If there is no data for a selected
 	// interval/template, it will be included in the results with 0 active users.
 	GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error)
+	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
+	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
+	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
@@ -205,11 +216,11 @@ type sqlcQuerier interface {
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// GetUserActivityInsights returns the ranking with top active users.
-	// The result can be filtered on template_ids, meaning only user data from workspaces
-	// based on those templates will be included.
-	// Note: When selecting data from multiple templates or the entire deployment,
-	// be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
-	// users may be counted multiple times for the same time interval if they have used multiple templates
+	// The result can be filtered on template_ids, meaning only user data
+	// from workspaces based on those templates will be included.
+	// Note: The usage_seconds and usage_seconds_cumulative differ only when
+	// requesting deployment-wide (or multiple template) data. Cumulative
+	// produces a bloated value if a user has used multiple templates
 	// simultaneously.
 	GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
@@ -276,6 +287,9 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error)
+	// build_params is used to filter by build parameters if present.
+	// It has to be a CTE because the set returning function 'unnest' cannot
+	// be used in a WHERE clause.
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
@@ -416,6 +430,11 @@ type sqlcQuerier interface {
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
+	// This query aggregates the workspace_agent_stats and workspace_app_stats data
+	// into a single table for efficient storage and querying. Half-hour buckets are
+	// used to store the data, and the minutes are summed for each user and template
+	// combination. The result is stored in the template_usage_stats table.
+	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 }
 

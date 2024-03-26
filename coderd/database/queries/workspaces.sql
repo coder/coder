@@ -77,7 +77,16 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
-WITH filtered_workspaces AS (
+WITH
+-- build_params is used to filter by build parameters if present.
+-- It has to be a CTE because the set returning function 'unnest' cannot
+-- be used in a WHERE clause.
+build_params AS (
+SELECT
+	LOWER(unnest(@param_names :: text[])) AS name,
+	LOWER(unnest(@param_values :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
@@ -96,6 +105,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -184,6 +194,40 @@ WHERE
 			workspaces.owner_id = @owner_id
 		ELSE true
 	END
+	-- Filter by build parameter
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length(@has_param :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY(@has_param)
+		)
+		ELSE true
+	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length(@param_names :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN

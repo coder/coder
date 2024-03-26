@@ -46,6 +46,8 @@ SUBCOMMANDS:
     stat              Show resource usage for the current workspace.
     state             Manually manage Terraform state to fix broken workspaces
     stop              Stop a workspace
+    support           Commands for troubleshooting issues with a Coder
+                      deployment.
     templates         Manage templates
     tokens            Manage personal access tokens
     unfavorite        Remove a workspace from your favorites
