@@ -24,10 +24,12 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+const defaultRefreshRate = time.Minute
+
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
 func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 5 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -74,7 +76,7 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 // Workspaces tracks the total number of workspaces with labels on status.
 func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 5 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	workspaceStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -193,7 +195,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 // Agents tracks the total number of workspaces with labels on status.
 func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 1 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	agentsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -382,7 +384,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string) (func(), error) {
 	if duration == 0 {
-		duration = 1 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	if len(aggregateByLabels) == 0 {
