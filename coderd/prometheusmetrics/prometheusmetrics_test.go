@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"reflect"
 	"sync/atomic"
@@ -669,7 +668,9 @@ func insertUser(t *testing.T, db database.Store) database.User {
 
 func insertRunning(t *testing.T, db database.Store) database.ProvisionerJob {
 	var template, templateVersion uuid.UUID
-	if rand.Intn(10) > 5 {
+	rnd, err := cryptorand.Intn(10)
+	require.NoError(t, err)
+	if rnd > 5 {
 		template = templateB
 		templateVersion = templateVersionB
 	} else {
