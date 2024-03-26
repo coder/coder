@@ -2986,68 +2986,93 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	*/
 
 	/*
-		app_insights AS (
-			SELECT
-				tus.user_id,
-				array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
-				app_usage.key::text AS app_name,
-				COALESCE(wa.display_name, '') AS display_name,
-				COALESCE(wa.icon, '') AS icon,
-				(wa.slug IS NOT NULL)::boolean AS is_app,
-				LEAST(SUM(app_usage.value::int), 30) AS app_usage_mins
+		-- Create a list of all unique apps by template, this is used to
+		-- filter out irrelevant template usage stats.
+		apps AS (
+			SELECT DISTINCT ON (ws.template_id, app.slug)
+				ws.template_id,
+				app.slug,
+				app.display_name,
+				app.icon
 			FROM
-				template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
-			LEFT JOIN LATERAL (
-				-- Fetch the latest app info for each app based on slug and template.
-				SELECT
-					app.display_name,
-					app.icon,
-					app.slug
-				FROM
-					workspace_apps AS app
-				JOIN
-					workspace_agents AS agent
-				ON
-					agent.id = app.agent_id
-				JOIN
-					workspace_resources AS resource
-				ON
-					resource.id = agent.resource_id
-				JOIN
-					workspace_builds AS build
-				ON
-					build.job_id = resource.job_id
-				JOIN
-					workspaces AS workspace
-				ON
-					workspace.id = build.workspace_id
-				WHERE
-					-- Requires lateral join.
-					app.slug = app_usage.key
-					AND workspace.owner_id = tus.user_id
-					AND workspace.template_id = tus.template_id
-				ORDER BY
-					app.created_at DESC
-				LIMIT 1
-			) AS wa
+				workspaces ws
+			JOIN
+				workspace_builds AS build
 			ON
-				true
+				build.workspace_id = ws.id
+			JOIN
+				workspace_resources AS resource
+			ON
+				resource.job_id = build.job_id
+			JOIN
+				workspace_agents AS agent
+			ON
+				agent.resource_id = resource.id
+			JOIN
+				workspace_apps AS app
+			ON
+				app.agent_id = agent.id
 			WHERE
+				-- Partial query parameter filter.
+				CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN ws.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			ORDER BY
+				ws.template_id, app.slug, app.created_at DESC
+		),
+		-- Join apps and template usage stats to filter out irrelevant rows.
+		-- Note that this way of joining will eliminate all data-points that
+		-- aren't for "real" apps. That means ports are ignored (even though
+		-- they're part of the dataset), as well as are "[terminal]" entries
+		-- which are alternate datapoints for reconnecting pty usage.
+		template_usage_stats_with_apps AS (
+			SELECT
+				tus.start_time,
+				tus.template_id,
+				tus.user_id,
+				apps.slug,
+				apps.display_name,
+				apps.icon,
+				tus.app_usage_mins
+			FROM
+				apps
+			JOIN
+				template_usage_stats AS tus
+			ON
+				-- Query parameter filter.
 				tus.start_time >= @start_time::timestamptz
 				AND tus.end_time <= @end_time::timestamptz
 				AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+				-- Primary join condition.
+				AND tus.template_id = apps.template_id
+				AND apps.slug IN (SELECT jsonb_object_keys(tus.app_usage_mins))
+		),
+		-- Group the app insights by interval, user and unique app. This
+		-- allows us to deduplicate a user using the same app across
+		-- multiple templates.
+		app_insights AS (
+			SELECT
+				user_id,
+				slug,
+				display_name,
+				icon,
+				-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+				LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+			FROM
+				template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
+			WHERE
+				app_usage.key = slug
 			GROUP BY
-				tus.start_time, tus.user_id, app_usage.key::text, wa.display_name, wa.icon, wa.slug
+				start_time, user_id, slug, display_name, icon
 		),
 	*/
 
+	// Due to query optimizations, this logic is somewhat inverted from
+	// the above query.
 	type appInsightsGroupBy struct {
 		StartTime   time.Time
 		UserID      uuid.UUID
-		AppName     string
+		Slug        string
 		DisplayName string
 		Icon        string
-		IsApp       bool
 	}
 	type appInsightsRow struct {
 		appInsightsGroupBy
@@ -3066,18 +3091,20 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		}
 
 		// json_each
-		for appName, appUsage := range stat.AppUsageMins {
-			// LEFT JOIN LATERAL
-			app, _ := q.getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx, stat.TemplateID, stat.UserID, appName)
+		for slug, appUsage := range stat.AppUsageMins {
+			// FROM apps JOIN template_usage_stats
+			app, _ := q.getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx, stat.TemplateID, stat.UserID, slug)
+			if app.Slug == "" {
+				continue
+			}
 
 			// SELECT
 			key := appInsightsGroupBy{
 				StartTime:   stat.StartTime,
 				UserID:      stat.UserID,
-				AppName:     appName,
+				Slug:        slug,
 				DisplayName: app.DisplayName,
 				Icon:        app.Icon,
-				IsApp:       app.Slug != "",
 			}
 			row, ok := appInsightRows[key]
 			if !ok {
@@ -3092,25 +3119,26 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	}
 
 	/*
+		-- Even though we allow identical apps to be aggregated across
+		-- templates, we still want to be able to report which templates
+		-- the data comes from.
 		templates AS (
 			SELECT
-				app_name,
+				slug,
 				display_name,
 				icon,
-				is_app,
 				array_agg(DISTINCT template_id)::uuid[] AS template_ids
 			FROM
-				app_insights, unnest(template_ids) AS template_id
+				template_usage_stats_with_apps
 			GROUP BY
-				app_name, display_name, icon, is_app
+				slug, display_name, icon
 		)
 	*/
 
 	type appGroupBy struct {
-		AppName     string
+		Slug        string
 		DisplayName string
 		Icon        string
-		IsApp       bool
 	}
 	type templateRow struct {
 		appGroupBy
@@ -3120,10 +3148,9 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	templateRows := make(map[appGroupBy]templateRow)
 	for _, aiRow := range appInsightRows {
 		key := appGroupBy{
-			AppName:     aiRow.AppName,
+			Slug:        aiRow.Slug,
 			DisplayName: aiRow.DisplayName,
 			Icon:        aiRow.Icon,
-			IsApp:       aiRow.IsApp,
 		}
 		row, ok := templateRows[key]
 		if !ok {
@@ -3138,23 +3165,21 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	/*
 		SELECT
 			t.template_ids,
-			array_agg(DISTINCT ai.user_id)::uuid[] AS active_user_ids,
-			ai.app_name AS slug_or_port,
+			COUNT(DISTINCT ai.user_id) AS active_users,
+			ai.slug,
 			ai.display_name,
 			ai.icon,
-			ai.is_app,
-			(SUM(ai.app_usage_mins) * 60)::bigint AS usage_seconds
+			(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
 		FROM
 			app_insights AS ai
 		JOIN
 			templates AS t
 		ON
-			ai.app_name = t.app_name
-			AND ai.display_name = t.display_name
-			AND ai.icon = t.icon
-			AND ai.is_app = t.is_app
+			t.slug = ai.slug
+			AND t.display_name = ai.display_name
+			AND t.icon = ai.icon
 		GROUP BY
-			t.template_ids, ai.app_name, ai.display_name, ai.icon, ai.is_app;
+			t.template_ids, ai.slug, ai.display_name, ai.icon;
 	*/
 
 	type templateAppInsightsRow struct {
@@ -3165,10 +3190,9 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 	groupedRows := make(map[appGroupBy]templateAppInsightsRow)
 	for _, aiRow := range appInsightRows {
 		key := appGroupBy{
-			AppName:     aiRow.AppName,
+			Slug:        aiRow.Slug,
 			DisplayName: aiRow.DisplayName,
 			Icon:        aiRow.Icon,
-			IsApp:       aiRow.IsApp,
 		}
 		row := groupedRows[key]
 		row.ActiveUserIDs = append(row.ActiveUserIDs, aiRow.UserID)
@@ -3181,10 +3205,9 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		rows = append(rows, database.GetTemplateAppInsightsRow{
 			TemplateIDs:  templateRows[key].TemplateIDs,
 			ActiveUsers:  int64(len(uniqueSortedUUIDs(gr.ActiveUserIDs))),
-			SlugOrPort:   key.AppName,
+			Slug:         key.Slug,
 			DisplayName:  key.DisplayName,
 			Icon:         key.Icon,
-			IsApp:        key.IsApp,
 			UsageSeconds: gr.UsageSeconds,
 		})
 	}
