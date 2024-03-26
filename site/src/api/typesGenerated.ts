@@ -2278,7 +2278,7 @@ export type RegionTypes = Region | WorkspaceProxy;
 
 // The code below is generated from codersdk/healthsdk.
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface AccessURLReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2291,7 +2291,7 @@ export interface AccessURLReport {
   readonly error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface DERPHealthReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2306,7 +2306,7 @@ export interface DERPHealthReport {
   readonly error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface DERPNodeReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2327,7 +2327,7 @@ export interface DERPNodeReport {
   readonly stun: STUNReport;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface DERPRegionReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2339,7 +2339,7 @@ export interface DERPRegionReport {
   readonly error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface DatabaseReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2352,12 +2352,12 @@ export interface DatabaseReport {
   readonly error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface HealthSettings {
   readonly dismissed_healthchecks: HealthSection[];
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
@@ -2372,7 +2372,7 @@ export interface HealthcheckReport {
   readonly coder_version: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport {
   readonly severity: HealthSeverity;
   readonly warnings: HealthMessage[];
@@ -2381,25 +2381,25 @@ export interface ProvisionerDaemonsReport {
   readonly items: ProvisionerDaemonsReportItem[];
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReportItem {
   readonly provisioner_daemon: ProvisionerDaemon;
   readonly warnings: HealthMessage[];
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface STUNReport {
   readonly Enabled: boolean;
   readonly CanSTUN: boolean;
   readonly Error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface UpdateHealthSettings {
   readonly dismissed_healthchecks: HealthSection[];
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface WebsocketReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2410,7 +2410,7 @@ export interface WebsocketReport {
   readonly error?: string;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export interface WorkspaceProxyReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
@@ -2420,7 +2420,7 @@ export interface WorkspaceProxyReport {
   readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
-// From healthsdk/health.go
+// From healthsdk/healthsdk.go
 export type HealthSection =
   | "AccessURL"
   | "DERP"
