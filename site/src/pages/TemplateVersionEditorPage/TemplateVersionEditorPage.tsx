@@ -43,27 +43,31 @@ export const TemplateVersionEditorPage: FC = () => {
     templateName,
     versionName,
   );
-  const templateVersionQuery = useQuery({
+  const activeTemplateVersionQuery = useQuery({
     ...templateVersionOptions,
     keepPreviousData: true,
+    refetchInterval(data) {
+      return data?.job.status === "pending" ? 1_000 : false;
+    },
   });
+  const { data: activeTemplateVersion } = activeTemplateVersionQuery;
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
     createTemplateVersion(organizationId),
   );
   const resourcesQuery = useQuery({
-    ...resources(templateVersionQuery.data?.id ?? ""),
-    enabled: templateVersionQuery.data?.job.status === "succeeded",
+    ...resources(activeTemplateVersion?.id ?? ""),
+    enabled: activeTemplateVersion?.job.status === "succeeded",
   });
-  const logs = useWatchVersionLogs(templateVersionQuery.data, {
-    onDone: templateVersionQuery.refetch,
+  const logs = useWatchVersionLogs(activeTemplateVersion, {
+    onDone: activeTemplateVersionQuery.refetch,
   });
-  const { fileTree, tarFile } = useFileTree(templateVersionQuery.data);
+  const { fileTree, tarFile } = useFileTree(activeTemplateVersion);
   const {
     missingVariables,
     setIsMissingVariablesDialogOpen,
     isMissingVariablesDialogOpen,
-  } = useMissingVariables(templateVersionQuery.data);
+  } = useMissingVariables(activeTemplateVersion);
 
   // Handle template publishing
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
@@ -109,10 +113,10 @@ export const TemplateVersionEditorPage: FC = () => {
     Record<string, string>
   >({});
   useEffect(() => {
-    if (templateVersionQuery.data?.job.tags) {
-      setProvisionerTags(templateVersionQuery.data.job.tags);
+    if (activeTemplateVersion?.job.tags) {
+      setProvisionerTags(activeTemplateVersion.job.tags);
     }
-  }, [templateVersionQuery.data?.job.tags]);
+  }, [activeTemplateVersion?.job.tags]);
 
   return (
     <>
@@ -120,14 +124,14 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {!(templateQuery.data && templateVersionQuery.data && fileTree) ? (
+      {!(templateQuery.data && activeTemplateVersion && fileTree) ? (
         <Loader fullscreen />
       ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
           template={templateQuery.data}
-          templateVersion={templateVersionQuery.data}
+          templateVersion={activeTemplateVersion}
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
             if (!tarFile) {
@@ -159,10 +163,10 @@ export const TemplateVersionEditorPage: FC = () => {
             await publishVersionMutation.mutateAsync({
               isActiveVersion,
               data,
-              version: templateVersionQuery.data,
+              version: activeTemplateVersion,
             });
             const publishedVersion = {
-              ...templateVersionQuery.data,
+              ...activeTemplateVersion,
               ...data,
             };
             setIsPublishingDialogOpen(false);
@@ -190,13 +194,12 @@ export const TemplateVersionEditorPage: FC = () => {
           isBuilding={
             createTemplateVersionMutation.isLoading ||
             uploadFileMutation.isLoading ||
-            templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status === "pending"
+            activeTemplateVersion.job.status === "running" ||
+            activeTemplateVersion.job.status === "pending"
           }
           canPublish={
-            templateVersionQuery.data.job.status === "succeeded" &&
-            templateQuery.data.active_version_id !==
-              templateVersionQuery.data.id
+            activeTemplateVersion.job.status === "succeeded" &&
+            templateQuery.data.active_version_id !== activeTemplateVersion.id
           }
           resources={resourcesQuery.data}
           buildLogs={logs}

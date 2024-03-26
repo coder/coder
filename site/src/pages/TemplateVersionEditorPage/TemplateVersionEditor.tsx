@@ -237,9 +237,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               paddingRight: 16,
             }}
           >
-            {buildLogs && (
-              <TemplateVersionStatusBadge version={templateVersion} />
-            )}
+            <TemplateVersionStatusBadge version={templateVersion} />
 
             <ButtonGroup
               variant="outlined"
@@ -601,16 +599,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   </div>
                 )}
 
-                {buildLogs && buildLogs.length === 0 && (
-                  <Loader css={{ height: "100%" }} />
-                )}
-
-                {buildLogs && buildLogs.length > 0 && (
+                {buildLogs && buildLogs.length > 0 ? (
                   <WorkspaceBuildLogs
                     css={styles.buildLogs}
                     hideTimestamps
                     logs={buildLogs}
                   />
+                ) : (
+                  <Loader css={{ height: "100%" }} />
                 )}
               </div>
 
