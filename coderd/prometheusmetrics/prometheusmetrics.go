@@ -77,36 +77,37 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		duration = 5 * time.Minute
 	}
 
-	workspacesByStatus := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	workspaceStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build_total",
 		Help:      "The current number of workspace builds by status.",
 	}, []string{"status"})
-	if err := registerer.Register(workspacesByStatus); err != nil {
+	if err := registerer.Register(workspaceStatuses); err != nil {
 		return nil, err
 	}
 
-	workspacesDetail := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	workspaceDetails := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_detail",
 		Help:      "The current workspace details by template, transition, owner, and status.",
 	}, []string{"status", "template_name", "template_version", "workspace_name", "workspace_owner", "workspace_transition"})
-	if err := registerer.Register(workspacesDetail); err != nil {
+	if err := registerer.Register(workspaceDetails); err != nil {
 		return nil, err
 	}
-	// This exists so the prometheus metric exports immediately when set.
-	// It helps with tests so they don't have to wait for a tick.
-	workspacesByStatus.WithLabelValues(string(database.ProvisionerJobStatusPending)).Set(0)
-	workspacesDetail.WithLabelValues(string(database.ProvisionerJobStatusPending), "", "", "", "", "").Set(0)
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	updateWorkspacesByStatus := func() {
+	updateWorkspaceStatuses := func() {
 		builds, err := db.GetLatestWorkspaceBuilds(ctx)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// clear all series if there are no database entries
+				workspaceStatuses.Reset()
+			}
+
 			logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
 			return
 		}
@@ -125,24 +126,29 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			return
 		}
 
-		workspacesByStatus.Reset()
+		workspaceStatuses.Reset()
 		for _, job := range jobs {
 			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			workspacesByStatus.WithLabelValues(string(status)).Add(1)
+			workspaceStatuses.WithLabelValues(string(status)).Add(1)
 		}
 	}
 
-	updateWorkspacesDetail := func() {
+	updateWorkspaceDetails := func() {
 		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 			Deleted:     false,
 			WithSummary: false,
 		})
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// clear all series if there are no database entries
+				workspaceDetails.Reset()
+			}
+
 			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
 
-		workspacesDetail.Reset()
+		workspaceDetails.Reset()
 		for _, w := range ws {
 			// TODO: there may be a more elegant/idiomatic way to do this?
 			buildStatus := string(database.ProvisionerJobStatusUnknown)
@@ -162,8 +168,8 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	doTick := func() {
 		defer ticker.Reset(duration)
 
-		updateWorkspacesByStatus()
-		updateWorkspacesDetail()
+		updateWorkspaceStatuses()
+		updateWorkspaceDetails()
 	}
 
 	go func() {
