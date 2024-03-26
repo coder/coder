@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -222,10 +223,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			conn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:         logger,
+					BlockEndpoints: r.disableDirect,
+				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)
 			}

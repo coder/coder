@@ -37,7 +37,6 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -70,6 +69,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -153,7 +153,7 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -423,7 +423,7 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		healthCheckGroup:            &singleflight.Group[string, *codersdk.HealthcheckReport]{},
+		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
@@ -462,7 +462,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -1266,8 +1266,8 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *codersdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[codersdk.HealthcheckReport]
+	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
 	statsBatcher *batchstats.Batcher
 

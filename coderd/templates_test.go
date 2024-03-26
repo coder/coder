@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1235,9 +1236,10 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, res.Workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("tailnet"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("tailnet"),
+		})
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()

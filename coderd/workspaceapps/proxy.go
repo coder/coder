@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 )
 
@@ -68,7 +69,7 @@ type AgentProvider interface {
 	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
-	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error)
+	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
 
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
@@ -513,9 +514,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		if portInt < codersdk.WorkspaceAgentMinimumListeningPort {
+		if portInt < workspacesdk.AgentMinimumListeningPort {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.", portInt, codersdk.WorkspaceAgentMinimumListeningPort),
+				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.",
+					portInt, workspacesdk.AgentMinimumListeningPort,
+				),
 			})
 			return
 		}
