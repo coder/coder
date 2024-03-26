@@ -190,7 +190,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
-	wsclient := workspacesdk.NewClient(client)
+	wsclient := workspacesdk.New(client)
 	user := coderdtest.CreateFirstUser(t, client)
 
 	gen, err := wsclient.AgentConnectionInfoGeneric(context.Background())

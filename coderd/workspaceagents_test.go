@@ -338,7 +338,7 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		conn, err := workspacesdk.NewClient(client).
+		conn, err := workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer func() {
@@ -454,7 +454,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
-		return workspacesdk.NewClient(client).
+		return workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 				Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 			})
@@ -566,7 +566,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 		}
 	}
 
-	conn, err := workspacesdk.NewClient(client).
+	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 		})
@@ -1631,7 +1631,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
-		return workspacesdk.NewClient(client).
+		return workspacesdk.New(client).
 			DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 				Logger: logger.Named("client1"),
 			})
@@ -1677,7 +1677,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	require.True(t, ok)
 
 	// Connect from a second client.
-	conn2, err := workspacesdk.NewClient(client).
+	conn2, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 			Logger: logger.Named("client2"),
 		})

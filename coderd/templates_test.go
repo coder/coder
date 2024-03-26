@@ -1236,7 +1236,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, res.Workspaces[0].LastUsedAt)
 
-	conn, err := workspacesdk.NewClient(client).
+	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: slogtest.Make(t, nil).Named("tailnet"),
 		})

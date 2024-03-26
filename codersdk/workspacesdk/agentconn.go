@@ -9,9 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,108 +24,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
-
-// AgentIP is a static IPv6 address with the Tailscale prefix that is used to route
-// connections from clients to this node. A dynamic address is not required because a Tailnet
-// client only dials a single agent at a time.
-//
-// Deprecated: use tailnet.IP() instead. This is kept for backwards
-// compatibility with outdated CLI clients and Workspace Proxies that dial it.
-// See: https://github.com/coder/coder/issues/11819
-var AgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
-var ErrSkipClose = xerrors.New("skip tailnet close")
-
-const (
-	AgentSSHPort             = tailnet.WorkspaceAgentSSHPort
-	AgentReconnectingPTYPort = tailnet.WorkspaceAgentReconnectingPTYPort
-	AgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
-	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
-	// gathering agent statistics.
-	AgentHTTPAPIServerPort = 4
-
-	// AgentMinimumListeningPort is the minimum port that the listening-ports
-	// endpoint will return to the client, and the minimum port that is accepted
-	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
-	// moment, and we reserve some extra ports for future use. Port 9 and up are
-	// available for the user.
-	//
-	// This is not enforced in the CLI intentionally as we don't really care
-	// *that* much. The user could bypass this in the CLI by using SSH instead
-	// anyways.
-	AgentMinimumListeningPort = 9
-)
-
-// AgentIgnoredListeningPorts contains a list of ports to ignore when looking for
-// running applications inside a workspace. We want to ignore non-HTTP servers,
-// so we pre-populate this list with common ports that are not HTTP servers.
-//
-// This is implemented as a map for fast lookup.
-var AgentIgnoredListeningPorts = map[uint16]struct{}{
-	0: {},
-	// Ports 1-8 are reserved for future use by the Coder agent.
-	1: {},
-	2: {},
-	3: {},
-	4: {},
-	5: {},
-	6: {},
-	7: {},
-	8: {},
-	// ftp
-	20: {},
-	21: {},
-	// ssh
-	22: {},
-	// telnet
-	23: {},
-	// smtp
-	25: {},
-	// dns over TCP
-	53: {},
-	// pop3
-	110: {},
-	// imap
-	143: {},
-	// bgp
-	179: {},
-	// ldap
-	389: {},
-	636: {},
-	// smtps
-	465: {},
-	// smtp
-	587: {},
-	// ftps
-	989: {},
-	990: {},
-	// imaps
-	993: {},
-	// pop3s
-	995: {},
-	// mysql
-	3306: {},
-	// rdp
-	3389: {},
-	// postgres
-	5432: {},
-	// mongodb
-	27017: {},
-	27018: {},
-	27019: {},
-	28017: {},
-}
-
-func init() {
-	if !strings.HasSuffix(os.Args[0], ".test") {
-		return
-	}
-	// Add a thousand more ports to the ignore list during tests so it's easier
-	// to find an available port.
-	for i := 63000; i < 64000; i++ {
-		AgentIgnoredListeningPorts[uint16(i)] = struct{}{}
-	}
-}
 
 // NewAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
 // to the WorkspaceAgentConn, or it may be shared in the case of coderd. If the

@@ -1721,7 +1721,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 		return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 	}
 
-	conn, err := workspacesdk.NewClient(client).AgentReconnectingPTY(ctx, opts)
+	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, opts)
 	require.NoError(t, err)
 	defer conn.Close()
 

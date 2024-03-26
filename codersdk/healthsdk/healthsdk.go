@@ -20,7 +20,7 @@ type HealthClient struct {
 	client *codersdk.Client
 }
 
-func NewHealthClient(c *codersdk.Client) *HealthClient {
+func New(c *codersdk.Client) *HealthClient {
 	return &HealthClient{client: c}
 }
 

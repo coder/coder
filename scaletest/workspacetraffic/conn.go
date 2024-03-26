@@ -39,7 +39,7 @@ const (
 
 func connectRPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect uuid.UUID, cmd string) (*countReadWriteCloser, error) {
 	width, height := 80, 25
-	conn, err := workspacesdk.NewClient(client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
+	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   agentID,
 		Reconnect: reconnect,
 		Width:     uint16(width),
@@ -157,7 +157,7 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 		}
 	}()
 
-	agentConn, err := workspacesdk.NewClient(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{})
+	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
 	}

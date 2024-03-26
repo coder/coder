@@ -87,7 +87,7 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
 
-	conn, err := workspacesdk.NewClient(client).
+	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: slogtest.Make(t, nil).Named("tailnet"),
 		})
@@ -176,7 +176,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := workspacesdk.NewClient(client).
+	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: logger.Named("client"),
 		})
@@ -274,7 +274,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := workspacesdk.NewClient(client).
+	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: logger.Named("client"),
 		})

@@ -251,7 +251,7 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		// when
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 
 		// then
@@ -273,11 +273,11 @@ func TestHealthSettings(t *testing.T) {
 		}
 
 		// when: dismiss "derp" and "websocket"
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -307,7 +307,7 @@ func TestHealthSettings(t *testing.T) {
 			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
 		}
 
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, initial)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, initial)
 		require.NoError(t, err)
 
 		expected := healthsdk.HealthSettings{
@@ -315,11 +315,11 @@ func TestHealthSettings(t *testing.T) {
 		}
 
 		// when: undismiss "websocket"
-		err = healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := healthsdk.NewHealthClient(adminClient).HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -349,11 +349,11 @@ func TestHealthSettings(t *testing.T) {
 			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
 		}
 
-		err := healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// when
-		err = healthsdk.NewHealthClient(adminClient).PutHealthSettings(ctx, expected)
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 
 		// then
 		require.Error(t, err)

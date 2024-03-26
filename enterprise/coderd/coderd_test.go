@@ -273,7 +273,7 @@ func TestAuditLogging(t *testing.T) {
 			DontAddLicense: true,
 		})
 		r := setupWorkspaceAgent(t, client, user, 0)
-		conn, err := workspacesdk.NewClient(client).DialAgent(ctx, r.sdkAgent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
+		conn, err := workspacesdk.New(client).DialAgent(ctx, r.sdkAgent.ID, nil) //nolint:gocritic // RBAC is not the purpose of this test
 		require.NoError(t, err)
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)

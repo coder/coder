@@ -165,7 +165,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			if r.disableDirect {
 				logger.Info(ctx, "direct connections disabled")
 			}
-			agentConn, err := workspacesdk.NewClient(client).
+			agentConn, err := workspacesdk.New(client).
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:         logger,
 					BlockEndpoints: r.disableDirect,

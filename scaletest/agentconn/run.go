@@ -63,7 +63,7 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 		_, _ = fmt.Fprintln(logs, "\tUsing proxied DERP connection through coder server...")
 	}
 
-	conn, err := workspacesdk.NewClient(r.client).
+	conn, err := workspacesdk.New(r.client).
 		DialAgent(ctx, r.cfg.AgentID, &workspacesdk.DialAgentOptions{
 			Logger: logger.Named("agentconn"),
 			// If the config requested DERP, then force DERP.

@@ -27,7 +27,7 @@ func (r *RootCmd) netcheck() *serpent.Command {
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
-			connInfo, err := workspacesdk.NewClient(client).AgentConnectionInfoGeneric(ctx)
+			connInfo, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
 			if err != nil {
 				return err
 			}
