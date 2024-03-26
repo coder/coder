@@ -780,7 +780,8 @@ test-postgres: test-postgres-docker
 		--packages="./..." -- \
 		-timeout=20m \
 		-failfast \
-		-count=1
+		-count=1 \
+		-parallel=4
 .PHONY: test-postgres
 
 # NOTE: we set --memory to the same size as a GitHub runner.
@@ -815,7 +816,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
+	gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel=4 ./...
 .PHONY: test-race
 
 # Note: we used to add this to the test target, but it's not necessary and we can
