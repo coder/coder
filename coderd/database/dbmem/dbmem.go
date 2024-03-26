@@ -404,14 +404,14 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 				}
 			}
 
-			if pj, err := q.GetProvisionerJobByID(ctx, build.JobID); err == nil {
+			if pj, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID); err == nil {
 				wr.LatestBuildStatus = database.NullProvisionerJobStatus{ProvisionerJobStatus: pj.JobStatus, Valid: true}
 			}
 
 			wr.LatestBuildTransition = build.Transition
 		}
 
-		if u, err := q.GetUserByID(ctx, w.OwnerID); err == nil {
+		if u, err := q.getUserByIDNoLock(w.OwnerID); err == nil {
 			wr.Username = u.Username
 		}
 
