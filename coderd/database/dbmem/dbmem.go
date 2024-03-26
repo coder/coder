@@ -403,6 +403,16 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 					break
 				}
 			}
+
+			if pj, err := q.GetProvisionerJobByID(ctx, build.JobID); err == nil {
+				wr.LatestBuildStatus = database.NullProvisionerJobStatus{ProvisionerJobStatus: pj.JobStatus, Valid: true}
+			}
+
+			wr.LatestBuildTransition = build.Transition
+		}
+
+		if u, err := q.GetUserByID(ctx, w.OwnerID); err == nil {
+			wr.Username = u.Username
 		}
 
 		rows = append(rows, wr)

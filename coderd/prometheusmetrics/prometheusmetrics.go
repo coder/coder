@@ -160,7 +160,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				}
 			}
 
-			workspacesDetail.WithLabelValues(buildStatus, w.TemplateName, w.TemplateVersionName.String, w.Name, w.Username, string(w.LatestBuildTransition)).Set(1)
+			workspaceDetails.WithLabelValues(buildStatus, w.TemplateName, w.TemplateVersionName.String, w.Name, w.Username, string(w.LatestBuildTransition)).Set(1)
 		}
 	}
 
