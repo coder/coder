@@ -98,7 +98,7 @@ require (
 	github.com/coder/retry v1.5.1
 	github.com/coder/terraform-provider-coder v0.18.0
 	github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a
-	github.com/coreos/go-oidc/v3 v3.9.0
+	github.com/coreos/go-oidc/v3 v3.10.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.21
 	github.com/dave/dst v0.27.2
@@ -215,6 +215,7 @@ require (
 require (
 	github.com/DataDog/go-libddwaf/v2 v2.3.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
 	github.com/pion/transport/v2 v2.0.0 // indirect
 	github.com/tdewolff/test v1.0.11-0.20240106005702-7de5f7df4739 // indirect
