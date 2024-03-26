@@ -710,6 +710,71 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("ParameterOptionFailsMonotonicValidation", func(t *testing.T) {
+		t.Parallel()
+
+		// Create template and workspace
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		const tempVal = "2"
+
+		templateParameters := []*proto.RichParameter{
+			{Name: numberParameterName, Type: "number", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "First option", Description: "This is first option", Value: "1"},
+				{Name: "Second option", Description: "This is second option", Value: tempVal},
+				{Name: "Third option", Description: "This is third option", Value: "3"},
+			}, ValidationMonotonic: string(codersdk.MonotonicOrderDecreasing)},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Create new workspace
+		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", numberParameterName, tempVal))
+		clitest.SetupConfig(t, member, root)
+		ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Update the template to only include a higher value than what was selected, to trigger a validation failure.
+		updatedTemplateParameters := []*proto.RichParameter{
+			{Name: numberParameterName, Type: "number", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "Third option", Description: "This is third option", Value: "3"},
+			}, ValidationMonotonic: string(codersdk.MonotonicOrderDecreasing)},
+		}
+
+		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
+		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: updatedVersion.ID,
+		})
+		require.NoError(t, err)
+
+		// Update the workspace
+		inv, root = clitest.New(t, "update", "my-workspace")
+		clitest.SetupConfig(t, member, root)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			doneChan := make(chan struct{})
+			go func() {
+				defer close(doneChan)
+				err := inv.Run()
+
+				// TODO: improve validation so we catch this problem before it reaches the server
+				// 		 but for now just validate that the server actually catches invalid monotonicity
+				assert.ErrorContains(t, err, fmt.Sprintf("parameter value must be equal or lower than previous value: %s", tempVal))
+			}()
+
+			<-doneChan
+			return true
+		}, testutil.IntervalFast, "failed to find matching error in time")
+	})
+
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
