@@ -1285,9 +1285,23 @@ func (api *API) Close() error {
 		api.derpCloseFunc()
 	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Wait()
-	api.WebsocketWaitMutex.Unlock()
+	wsDone := make(chan struct{})
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	go func() {
+		api.WebsocketWaitMutex.Lock()
+		defer api.WebsocketWaitMutex.Unlock()
+		api.WebsocketWaitGroup.Wait()
+		close(wsDone)
+	}()
+	// This will technically leak the above func if the timer fires, but this is
+	// maintly a last ditch effort to un-stuck coderd on shutdown. This
+	// shouldn't affect tests at all.
+	select {
+	case <-wsDone:
+	case <-timer.C:
+		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
+	}
 
 	api.dbRolluper.Close()
 	api.metricsCache.Close()
