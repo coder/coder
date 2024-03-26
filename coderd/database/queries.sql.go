@@ -1756,7 +1756,7 @@ WITH
 			AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
 			-- Primary join condition.
 			AND tus.template_id = apps.template_id
-			AND apps.slug IN (SELECT jsonb_object_keys(tus.app_usage_mins))
+			AND tus.app_usage_mins ? apps.slug -- Key exists in object.
 	),
 	-- Group the app insights by interval, user and unique app. This
 	-- allows us to deduplicate a user using the same app across
