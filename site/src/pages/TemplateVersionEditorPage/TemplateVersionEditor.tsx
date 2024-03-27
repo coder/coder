@@ -175,10 +175,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
   // Auto scroll
-  const tabContentRef = useRef<HTMLDivElement>(null);
+  const logsContentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (tabContentRef.current) {
-      tabContentRef.current.scrollTop = tabContentRef.current.scrollHeight;
+    if (logsContentRef.current) {
+      logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;
     }
   }, [buildLogs]);
 
@@ -573,51 +573,48 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 )}
               </div>
 
-              {selectedTab && (
-                <div css={styles.tabContent} ref={tabContentRef}>
-                  {selectedTab === "logs" && (
-                    <div css={styles.logs}>
-                      {templateVersion.job.error && (
-                        <div>
-                          <Alert
-                            severity="error"
-                            css={{
-                              borderRadius: 0,
-                              border: 0,
-                              borderBottom: `1px solid ${theme.palette.divider}`,
-                              borderLeft: `2px solid ${theme.palette.error.main}`,
-                            }}
-                          >
-                            <AlertTitle>Error during the build</AlertTitle>
-                            <AlertDetail>
-                              {templateVersion.job.error}
-                            </AlertDetail>
-                          </Alert>
-                        </div>
-                      )}
-
-                      {buildLogs && buildLogs.length > 0 ? (
-                        <WorkspaceBuildLogs
-                          css={styles.buildLogs}
-                          hideTimestamps
-                          logs={buildLogs}
-                        />
-                      ) : (
-                        <Loader css={{ height: "100%" }} />
-                      )}
+              {selectedTab === "logs" && (
+                <div
+                  css={[styles.logs, styles.tabContent]}
+                  ref={logsContentRef}
+                >
+                  {templateVersion.job.error && (
+                    <div>
+                      <Alert
+                        severity="error"
+                        css={{
+                          borderRadius: 0,
+                          border: 0,
+                          borderBottom: `1px solid ${theme.palette.divider}`,
+                          borderLeft: `2px solid ${theme.palette.error.main}`,
+                        }}
+                      >
+                        <AlertTitle>Error during the build</AlertTitle>
+                        <AlertDetail>{templateVersion.job.error}</AlertDetail>
+                      </Alert>
                     </div>
                   )}
 
-                  {selectedTab === "resources" && (
-                    <div css={styles.resources}>
-                      {resources && (
-                        <TemplateResourcesTable
-                          resources={resources.filter(
-                            (r) => r.workspace_transition === "start",
-                          )}
-                        />
+                  {buildLogs && buildLogs.length > 0 ? (
+                    <WorkspaceBuildLogs
+                      css={styles.buildLogs}
+                      hideTimestamps
+                      logs={buildLogs}
+                    />
+                  ) : (
+                    <Loader css={{ height: "100%" }} />
+                  )}
+                </div>
+              )}
+
+              {selectedTab === "resources" && (
+                <div css={[styles.resources, styles.tabContent]}>
+                  {resources && (
+                    <TemplateResourcesTable
+                      resources={resources.filter(
+                        (r) => r.workspace_transition === "start",
                       )}
-                    </div>
+                    />
                   )}
                 </div>
               )}
