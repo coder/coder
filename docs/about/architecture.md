@@ -1,16 +1,15 @@
 # Architecture
 
-This document provides a high level overview of Coder's architecture.
+The Coder deployment model is flexible and offers various components that
+platform administrators can deploy and scale depending on the use cases. This
+page describes possible deployments, challenges, and risks associated with them.
 
-## Single region architecture
+Learn more about our [Reference Architectures](../admin/architectures/index.md)
+and platform scaling capabilities.
 
-![Architecture Diagram](../images/architecture-single-region.png)
+## Components
 
-## Multi-region architecture
-
-![Architecture Diagram](../images/architecture-multi-region.png)
-
-## coderd
+### coderd
 
 coderd is the service created by running `coder server`. It is a thin API that
 connects workspaces, provisioners and users. coderd stores its state in Postgres
@@ -24,7 +23,7 @@ It offers:
 - Workspace Web Applications (e.g easily access code-server)
 - Agent registration
 
-## provisionerd
+### provisionerd
 
 provisionerd is the execution context for infrastructure modifying providers. At
 the moment, the only provider is Terraform (running `terraform`).
@@ -33,7 +32,7 @@ By default, the Coder server runs multiple provisioner daemons.
 [External provisioners](../admin/provisioners.md) can be added for security or
 scalability purposes.
 
-## Agents
+### Agents
 
 An agent is the Coder service that runs within a user's remote workspace. It
 provides a consistent interface for coderd and clients to communicate with
@@ -50,7 +49,7 @@ Templates are responsible for
 [creating and running agents](../templates/index.md#coder-agent) within
 workspaces.
 
-## Service Bundling
+### Service Bundling
 
 While coderd and Postgres can be orchestrated independently, our default
 installation paths bundle them all together into one system service. It's
@@ -61,7 +60,7 @@ situations that necessitate decomposition:
 - Achieving greater availability and efficiency (horizontally scale individual
   services)
 
-## Workspaces
+### Workspaces
 
 At the highest level, a workspace is a set of cloud resources. These resources
 can be VMs, Kubernetes clusters, storage buckets, or whatever else Terraform
@@ -72,3 +71,17 @@ while those that don't are called _peripheral resources_.
 
 Each resource may also be _persistent_ or _ephemeral_ depending on whether
 they're destroyed on workspace stop.
+
+## Deployment models
+
+### Single region architecture
+
+![Architecture Diagram](../images/architecture-single-region.png)
+
+<!-- Single VM, up to 100 users, Docker+sysbox container runtime -->
+
+### Multi-region architecture
+
+![Architecture Diagram](../images/architecture-multi-region.png)
+
+<!-- Run multiple provisioners in each cloud, allowing Coder to deploy against it (zero trust) -->
