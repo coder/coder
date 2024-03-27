@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
 
@@ -26,7 +27,7 @@ func (r *RootCmd) netcheck() *serpent.Command {
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
-			connInfo, err := client.WorkspaceAgentConnectionInfoGeneric(ctx)
+			connInfo, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
 			if err != nil {
 				return err
 			}

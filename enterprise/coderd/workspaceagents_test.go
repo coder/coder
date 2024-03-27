@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -46,7 +47,7 @@ func TestBlockNonBrowser(t *testing.T) {
 		})
 		r := setupWorkspaceAgent(t, client, user, 0)
 		//nolint:gocritic // Testing that even the owner gets blocked.
-		_, err := client.DialWorkspaceAgent(context.Background(), r.sdkAgent.ID, nil)
+		_, err := workspacesdk.New(client).DialAgent(context.Background(), r.sdkAgent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -65,7 +66,7 @@ func TestBlockNonBrowser(t *testing.T) {
 		})
 		r := setupWorkspaceAgent(t, client, user, 0)
 		//nolint:gocritic // Testing RBAC is not the point of this test.
-		conn, err := client.DialWorkspaceAgent(context.Background(), r.sdkAgent.ID, nil)
+		conn, err := workspacesdk.New(client).DialAgent(context.Background(), r.sdkAgent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
 	})

@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -86,9 +87,10 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("tailnet"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("tailnet"),
+		})
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
@@ -174,9 +176,10 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client"),
+		})
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -271,9 +274,10 @@ func TestUserLatencyInsights(t *testing.T) {
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client"),
+		})
 	require.NoError(t, err)
 	defer conn.Close()
 

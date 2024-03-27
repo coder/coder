@@ -599,7 +599,9 @@ WITH
 		JOIN
 			workspace_agent_stats AS was
 		ON
-			date_trunc('minute', was.created_at) = mb.minute_bucket
+			was.created_at >= (SELECT t FROM latest_start)
+			AND was.created_at < NOW()
+			AND date_trunc('minute', was.created_at) = mb.minute_bucket
 			AND was.template_id = mb.template_id
 			AND was.user_id = mb.user_id
 			AND was.connection_median_latency_ms >= 0

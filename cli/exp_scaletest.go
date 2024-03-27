@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/agentconn"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
@@ -667,7 +668,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 				if runCommand != "" {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
-						Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+						Init: workspacesdk.AgentReconnectingPTYInit{
 							ID:      uuid.Nil,
 							Height:  24,
 							Width:   80,
