@@ -725,7 +725,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				{Name: "First option", Description: "This is first option", Value: "1"},
 				{Name: "Second option", Description: "This is second option", Value: tempVal},
 				{Name: "Third option", Description: "This is third option", Value: "3"},
-			}, ValidationMonotonic: string(codersdk.MonotonicOrderDecreasing)},
+			}, ValidationMonotonic: string(codersdk.MonotonicOrderIncreasing)},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -738,41 +738,31 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		// Update the template to only include a higher value than what was selected, to trigger a validation failure.
-		updatedTemplateParameters := []*proto.RichParameter{
-			{Name: numberParameterName, Type: "number", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "Third option", Description: "This is third option", Value: "3"},
-			}, ValidationMonotonic: string(codersdk.MonotonicOrderDecreasing)},
-		}
-
-		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
-		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: updatedVersion.ID,
-		})
-		require.NoError(t, err)
-
 		// Update the workspace
-		inv, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "restart", "my-workspace", "--always-prompt=true", "--yes")
 		clitest.SetupConfig(t, member, root)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			// TODO: improve validation so we catch this problem before it reaches the server
+			// 		 but for now just validate that the server actually catches invalid monotonicity
+			assert.ErrorContains(t, err, fmt.Sprintf("parameter value must be equal or greater than previous value: %s", tempVal))
+		}()
 
-		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
-			doneChan := make(chan struct{})
-			go func() {
-				defer close(doneChan)
-				err := inv.Run()
+		matches := []string{
+			// `cliui.Select` will automatically pick the first option, which will cause the validation to fail because
+			// "1" is less than "2" which was selected initially.
+			numberParameterName,
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			pty.ExpectMatch(match)
+		}
 
-				// TODO: improve validation so we catch this problem before it reaches the server
-				// 		 but for now just validate that the server actually catches invalid monotonicity
-				assert.ErrorContains(t, err, fmt.Sprintf("parameter value must be equal or lower than previous value: %s", tempVal))
-			}()
-
-			<-doneChan
-			return true
-		}, testutil.IntervalFast, "failed to find matching error in time")
+		<-doneChan
 	})
 
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
