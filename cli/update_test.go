@@ -739,7 +739,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
-		inv, root = clitest.New(t, "restart", "my-workspace", "--always-prompt=true", "--yes")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt=true")
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
