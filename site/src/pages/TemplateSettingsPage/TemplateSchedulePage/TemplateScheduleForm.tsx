@@ -416,8 +416,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 }}
               >
                 Workspaces will always use the default TTL if this is set.
-                Regardless of this setting, workspaces can only stay on for the
-                max lifetime.
               </span>
             </Stack>
           </Stack>
