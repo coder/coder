@@ -366,8 +366,8 @@ func New(options *Options) *API {
 		options.Database,
 		options.Logger.Named("metrics_cache"),
 		metricscache.Intervals{
-			TemplateDAUs:    options.MetricsCacheRefreshInterval,
-			DeploymentStats: options.AgentStatsRefreshInterval,
+			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
+			DeploymentStats:    options.AgentStatsRefreshInterval,
 		},
 	)
 

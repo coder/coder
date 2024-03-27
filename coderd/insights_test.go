@@ -39,25 +39,25 @@ import (
 )
 
 func TestDeploymentInsights(t *testing.T) {
-	t.Skipf("This test is flaky: https://github.com/coder/coder/issues/12509")
-
 	t.Parallel()
 
 	clientTz, err := time.LoadLocation("America/Chicago")
 	require.NoError(t, err)
 
-	db, ps := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, nil)
+	rollupEvents := make(chan dbrollup.Event)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 50,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 		DatabaseRolluper: dbrollup.New(
-			logger.Named("dbrollup"),
+			logger.Named("dbrollup").Leveled(slog.LevelDebug),
 			db,
 			dbrollup.WithInterval(time.Millisecond*100),
+			dbrollup.WithEventChannel(rollupEvents),
 		),
 	})
 
@@ -75,57 +75,51 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Pre-check, no  permission issues.
+	daus, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
+	require.NoError(t, err)
+
 	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	daus, err := client.DeploymentDAUs(context.Background(), codersdk.TimezoneOffsetHour(clientTz))
-	require.NoError(t, err)
-
-	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
-	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, nil).Named("tailnet"),
+			Logger: slogtest.Make(t, nil).Named("dialagent"),
 		})
 	require.NoError(t, err)
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer conn.Close()
 
 	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
-	_ = sshConn.Close()
+	defer sshConn.Close()
 
-	wantDAUs := &codersdk.DAUsResponse{
-		TZHourOffset: codersdk.TimezoneOffsetHour(clientTz),
-		Entries: []codersdk.DAUEntry{
-			{
-				Date:   time.Now().In(clientTz).Format("2006-01-02"),
-				Amount: 1,
-			},
-		},
-	}
-	require.Eventuallyf(t, func() bool {
+	sess, err := sshConn.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
+	sess.Stdin = r
+	sess.Stdout = io.Discard
+	err = sess.Start("cat")
+	require.NoError(t, err)
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.Fail(t, "timed out waiting for deployment daus to update", daus)
+		case <-rollupEvents:
+		}
+
 		daus, err = client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
 		require.NoError(t, err)
-		return len(daus.Entries) > 0
-	},
-		testutil.WaitShort, testutil.IntervalFast,
-		"deployment daus never loaded",
-	)
-	gotDAUs, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
-	require.NoError(t, err)
-	require.Equal(t, gotDAUs, wantDAUs)
-
-	template, err = client.Template(ctx, template.ID)
-	require.NoError(t, err)
-
-	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
+		if len(daus.Entries) > 0 && daus.Entries[len(daus.Entries)-1].Amount > 0 {
+			break
+		}
+	}
 }
 
 func TestUserActivityInsights_SanityCheck(t *testing.T) {
