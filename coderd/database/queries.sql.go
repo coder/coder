@@ -1897,7 +1897,7 @@ WITH
 		CROSS JOIN
 			generate_series(
 				date_trunc('minute', was.session_started_at),
-				-- Subtract 1 microsecond to avoid creating an extra series.
+				-- Subtract 1 μs to avoid creating an extra series.
 				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
@@ -2078,14 +2078,17 @@ WITH
 	ts AS (
 		SELECT
 			d::timestamptz AS from_,
-			CASE
-				WHEN (d::timestamptz + ($2::int || ' day')::interval) <= $3::timestamptz
-				THEN (d::timestamptz + ($2::int || ' day')::interval)
-				ELSE $3::timestamptz
-			END AS to_
+			LEAST(
+				(d::timestamptz + ($2::int || ' day')::interval)::timestamptz,
+				$3::timestamptz
+			)::timestamptz AS to_
 		FROM
-			-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
-			generate_series($4::timestamptz, ($3::timestamptz) - '1 microsecond'::interval, ($2::int || ' day')::interval) AS d
+			generate_series(
+				$4::timestamptz,
+				-- Subtract 1 μs to avoid creating an extra series.
+				($3::timestamptz) - '1 microsecond'::interval,
+				($2::int || ' day')::interval
+			) AS d
 	)
 
 SELECT
@@ -2099,6 +2102,7 @@ LEFT JOIN
 	template_usage_stats AS tus
 ON
 	tus.start_time >= ts.from_
+	AND tus.start_time < ts.to_ -- End time exclusion criteria optimization for index.
 	AND tus.end_time <= ts.to_
 	AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
 GROUP BY
@@ -2632,7 +2636,7 @@ WITH
 		CROSS JOIN
 			generate_series(
 				date_trunc('minute', was.session_started_at),
-				-- Subtract 1 microsecond to avoid creating an extra series.
+				-- Subtract 1 μs to avoid creating an extra series.
 				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
 				'1 minute'::interval
 			) AS s(minute_bucket)
