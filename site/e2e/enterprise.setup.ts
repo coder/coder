@@ -1,12 +1,13 @@
 import { test } from "@playwright/test";
-
-const license = process.env.CODER_E2E_ENTERPRISE_LICENSE!;
+import { enterpriseLicense, skipEnterpriseTests } from "./constants";
 
 test("setup license", async ({ page }) => {
+  test.skip(skipEnterpriseTests);
+
   await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 
   await page.getByText("Add a license").click();
-  await page.getByRole("textbox").fill(license);
+  await page.getByRole("textbox").fill(enterpriseLicense);
   await page.getByText("Upload License").click();
 
   await page.getByText("You have successfully added a license").isVisible();

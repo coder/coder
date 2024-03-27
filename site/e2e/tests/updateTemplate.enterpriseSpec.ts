@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { skipEnterpriseTests } from "../constants";
 import { createTemplate } from "../helpers";
 
 test("require latest version", async ({ page }) => {
+  test.skip(skipEnterpriseTests);
   const templateName = await createTemplate(page);
 
   await page.goto(`/templates/${templateName}/settings`, {

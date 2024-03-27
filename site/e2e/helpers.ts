@@ -12,7 +12,12 @@ import type {
   UpdateTemplateMeta,
 } from "api/typesGenerated";
 import { TarWriter } from "utils/tar";
-import { agentPProfPort, coderPort, prometheusPort } from "./constants";
+import {
+  agentPProfPort,
+  coderMain,
+  coderPort,
+  prometheusPort,
+} from "./constants";
 import {
   Agent,
   type App,
@@ -147,7 +152,7 @@ export const sshIntoWorkspace = async (
   binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
   if (binaryPath === "go") {
-    binaryArgs = ["run", coderMainPath()];
+    binaryArgs = ["run", coderMain];
   }
   const sessionToken = await findSessionToken(page);
   return new Promise<ssh.Client>((resolve, reject) => {
@@ -229,7 +234,7 @@ export const startAgent = async (
   page: Page,
   token: string,
 ): Promise<ChildProcess> => {
-  return startAgentWithCommand(page, token, "go", "run", coderMainPath());
+  return startAgentWithCommand(page, token, "go", "run", coderMain);
 };
 
 // downloadCoderVersion downloads the version provided into a temporary dir and
@@ -355,18 +360,6 @@ const waitUntilUrlIsNotResponding = async (url: string) => {
   }
   throw new Error(
     `URL ${url} is still responding after ${maxRetries * retryIntervalMs}ms`,
-  );
-};
-
-const coderMainPath = (): string => {
-  return path.join(
-    __dirname,
-    "..",
-    "..",
-    "enterprise",
-    "cmd",
-    "coder",
-    "main.go",
   );
 };
 
@@ -686,7 +679,7 @@ export const updateTemplate = async (
     "go",
     [
       "run",
-      coderMainPath(),
+      coderMain,
       "templates",
       "push",
       "--test.provisioner",
