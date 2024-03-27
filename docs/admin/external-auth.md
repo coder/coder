@@ -212,7 +212,7 @@ you can require users authenticate via git prior to creating a workspace:
 
 ![Git authentication in template](../images/admin/git-auth-template.png)
 
-### `GIT_ASKPASS` will auto-refresh tokens
+### Native git authentication will auto-refresh tokens
 
 <blockquote class="info">
   <p>
@@ -220,9 +220,17 @@ you can require users authenticate via git prior to creating a workspace:
   </p>
 </blockquote>
 
-By default, the coder agent is configured to respond to `GIT_ASKPASS` prompts.
-Meaning, with no additional configuration, external authentication will work
-with native `git` commands.
+By default, the coder agent will configure native `git` authentication via the
+`GIT_ASKPASS` environment variable. Meaning, with no additional configuration,
+external authentication will work with native `git` commands.
+
+To check the auth token being used **from inside a running workspace**, run:
+
+```shell
+# If the exit code is non-zero, then the user is not authenticated with the
+# external provider.
+coder external-auth access-token <external-auth-id>
+ ```
 
 Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
 configured.
