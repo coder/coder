@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -195,56 +194,6 @@ func TestTemplateCreate(t *testing.T) {
 		require.NoError(t, err, "Template must be deleted without error")
 		err = create()
 		require.NoError(t, err, "Template must be recreated without error")
-	})
-
-	t.Run("WithVariablesFileWithoutRequiredValue", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		coderdtest.CreateFirstUser(t, client)
-
-		templateVariables := []*proto.TemplateVariable{
-			{
-				Name:        "first_variable",
-				Description: "This is the first variable.",
-				Type:        "string",
-				Required:    true,
-				Sensitive:   true,
-			},
-			{
-				Name:         "second_variable",
-				Description:  "This is the first variable",
-				Type:         "string",
-				DefaultValue: "abc",
-				Required:     false,
-				Sensitive:    true,
-			},
-		}
-		source := clitest.CreateTemplateVersionSource(t,
-			createEchoResponsesWithTemplateVariables(templateVariables))
-		tempDir := t.TempDir()
-		removeTmpDirUntilSuccessAfterTest(t, tempDir)
-		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
-		_, _ = variablesFile.WriteString(`second_variable: foobar`)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
-		clitest.SetupConfig(t, client, root)
-		inv = inv.WithContext(ctx)
-		pty := ptytest.New(t).Attach(inv)
-
-		// We expect the cli to return an error, so we have to handle it
-		// ourselves.
-		go func() {
-			cancel()
-			err := inv.Run()
-			assert.Error(t, err)
-		}()
-
-		pty.ExpectMatch("context canceled")
-		<-ctx.Done()
 	})
 
 	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {

@@ -10,6 +10,7 @@ import utc from "dayjs/plugin/utc";
 import semver from "semver";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
+import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
@@ -234,19 +235,10 @@ export const getDisplayWorkspaceStatus = (
     case "pending":
       return {
         type: "active",
-        text: getPendingWorkspaceStatusText(provisionerJob),
+        text: getPendingStatusLabel(provisionerJob),
         icon: <QueuedIcon />,
       } as const;
   }
-};
-
-const getPendingWorkspaceStatusText = (
-  provisionerJob?: TypesGen.ProvisionerJob,
-): string => {
-  if (!provisionerJob || provisionerJob.queue_size === 0) {
-    return "Pending";
-  }
-  return "Position in queue: " + provisionerJob.queue_position;
 };
 
 export const hasJobError = (workspace: TypesGen.Workspace) => {

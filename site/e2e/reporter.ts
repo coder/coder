@@ -11,6 +11,7 @@ import type {
 import axios from "axios";
 import * as fs from "fs/promises";
 import type { Writable } from "stream";
+import { coderdPProfPort } from "./constants";
 
 class CoderReporter implements Reporter {
   config: FullConfig | null = null;
@@ -119,7 +120,7 @@ const filteredServerLogLines = (chunk: string): string[] =>
 
 const exportDebugPprof = async (outputFile: string) => {
   const response = await axios.get(
-    "http://127.0.0.1:6062/debug/pprof/goroutine?debug=1",
+    `http://127.0.0.1:${coderdPProfPort}/debug/pprof/goroutine?debug=1`,
   );
   if (response.status !== 200) {
     throw new Error(`Error: Received status code ${response.status}`);

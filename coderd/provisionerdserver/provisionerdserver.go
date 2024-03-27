@@ -999,6 +999,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					WorkspaceName: workspace.Name,
 					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
 					BuildReason:   database.BuildReason(string(build.Reason)),
+					WorkspaceID:   workspace.ID,
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1382,6 +1383,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				WorkspaceName: workspace.Name,
 				BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 				BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
+				WorkspaceID:   workspace.ID,
 			}
 
 			wriBytes, err := json.Marshal(buildResourceInfo)

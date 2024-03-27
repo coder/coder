@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +18,7 @@ import (
 	"runtime"
 	"runtime/trace"
 	"strings"
+	"sync"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -27,6 +26,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
+	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
@@ -67,8 +67,7 @@ const (
 	varOrganizationSelect = "organization"
 	varDisableDirect      = "disable-direct-connections"
 
-	notLoggedInMessage         = "You are not logged in. Try logging in using 'coder login <url>'."
-	notLoggedInURLSavedMessage = "You are not logged in. Try logging in using 'coder login'."
+	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -80,12 +79,7 @@ const (
 	envURL            = "CODER_URL"
 )
 
-var (
-	errUnauthenticated         = xerrors.New(notLoggedInMessage)
-	errUnauthenticatedURLSaved = xerrors.New(notLoggedInURLSavedMessage)
-)
-
-func (r *RootCmd) Core() []*serpent.Command {
+func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
 	return []*serpent.Command{
 		r.dotfiles(),
@@ -134,12 +128,13 @@ func (r *RootCmd) Core() []*serpent.Command {
 }
 
 func (r *RootCmd) AGPL() []*serpent.Command {
-	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
+	all := append(r.CoreSubcommands(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
-// Main is the entrypoint for the Coder CLI.
-func (r *RootCmd) RunMain(subcommands []*serpent.Command) {
+// RunWithSubcommands runs the root command with the given subcommands.
+// It is abstracted to enable the Enterprise code to add commands.
+func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 	// This configuration is not available as a standard option because we
 	// want to trace the entire program, including Options parsing.
 	goTraceFilePath, ok := os.LookupEnv("CODER_GO_TRACE")
@@ -155,8 +150,6 @@ func (r *RootCmd) RunMain(subcommands []*serpent.Command) {
 		}
 		defer trace.Stop()
 	}
-
-	rand.Seed(time.Now().UnixMicro())
 
 	cmd, err := r.Command(subcommands)
 	if err != nil {
@@ -503,79 +496,20 @@ type RootCmd struct {
 	noFeatureWarning bool
 }
 
-func addTelemetryHeader(client *codersdk.Client, inv *serpent.Invocation) {
-	transport, ok := client.HTTPClient.Transport.(*codersdk.HeaderTransport)
-	if !ok {
-		transport = &codersdk.HeaderTransport{
-			Transport: client.HTTPClient.Transport,
-			Header:    http.Header{},
-		}
-		client.HTTPClient.Transport = transport
-	}
-
-	var topts []telemetry.Option
-	for _, opt := range inv.Command.FullOptions() {
-		if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
-			continue
-		}
-		topts = append(topts, telemetry.Option{
-			Name:        opt.Name,
-			ValueSource: string(opt.ValueSource),
-		})
-	}
-	ti := telemetry.Invocation{
-		Command:   inv.Command.FullName(),
-		Options:   topts,
-		InvokedAt: time.Now(),
-	}
-
-	byt, err := json.Marshal(ti)
-	if err != nil {
-		// Should be impossible
-		panic(err)
-	}
-
-	// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
-	// we don't want to send headers that are too long.
-	s := base64.StdEncoding.EncodeToString(byt)
-	if len(s) > 4096 {
-		return
-	}
-
-	transport.Header.Add(codersdk.CLITelemetryHeader, s)
-}
-
-// InitClient sets client to a new client.
-// It reads from global configuration files if flags are not set.
+// InitClient authenticates the client with files from disk
+// and injects header middlewares for telemetry, authentication,
+// and version checks.
 func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
-	return serpent.Chain(
-		r.initClientInternal(client, false),
-		// By default, we should print warnings in addition to initializing the client
-		r.PrintWarnings(client),
-	)
-}
-
-func (r *RootCmd) InitClientMissingTokenOK(client *codersdk.Client) serpent.MiddlewareFunc {
-	return r.initClientInternal(client, true)
-}
-
-// nolint: revive
-func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing bool) serpent.MiddlewareFunc {
-	if client == nil {
-		panic("client is nil")
-	}
-	if r == nil {
-		panic("root is nil")
-	}
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
 			conf := r.createConfig()
 			var err error
+			// Read the client URL stored on disk.
 			if r.clientURL == nil || r.clientURL.String() == "" {
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return errUnauthenticated
+					return xerrors.New(notLoggedInMessage)
 				}
 				if err != nil {
 					return err
@@ -586,25 +520,20 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 					return err
 				}
 			}
-
+			// Read the token stored on disk.
 			if r.token == "" {
 				r.token, err = conf.Session().Read()
-				// If the configuration files are absent, the user is logged out
-				if os.IsNotExist(err) {
-					if !allowTokenMissing {
-						return errUnauthenticatedURLSaved
-					}
-				} else if err != nil {
+				// Even if there isn't a token, we don't care.
+				// Some API routes can be unauthenticated.
+				if err != nil && !os.IsNotExist(err) {
 					return err
 				}
 			}
-			err = r.setClient(inv.Context(), client, r.clientURL)
+
+			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
 			if err != nil {
 				return err
 			}
-
-			addTelemetryHeader(client, inv)
-
 			client.SetSessionToken(r.token)
 
 			if r.debugHTTP {
@@ -617,48 +546,8 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) PrintWarnings(client *codersdk.Client) serpent.MiddlewareFunc {
-	if client == nil {
-		panic("client is nil")
-	}
-	if r == nil {
-		panic("root is nil")
-	}
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			// We send these requests in parallel to minimize latency.
-			var (
-				versionErr = make(chan error)
-				warningErr = make(chan error)
-			)
-			go func() {
-				versionErr <- r.checkVersions(inv, client, buildinfo.Version())
-				close(versionErr)
-			}()
-
-			go func() {
-				warningErr <- r.checkWarnings(inv, client)
-				close(warningErr)
-			}()
-
-			if err := <-versionErr; err != nil {
-				// Just log the error here. We never want to fail a command
-				// due to a pre-run.
-				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check versions error: %s", err)
-				_, _ = fmt.Fprintln(inv.Stderr)
-			}
-
-			if err := <-warningErr; err != nil {
-				// Same as above
-				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check entitlement warnings error: %s", err)
-				_, _ = fmt.Fprintln(inv.Stderr)
-			}
-
-			return next(inv)
-		}
-	}
-}
-
+// HeaderTransport creates a new transport that executes `--header-command`
+// if it is set to add headers for all outbound requests.
 func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
 	transport := &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
@@ -700,22 +589,38 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return transport, nil
 }
 
-func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
-	transport, err := r.HeaderTransport(ctx, serverURL)
+func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
+	transport := http.DefaultTransport
+	transport = wrapTransportWithTelemetryHeader(transport, inv)
+	if !r.noVersionCheck {
+		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
+			// Create a new client without any wrapped transport
+			// otherwise it creates an infinite loop!
+			basicClient := codersdk.New(serverURL)
+			return basicClient.BuildInfo(ctx)
+		})
+	}
+	if !r.noFeatureWarning {
+		transport = wrapTransportWithEntitlementsCheck(transport, inv.Stderr)
+	}
+	headerTransport, err := r.HeaderTransport(ctx, serverURL)
 	if err != nil {
 		return xerrors.Errorf("create header transport: %w", err)
 	}
-
-	client.URL = serverURL
+	// The header transport has to come last.
+	// codersdk checks for the header transport to get headers
+	// to clone on the DERP client.
+	headerTransport.Transport = transport
 	client.HTTPClient = &http.Client{
-		Transport: transport,
+		Transport: headerTransport,
 	}
+	client.URL = serverURL
 	return nil
 }
 
-func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL) (*codersdk.Client, error) {
+func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(ctx, &client, serverURL)
+	err := r.configureClient(ctx, &client, serverURL, inv)
 	return &client, err
 }
 
@@ -879,70 +784,6 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-// checkVersions checks to see if there's a version mismatch between the client
-// and server and prints a message nudging the user to upgrade if a mismatch
-// is detected. forceCheck is a test flag and should always be false in production.
-//
-//nolint:revive
-func (r *RootCmd) checkVersions(i *serpent.Invocation, client *codersdk.Client, clientVersion string) error {
-	if r.noVersionCheck {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
-	defer cancel()
-
-	serverInfo, err := client.BuildInfo(ctx)
-	// Avoid printing errors that are connection-related.
-	if isConnectionError(err) {
-		return nil
-	}
-	if err != nil {
-		return xerrors.Errorf("build info: %w", err)
-	}
-
-	if !buildinfo.VersionsMatch(clientVersion, serverInfo.Version) {
-		upgradeMessage := defaultUpgradeMessage(serverInfo.CanonicalVersion())
-		if serverInfo.UpgradeMessage != "" {
-			upgradeMessage = serverInfo.UpgradeMessage
-		}
-
-		fmtWarningText := "version mismatch: client %s, server %s\n%s"
-		fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
-		warning := fmt.Sprintf(fmtWarn, clientVersion, serverInfo.Version, upgradeMessage)
-
-		_, _ = fmt.Fprint(i.Stderr, warning)
-		_, _ = fmt.Fprintln(i.Stderr)
-	}
-
-	return nil
-}
-
-func (r *RootCmd) checkWarnings(i *serpent.Invocation, client *codersdk.Client) error {
-	if r.noFeatureWarning {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
-	defer cancel()
-
-	user, err := client.User(ctx, codersdk.Me)
-	if err != nil {
-		return xerrors.Errorf("get user me: %w", err)
-	}
-
-	entitlements, err := client.Entitlements(ctx)
-	if err == nil {
-		// Don't show warning to regular users.
-		if len(user.Roles) > 0 {
-			for _, w := range entitlements.Warnings {
-				_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
-			}
-		}
-	}
-	return nil
-}
-
 // Verbosef logs a message if verbose mode is enabled.
 func (r *RootCmd) Verbosef(inv *serpent.Invocation, fmtStr string, args ...interface{}) {
 	if r.verbose {
@@ -1066,19 +907,6 @@ func (e *exitError) Unwrap() error {
 // exit code. If err is non-nil, it will be wrapped by the returned error.
 func ExitError(code int, err error) error {
 	return &exitError{code: code, err: err}
-}
-
-// IiConnectionErr is a convenience function for checking if the source of an
-// error is due to a 'connection refused', 'no such host', etc.
-func isConnectionError(err error) bool {
-	var (
-		// E.g. no such host
-		dnsErr *net.DNSError
-		// Eg. connection refused
-		opErr *net.OpError
-	)
-
-	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
 }
 
 type prettyErrorFormatter struct {
@@ -1304,4 +1132,106 @@ func defaultUpgradeMessage(version string) string {
 		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
 	}
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+}
+
+// wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
+// that checks for entitlement warnings and prints them to the user.
+func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.RoundTripper {
+	var once sync.Once
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		res, err := rt.RoundTrip(req)
+		if err != nil {
+			return res, err
+		}
+		once.Do(func() {
+			for _, warning := range res.Header.Values(codersdk.EntitlementsWarningHeader) {
+				_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.DefaultStyles.Warn, warning))
+			}
+		})
+		return res, err
+	})
+}
+
+// wrapTransportWithVersionMismatchCheck adds a middleware to the HTTP transport
+// that checks for version mismatches between the client and server. If a mismatch
+// is detected, a warning is printed to the user.
+func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
+	var once sync.Once
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		res, err := rt.RoundTrip(req)
+		if err != nil {
+			return res, err
+		}
+		once.Do(func() {
+			serverVersion := res.Header.Get(codersdk.BuildVersionHeader)
+			if serverVersion == "" {
+				return
+			}
+			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
+				return
+			}
+			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
+			serverInfo, err := getBuildInfo(inv.Context())
+			if err == nil && serverInfo.UpgradeMessage != "" {
+				upgradeMessage = serverInfo.UpgradeMessage
+			}
+			fmtWarningText := "version mismatch: client %s, server %s\n%s"
+			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
+			warning := fmt.Sprintf(fmtWarn, clientVersion, serverVersion, upgradeMessage)
+
+			_, _ = fmt.Fprintln(inv.Stderr, warning)
+		})
+		return res, err
+	})
+}
+
+// wrapTransportWithTelemetryHeader adds telemetry headers to report command usage
+// to an HTTP transport.
+func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
+	var (
+		value string
+		once  sync.Once
+	)
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		once.Do(func() {
+			// We only want to compute this header once when a request
+			// first goes out, hence the complexity with locking here.
+			var topts []telemetry.Option
+			for _, opt := range inv.Command.FullOptions() {
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
+					continue
+				}
+				topts = append(topts, telemetry.Option{
+					Name:        opt.Name,
+					ValueSource: string(opt.ValueSource),
+				})
+			}
+			ti := telemetry.Invocation{
+				Command:   inv.Command.FullName(),
+				Options:   topts,
+				InvokedAt: time.Now(),
+			}
+
+			byt, err := json.Marshal(ti)
+			if err != nil {
+				// Should be impossible
+				panic(err)
+			}
+			s := base64.StdEncoding.EncodeToString(byt)
+			// Don't send the header if it's too long!
+			if len(s) <= 4096 {
+				value = s
+			}
+		})
+		if value != "" {
+			req.Header.Add(codersdk.CLITelemetryHeader, value)
+		}
+		return transport.RoundTrip(req)
+	})
+}
+
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }

@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
@@ -25,8 +25,8 @@ type AuditOAuthConvertState struct {
 }
 
 type HealthSettings struct {
-	ID                    uuid.UUID                `db:"id" json:"id"`
-	DismissedHealthchecks []codersdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
+	ID                    uuid.UUID                 `db:"id" json:"id"`
+	DismissedHealthchecks []healthsdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
 }
 
 type Actions []rbac.Action
@@ -88,5 +88,27 @@ func (m *StringMap) Scan(src interface{}) error {
 }
 
 func (m StringMap) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
+type StringMapOfInt map[string]int64
+
+func (m *StringMapOfInt) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	switch src := src.(type) {
+	case []byte:
+		err := json.Unmarshal(src, m)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
+	}
+	return nil
+}
+
+func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }

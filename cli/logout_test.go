@@ -97,33 +97,6 @@ func TestLogout(t *testing.T) {
 
 		<-logoutChan
 	})
-	t.Run("NoSessionFile", func(t *testing.T) {
-		t.Parallel()
-
-		pty := ptytest.New(t)
-		config := login(t, pty)
-
-		// Ensure session files exist.
-		require.FileExists(t, string(config.URL()))
-		require.FileExists(t, string(config.Session()))
-
-		err := os.Remove(string(config.Session()))
-		require.NoError(t, err)
-
-		logoutChan := make(chan struct{})
-		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
-
-		logout.Stdin = pty.Input()
-		logout.Stdout = pty.Output()
-
-		go func() {
-			defer close(logoutChan)
-			err = logout.Run()
-			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login'.")
-		}()
-
-		<-logoutChan
-	})
 	t.Run("CannotDeleteFiles", func(t *testing.T) {
 		t.Parallel()
 

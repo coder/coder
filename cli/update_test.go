@@ -710,6 +710,61 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("ParameterOptionFailsMonotonicValidation", func(t *testing.T) {
+		t.Parallel()
+
+		// Create template and workspace
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		const tempVal = "2"
+
+		templateParameters := []*proto.RichParameter{
+			{Name: numberParameterName, Type: "number", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "First option", Description: "This is first option", Value: "1"},
+				{Name: "Second option", Description: "This is second option", Value: tempVal},
+				{Name: "Third option", Description: "This is third option", Value: "3"},
+			}, ValidationMonotonic: string(codersdk.MonotonicOrderIncreasing)},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Create new workspace
+		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", numberParameterName, tempVal))
+		clitest.SetupConfig(t, member, root)
+		ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		// Update the workspace
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt=true")
+		clitest.SetupConfig(t, member, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			// TODO: improve validation so we catch this problem before it reaches the server
+			// 		 but for now just validate that the server actually catches invalid monotonicity
+			assert.ErrorContains(t, err, fmt.Sprintf("parameter value must be equal or greater than previous value: %s", tempVal))
+		}()
+
+		matches := []string{
+			// `cliui.Select` will automatically pick the first option, which will cause the validation to fail because
+			// "1" is less than "2" which was selected initially.
+			numberParameterName,
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			pty.ExpectMatch(match)
+		}
+
+		<-doneChan
+	})
+
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 

@@ -1950,6 +1950,21 @@ func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), arg0, arg1)
 }
 
+// GetTemplateUsageStats mocks base method.
+func (m *MockStore) GetTemplateUsageStats(arg0 context.Context, arg1 database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateUsageStats", arg0, arg1)
+	ret0, _ := ret[0].([]database.TemplateUsageStat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateUsageStats indicates an expected call of GetTemplateUsageStats.
+func (mr *MockStoreMockRecorder) GetTemplateUsageStats(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).GetTemplateUsageStats), arg0, arg1)
+}
+
 // GetTemplateUserRoles mocks base method.
 func (m *MockStore) GetTemplateUserRoles(arg0 context.Context, arg1 uuid.UUID) ([]database.TemplateUser, error) {
 	m.ctrl.T.Helper()
@@ -4692,6 +4707,20 @@ func (m *MockStore) UpsertTailnetTunnel(arg0 context.Context, arg1 database.Upse
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), arg0, arg1)
+}
+
+// UpsertTemplateUsageStats mocks base method.
+func (m *MockStore) UpsertTemplateUsageStats(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), arg0)
 }
 
 // UpsertWorkspaceAgentPortShare mocks base method.
