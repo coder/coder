@@ -237,7 +237,8 @@ configured.
 
 **VSCode**
 
-Use the [Coder](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
+Use the
+[Coder](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
 extension to automatically configure these settings for you!
 
 Otherwise, you can manually configure the following settings:
