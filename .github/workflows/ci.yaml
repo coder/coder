@@ -473,6 +473,7 @@ jobs:
       - run: pnpm playwright:test --workers 1
         env:
           DEBUG: pw:api
+          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
         working-directory: site
 
       - name: Upload Playwright Failed Tests
