@@ -12201,7 +12201,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -12501,31 +12501,31 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                     uuid.UUID                `db:"id" json:"id"`
-	CreatedAt              time.Time                `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time                `db:"updated_at" json:"updated_at"`
-	OwnerID                uuid.UUID                `db:"owner_id" json:"owner_id"`
-	OrganizationID         uuid.UUID                `db:"organization_id" json:"organization_id"`
-	TemplateID             uuid.UUID                `db:"template_id" json:"template_id"`
-	Deleted                bool                     `db:"deleted" json:"deleted"`
-	Name                   string                   `db:"name" json:"name"`
-	AutostartSchedule      sql.NullString           `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                    sql.NullInt64            `db:"ttl" json:"ttl"`
-	LastUsedAt             time.Time                `db:"last_used_at" json:"last_used_at"`
-	DormantAt              sql.NullTime             `db:"dormant_at" json:"dormant_at"`
-	DeletingAt             sql.NullTime             `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates       AutomaticUpdates         `db:"automatic_updates" json:"automatic_updates"`
-	Favorite               bool                     `db:"favorite" json:"favorite"`
-	TemplateName           string                   `db:"template_name" json:"template_name"`
-	TemplateVersionID      uuid.UUID                `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName    sql.NullString           `db:"template_version_name" json:"template_version_name"`
-	Username               string                   `db:"username" json:"username"`
-	LatestBuildCompletedAt sql.NullTime             `db:"latest_build_completed_at" json:"latest_build_completed_at"`
-	LatestBuildCanceledAt  sql.NullTime             `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
-	LatestBuildError       sql.NullString           `db:"latest_build_error" json:"latest_build_error"`
-	LatestBuildTransition  WorkspaceTransition      `db:"latest_build_transition" json:"latest_build_transition"`
-	LatestBuildStatus      NullProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
-	Count                  int64                    `db:"count" json:"count"`
+	ID                     uuid.UUID            `db:"id" json:"id"`
+	CreatedAt              time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time            `db:"updated_at" json:"updated_at"`
+	OwnerID                uuid.UUID            `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID            `db:"organization_id" json:"organization_id"`
+	TemplateID             uuid.UUID            `db:"template_id" json:"template_id"`
+	Deleted                bool                 `db:"deleted" json:"deleted"`
+	Name                   string               `db:"name" json:"name"`
+	AutostartSchedule      sql.NullString       `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                    sql.NullInt64        `db:"ttl" json:"ttl"`
+	LastUsedAt             time.Time            `db:"last_used_at" json:"last_used_at"`
+	DormantAt              sql.NullTime         `db:"dormant_at" json:"dormant_at"`
+	DeletingAt             sql.NullTime         `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates       AutomaticUpdates     `db:"automatic_updates" json:"automatic_updates"`
+	Favorite               bool                 `db:"favorite" json:"favorite"`
+	TemplateName           string               `db:"template_name" json:"template_name"`
+	TemplateVersionID      uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName    sql.NullString       `db:"template_version_name" json:"template_version_name"`
+	Username               string               `db:"username" json:"username"`
+	LatestBuildCompletedAt sql.NullTime         `db:"latest_build_completed_at" json:"latest_build_completed_at"`
+	LatestBuildCanceledAt  sql.NullTime         `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
+	LatestBuildError       sql.NullString       `db:"latest_build_error" json:"latest_build_error"`
+	LatestBuildTransition  WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
+	LatestBuildStatus      ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	Count                  int64                `db:"count" json:"count"`
 }
 
 // build_params is used to filter by build parameters if present.

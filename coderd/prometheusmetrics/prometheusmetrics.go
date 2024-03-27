@@ -152,15 +152,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 		workspaceDetails.Reset()
 		for _, w := range ws {
-			// TODO: there may be a more elegant/idiomatic way to do this?
-			buildStatus := string(database.ProvisionerJobStatusUnknown)
-			if val, err := w.LatestBuildStatus.Value(); err == nil {
-				if status, ok := val.(string); ok {
-					buildStatus = status
-				}
-			}
-
-			workspaceDetails.WithLabelValues(buildStatus, w.TemplateName, w.TemplateVersionName.String, w.Name, w.Username, string(w.LatestBuildTransition)).Set(1)
+			workspaceDetails.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.Name, w.Username, string(w.LatestBuildTransition)).Set(1)
 		}
 	}
 

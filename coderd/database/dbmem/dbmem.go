@@ -405,7 +405,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			}
 
 			if pj, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID); err == nil {
-				wr.LatestBuildStatus = database.NullProvisionerJobStatus{ProvisionerJobStatus: pj.JobStatus, Valid: true}
+				wr.LatestBuildStatus = pj.JobStatus
 			}
 
 			wr.LatestBuildTransition = build.Transition

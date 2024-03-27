@@ -119,7 +119,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
