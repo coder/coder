@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 )
 
 const minimumPostgreSQLVersion = 13
 
 func main() {
-	connection, closeFn, err := postgres.Open()
+	connection, closeFn, err := dbtestutil.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -91,6 +91,7 @@ func main() {
 		"s/ public\\./ /g",
 		"s/::public\\./::/g",
 		"s/'public\\./'/g",
+		"s/(public\\./(/g",
 		// Remove database settings.
 		"s/SET .* = .*;//g",
 		// Remove select statements. These aren't useful

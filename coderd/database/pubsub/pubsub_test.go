@@ -12,7 +12,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -24,7 +23,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	}
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	connectionURL, closePg, err := postgres.Open()
+	connectionURL, closePg, err := dbtestutil.Open()
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)

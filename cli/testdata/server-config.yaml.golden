@@ -411,6 +411,9 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
+# Type of auth to use when connecting to postgres.
+# (default: password, type: enum[password\|awsiamrds])
+pgAuth: password
 # The algorithm to use for generating ssh keys. Accepted values are "ed25519",
 # "ecdsa", or "rsa4096".
 # (default: ed25519, type: string)
@@ -462,7 +465,7 @@ externalAuthProviders: []
 # (default: <unset>, type: string)
 wgtunnelHost: ""
 # Allow users to set quiet hours schedules each day for workspaces to avoid
-# workspaces stopping during the day due to template max TTL.
+# workspaces stopping during the day due to template scheduling.
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces

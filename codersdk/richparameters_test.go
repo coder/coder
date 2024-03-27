@@ -201,13 +201,13 @@ func TestRichParameterValidation(t *testing.T) {
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "increasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderIncreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "decreasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderDecreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 

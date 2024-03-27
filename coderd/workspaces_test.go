@@ -1322,6 +1322,20 @@ func TestWorkspaceFilter(t *testing.T) {
 func TestWorkspaceFilterManual(t *testing.T) {
 	t.Parallel()
 
+	expectIDs := func(t *testing.T, exp []codersdk.Workspace, got []codersdk.Workspace) {
+		t.Helper()
+		expIDs := make([]uuid.UUID, 0, len(exp))
+		for _, e := range exp {
+			expIDs = append(expIDs, e.ID)
+		}
+
+		gotIDs := make([]uuid.UUID, 0, len(got))
+		for _, g := range got {
+			gotIDs = append(gotIDs, g.ID)
+		}
+		require.ElementsMatchf(t, expIDs, gotIDs, "expected IDs")
+	}
+
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1593,7 +1607,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
-
 	t.Run("Dormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
@@ -1640,7 +1653,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Equal(t, dormantWorkspace.ID, res.Workspaces[0].ID)
 		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
-
 	t.Run("LastUsed", func(t *testing.T) {
 		t.Parallel()
 
@@ -1746,6 +1758,172 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+	t.Run("Params", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			paramOneName   = "one"
+			paramTwoName   = "two"
+			paramThreeName = "three"
+			paramOptional  = "optional"
+		)
+
+		makeParameters := func(extra ...*proto.RichParameter) *echo.Responses {
+			return &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionPlan: []*proto.Response{
+					{
+						Type: &proto.Response_Plan{
+							Plan: &proto.PlanComplete{
+								Parameters: append([]*proto.RichParameter{
+									{Name: paramOneName, Description: "", Mutable: true, Type: "string"},
+									{Name: paramTwoName, DisplayName: "", Description: "", Mutable: true, Type: "string"},
+									{Name: paramThreeName, Description: "", Mutable: true, Type: "string"},
+								}, extra...),
+							},
+						},
+					},
+				},
+				ProvisionApply: echo.ApplyComplete,
+			}
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeParameters(&proto.RichParameter{Name: paramOptional, Description: "", Mutable: true, Type: "string"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		noOptionalVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeParameters(), func(request *codersdk.CreateTemplateVersionRequest) {
+			request.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, noOptionalVersion.ID)
+
+		// foo :: one=foo, two=bar, one=baz, optional=optional
+		foo := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = version.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "foo",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "bar",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+				{
+					Name:  paramOptional,
+					Value: "optional",
+				},
+			}
+		})
+
+		// bar :: one=foo, two=bar, three=baz, optional=optional
+		bar := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = version.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "bar",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "bar",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+				{
+					Name:  paramOptional,
+					Value: "optional",
+				},
+			}
+		})
+
+		// baz :: one=baz, two=baz, three=baz
+		baz := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = noOptionalVersion.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "unique",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "baz",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+			}
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:tparallel,paralleltest
+		t.Run("has_param", func(t *testing.T) {
+			// Checks the existence of a param value
+			// all match
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s", paramOneName),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+
+			// Some match
+			optional, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s", paramOptional),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar}, optional.Workspaces)
+
+			// None match
+			none, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: "param:not-a-param",
+			})
+			require.NoError(t, err)
+			require.Len(t, none.Workspaces, 0)
+		})
+
+		//nolint:tparallel,paralleltest
+		t.Run("exact_param", func(t *testing.T) {
+			// All match
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramThreeName, "baz"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+
+			// Two match
+			two, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramTwoName, "bar"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar}, two.Workspaces)
+
+			// Only 1 matches
+			one, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramOneName, "foo"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo}, one.Workspaces)
+		})
+
+		//nolint:tparallel,paralleltest
+		t.Run("exact_param_and_has", func(t *testing.T) {
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:not=athing param:%s=%s param:%s=%s", paramOptional, "optional", paramOneName, "unique"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+		})
 	})
 }
 

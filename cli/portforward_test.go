@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -96,7 +97,12 @@ func TestPortForward(t *testing.T) {
 	// Setup agent once to be shared between test-cases (avoid expensive
 	// non-parallel setup).
 	var (
-		client, db         = coderdtest.NewWithDatabase(t, nil)
+		wuTick     = make(chan time.Time)
+		wuFlush    = make(chan int, 1)
+		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			WorkspaceUsageTrackerTick:  wuTick,
+			WorkspaceUsageTrackerFlush: wuFlush,
+		})
 		admin              = coderdtest.CreateFirstUser(t, client)
 		member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace          = runAgent(t, client, memberUser.ID, db)
@@ -148,6 +154,13 @@ func TestPortForward(t *testing.T) {
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
+
+			flushCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
+			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+			updated, err := client.Workspace(context.Background(), workspace.ID)
+			require.NoError(t, err)
+			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
 
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
@@ -196,6 +209,13 @@ func TestPortForward(t *testing.T) {
 			cancel()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
+
+			flushCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
+			_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+			updated, err := client.Workspace(context.Background(), workspace.ID)
+			require.NoError(t, err)
+			require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 		})
 	}
 
@@ -257,6 +277,13 @@ func TestPortForward(t *testing.T) {
 		cancel()
 		err := <-errC
 		require.ErrorIs(t, err, context.Canceled)
+
+		flushCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
+		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+		updated, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 	})
 }
 

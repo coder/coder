@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
@@ -35,21 +35,15 @@ const BASE_DEADLINE = dayjs().add(3, "hour");
 
 const renderScheduleControls = async () => {
   server.use(
-    rest.get(
-      "/api/v2/users/:username/workspace/:workspaceName",
-      (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockWorkspace,
-            latest_build: {
-              ...MockWorkspace.latest_build,
-              deadline: BASE_DEADLINE.toISOString(),
-            },
-          }),
-        );
-      },
-    ),
+    http.get("/api/v2/users/:username/workspace/:workspaceName", () => {
+      return HttpResponse.json({
+        ...MockWorkspace,
+        latest_build: {
+          ...MockWorkspace.latest_build,
+          deadline: BASE_DEADLINE.toISOString(),
+        },
+      });
+    }),
   );
   render(
     <ThemeProvider>

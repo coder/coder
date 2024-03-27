@@ -6,7 +6,7 @@ paid license. [Contact Sales](https://coder.com/contact) for pricing or
 
 | Category        | Feature                                                                                             | Open Source | Enterprise |
 | --------------- | --------------------------------------------------------------------------------------------------- | :---------: | :--------: |
-| Support         | Email, Phone, Prioritization                                                                        |     ❌      |     ✅     |
+| Support         | Email, Prioritization                                                                               |     ❌      |     ✅     |
 | Scale           | [High Availability](./admin/high-availability.md)                                                   |     ❌      |     ✅     |
 | Scale           | [Multiple External Auth Providers](./admin/external-auth.md#multiple-external-providers-enterprise) |     ❌      |     ✅     |
 | Scale           | [Isolated Terraform Runners](./admin/provisioners.md)                                               |     ❌      |     ✅     |

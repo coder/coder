@@ -1,110 +1,18 @@
 We scale-test Coder with [a built-in utility](#scale-testing-utility) that can
 be used in your environment for insights into how Coder scales with your
-infrastructure.
+infrastructure. For scale-testing Kubernetes clusters we recommend to install
+and use the dedicated Coder template,
+[scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
-## General concepts
-
-Coder runs workspace operations in a queue. The number of concurrent builds will
-be limited to the number of provisioner daemons across all coderd replicas.
-
-- **coderd**: Coder’s primary service. Learn more about
-  [Coder’s architecture](../about/architecture.md)
-- **coderd replicas**: Replicas (often via Kubernetes) for high availability,
-  this is an [enterprise feature](../enterprise.md)
-- **concurrent workspace builds**: Workspace operations (e.g.
-  create/stop/delete/apply) across all users
-- **concurrent connections**: Any connection to a workspace (e.g. SSH, web
-  terminal, `coder_app`)
-- **provisioner daemons**: Coder runs one workspace build per provisioner
-  daemon. One coderd replica can host many daemons
-- **scaletest**: Our scale-testing utility, built into the `coder` command line.
-
-```text
-2 coderd replicas * 30 provisioner daemons = 60 max concurrent workspace builds
-```
-
-## Infrastructure recommendations
-
-> Note: The below are guidelines for planning your infrastructure. Your mileage
-> may vary depending on your templates, workflows, and users.
-
-When planning your infrastructure, we recommend you consider the following:
-
-1. CPU and memory requirements for `coderd`. We recommend allocating 1 CPU core
-   and 2 GB RAM per `coderd` replica at minimum. See
-   [Concurrent users](#concurrent-users) for more details.
-1. CPU and memory requirements for
-   [external provisioners](../admin/provisioners.md#running-external-provisioners),
-   if required. We recommend allocating 1 CPU core and 1 GB RAM per 5 concurrent
-   workspace builds to external provisioners. Note that this may vary depending
-   on the template used. See
-   [Concurrent workspace builds](#concurrent-workspace-builds) for more details.
-   By default, `coderd` runs 3 integrated provisioners.
-1. CPU and memory requirements for the database used by `coderd`. We recommend
-   allocating an additional 1 CPU core to the database used by Coder for every
-   1000 active users.
-1. CPU and memory requirements for workspaces created by Coder. This will vary
-   depending on users' needs. However, the Coder agent itself requires at
-   minimum 0.1 CPU cores and 256 MB to run inside a workspace.
-
-### Concurrent users
-
-We recommend allocating 2 CPU cores and 4 GB RAM per `coderd` replica per 1000
-active users. We also recommend allocating an additional 1 CPU core to the
-database used by Coder for every 1000 active users. Inactive users do not
-consume Coder resources, although workspaces configured to auto-start will
-consume resources when they are built.
-
-Users' primary mode of accessing Coder will also affect resource requirements.
-If users will be accessing workspaces primarily via Coder's HTTP interface, we
-recommend doubling the number of cores and RAM allocated per user. For example,
-if you expect 1000 users accessing workspaces via the web, we recommend
-allocating 4 CPU cores and 8 GB RAM.
-
-Users accessing workspaces via SSH will consume fewer resources, as SSH
-connections are not proxied through Coder.
-
-### Concurrent workspace builds
-
-Workspace builds are CPU-intensive, as it relies on Terraform. Various
-[Terraform providers](https://registry.terraform.io/browse/providers) have
-different resource requirements. When tested with our
-[kubernetes](https://github.com/coder/coder/tree/main/examples/templates/kubernetes)
-template, `coderd` will consume roughly 0.25 cores per concurrent workspace
-build. For effective provisioning, our helm chart prefers to schedule
-[one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/coder/values.yaml#L188-L202).
-
-We recommend:
-
-- Running `coderd` on a dedicated set of nodes. This will prevent other
-  workloads from interfering with workspace builds. You can use
-  [node selectors](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector),
-  or
-  [taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
-  to achieve this.
-- Disabling autoscaling for `coderd` nodes. Autoscaling can cause interruptions
-  for users, see [Autoscaling](#autoscaling) for more details.
-- (Enterprise-only) Running external provisioners instead of Coder's built-in
-  provisioners (`CODER_PROVISIONER_DAEMONS=0`) will separate the load caused by
-  workspace provisioning on the `coderd` nodes. For more details, see
-  [External provisioners](../admin/provisioners.md#running-external-provisioners).
-- Alternatively, if increasing the number of integrated provisioner daemons in
-  `coderd` (`CODER_PROVISIONER_DAEMONS>3`), allocate additional resources to
-  `coderd` to compensate (approx. 0.25 cores and 256 MB per provisioner daemon).
-
-For example, to support 120 concurrent workspace builds:
-
-- Create a cluster/nodepool with 4 nodes, 8-core each (AWS: `t3.2xlarge` GCP:
-  `e2-highcpu-8`)
-- Run coderd with 4 replicas, 30 provisioner daemons each.
-  (`CODER_PROVISIONER_DAEMONS=30`)
-- Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use
-  up to 2 cores and 4 GB RAM
+Learn more about [Coder’s architecture](../about/architecture.md) and our
+[scale-testing methodology](architectures/index.md#scale-testing-methodology).
 
 ## Recent scale tests
 
 > Note: the below information is for reference purposes only, and are not
-> intended to be used as guidelines for infrastructure sizing.
+> intended to be used as guidelines for infrastructure sizing. Review the
+> [Reference Architectures](architectures/index.md) for hardware sizing
+> recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 | ---------------- | --------- | --------- | -------------- | ----------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
@@ -123,58 +31,78 @@ Since Coder's performance is highly dependent on the templates and workflows you
 support, you may wish to use our internal scale testing utility against your own
 environments.
 
-> Note: This utility is intended for internal use only. It is not subject to any
-> compatibility guarantees, and may cause interruptions for your users. To avoid
-> potential outages and orphaned resources, we recommend running scale tests on
-> a secondary "staging" environment. Run it against a production environment at
-> your own risk.
+> Note: This utility is experimental. It is not subject to any compatibility
+> guarantees, and may cause interruptions for your users. To avoid potential
+> outages and orphaned resources, we recommend running scale tests on a
+> secondary "staging" environment or a dedicated
+> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
+> Run it against a production environment at your own risk.
 
-### Workspace Creation
+### Create workspaces
 
-The following command will run our scale test against your own Coder deployment.
-You can also specify a template name and any parameter values.
+The following command will provision a number of Coder workspaces using the
+specified template and extra parameters.
 
 ```shell
 coder exp scaletest create-workspaces \
-    --count 1000 \
-    --template "kubernetes" \
-    --concurrency 0 \
-    --cleanup-concurrency 0 \
-    --parameter "home_disk_size=10" \
-    --run-command "sleep 2 && echo hello"
+		--retry 5 \
+		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
+		--template "${SCALETEST_PARAM_TEMPLATE}" \
+		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
+		--timeout 5h \
+		--job-timeout 5h \
+		--no-cleanup \
+		--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
 
 # Run `coder exp scaletest create-workspaces --help` for all usage
 ```
 
-The test does the following:
+The command does the following:
 
-1. create `1000` workspaces
-1. establish SSH connection to each workspace
-1. run `sleep 3 && echo hello` on each workspace via the web terminal
-1. close connections, attempt to delete all workspaces
-1. return results (e.g. `998 succeeded, 2 failed to connect`)
-
-Concurrency is configurable. `concurrency 0` means the scaletest test will
-attempt to create & connect to all workspaces immediately.
-
-If you wish to leave the workspaces running for a period of time, you can
-specify `--no-cleanup` to skip the cleanup step. You are responsible for
-deleting these resources later.
+1. Create `${SCALETEST_PARAM_NUM_WORKSPACES}` workspaces concurrently
+   (concurrency level: `${SCALETEST_PARAM_CREATE_CONCURRENCY}`) using the
+   template `${SCALETEST_PARAM_TEMPLATE}`.
+1. Leave workspaces running to use in next steps (`--no-cleanup` option).
+1. Store provisioning results in JSON format.
+1. If you don't want the creation process to be interrupted by any errors, use
+   the `--retry 5` flag.
 
 ### Traffic Generation
 
 Given an existing set of workspaces created previously with `create-workspaces`,
-the following command will generate traffic similar to that of Coder's web
-terminal against those workspaces.
+the following command will generate traffic similar to that of Coder's Web
+Terminal against those workspaces.
 
 ```shell
+# Produce load at about 1000MB/s (25MB/40ms).
 coder exp scaletest workspace-traffic \
-    --byes-per-tick 128 \
-    --tick-interval 100ms \
-    --concurrency 0
+	--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+	--bytes-per-tick $((1024 * 1024 * 25)) \
+	--tick-interval 40ms \
+	--timeout "$((delay))s" \
+	--job-timeout "$((delay))s" \
+	--scaletest-prometheus-address 0.0.0.0:21113 \
+	--target-workspaces "0:100" \
+	--trace=false \
+  --output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json"
 ```
 
-To generate SSH traffic, add the `--ssh` flag.
+Traffic generation can be parametrized:
+
+1. Send `bytes-per-tick` every `tick-interval`.
+1. Enable tracing for performance debugging.
+1. Target a range of workspaces with `--target-workspaces 0:100`.
+1. For dashboard traffic: Target a range of users with `--target-users 0:100`.
+1. Store provisioning results in JSON format.
+1. Expose a dedicated Prometheus address (`--scaletest-prometheus-address`) for
+   scaletest-specific metrics.
+
+The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
+
+1. For SSH traffic: Use `--ssh` flag to generate SSH traffic instead of Web
+   Terminal.
+1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app
+   behavior. (modes: _WebSocket discard_, _WebSocket echo_, _WebSocket read_).
 
 ### Cleanup
 
@@ -182,10 +110,100 @@ The scaletest utility will attempt to clean up all workspaces it creates. If you
 wish to clean up all workspaces, you can run the following command:
 
 ```shell
-coder exp scaletest cleanup
+coder exp scaletest cleanup \
+	--cleanup-job-timeout 2h \
+	--cleanup-timeout 15min
 ```
 
 This will delete all workspaces and users with the prefix `scaletest-`.
+
+## Scale testing template
+
+Consider using a dedicated
+[scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner)
+template alongside the CLI utility for testing large-scale Kubernetes clusters.
+
+The template deploys a main workspace with scripts used to orchestrate Coder,
+creating workspaces, generating workspace traffic, or load-testing workspace
+apps.
+
+### Parameters
+
+The _scaletest-runner_ offers the following configuration options:
+
+- Workspace size selection: minimal/small/medium/large (_default_: minimal,
+  which contains just enough resources for a Coder agent to run without
+  additional workloads)
+- Number of workspaces
+- Wait duration between scenarios or staggered approach
+
+The template exposes parameters to control the traffic dimensions for SSH
+connections, workspace apps, and dashboard tests:
+
+- Traffic duration of the load test scenario
+- Traffic percentage of targeted workspaces
+- Bytes per tick and tick interval
+- _For workspace apps_: modes (echo, read random data, or write and discard)
+
+Scale testing concurrency can be controlled with the following parameters:
+
+- Enable parallel scenarios - interleave different traffic patterns (SSH,
+  workspace apps, dashboard traffic, etc.)
+- Workspace creation concurrency level (_default_: 10)
+- Job concurrency level - generate workspace traffic using multiple jobs
+  (_default_: 0)
+- Cleanup concurrency level
+
+### Kubernetes cluster
+
+It is recommended to learn how to operate the _scaletest-runner_ before running
+it against the staging cluster (or production at your own risk). Coder provides
+different
+[workspace configurations](https://github.com/coder/coder/tree/main/scaletest/templates)
+that operators can deploy depending on the traffic projections.
+
+There are a few cluster options available:
+
+| Workspace size | vCPU | Memory | Persisted storage | Details                                               |
+| -------------- | ---- | ------ | ----------------- | ----------------------------------------------------- |
+| minimal        | 1    | 2 Gi   | None              |                                                       |
+| small          | 1    | 1 Gi   | None              |                                                       |
+| medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
+| large          | 4    | 4 Gi   | None              |                                                       |
+
+Note: Review the selected cluster template and edit the node affinity to match
+your setup.
+
+#### Greedy agent
+
+The greedy agent variant is a template modification that makes the Coder agent
+transmit large metadata (size: 4K) while reporting stats. The transmission of
+large chunks puts extra overhead on coderd instances and agents when handling
+and storing the data.
+
+Use this template variant to verify limits of the cluster performance.
+
+### Observability
+
+During scale tests, operators can monitor progress using a Grafana dashboard.
+Coder offers a comprehensive overview
+[dashboard](https://github.com/coder/coder/blob/main/scaletest/scaletest_dashboard.json)
+that can seamlessly integrate into the internal Grafana deployment.
+
+This dashboard provides insights into various aspects, including:
+
+- Utilization of resources within the Coder control plane (CPU, memory, pods)
+- Database performance metrics (CPU, memory, I/O, connections, queries)
+- Coderd API performance (requests, latency, error rate)
+- Resource consumption within Coder workspaces (CPU, memory, network usage)
+- Internal metrics related to provisioner jobs
+
+Note: Database metrics are disabled by default and can be enabled by setting the
+environment variable `CODER_PROMETHEUS_COLLECT_DB_METRICS` to `true`.
+
+It is highly recommended to deploy a solution for centralized log collection and
+aggregation. The presence of error logs may indicate an underscaled deployment
+of Coder, necessitating action from operators.
 
 ## Autoscaling
 
@@ -228,6 +246,6 @@ an annotation on the coderd deployment.
 ## Troubleshooting
 
 If a load test fails or if you are experiencing performance issues during
-day-to-day use, you can leverage Coder's [prometheus metrics](./prometheus.md)
+day-to-day use, you can leverage Coder's [Prometheus metrics](./prometheus.md)
 to identify bottlenecks during scale tests. Additionally, you can use your
 existing cloud monitoring stack to measure load, view server logs, etc.

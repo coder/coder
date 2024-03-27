@@ -46,6 +46,8 @@ SUBCOMMANDS:
     stat              Show resource usage for the current workspace.
     state             Manually manage Terraform state to fix broken workspaces
     stop              Stop a workspace
+    support           Commands for troubleshooting issues with a Coder
+                      deployment.
     templates         Manage templates
     tokens            Manage personal access tokens
     unfavorite        Remove a workspace from your favorites
@@ -81,10 +83,6 @@ variables or flags.
 
       --no-version-warning bool, $CODER_NO_VERSION_WARNING
           Suppress warning when client and server versions do not match.
-
-  -z, --organization string, $CODER_ORGANIZATION
-          Select which organization (uuid or name) to use This overrides what is
-          present in the config file.
 
       --token string, $CODER_SESSION_TOKEN
           Specify an authentication token. For security reasons setting

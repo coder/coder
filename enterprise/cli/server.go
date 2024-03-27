@@ -37,41 +37,42 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			}
 		}
 
-		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
+		if options.DeploymentValues.DERP.Server.Enable {
+			options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
+			var meshKey string
+			err := options.Database.InTx(func(tx database.Store) error {
+				// This will block until the lock is acquired, and will be
+				// automatically released when the transaction ends.
+				err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
+				if err != nil {
+					return xerrors.Errorf("acquire lock: %w", err)
+				}
 
-		var meshKey string
-		err := options.Database.InTx(func(tx database.Store) error {
-			// This will block until the lock is acquired, and will be
-			// automatically released when the transaction ends.
-			err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
-			if err != nil {
-				return xerrors.Errorf("acquire lock: %w", err)
-			}
-
-			meshKey, err = tx.GetDERPMeshKey(ctx)
-			if err == nil {
+				meshKey, err = tx.GetDERPMeshKey(ctx)
+				if err == nil {
+					return nil
+				}
+				if !errors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get DERP mesh key: %w", err)
+				}
+				meshKey, err = cryptorand.String(32)
+				if err != nil {
+					return xerrors.Errorf("generate DERP mesh key: %w", err)
+				}
+				err = tx.InsertDERPMeshKey(ctx, meshKey)
+				if err != nil {
+					return xerrors.Errorf("insert DERP mesh key: %w", err)
+				}
 				return nil
-			}
-			if !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get DERP mesh key: %w", err)
-			}
-			meshKey, err = cryptorand.String(32)
+			}, nil)
 			if err != nil {
-				return xerrors.Errorf("generate DERP mesh key: %w", err)
+				return nil, nil, err
 			}
-			err = tx.InsertDERPMeshKey(ctx, meshKey)
-			if err != nil {
-				return xerrors.Errorf("insert DERP mesh key: %w", err)
+			if meshKey == "" {
+				return nil, nil, xerrors.New("mesh key is empty")
 			}
-			return nil
-		}, nil)
-		if err != nil {
-			return nil, nil, err
+			options.DERPServer.SetMeshKey(meshKey)
 		}
-		if meshKey == "" {
-			return nil, nil, xerrors.New("mesh key is empty")
-		}
-		options.DERPServer.SetMeshKey(meshKey)
 
 		options.Auditor = audit.NewAuditor(
 			options.Database,

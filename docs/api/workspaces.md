@@ -1385,6 +1385,32 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Post Workspace Usage by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaces/{workspace}/usage`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Watch workspace by ID
 
 ### Code samples

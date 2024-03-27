@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -25,6 +26,7 @@ import (
 func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 	var (
 		newUserDBURL              string
+		newUserPgAuth             string
 		newUserSSHKeygenAlgorithm string
 		newUserUsername           string
 		newUserEmail              string
@@ -62,7 +64,15 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				newUserDBURL = url
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, "postgres", newUserDBURL)
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(newUserPgAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -242,6 +252,14 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       serpent.StringOf(&newUserDBURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&newUserPgAuth, codersdk.PostgresAuthDrivers...),
 		},
 		serpent.Option{
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",

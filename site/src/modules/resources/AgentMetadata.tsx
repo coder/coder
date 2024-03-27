@@ -3,10 +3,8 @@ import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import dayjs from "dayjs";
 import {
-  createContext,
   type FC,
   type HTMLAttributes,
-  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -21,8 +19,6 @@ import { Stack } from "components/Stack/Stack";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 type ItemStatus = "stale" | "valid" | "loading";
-
-export const WatchAgentMetadataContext = createContext(watchAgentMetadata);
 
 export interface AgentMetadataViewProps {
   metadata: WorkspaceAgentMetadata[];
@@ -53,7 +49,6 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined);
-  const watchAgentMetadata = useContext(WatchAgentMetadataContext);
 
   useEffect(() => {
     if (storybookMetadata !== undefined) {
@@ -88,7 +83,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
       };
     };
     return connect();
-  }, [agent.id, watchAgentMetadata, storybookMetadata]);
+  }, [agent.id, storybookMetadata]);
 
   if (metadata === undefined) {
     return (

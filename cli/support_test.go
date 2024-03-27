@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"tailscale.com/ipn/ipnstate"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent"
@@ -23,6 +25,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -36,12 +41,21 @@ func TestSupportBundle(t *testing.T) {
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		var dc codersdk.DeploymentConfig
+		secretValue := uuid.NewString()
+		seedSecretDeploymentOptions(t, &dc, secretValue)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dc.Values,
+		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
-		}).WithAgent().Do()
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			// This should not show up in the bundle output
+			agents[0].Env["SECRET_VALUE"] = secretValue
+			return agents
+		}).Do()
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		tempDir := t.TempDir()
@@ -76,19 +90,19 @@ func TestSupportBundle(t *testing.T) {
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output", path)
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--output-file", path, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err = inv.Run()
 		require.NoError(t, err)
-		assertBundleContents(t, path)
+		assertBundleContents(t, path, secretValue)
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.New(t, "support", "bundle")
+		inv, root := clitest.New(t, "support", "bundle", "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -103,7 +117,7 @@ func TestSupportBundle(t *testing.T) {
 			OrganizationID: admin.OrganizationID,
 			OwnerID:        admin.UserID,
 		}).Do() // without agent!
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name)
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
 		//nolint: gocritic // requires owner privilege
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -119,19 +133,20 @@ func TestSupportBundle(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			OwnerID:        member.ID,
 		}).WithAgent().Do()
-		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name)
+		inv, root := clitest.New(t, "support", "bundle", r.Workspace.Name, "--yes")
 		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
 		require.ErrorContains(t, err, "failed authorization check")
 	})
 }
 
-func assertBundleContents(t *testing.T, path string) {
+func assertBundleContents(t *testing.T, path string, badValues ...string) {
 	t.Helper()
 	r, err := zip.OpenReader(path)
 	require.NoError(t, err, "open zip file")
 	defer r.Close()
 	for _, f := range r.File {
+		assertDoesNotContain(t, f, badValues...)
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
@@ -146,7 +161,7 @@ func assertBundleContents(t *testing.T, path string) {
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, f, v, "experiments should not be empty")
 		case "deployment/health.json":
-			var v codersdk.HealthcheckReport
+			var v healthsdk.HealthcheckReport
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "health report should not be empty")
 		case "network/coordinator_debug.html":
@@ -156,7 +171,7 @@ func assertBundleContents(t *testing.T, path string) {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
 		case "network/netcheck.json":
-			var v codersdk.WorkspaceAgentConnectionInfo
+			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "connection info should not be empty")
 		case "workspace/workspace.json":
@@ -219,6 +234,9 @@ func assertBundleContents(t *testing.T, path string) {
 		case "logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
+		case "cli_logs.txt":
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "CLI logs should not be empty")
 		default:
 			require.Failf(t, "unexpected file in bundle", f.Name)
 		}
@@ -240,4 +258,26 @@ func readBytesFromZip(t *testing.T, f *zip.File) []byte {
 	bs, err := io.ReadAll(rc)
 	require.NoError(t, err, "read bytes from zip")
 	return bs
+}
+
+func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {
+	t.Helper()
+	bs := readBytesFromZip(t, f)
+	for _, val := range vals {
+		if bytes.Contains(bs, []byte(val)) {
+			t.Fatalf("file %q should not contain value %q", f.Name, val)
+		}
+	}
+}
+
+func seedSecretDeploymentOptions(t *testing.T, dc *codersdk.DeploymentConfig, secretValue string) {
+	t.Helper()
+	if dc == nil {
+		dc = &codersdk.DeploymentConfig{}
+	}
+	for _, opt := range dc.Options {
+		if codersdk.IsSecretDeploymentOption(opt) {
+			opt.Value.Set(secretValue)
+		}
+	}
 }

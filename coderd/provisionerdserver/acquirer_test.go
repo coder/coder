@@ -53,12 +53,13 @@ func TestAcquirer_Single(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
+	orgID := uuid.New()
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	acquiree := newTestAcquiree(t, workerID, pt, tags)
+	acquiree := newTestAcquiree(t, orgID, workerID, pt, tags)
 	jobID := uuid.New()
 	err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 	require.NoError(t, err)
@@ -82,6 +83,7 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	acquirees := make([]*testAcquiree, 0, 10)
 	jobIDs := make(map[uuid.UUID]bool)
 	workerIDs := make(map[uuid.UUID]bool)
+	orgID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
@@ -89,7 +91,7 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wID := uuid.New()
 		workerIDs[wID] = true
-		a := newTestAcquiree(t, wID, pt, tags)
+		a := newTestAcquiree(t, orgID, wID, pt, tags)
 		acquirees = append(acquirees, a)
 		a.startAcquire(ctx, uut)
 	}
@@ -124,12 +126,13 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
+	orgID := uuid.New()
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	acquiree := newTestAcquiree(t, workerID, pt, tags)
+	acquiree := newTestAcquiree(t, orgID, workerID, pt, tags)
 	jobID := uuid.New()
 	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
 	require.NoError(t, err)
@@ -175,12 +178,13 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
+	orgID := uuid.New()
 	workerID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	acquiree := newTestAcquiree(t, workerID, pt, tags)
+	acquiree := newTestAcquiree(t, orgID, workerID, pt, tags)
 	jobID := uuid.New()
 
 	acquiree.startAcquire(ctx, uut)
@@ -217,17 +221,18 @@ func TestAcquirer_DifferentDomains(t *testing.T) {
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
+	orgID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	worker0 := uuid.New()
 	tags0 := provisionerdserver.Tags{
 		"worker": "0",
 	}
-	acquiree0 := newTestAcquiree(t, worker0, pt, tags0)
+	acquiree0 := newTestAcquiree(t, orgID, worker0, pt, tags0)
 	worker1 := uuid.New()
 	tags1 := provisionerdserver.Tags{
 		"worker": "1",
 	}
-	acquiree1 := newTestAcquiree(t, worker1, pt, tags1)
+	acquiree1 := newTestAcquiree(t, orgID, worker1, pt, tags1)
 	jobID := uuid.New()
 	fs.jobs = []database.ProvisionerJob{
 		{ID: jobID, Provisioner: database.ProvisionerTypeEcho, Tags: database.StringMap{"worker": "1"}},
@@ -268,11 +273,12 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	)
 
 	workerID := uuid.New()
+	orgID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	acquiree := newTestAcquiree(t, workerID, pt, tags)
+	acquiree := newTestAcquiree(t, orgID, workerID, pt, tags)
 	jobID := uuid.New()
 	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
 	require.NoError(t, err)
@@ -294,13 +300,14 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
+	orgID := uuid.New()
 	worker0 := uuid.New()
 	tags := provisionerdserver.Tags{
 		"environment": "on-prem",
 	}
-	acquiree0 := newTestAcquiree(t, worker0, pt, tags)
+	acquiree0 := newTestAcquiree(t, orgID, worker0, pt, tags)
 	worker1 := uuid.New()
-	acquiree1 := newTestAcquiree(t, worker1, pt, tags)
+	acquiree1 := newTestAcquiree(t, orgID, worker1, pt, tags)
 	jobID := uuid.New()
 
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
@@ -329,8 +336,10 @@ func TestAcquirer_MatchTags(t *testing.T) {
 	testCases := []struct {
 		name               string
 		provisionerJobTags map[string]string
-		acquireJobTags     map[string]string
-		expectAcquire      bool
+
+		acquireJobTags map[string]string
+		unmatchedOrg   bool // acquire will use a random org id
+		expectAcquire  bool
 	}{
 		{
 			name:               "untagged provisioner and untagged job",
@@ -452,6 +461,13 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			acquireJobTags:     map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
 			expectAcquire:      false,
 		},
+		{
+			name:               "matching tags with unmatched org",
+			provisionerJobTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			acquireJobTags:     map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+			expectAcquire:      false,
+			unmatchedOrg:       true,
+		},
 	}
 	for _, tt := range testCases {
 		tt := tt
@@ -486,7 +502,12 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			require.NoError(t, err)
 			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
 			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps)
-			aj, err := acq.AcquireJob(ctx, uuid.New(), ptypes, tt.acquireJobTags)
+
+			acquireOrgID := org.ID
+			if tt.unmatchedOrg {
+				acquireOrgID = uuid.New()
+			}
+			aj, err := acq.AcquireJob(ctx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
 			if tt.expectAcquire {
 				assert.NoError(t, err)
 				assert.Equal(t, pj.ID, aj.ID)
@@ -659,6 +680,7 @@ jobLoop:
 // and asserting whether or not it returns, blocks, or is canceled.
 type testAcquiree struct {
 	t        *testing.T
+	orgID    uuid.UUID
 	workerID uuid.UUID
 	pt       []database.ProvisionerType
 	tags     provisionerdserver.Tags
@@ -666,9 +688,10 @@ type testAcquiree struct {
 	jc       chan database.ProvisionerJob
 }
 
-func newTestAcquiree(t *testing.T, workerID uuid.UUID, pt []database.ProvisionerType, tags provisionerdserver.Tags) *testAcquiree {
+func newTestAcquiree(t *testing.T, orgID uuid.UUID, workerID uuid.UUID, pt []database.ProvisionerType, tags provisionerdserver.Tags) *testAcquiree {
 	return &testAcquiree{
 		t:        t,
+		orgID:    orgID,
 		workerID: workerID,
 		pt:       pt,
 		tags:     tags,
@@ -679,7 +702,7 @@ func newTestAcquiree(t *testing.T, workerID uuid.UUID, pt []database.Provisioner
 
 func (a *testAcquiree) startAcquire(ctx context.Context, uut *provisionerdserver.Acquirer) {
 	go func() {
-		j, e := uut.AcquireJob(ctx, a.workerID, a.pt, a.tags)
+		j, e := uut.AcquireJob(ctx, a.orgID, a.workerID, a.pt, a.tags)
 		a.ec <- e
 		a.jc <- j
 	}()

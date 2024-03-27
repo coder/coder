@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -312,6 +314,54 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// PostWorkspaceUsage marks the workspace as having been used recently.
+func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
+	res, err := c.Request(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return xerrors.Errorf("post workspace usage: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceUsageContext periodically posts workspace usage for the workspace
+// with the given id in the background.
+// The caller is responsible for calling the returned function to stop the background
+// process.
+func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, id uuid.UUID) func() {
+	hbCtx, hbCancel := context.WithCancel(ctx)
+	// Perform one initial update
+	if err := c.PostWorkspaceUsage(hbCtx, id); err != nil {
+		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
+	}
+	ticker := time.NewTicker(time.Minute)
+	doneCh := make(chan struct{})
+	go func() {
+		defer func() {
+			ticker.Stop()
+			close(doneCh)
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				if err := c.PostWorkspaceUsage(hbCtx, id); err != nil {
+					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
+				}
+			case <-hbCtx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		hbCancel()
+		<-doneCh
+	}
 }
 
 // UpdateWorkspaceDormancy is a request to activate or make a workspace dormant.

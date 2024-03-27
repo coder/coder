@@ -2083,7 +2083,6 @@ type Template struct {
 	GroupACL                      TemplateACL     `db:"group_acl" json:"group_acl"`
 	DisplayName                   string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs  bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                        int64           `db:"max_ttl" json:"max_ttl"`
 	AllowUserAutostart            bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
 	AllowUserAutostop             bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL                    int64           `db:"failure_ttl" json:"failure_ttl"`
@@ -2094,7 +2093,6 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
@@ -2120,8 +2118,7 @@ type TemplateTable struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
@@ -2138,9 +2135,36 @@ type TemplateTable struct {
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+}
+
+// Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
+type TemplateUsageStat struct {
+	// Start time of the usage period.
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	// End time of the usage period.
+	EndTime time.Time `db:"end_time" json:"end_time"`
+	// ID of the template being used.
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	// ID of the user using the template.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Median latency the user is experiencing, in milliseconds. Null means no value was recorded.
+	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
+	// Total minutes the user has been using the template.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
+	// Total minutes the user has been using SSH.
+	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
+	// Total minutes the user has been using SFTP.
+	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
+	// Total minutes the user has been using the reconnecting PTY.
+	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
+	// Total minutes the user has been using VSCode.
+	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
+	// Total minutes the user has been using JetBrains.
+	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
+	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
+	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.

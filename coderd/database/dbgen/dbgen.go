@@ -387,6 +387,12 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
 	t.Helper()
 
+	var defOrgID uuid.UUID
+	if orig.OrganizationID == uuid.Nil {
+		defOrg, _ := db.GetDefaultOrganization(genCtx)
+		defOrgID = defOrg.ID
+	}
+
 	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -401,7 +407,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		OrganizationID: takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
 		InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 		Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
 		StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
@@ -418,10 +424,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt: orig.StartedAt,
-			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:      must(json.Marshal(orig.Tags)),
-			WorkerID:  uuid.NullUUID{},
+			StartedAt:      orig.StartedAt,
+			OrganizationID: job.OrganizationID,
+			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:           must(json.Marshal(orig.Tags)),
+			WorkerID:       uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
@@ -480,6 +487,38 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 	})
 	require.NoError(t, err, "insert app")
 	return resource
+}
+
+func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAppStat) database.WorkspaceAppStat {
+	// This is not going to be correct, but our query doesn't return the ID.
+	id, err := cryptorand.Int63()
+	require.NoError(t, err, "generate id")
+
+	scheme := database.WorkspaceAppStat{
+		ID:               takeFirst(orig.ID, id),
+		UserID:           takeFirst(orig.UserID, uuid.New()),
+		WorkspaceID:      takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:          takeFirst(orig.AgentID, uuid.New()),
+		AccessMethod:     takeFirst(orig.AccessMethod, ""),
+		SlugOrPort:       takeFirst(orig.SlugOrPort, ""),
+		SessionID:        takeFirst(orig.SessionID, uuid.New()),
+		SessionStartedAt: takeFirst(orig.SessionStartedAt, dbtime.Now().Add(-time.Minute)),
+		SessionEndedAt:   takeFirst(orig.SessionEndedAt, dbtime.Now()),
+		Requests:         takeFirst(orig.Requests, 1),
+	}
+	err = db.InsertWorkspaceAppStats(genCtx, database.InsertWorkspaceAppStatsParams{
+		UserID:           []uuid.UUID{scheme.UserID},
+		WorkspaceID:      []uuid.UUID{scheme.WorkspaceID},
+		AgentID:          []uuid.UUID{scheme.AgentID},
+		AccessMethod:     []string{scheme.AccessMethod},
+		SlugOrPort:       []string{scheme.SlugOrPort},
+		SessionID:        []uuid.UUID{scheme.SessionID},
+		SessionStartedAt: []time.Time{scheme.SessionStartedAt},
+		SessionEndedAt:   []time.Time{scheme.SessionEndedAt},
+		Requests:         []int32{scheme.Requests},
+	})
+	require.NoError(t, err, "insert workspace agent stat")
+	return scheme
 }
 
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {

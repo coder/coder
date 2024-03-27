@@ -95,9 +95,7 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Auth: &sdkproto.Agent_Token{
 			Token: b.agentToken,
 		},
-		Env: map[string]string{
-			"SECRET_TOKEN": "supersecret",
-		},
+		Env: map[string]string{},
 	}}
 	for _, m := range mutations {
 		agents = m(agents)
@@ -187,6 +185,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		// import job as well
 		for {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+				OrganizationID: job.OrganizationID,
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,

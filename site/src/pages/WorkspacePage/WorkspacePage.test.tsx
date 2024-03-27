@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import * as api from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
@@ -117,15 +117,12 @@ describe("WorkspacePage", () => {
 
     // set permissions
     server.use(
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            updateTemplates: true,
-            updateWorkspace: true,
-            updateTemplate: true,
-          }),
-        );
+      http.post("/api/v2/authcheck", async () => {
+        return HttpResponse.json({
+          updateTemplates: true,
+          updateWorkspace: true,
+          updateTemplate: true,
+        });
       }),
     );
 
@@ -170,12 +167,9 @@ describe("WorkspacePage", () => {
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockStoppedWorkspace));
-        },
-      ),
+      http.get(`/api/v2/users/:userId/workspace/:workspaceName`, () => {
+        return HttpResponse.json(MockStoppedWorkspace);
+      }),
     );
 
     const startWorkspaceMock = jest
@@ -215,12 +209,9 @@ describe("WorkspacePage", () => {
 
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockStartingWorkspace));
-        },
-      ),
+      http.get(`/api/v2/users/:userId/workspace/:workspaceName`, () => {
+        return HttpResponse.json(MockStartingWorkspace);
+      }),
     );
 
     const cancelWorkspaceMock = jest
@@ -455,12 +446,9 @@ describe("WorkspacePage", () => {
     } satisfies TemplateVersionParameter;
 
     server.use(
-      rest.get(
-        "/api/v2/templateversions/:versionId/rich-parameters",
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json([parameter]));
-        },
-      ),
+      http.get("/api/v2/templateversions/:versionId/rich-parameters", () => {
+        return HttpResponse.json([parameter]);
+      }),
     );
     const startWorkspaceSpy = jest.spyOn(api, "startWorkspace");
 
@@ -504,12 +492,9 @@ describe("WorkspacePage", () => {
     } satisfies TemplateVersionParameter;
 
     server.use(
-      rest.get(
-        "/api/v2/templateversions/:versionId/rich-parameters",
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json([parameter]));
-        },
-      ),
+      http.get("/api/v2/templateversions/:versionId/rich-parameters", () => {
+        return HttpResponse.json([parameter]);
+      }),
     );
     const startWorkspaceSpy = jest.spyOn(api, "startWorkspace");
 

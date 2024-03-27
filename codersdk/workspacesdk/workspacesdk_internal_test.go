@@ -1,4 +1,4 @@
-package codersdk
+package workspacesdk
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -50,7 +51,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		ctx, nc := WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
+		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
 		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
 			Name: "client",
 			ID:   clientID,

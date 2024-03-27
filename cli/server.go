@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -86,6 +87,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -258,6 +260,7 @@ func enablePrometheus(
 	), nil
 }
 
+//nolint:gocognit // TODO(dannyk): reduce complexity of this function
 func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
@@ -666,12 +669,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
-				if err != nil {
-					return xerrors.Errorf("escaping postgres URL: %w", err)
-				}
-
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -819,6 +817,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					Prometheus:         vals.Prometheus.Enable.Value(),
 					STUN:               len(vals.DERP.Server.STUNAddresses) != 0,
 					Tunnel:             tunnel != nil,
+					Experiments:        vals.Experiments.Value(),
 					ParseLicenseJWT: func(lic *telemetry.License) error {
 						// This will be nil when running in AGPL-only mode.
 						if options.ParseLicenseClaims == nil {
@@ -892,6 +891,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
 				defer closeAgentsFunc()
+
+				var active codersdk.Experiments
+				for _, exp := range options.DeploymentValues.Experiments.Value() {
+					active = append(active, codersdk.Experiment(exp))
+				}
+
+				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
+					return xerrors.Errorf("register experiments metric: %w", err)
+				}
 			}
 
 			client := codersdk.New(localURL)
@@ -956,6 +964,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Ensures that old database entries are cleaned up over time!
 			purger := dbpurge.New(ctx, logger, options.Database)
 			defer purger.Close()
+
+			// Updates workspace usage
+			tracker := workspaceusage.New(options.Database,
+				workspaceusage.WithLogger(logger.Named("workspace_usage_tracker")),
+			)
+			options.WorkspaceUsageTracker = tracker
+			defer tracker.Close()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -2536,4 +2551,25 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 		return context.WithCancel(ctx)
 	}
 	return inv.SignalNotifyContext(ctx, sig...)
+}
+
+func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+	dbURL, err := escapePostgresURLUserInfo(postgresURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
+	}
+
+	if auth == codersdk.PostgresAuthAWSIAMRDS {
+		sqlDriver, err = awsiamrds.Register(ctx, sqlDriver)
+		if err != nil {
+			return nil, "", xerrors.Errorf("register aws rds iam auth: %w", err)
+		}
+	}
+
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
+	}
+
+	return sqlDB, dbURL, nil
 }

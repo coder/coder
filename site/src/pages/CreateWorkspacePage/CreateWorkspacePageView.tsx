@@ -4,7 +4,6 @@ import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect, useState, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -51,15 +50,17 @@ export const Language = {
 
 export interface CreateWorkspacePageViewProps {
   mode: CreateWorkspaceMode;
+  defaultName?: string | null;
+  disabledParams?: string[];
   error: unknown;
   resetMutation: () => void;
-  defaultName?: string | null;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
   versionId?: string;
   externalAuth: TypesGen.TemplateVersionExternalAuth[];
   externalAuthPollingState: ExternalAuthPollingState;
   startPollingExternalAuth: () => void;
+  hasAllRequiredExternalAuth: boolean;
   parameters: TypesGen.TemplateVersionParameter[];
   autofillParameters: AutofillBuildParameter[];
   permissions: CreateWSPermissions;
@@ -73,15 +74,17 @@ export interface CreateWorkspacePageViewProps {
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   mode,
+  defaultName,
+  disabledParams,
   error,
   resetMutation,
-  defaultName,
   defaultOwner,
   template,
   versionId,
   externalAuth,
   externalAuthPollingState,
   startPollingExternalAuth,
+  hasAllRequiredExternalAuth,
   parameters,
   autofillParameters,
   permissions,
@@ -90,9 +93,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onCancel,
 }) => {
   const [owner, setOwner] = useState(defaultOwner);
-  const [searchParams] = useSearchParams();
-  const disabledParamsList = searchParams?.get("disable_params")?.split(",");
-  const requiresExternalAuth = externalAuth.some((auth) => !auth.authenticated);
   const [suggestedName, setSuggestedName] = useState(() =>
     generateWorkspaceName(),
   );
@@ -117,7 +117,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (requiresExternalAuth) {
+        if (!hasAllRequiredExternalAuth) {
           return;
         }
 
@@ -142,10 +142,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         autofillParameters.map((param) => [param.name, param]),
       ),
     [autofillParameters],
-  );
-
-  const hasAllRequiredExternalAuth = externalAuth.every(
-    (auth) => auth.optional || auth.authenticated,
   );
 
   return (
@@ -285,7 +281,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 const parameterField = `rich_parameter_values.${index}`;
                 const parameterInputName = `${parameterField}.value`;
                 const isDisabled =
-                  disabledParamsList?.includes(
+                  disabledParams?.includes(
                     parameter.name.toLowerCase().replace(/ /g, "_"),
                   ) || creatingWorkspace;
 

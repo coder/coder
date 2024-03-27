@@ -949,6 +949,13 @@ func (m metricsStore) GetTemplateParameterInsights(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m metricsStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateUsageStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)
@@ -2232,6 +2239,13 @@ func (m metricsStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upse
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.UpsertTemplateUsageStats(ctx)
+	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

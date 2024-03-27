@@ -939,7 +939,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
 	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
@@ -955,6 +955,12 @@ func (s *MethodTestSuite) TestTemplate() {
 	}))
 	s.Run("GetTemplateAppInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 }
 
@@ -2093,7 +2099,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
 		})
-		check.Args(database.AcquireProvisionerJobParams{Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
+		check.Args(database.AcquireProvisionerJobParams{OrganizationID: j.OrganizationID, Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
 			Asserts( /*rbac.ResourceSystem, rbac.ActionUpdate*/ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {

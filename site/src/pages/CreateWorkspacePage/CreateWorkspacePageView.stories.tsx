@@ -21,6 +21,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     template: MockTemplate,
     parameters: [],
     externalAuth: [],
+    hasAllRequiredExternalAuth: true,
     mode: "form",
     permissions: {
       createWorkspaceForUser: true,
@@ -134,6 +135,7 @@ export const ExternalAuth: Story = {
         optional: true,
       },
     ],
+    hasAllRequiredExternalAuth: false,
   },
 };
 
@@ -159,6 +161,7 @@ export const ExternalAuthError: Story = {
         optional: true,
       },
     ],
+    hasAllRequiredExternalAuth: false,
   },
 };
 

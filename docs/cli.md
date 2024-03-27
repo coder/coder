@@ -57,6 +57,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                      |
 | [<code>unfavorite</code>](./cli/unfavorite.md)         | Remove a workspace from your favorites                                                                |
 | [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                          |
+| [<code>support</code>](./cli/support.md)               | Commands for troubleshooting issues with a Coder deployment.                                          |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                                                  |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
 | [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                        |
@@ -157,13 +158,3 @@ Disable direct (P2P) connections to workspaces.
 | Default     | <code>~/.config/coderv2</code> |
 
 Path to the global `coder` config directory.
-
-### -z, --organization
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string</code>              |
-| Environment | <code>$CODER_ORGANIZATION</code> |
-
-Select which organization (uuid or name) to use This overrides what is present
-in the config file.

@@ -516,6 +516,32 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	}, nil
 }
 
+// Experiments registers a metric which indicates whether each experiment is enabled or not.
+func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) error {
+	experimentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "experiments",
+		Help:      "Indicates whether each experiment is enabled (1) or not (0)",
+	}, []string{"experiment"})
+	if err := registerer.Register(experimentsGauge); err != nil {
+		return err
+	}
+
+	for _, exp := range codersdk.ExperimentsAll {
+		var val float64
+		for _, enabled := range active {
+			if exp == enabled {
+				val = 1
+				break
+			}
+		}
+
+		experimentsGauge.WithLabelValues(string(exp)).Set(val)
+	}
+
+	return nil
+}
+
 // filterAcceptableAgentLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
 // which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
 // and therefore we have to exclude it from the list of acceptable labels.

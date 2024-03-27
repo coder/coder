@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import * as API from "api/api";
 import type { Role } from "api/typesGenerated";
 import {
@@ -133,12 +133,9 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(
-            `/api/v2/users/${MockUser.id}/status/suspend`,
-            async (req, res, ctx) => {
-              return res(ctx.status(200), ctx.json(SuspendedMockUser));
-            },
-          ),
+          http.put(`/api/v2/users/${MockUser.id}/status/suspend`, async () => {
+            return HttpResponse.json(SuspendedMockUser);
+          }),
         );
 
         await suspendUser();
@@ -153,17 +150,14 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(
-            `/api/v2/users/${MockUser.id}/status/suspend`,
-            async (req, res, ctx) => {
-              return res(
-                ctx.status(400),
-                ctx.json({
-                  message: "Error suspending user.",
-                }),
-              );
-            },
-          ),
+          http.put(`/api/v2/users/${MockUser.id}/status/suspend`, async () => {
+            return HttpResponse.json(
+              {
+                message: "Error suspending user.",
+              },
+              { status: 400 },
+            );
+          }),
         );
 
         await suspendUser();
@@ -180,12 +174,9 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.delete(
-            `/api/v2/users/${MockUser2.id}`,
-            async (req, res, ctx) => {
-              return res(ctx.status(200), ctx.json(MockUser2));
-            },
-          ),
+          http.delete(`/api/v2/users/${MockUser2.id}`, async () => {
+            return HttpResponse.json(MockUser2);
+          }),
         );
 
         await deleteUser();
@@ -199,17 +190,14 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.delete(
-            `/api/v2/users/${MockUser2.id}`,
-            async (req, res, ctx) => {
-              return res(
-                ctx.status(400),
-                ctx.json({
-                  message: "Error deleting user.",
-                }),
-              );
-            },
-          ),
+          http.delete(`/api/v2/users/${MockUser2.id}`, async () => {
+            return HttpResponse.json(
+              {
+                message: "Error deleting user.",
+              },
+              { status: 400 },
+            );
+          }),
         );
 
         await deleteUser();
@@ -226,10 +214,10 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(
+          http.put(
             `/api/v2/users/${SuspendedMockUser.id}/status/activate`,
-            async (req, res, ctx) => {
-              return res(ctx.status(200), ctx.json(MockUser));
+            async () => {
+              return HttpResponse.json(MockUser);
             },
           ),
         );
@@ -245,14 +233,14 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(
+          http.put(
             `/api/v2/users/${SuspendedMockUser.id}/status/activate`,
-            async (req, res, ctx) => {
-              return res(
-                ctx.status(400),
-                ctx.json({
+            async () => {
+              return HttpResponse.json(
+                {
                   message: "Error activating user.",
-                }),
+                },
+                { status: 400 },
               );
             },
           ),
@@ -315,18 +303,12 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(
-            `/api/v2/users/${MockUser.id}/roles`,
-            async (req, res, ctx) => {
-              return res(
-                ctx.status(200),
-                ctx.json({
-                  ...MockUser,
-                  roles: [...MockUser.roles, MockAuditorRole],
-                }),
-              );
-            },
-          ),
+          http.put(`/api/v2/users/${MockUser.id}/roles`, async () => {
+            return HttpResponse.json({
+              ...MockUser,
+              roles: [...MockUser.roles, MockAuditorRole],
+            });
+          }),
         );
 
         await updateUserRole(MockAuditorRole);
@@ -340,10 +322,10 @@ describe("UsersPage", () => {
         renderPage();
 
         server.use(
-          rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
-            return res(
-              ctx.status(400),
-              ctx.json({ message: "Error on updating the user roles." }),
+          http.put(`/api/v2/users/${MockUser.id}/roles`, () => {
+            return HttpResponse.json(
+              { message: "Error on updating the user roles." },
+              { status: 400 },
             );
           }),
         );
