@@ -617,7 +617,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// Ensure the same value port share level is a no-op
 		level = codersdk.WorkspaceAgentPortShareLevelOwner
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:              template.Name + "2",
+			Name:              coderdtest.RandomUsername(t),
 			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
