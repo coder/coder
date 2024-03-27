@@ -68,6 +68,14 @@ message CoordinateRequest {
 	}
 	Tunnel add_tunnel = 3;
 	Tunnel remove_tunnel = 4;
+
+	// Acks are sent from agents back to the client, acknowledging receipt of
+	// the client's node. If the client starts pinging before an ACK, the
+	// handshake will likely be dropped.
+	message Ack {
+		bytes id = 1;
+	}
+	Ack tunnel_ack = 5;
 }
 
 message CoordinateResponse {
@@ -86,6 +94,11 @@ message CoordinateResponse {
 		string reason = 4;
 	}
 	repeated PeerUpdate peer_updates = 1;
+
+	message Ack {
+		bytes id = 1;
+	}
+	Ack tunnel_ack = 2;
 }
 
 service Tailnet {
