@@ -175,10 +175,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
   // Auto scroll
-  const buildLogsRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (buildLogsRef.current) {
-      buildLogsRef.current.scrollTop = buildLogsRef.current.scrollHeight;
+    if (tabContentRef.current) {
+      tabContentRef.current.scrollTop = tabContentRef.current.scrollHeight;
     }
   }, [buildLogs]);
 
@@ -573,55 +573,51 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 )}
               </div>
 
-              {selectedTab === "logs" && (
-                <div
-                  ref={buildLogsRef}
-                  css={{
-                    display: "flex",
-                    height: selectedTab ? 280 : 0,
-                    flexDirection: "column",
-                    overflowY: "auto",
-                  }}
-                >
-                  {templateVersion.job.error && (
-                    <div>
-                      <Alert
-                        severity="error"
-                        css={{
-                          borderRadius: 0,
-                          border: 0,
-                          borderBottom: `1px solid ${theme.palette.divider}`,
-                          borderLeft: `2px solid ${theme.palette.error.main}`,
-                        }}
-                      >
-                        <AlertTitle>Error during the build</AlertTitle>
-                        <AlertDetail>{templateVersion.job.error}</AlertDetail>
-                      </Alert>
+              {selectedTab && (
+                <div css={styles.tabContent} ref={tabContentRef}>
+                  {selectedTab === "logs" && (
+                    <div css={styles.logs}>
+                      {templateVersion.job.error && (
+                        <div>
+                          <Alert
+                            severity="error"
+                            css={{
+                              borderRadius: 0,
+                              border: 0,
+                              borderBottom: `1px solid ${theme.palette.divider}`,
+                              borderLeft: `2px solid ${theme.palette.error.main}`,
+                            }}
+                          >
+                            <AlertTitle>Error during the build</AlertTitle>
+                            <AlertDetail>
+                              {templateVersion.job.error}
+                            </AlertDetail>
+                          </Alert>
+                        </div>
+                      )}
+
+                      {buildLogs && buildLogs.length > 0 ? (
+                        <WorkspaceBuildLogs
+                          css={styles.buildLogs}
+                          hideTimestamps
+                          logs={buildLogs}
+                        />
+                      ) : (
+                        <Loader css={{ height: "100%" }} />
+                      )}
                     </div>
                   )}
 
-                  {buildLogs && buildLogs.length > 0 ? (
-                    <WorkspaceBuildLogs
-                      css={styles.buildLogs}
-                      hideTimestamps
-                      logs={buildLogs}
-                    />
-                  ) : (
-                    <Loader css={{ height: "100%" }} />
-                  )}
-                </div>
-              )}
-
-              {selectedTab === "resources" && (
-                <div
-                  css={[{ height: selectedTab ? 280 : 0 }, styles.resources]}
-                >
-                  {resources && (
-                    <TemplateResourcesTable
-                      resources={resources.filter(
-                        (r) => r.workspace_transition === "start",
+                  {selectedTab === "resources" && (
+                    <div css={styles.resources}>
+                      {resources && (
+                        <TemplateResourcesTable
+                          resources={resources.filter(
+                            (r) => r.workspace_transition === "start",
+                          )}
+                        />
                       )}
-                    />
+                    </div>
                   )}
                 </div>
               )}
@@ -745,6 +741,17 @@ const styles = {
     },
   }),
 
+  tabContent: {
+    height: 280,
+    overflowY: "auto",
+  },
+
+  logs: {
+    display: "flex",
+    height: "100%",
+    flexDirection: "column",
+  },
+
   buildLogs: {
     borderRadius: 0,
     border: 0,
@@ -774,8 +781,6 @@ const styles = {
   },
 
   resources: {
-    overflowY: "auto",
-
     // Hack to access customize resource-card from here
     "& .resource-card": {
       borderLeft: 0,
