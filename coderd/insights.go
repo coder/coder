@@ -474,6 +474,14 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
 		},
+		{
+			TemplateIDs: usage.SftpTemplateIds,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
+			Slug:        "sftp",
+			Icon:        "/icon/terminal.svg",
+			Seconds:     usage.UsageSftpSeconds,
+		},
 	}
 
 	// Use a stable sort, similarly to how we would sort in the query, note that

@@ -46,6 +46,14 @@
         "seconds": 10800
       },
       {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SFTP",
+        "slug": "sftp",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0
+      },
+      {
         "template_ids": [
           "00000000-0000-0000-0000-000000000002"
         ],
