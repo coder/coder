@@ -20,13 +20,30 @@ const localURL = (port: number, path: string): string => {
 export default defineConfig({
   projects: [
     {
-      name: "setup",
-      testMatch: /global.setup\.ts/,
+      name: "testsSetup",
+      testMatch: /tests.setup\.ts/,
     },
     {
       name: "tests",
       testMatch: /.*\.spec\.ts/,
-      dependencies: ["setup"],
+      dependencies: ["testsSetup"],
+      use: {
+        storageState: storageState,
+      },
+      timeout: 60_000,
+    },
+    {
+      name: "enterpriseSetup",
+      testMatch: /enterprise.setup\.ts/,
+      dependencies: ["tests"],
+      use: {
+        storageState: storageState,
+      },
+    },
+    {
+      name: "enterprise",
+      testMatch: /.*\.enterpriseSpec\.ts/,
+      dependencies: ["enterpriseSetup"],
       use: {
         storageState: storageState,
       },
