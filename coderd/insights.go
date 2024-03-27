@@ -480,35 +480,24 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	// we don't sort in the query because order varies depending on the table
 	// collation.
 	//
-	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
+	// ORDER BY slug, display_name, icon
 	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.SlugOrPort != b.SlugOrPort {
-			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
+		if a.Slug != b.Slug {
+			return strings.Compare(a.Slug, b.Slug)
 		}
 		if a.DisplayName != b.DisplayName {
 			return strings.Compare(a.DisplayName, b.DisplayName)
 		}
-		if a.Icon != b.Icon {
-			return strings.Compare(a.Icon, b.Icon)
-		}
-		if !a.IsApp && b.IsApp {
-			return -1
-		} else if a.IsApp && !b.IsApp {
-			return 1
-		}
-		return 0
+		return strings.Compare(a.Icon, b.Icon)
 	})
 
 	// Template apps.
 	for _, app := range appUsage {
-		if !app.IsApp {
-			continue
-		}
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
 			DisplayName: app.DisplayName,
-			Slug:        app.SlugOrPort,
+			Slug:        app.Slug,
 			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 		})

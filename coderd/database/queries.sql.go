@@ -1699,109 +1699,129 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
+	-- Create a list of all unique apps by template, this is used to
+	-- filter out irrelevant template usage stats.
+	apps AS (
+		SELECT DISTINCT ON (ws.template_id, app.slug)
+			ws.template_id,
+			app.slug,
+			app.display_name,
+			app.icon
+		FROM
+			workspaces ws
+		JOIN
+			workspace_builds AS build
+		ON
+			build.workspace_id = ws.id
+		JOIN
+			workspace_resources AS resource
+		ON
+			resource.job_id = build.job_id
+		JOIN
+			workspace_agents AS agent
+		ON
+			agent.resource_id = resource.id
+		JOIN
+			workspace_apps AS app
+		ON
+			app.agent_id = agent.id
+		WHERE
+			-- Partial query parameter filter.
+			CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN ws.template_id = ANY($1::uuid[]) ELSE TRUE END
+		ORDER BY
+			ws.template_id, app.slug, app.created_at DESC
+	),
+	-- Join apps and template usage stats to filter out irrelevant rows.
+	-- Note that this way of joining will eliminate all data-points that
+	-- aren't for "real" apps. That means ports are ignored (even though
+	-- they're part of the dataset), as well as are "[terminal]" entries
+	-- which are alternate datapoints for reconnecting pty usage.
+	template_usage_stats_with_apps AS (
+		SELECT
+			tus.start_time,
+			tus.template_id,
+			tus.user_id,
+			apps.slug,
+			apps.display_name,
+			apps.icon,
+			tus.app_usage_mins
+		FROM
+			apps
+		JOIN
+			template_usage_stats AS tus
+		ON
+			-- Query parameter filter.
+			tus.start_time >= $2::timestamptz
+			AND tus.end_time <= $3::timestamptz
+			AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
+			-- Primary join condition.
+			AND tus.template_id = apps.template_id
+			AND tus.app_usage_mins ? apps.slug -- Key exists in object.
+	),
+	-- Group the app insights by interval, user and unique app. This
+	-- allows us to deduplicate a user using the same app across
+	-- multiple templates.
 	app_insights AS (
 		SELECT
-			tus.user_id,
-			array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
-			app_usage.key::text AS app_name,
-			COALESCE(wa.display_name, '') AS display_name,
-			COALESCE(wa.icon, '') AS icon,
-			(wa.slug IS NOT NULL)::boolean AS is_app,
-			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(app_usage.value::int), 30) AS app_usage_mins
-		FROM
-			template_usage_stats AS tus, jsonb_each(app_usage_mins) AS app_usage
-		LEFT JOIN LATERAL (
-			-- The joins in this query are necessary to associate an app with a
-			-- template, we use this to get the app metadata like display name
-			-- and icon.
-			SELECT
-				app.display_name,
-				app.icon,
-				app.slug
-			FROM
-				workspace_apps AS app
-			JOIN
-				workspace_agents AS agent
-			ON
-				agent.id = app.agent_id
-			JOIN
-				workspace_resources AS resource
-			ON
-				resource.id = agent.resource_id
-			JOIN
-				workspace_builds AS build
-			ON
-				build.job_id = resource.job_id
-			JOIN
-				workspaces AS workspace
-			ON
-				workspace.id = build.workspace_id
-			WHERE
-				-- Requires lateral join.
-				app.slug = app_usage.key
-				AND workspace.owner_id = tus.user_id
-				AND workspace.template_id = tus.template_id
-			ORDER BY
-				app.created_at DESC
-			LIMIT 1
-		) AS wa
-		ON
-			true
-		WHERE
-			tus.start_time >= $1::timestamptz
-			AND tus.end_time <= $2::timestamptz
-			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
-		GROUP BY
-			tus.start_time, tus.user_id, app_usage.key::text, wa.display_name, wa.icon, wa.slug
-	),
-	templates AS (
-		SELECT
-			app_name,
+			user_id,
+			slug,
 			display_name,
 			icon,
-			is_app,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+		FROM
+			template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
+		WHERE
+			app_usage.key = slug
+		GROUP BY
+			start_time, user_id, slug, display_name, icon
+	),
+	-- Even though we allow identical apps to be aggregated across
+	-- templates, we still want to be able to report which templates
+	-- the data comes from.
+	templates AS (
+		SELECT
+			slug,
+			display_name,
+			icon,
 			array_agg(DISTINCT template_id)::uuid[] AS template_ids
 		FROM
-			app_insights, unnest(template_ids) AS template_id
+			template_usage_stats_with_apps
 		GROUP BY
-			app_name, display_name, icon, is_app
+			slug, display_name, icon
 	)
 
 SELECT
 	t.template_ids,
 	COUNT(DISTINCT ai.user_id) AS active_users,
-	ai.app_name AS slug_or_port,
+	ai.slug,
 	ai.display_name,
 	ai.icon,
-	ai.is_app,
-	(SUM(ai.app_usage_mins) * 60)::bigint AS usage_seconds
+	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
 FROM
 	app_insights AS ai
 JOIN
 	templates AS t
 ON
-	ai.app_name = t.app_name
-	AND ai.display_name = t.display_name
-	AND ai.icon = t.icon
-	AND ai.is_app = t.is_app
+	t.slug = ai.slug
+	AND t.display_name = ai.display_name
+	AND t.icon = ai.icon
 GROUP BY
-	t.template_ids, ai.app_name, ai.display_name, ai.icon, ai.is_app
+	t.template_ids, ai.slug, ai.display_name, ai.icon
 `
 
 type GetTemplateAppInsightsParams struct {
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateAppInsightsRow struct {
 	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 	ActiveUsers  int64       `db:"active_users" json:"active_users"`
-	SlugOrPort   string      `db:"slug_or_port" json:"slug_or_port"`
+	Slug         string      `db:"slug" json:"slug"`
 	DisplayName  string      `db:"display_name" json:"display_name"`
 	Icon         string      `db:"icon" json:"icon"`
-	IsApp        bool        `db:"is_app" json:"is_app"`
 	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
@@ -1809,7 +1829,7 @@ type GetTemplateAppInsightsRow struct {
 // timeframe. The result can be filtered on template_ids, meaning only user data
 // from workspaces based on those templates will be included.
 func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -1820,10 +1840,9 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 		if err := rows.Scan(
 			pq.Array(&i.TemplateIDs),
 			&i.ActiveUsers,
-			&i.SlugOrPort,
+			&i.Slug,
 			&i.DisplayName,
 			&i.Icon,
-			&i.IsApp,
 			&i.UsageSeconds,
 		); err != nil {
 			return nil, err
