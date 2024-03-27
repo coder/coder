@@ -230,7 +230,7 @@ To check the auth token being used **from inside a running workspace**, run:
 # If the exit code is non-zero, then the user is not authenticated with the
 # external provider.
 coder external-auth access-token <external-auth-id>
- ```
+```
 
 Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
 configured.
