@@ -387,7 +387,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          make test-race
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
