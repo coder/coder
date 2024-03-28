@@ -16,11 +16,10 @@ test("template update with new name redirects on successful submit", async ({
   });
 });
 
-test.only("add and remove a group", async ({ page }) => {
+test("add and remove a group", async ({ page }) => {
   requiresEnterpriseLicense();
 
   const templateName = await createTemplate(page);
-  await page.pause();
   const groupName = await createGroup(page);
 
   await page.goto(`/templates/${templateName}/settings/permissions`, {
@@ -30,12 +29,15 @@ test.only("add and remove a group", async ({ page }) => {
     `/templates/${templateName}/settings/permissions`,
   );
 
+  // Type the first half of the group name
   await page
     .getByPlaceholder("Search for user or group", { exact: true })
-    .fill(groupName);
+    .fill(groupName.slice(0, 4));
 
-  await page.pause();
+  // Select the group from the list and add it
+  await page.getByText(groupName).click();
   await page.getByText("Add member").click();
+  expect(page.locator(".MuiTable-root").getByText(groupName)).toBeVisible();
 });
 
 test("require latest version", async ({ page }) => {
