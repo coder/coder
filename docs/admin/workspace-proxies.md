@@ -165,7 +165,7 @@ journalctl -u coder-workspace-proxy.service -b
 To restart workspace proxy after applying system changes:
 
 ```shell
-sudo systemctl restart coder
+sudo systemctl restart coder-workspace-proxy
 ```
 
 ### Running in Docker
