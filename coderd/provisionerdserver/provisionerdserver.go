@@ -272,6 +272,9 @@ func (s *server) heartbeat(ctx context.Context) error {
 }
 
 func (s *server) defaultHeartbeat(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return nil // we are probably shutting down
+	}
 	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
 	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
 		ID:         s.ID,
