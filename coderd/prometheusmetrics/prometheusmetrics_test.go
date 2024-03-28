@@ -190,15 +190,13 @@ func TestWorkspaceDetails(t *testing.T) {
 	for _, tc := range []struct {
 		Name               string
 		Database           func() database.Store
-		ExpectedSeries     int
-		ExpectedStatuses   map[codersdk.ProvisionerJobStatus]int
 		ExpectedWorkspaces int
+		ExpectedStatuses   map[codersdk.ProvisionerJobStatus]int
 	}{{
 		Name: "None",
 		Database: func() database.Store {
 			return dbmem.New()
 		},
-		ExpectedSeries:     0,
 		ExpectedWorkspaces: 0,
 	}, {
 		Name: "Multiple",
@@ -214,7 +212,6 @@ func TestWorkspaceDetails(t *testing.T) {
 			insertRunning(t, db)
 			return db
 		},
-		ExpectedSeries:     7,
 		ExpectedWorkspaces: 7,
 		ExpectedStatuses: map[codersdk.ProvisionerJobStatus]int{
 			codersdk.ProvisionerJobCanceled:  1,
@@ -234,10 +231,10 @@ func TestWorkspaceDetails(t *testing.T) {
 			require.Eventually(t, func() bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
+
 				stMap := map[codersdk.ProvisionerJobStatus]int{}
-				wMap := map[string]struct{}{}
 				for _, m := range metrics {
-					if m.GetName() != "coderd_api_workspace_detail" {
+					if m.GetName() != "coderd_workspace_latest_build_status" {
 						continue
 					}
 
@@ -247,12 +244,9 @@ func TestWorkspaceDetails(t *testing.T) {
 								continue
 							}
 
-							switch l.GetName() {
-							case "status":
+							if l.GetName() == "status" {
 								status := codersdk.ProvisionerJobStatus(l.GetValue())
 								stMap[status] += int(metric.Gauge.GetValue())
-							case "workspace_name":
-								wMap[l.GetValue()] = struct{}{}
 							}
 						}
 					}
@@ -267,9 +261,8 @@ func TestWorkspaceDetails(t *testing.T) {
 					stSum += count
 				}
 
-				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedSeries)
-				t.Logf("workspace series = %d, expected == %d", len(wMap), tc.ExpectedWorkspaces)
-				return stSum == tc.ExpectedSeries && len(wMap) == tc.ExpectedWorkspaces
+				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedWorkspaces)
+				return stSum == tc.ExpectedWorkspaces
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
