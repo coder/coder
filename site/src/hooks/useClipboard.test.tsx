@@ -1,3 +1,22 @@
+import { act, renderHook } from "@testing-library/react";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { ThemeProvider } from "contexts/ThemeProvider";
+import {
+  type UseClipboardInput,
+  type UseClipboardResult,
+  useClipboard,
+} from "./useClipboard";
+
+describe(useClipboard.name, () => {
+  describe("HTTP (non-secure) connections", () => {
+    scheduleClipboardTests({ isHttps: false });
+  });
+
+  describe("HTTPS (secure/default) connections", () => {
+    scheduleClipboardTests({ isHttps: true });
+  });
+});
+
 /**
  * @file This is a very weird test setup.
  *
@@ -41,25 +60,6 @@
  *    order of operations involving closure, but you have no idea why the code
  *    is working, and it's impossible to debug.
  */
-import { act, renderHook } from "@testing-library/react";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
-import {
-  type UseClipboardInput,
-  type UseClipboardResult,
-  useClipboard,
-} from "./useClipboard";
-
-const initialExecCommand = global.document.execCommand;
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-  jest.useRealTimers();
-  global.document.execCommand = initialExecCommand;
-});
-
 type MockClipboardEscapeHatches = Readonly<{
   getMockText: () => string;
   setMockText: (newText: string) => void;
@@ -124,10 +124,10 @@ function renderUseClipboard(inputs: UseClipboardInput) {
     {
       initialProps: inputs,
       wrapper: ({ children }) => (
-        <>
-          <>{children}</>
+        <ThemeProvider>
+          {children}
           <GlobalSnackbar />
-        </>
+        </ThemeProvider>
       ),
     },
   );
@@ -137,9 +137,10 @@ type ScheduleConfig = Readonly<{ isHttps: boolean }>;
 
 export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
   const mockClipboardInstance = makeMockClipboard(isHttps);
-
   const originalNavigator = window.navigator;
-  beforeAll(() => {
+
+  beforeEach(() => {
+    jest.useFakeTimers();
     jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
       ...originalNavigator,
       clipboard: mockClipboardInstance,
@@ -170,6 +171,7 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     mockClipboardInstance.setMockText("");
     mockClipboardInstance.setSimulateFailure(false);
   });

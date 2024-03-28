@@ -63,7 +63,7 @@ beforeAll(() =>
 afterEach(() => {
   cleanup();
   server.resetHandlers();
-  jest.clearAllMocks();
+  jest.resetAllMocks();
 });
 
 // Clean up after the tests are finished.

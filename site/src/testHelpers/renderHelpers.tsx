@@ -22,6 +22,14 @@ export function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
   // are isolated and can't affect each other
   return new QueryClient({
+    logger: {
+      ...console,
+      // Some tests are designed to throw errors as part of their functionality.
+      // To avoid unnecessary noise from these expected errors, the code is
+      // structured to suppress them. If this suppression becomes problematic,
+      // the code can be refactored to handle query errors on a per-test basis.
+      error: () => {},
+    },
     defaultOptions: {
       queries: {
         retry: false,
