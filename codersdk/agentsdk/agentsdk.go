@@ -561,15 +561,16 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk
 }
 
 type ExternalAuthResponse struct {
-	AccessToken string                 `json:"access_token"`
-	TokenExtra  map[string]interface{} `json:"token_extra"`
-	URL         string                 `json:"url"`
-	Type        string                 `json:"type"`
+	AccessToken  string                 `json:"access_token" table:"access_token"`
+	RefreshToken string                 `json:"refresh_token" table:"refresh_token"`
+	TokenExtra   map[string]interface{} `json:"token_extra" table:"-"`
+	URL          string                 `json:"url" table:"url"`
+	Type         string                 `json:"type" table:"type,default_sort"`
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
 	// for backwards compatibility.
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username" table:"-"`
+	Password string `json:"password" table:"-"`
 }
 
 // ExternalAuthRequest is used to request an access token for a provider.

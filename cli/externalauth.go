@@ -28,6 +28,7 @@ func (r *RootCmd) externalAuth() *serpent.Command {
 
 func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 	var extra string
+	var full bool
 	return &serpent.Command{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
@@ -55,12 +56,22 @@ fi
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
-		Options: serpent.OptionSet{{
-			Name:        "Extra",
-			Flag:        "extra",
-			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
-			Value:       serpent.StringOf(&extra),
-		}},
+		Options: serpent.OptionSet{
+			{
+				Name:        "Extra",
+				Flag:        "extra",
+				Description: "Extract a field from the \"extra\" properties of the OAuth token.",
+				Value:       serpent.StringOf(&extra),
+			}, {
+				Name:          "Full",
+				Description:   "Print the full response from the external auth provider as json.",
+				Required:      false,
+				Flag:          "full",
+				FlagShorthand: "",
+				Default:       "false",
+				Value:         serpent.BoolOf(&full),
+			},
+		},
 
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -86,6 +97,20 @@ fi
 				}
 				return cliui.Canceled
 			}
+
+			if extra != "" && full {
+				return xerrors.Errorf("cannot specify both --extra and --full")
+			}
+
+			if full {
+				data, err := json.Marshal(extAuth)
+				if err != nil {
+					return xerrors.Errorf("marshal auth: %w", err)
+				}
+				_, _ = inv.Stdout.Write(data)
+				return nil
+			}
+
 			if extra != "" {
 				if extAuth.TokenExtra == nil {
 					return xerrors.Errorf("no extra properties found for token")

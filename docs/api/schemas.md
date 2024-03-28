@@ -115,6 +115,7 @@
 {
   "access_token": "string",
   "password": "string",
+  "refresh_token": "string",
   "token_extra": {},
   "type": "string",
   "url": "string",
@@ -124,14 +125,15 @@
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                              |
-| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `access_token` | string | false    |              |                                                                                          |
-| `password`     | string | false    |              |                                                                                          |
-| `token_extra`  | object | false    |              |                                                                                          |
-| `type`         | string | false    |              |                                                                                          |
-| `url`          | string | false    |              |                                                                                          |
-| `username`     | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility. |
+| Name            | Type   | Required | Restrictions | Description                                                                              |
+| --------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `access_token`  | string | false    |              |                                                                                          |
+| `password`      | string | false    |              |                                                                                          |
+| `refresh_token` | string | false    |              |                                                                                          |
+| `token_extra`   | object | false    |              |                                                                                          |
+| `type`          | string | false    |              |                                                                                          |
+| `url`           | string | false    |              |                                                                                          |
+| `username`      | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility. |
 
 ## agentsdk.GitSSHKey
 
