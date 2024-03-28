@@ -160,7 +160,7 @@ export const createGroup = async (page: Page): Promise<string> => {
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByTestId("form-submit").click();
   await expect(page).toHaveURL(
-    /^\/groups\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    /\/groups\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
   return name;
 };

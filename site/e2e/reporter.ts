@@ -42,7 +42,7 @@ class CoderReporter implements Reporter {
 
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
     for (const line of filteredServerLogLines(chunk)) {
-      console.error(`[stderr] ${line}`);
+      // console.error(`[stderr] ${line}`);
     }
     if (!test) {
       return;

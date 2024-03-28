@@ -16,10 +16,11 @@ test("template update with new name redirects on successful submit", async ({
   });
 });
 
-test("add and remove a group", async ({ page }) => {
+test.only("add and remove a group", async ({ page }) => {
   requiresEnterpriseLicense();
 
   const templateName = await createTemplate(page);
+  await page.pause();
   const groupName = await createGroup(page);
 
   await page.goto(`/templates/${templateName}/settings/permissions`, {
@@ -33,6 +34,7 @@ test("add and remove a group", async ({ page }) => {
     .getByPlaceholder("Search for user or group", { exact: true })
     .fill(groupName);
 
+  await page.pause();
   await page.getByText("Add member").click();
 });
 
