@@ -40,6 +40,5 @@ Object.defineProperties(globalThis, {
       removeEventListener: jest.fn(),
       dispatchEvent: jest.fn(),
     }),
-  }
+  },
 });
-
