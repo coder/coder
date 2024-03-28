@@ -130,7 +130,7 @@ steps:
 
 ## System packages
 
-If you've installed Coder via a [system package](../install/index.md) Coder, you
+If you've installed Coder via a [system package](../install/index.md), you
 can configure the server by setting the following variables in
 `/etc/coder.d/coder.env`:
 
