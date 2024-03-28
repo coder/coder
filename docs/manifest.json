@@ -1099,6 +1099,11 @@
           "title": "Azure Federation",
           "description": "Federating Coder to Azure",
           "path": "./guides/azure-federation.md"
+        },
+        {
+          "title": "Scanning Coder Workspaces with Xray",
+          "description": "Integrate Coder with JFrog Xray",
+          "path": "./guides/xray-integration.md"
         }
       ]
     }
