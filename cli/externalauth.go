@@ -67,7 +67,17 @@ func (r *RootCmd) externalAuthLink() *serpent.Command {
 				}
 				return []agentsdk.ExternalAuthResponse{auth}, nil
 			}),
-			cliui.JSONFormat(),
+			cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
+				auth, ok := data.(agentsdk.ExternalAuthResponse)
+				if !ok {
+					return nil, xerrors.Errorf("expected data to be of type codersdk.ExternalAuth, got %T", data)
+				}
+
+				// Deprecated fields, omit them from any output.
+				auth.Username = ""
+				auth.Password = ""
+				return auth, nil
+			}),
 		)
 	)
 

@@ -569,8 +569,8 @@ type ExternalAuthResponse struct {
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
 	// for backwards compatibility.
-	Username string `json:"username" table:"-"`
-	Password string `json:"password" table:"-"`
+	Username string `json:"username,omitempty" table:"-"`
+	Password string `json:"password,omitempty" table:"-"`
 }
 
 // ExternalAuthRequest is used to request an access token for a provider.
