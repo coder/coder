@@ -404,6 +404,16 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 					break
 				}
 			}
+
+			if pj, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID); err == nil {
+				wr.LatestBuildStatus = pj.JobStatus
+			}
+
+			wr.LatestBuildTransition = build.Transition
+		}
+
+		if u, err := q.getUserByIDNoLock(w.OwnerID); err == nil {
+			wr.Username = u.Username
 		}
 
 		rows = append(rows, wr)

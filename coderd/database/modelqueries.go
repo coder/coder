@@ -266,6 +266,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildCanceledAt,
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
+			&i.LatestBuildStatus,
 			&i.Count,
 		); err != nil {
 			return nil, err

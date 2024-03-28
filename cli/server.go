@@ -209,7 +209,7 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeUsersFunc)
 
-	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}

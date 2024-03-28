@@ -12280,7 +12280,8 @@ SELECT
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
-	latest_build.transition as latest_build_transition
+	latest_build.transition as latest_build_transition,
+	latest_build.job_status as latest_build_status
 FROM
     workspaces
 JOIN
@@ -12302,7 +12303,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -12507,7 +12508,7 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.template_name, fw.template_version_id, fw.template_version_name, fw.username, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.template_name, fw.template_version_id, fw.template_version_name, fw.username, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status
 	FROM
 		filtered_workspaces fw
 	ORDER BY
@@ -12528,7 +12529,7 @@ WHERE
 		$19
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -12558,7 +12559,8 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
-		'start'::workspace_transition -- latest_build_transition
+		'start'::workspace_transition, -- latest_build_transition
+		'unknown'::provisioner_job_status -- latest_build_status
 	WHERE
 		$21 :: boolean = true
 ), total_count AS (
@@ -12568,7 +12570,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.template_name, fwos.template_version_id, fwos.template_version_name, fwos.username, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.template_name, fwos.template_version_id, fwos.template_version_name, fwos.username, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -12601,30 +12603,31 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                     uuid.UUID           `db:"id" json:"id"`
-	CreatedAt              time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time           `db:"updated_at" json:"updated_at"`
-	OwnerID                uuid.UUID           `db:"owner_id" json:"owner_id"`
-	OrganizationID         uuid.UUID           `db:"organization_id" json:"organization_id"`
-	TemplateID             uuid.UUID           `db:"template_id" json:"template_id"`
-	Deleted                bool                `db:"deleted" json:"deleted"`
-	Name                   string              `db:"name" json:"name"`
-	AutostartSchedule      sql.NullString      `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                    sql.NullInt64       `db:"ttl" json:"ttl"`
-	LastUsedAt             time.Time           `db:"last_used_at" json:"last_used_at"`
-	DormantAt              sql.NullTime        `db:"dormant_at" json:"dormant_at"`
-	DeletingAt             sql.NullTime        `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates       AutomaticUpdates    `db:"automatic_updates" json:"automatic_updates"`
-	Favorite               bool                `db:"favorite" json:"favorite"`
-	TemplateName           string              `db:"template_name" json:"template_name"`
-	TemplateVersionID      uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName    sql.NullString      `db:"template_version_name" json:"template_version_name"`
-	Username               string              `db:"username" json:"username"`
-	LatestBuildCompletedAt sql.NullTime        `db:"latest_build_completed_at" json:"latest_build_completed_at"`
-	LatestBuildCanceledAt  sql.NullTime        `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
-	LatestBuildError       sql.NullString      `db:"latest_build_error" json:"latest_build_error"`
-	LatestBuildTransition  WorkspaceTransition `db:"latest_build_transition" json:"latest_build_transition"`
-	Count                  int64               `db:"count" json:"count"`
+	ID                     uuid.UUID            `db:"id" json:"id"`
+	CreatedAt              time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time            `db:"updated_at" json:"updated_at"`
+	OwnerID                uuid.UUID            `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID            `db:"organization_id" json:"organization_id"`
+	TemplateID             uuid.UUID            `db:"template_id" json:"template_id"`
+	Deleted                bool                 `db:"deleted" json:"deleted"`
+	Name                   string               `db:"name" json:"name"`
+	AutostartSchedule      sql.NullString       `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                    sql.NullInt64        `db:"ttl" json:"ttl"`
+	LastUsedAt             time.Time            `db:"last_used_at" json:"last_used_at"`
+	DormantAt              sql.NullTime         `db:"dormant_at" json:"dormant_at"`
+	DeletingAt             sql.NullTime         `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates       AutomaticUpdates     `db:"automatic_updates" json:"automatic_updates"`
+	Favorite               bool                 `db:"favorite" json:"favorite"`
+	TemplateName           string               `db:"template_name" json:"template_name"`
+	TemplateVersionID      uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName    sql.NullString       `db:"template_version_name" json:"template_version_name"`
+	Username               string               `db:"username" json:"username"`
+	LatestBuildCompletedAt sql.NullTime         `db:"latest_build_completed_at" json:"latest_build_completed_at"`
+	LatestBuildCanceledAt  sql.NullTime         `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
+	LatestBuildError       sql.NullString       `db:"latest_build_error" json:"latest_build_error"`
+	LatestBuildTransition  WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
+	LatestBuildStatus      ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	Count                  int64                `db:"count" json:"count"`
 }
 
 // build_params is used to filter by build parameters if present.
@@ -12685,6 +12688,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildCanceledAt,
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
+			&i.LatestBuildStatus,
 			&i.Count,
 		); err != nil {
 			return nil, err

@@ -96,7 +96,8 @@ SELECT
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
-	latest_build.transition as latest_build_transition
+	latest_build.transition as latest_build_transition,
+	latest_build.job_status as latest_build_status
 FROM
     workspaces
 JOIN
@@ -118,7 +119,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -374,7 +375,8 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
-		'start'::workspace_transition -- latest_build_transition
+		'start'::workspace_transition, -- latest_build_transition
+		'unknown'::provisioner_job_status -- latest_build_status
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
