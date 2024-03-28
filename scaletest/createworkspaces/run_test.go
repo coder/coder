@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/agentconn"
@@ -127,7 +128,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",
@@ -416,7 +417,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",

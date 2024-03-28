@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
 
@@ -102,10 +103,11 @@ func (r *RootCmd) portForward() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			conn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:         logger,
+					BlockEndpoints: r.disableDirect,
+				})
 			if err != nil {
 				return err
 			}
@@ -193,7 +195,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 func listenAndPortForward(
 	ctx context.Context,
 	inv *serpent.Invocation,
-	conn *codersdk.WorkspaceAgentConn,
+	conn *workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,

@@ -16,11 +16,11 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
 
-type ProvisionerDaemonsReport codersdk.ProvisionerDaemonsReport
+type ProvisionerDaemonsReport healthsdk.ProvisionerDaemonsReport
 
 type ProvisionerDaemonsReportDeps struct {
 	// Required
@@ -40,7 +40,7 @@ type ProvisionerDaemonsStore interface {
 }
 
 func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDaemonsReportDeps) {
-	r.Items = make([]codersdk.ProvisionerDaemonsReportItem, 0)
+	r.Items = make([]healthsdk.ProvisionerDaemonsReportItem, 0)
 	r.Severity = health.SeverityOK
 	r.Warnings = make([]health.Message, 0)
 	r.Dismissed = opts.Dismissed
@@ -95,7 +95,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 			continue
 		}
 
-		it := codersdk.ProvisionerDaemonsReportItem{
+		it := healthsdk.ProvisionerDaemonsReportItem{
 			ProvisionerDaemon: db2sdk.ProvisionerDaemon(daemon),
 			Warnings:          make([]health.Message, 0),
 		}

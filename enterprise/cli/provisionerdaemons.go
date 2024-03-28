@@ -82,7 +82,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			// disable checks and warnings because this command starts a daemon; it is
 			// not meant for humans typing commands.  Furthermore, the checks are
 			// incompatible with PSK auth that this command uses
-			r.InitClientMissingTokenOK(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())

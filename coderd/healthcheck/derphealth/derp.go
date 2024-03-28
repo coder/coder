@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 const (
@@ -40,15 +40,15 @@ type ReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-type Report codersdk.DERPHealthReport
+type Report healthsdk.DERPHealthReport
 
 type RegionReport struct {
-	codersdk.DERPRegionReport
+	healthsdk.DERPRegionReport
 	mu sync.Mutex
 }
 
 type NodeReport struct {
-	codersdk.DERPNodeReport
+	healthsdk.DERPNodeReport
 	mu            sync.Mutex
 	clientCounter int
 }
@@ -59,7 +59,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
-	r.Regions = map[int]*codersdk.DERPRegionReport{}
+	r.Regions = map[int]*healthsdk.DERPRegionReport{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -69,7 +69,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 		var (
 			region       = region
 			regionReport = RegionReport{
-				DERPRegionReport: codersdk.DERPRegionReport{
+				DERPRegionReport: healthsdk.DERPRegionReport{
 					Region: region,
 				},
 			}
@@ -121,7 +121,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.NodeReports = []*codersdk.DERPNodeReport{}
+	r.NodeReports = []*healthsdk.DERPNodeReport{}
 	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
@@ -132,7 +132,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 		var (
 			node       = node
 			nodeReport = NodeReport{
-				DERPNodeReport: codersdk.DERPNodeReport{
+				DERPNodeReport: healthsdk.DERPNodeReport{
 					Node:    node,
 					Healthy: true,
 				},
@@ -499,8 +499,8 @@ func convertError(err error) *string {
 	return nil
 }
 
-func sortNodeReports(reports []*codersdk.DERPNodeReport) {
-	slices.SortFunc(reports, func(a, b *codersdk.DERPNodeReport) int {
+func sortNodeReports(reports []*healthsdk.DERPNodeReport) {
+	slices.SortFunc(reports, func(a, b *healthsdk.DERPNodeReport) int {
 		return slice.Ascending(a.Node.Name, b.Node.Name)
 	})
 }

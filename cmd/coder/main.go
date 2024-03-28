@@ -8,5 +8,5 @@ import (
 
 func main() {
 	var rootCmd cli.RootCmd
-	rootCmd.RunMain(rootCmd.AGPL())
+	rootCmd.RunWithSubcommands(rootCmd.AGPL())
 }

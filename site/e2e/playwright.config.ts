@@ -1,14 +1,8 @@
 import { defineConfig } from "@playwright/test";
-import path from "path";
-import { defaultPort, coderdPProfPort, gitAuth } from "./constants";
-
-export const port = process.env.CODER_E2E_PORT
-  ? Number(process.env.CODER_E2E_PORT)
-  : defaultPort;
+import * as path from "path";
+import { coderMain, coderPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
-
-const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 // This is where auth cookies are stored!
 export const storageState = path.join(__dirname, ".auth.json");
@@ -20,22 +14,20 @@ const localURL = (port: number, path: string): string => {
 export default defineConfig({
   projects: [
     {
-      name: "setup",
+      name: "testsSetup",
       testMatch: /global.setup\.ts/,
     },
     {
       name: "tests",
       testMatch: /.*\.spec\.ts/,
-      dependencies: ["setup"],
-      use: {
-        storageState: storageState,
-      },
+      dependencies: ["testsSetup"],
+      use: { storageState },
       timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: `http://localhost:${coderPort}`,
     video: "retain-on-failure",
     ...(wsEndpoint
       ? {
@@ -50,12 +42,12 @@ export default defineConfig({
         }),
   },
   webServer: {
-    url: `http://localhost:${port}/api/v2/deployment/config`,
+    url: `http://localhost:${coderPort}/api/v2/deployment/config`,
     command:
       `go run -tags embed ${coderMain} server ` +
       `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
-      `--access-url=http://localhost:${port} ` +
-      `--http-address=localhost:${port} ` +
+      `--access-url=http://localhost:${coderPort} ` +
+      `--http-address=localhost:${coderPort} ` +
       `--in-memory --telemetry=false ` +
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +

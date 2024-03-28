@@ -939,7 +939,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
 	}))
 	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)
+		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, rbac.ActionRead)

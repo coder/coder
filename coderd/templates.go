@@ -788,29 +788,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	vals := r.URL.Query()
-	p := httpapi.NewQueryParamParser()
-	tzOffset := p.Int(vals, 0, "tz_offset")
-	p.ErrorExcessParams(vals)
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: p.Errors,
-		})
-		return
-	}
-
-	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, tzOffset)
-	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
-			Entries: []codersdk.DAUEntry{},
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	api.returnDAUsInternal(rw, r, []uuid.UUID{template.ID})
 }
 
 // @Summary Get template examples by organization

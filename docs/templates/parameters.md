@@ -233,7 +233,7 @@ monotonic numbers, and regular expressions.
 You can limit a `number` parameter to `min` and `max` boundaries.
 
 You can also specify its monotonicity as `increasing` or `decreasing` to verify
-the current and new values. Use the `monotonic` aatribute for resources that
+the current and new values. Use the `monotonic` attribute for resources that
 can't be shrunk or grown without implications, like disk volume size.
 
 ```hcl
@@ -265,6 +265,11 @@ data "coder_parameter" "instances" {
   }
 }
 ```
+
+**NOTE:** as of
+[`terraform-provider-coder` v0.19.0](https://registry.terraform.io/providers/coder/coder/0.19.0/docs),
+`options` can be specified in `number` parameters; this also works with
+validations such as `monotonic`.
 
 ### String
 

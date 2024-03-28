@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -76,8 +77,8 @@ func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string
 
 // DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
 // method.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (agentConn *codersdk.WorkspaceAgentConn, err error) {
-	return c.SDKClient.DialWorkspaceAgent(ctx, agentID, options)
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn *workspacesdk.AgentConn, err error) {
+	return workspacesdk.New(c.SDKClient).DialAgent(ctx, agentID, options)
 }
 
 type IssueSignedAppTokenResponse struct {

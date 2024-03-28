@@ -24,7 +24,7 @@ func TestExternalAuth(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		inv, _ := clitest.New(t, "--agent-url", url, "external-auth", "access-token", "github")
+		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
 		waiter := clitest.StartWithWaiter(t, inv)
@@ -40,7 +40,7 @@ func TestExternalAuth(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		inv, _ := clitest.New(t, "--agent-url", url, "external-auth", "access-token", "github")
+		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)
@@ -55,7 +55,7 @@ func TestExternalAuth(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		inv, _ := clitest.New(t, "--agent-url", url, "external-auth", "access-token")
+		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token")
 		watier := clitest.StartWithWaiter(t, inv)
 		watier.RequireContains("wanted 1 args but got 0")
 	})
@@ -71,7 +71,7 @@ func TestExternalAuth(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		inv, _ := clitest.New(t, "--agent-url", url, "external-auth", "access-token", "github", "--extra", "hey")
+		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github", "--extra", "hey")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)

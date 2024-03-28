@@ -342,3 +342,60 @@ We provide the following general recommendations for PostgreSQL settings:
   and memory utilization is high.
 - Utilize faster disk options (higher IOPS) such as SSDs or NVMe drives for
   optimal performance enhancement and possibly reduce database load.
+
+## Operational readiness
+
+Operational readiness in Coder is about ensuring that everything is set up
+correctly before launching a platform into production. It involves making sure
+that the service is reliable, secure, and easily scales accordingly to user-base
+needs. Operational readiness is crucial because it helps prevent issues that
+could affect workspace users experience once the platform is live.
+
+Learn about Coder design principles and architectural best practices described
+in the
+[Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+
+### Configuration
+
+1. Identify the required Helm values for configuration.
+1. Create `values.yaml` and add it to a version control system. _Note:_ it is
+   highly recommended that you create a custom `values.yaml` as opposed to
+   copying the entire default values.
+1. Determine the necessary environment variables.
+
+### Template configuration
+
+1. Establish a dedicated user account for the _Template Administrator_.
+1. Maintain Coder templates using version control.
+1. Consider implementing a GitOps workflow to automatically push new template.
+   For example, on Github, you can use the
+   [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)
+   action.
+1. Evaluate enabling automatic template updates upon workspace startup.
+
+### Deployment
+
+1. Leverage automation tooling to automate deployment and upgrades of Coder.
+
+### Observability
+
+1. Enable the Prometheus endpoint (environment variable:
+   `CODER_PROMETHEUS_ENABLE`).
+1. Deploy a visual monitoring system such as Grafana for metrics visualization.
+1. Deploy a centralized logs aggregation solution to collect and monitor
+   application logs.
+1. Review the [Prometheus response](../prometheus.md) and set up alarms on
+   selected metrics.
+
+### Database backups
+
+1. Prepare internal scripts for dumping and restoring databases.
+1. Schedule regular database backups, especially before release upgrades.
+
+### User support
+
+1. Incorporate [support links](../appearance.md#support-links) into internal
+   documentation accessible from the user context menu. Ensure that hyperlinks
+   are valid and lead to up-to-date materials.
+1. Encourage the use of `coder support bundle` to allow workspace users to
+   generate and provide network-related diagnostic data.

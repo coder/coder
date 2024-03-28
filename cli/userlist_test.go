@@ -77,7 +77,7 @@ func TestUserList(t *testing.T) {
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login'.")
 	})
 }
 

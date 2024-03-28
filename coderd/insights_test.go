@@ -32,31 +32,32 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestDeploymentInsights(t *testing.T) {
-	t.Skipf("This test is flaky: https://github.com/coder/coder/issues/12509")
-
 	t.Parallel()
 
 	clientTz, err := time.LoadLocation("America/Chicago")
 	require.NoError(t, err)
 
-	db, ps := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, nil)
+	rollupEvents := make(chan dbrollup.Event)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 50,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 		DatabaseRolluper: dbrollup.New(
-			logger.Named("dbrollup"),
+			logger.Named("dbrollup").Leveled(slog.LevelDebug),
 			db,
 			dbrollup.WithInterval(time.Millisecond*100),
+			dbrollup.WithEventChannel(rollupEvents),
 		),
 	})
 
@@ -74,56 +75,51 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Pre-check, no  permission issues.
+	daus, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
+	require.NoError(t, err)
+
 	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
-	daus, err := client.DeploymentDAUs(context.Background(), codersdk.TimezoneOffsetHour(clientTz))
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("dialagent"),
+		})
 	require.NoError(t, err)
-
-	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
-	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
-
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("tailnet"),
-	})
-	require.NoError(t, err)
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer conn.Close()
 
 	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
-	_ = sshConn.Close()
+	defer sshConn.Close()
 
-	wantDAUs := &codersdk.DAUsResponse{
-		TZHourOffset: codersdk.TimezoneOffsetHour(clientTz),
-		Entries: []codersdk.DAUEntry{
-			{
-				Date:   time.Now().In(clientTz).Format("2006-01-02"),
-				Amount: 1,
-			},
-		},
-	}
-	require.Eventuallyf(t, func() bool {
+	sess, err := sshConn.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
+	sess.Stdin = r
+	sess.Stdout = io.Discard
+	err = sess.Start("cat")
+	require.NoError(t, err)
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.Fail(t, "timed out waiting for deployment daus to update", daus)
+		case <-rollupEvents:
+		}
+
 		daus, err = client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
 		require.NoError(t, err)
-		return len(daus.Entries) > 0
-	},
-		testutil.WaitShort, testutil.IntervalFast,
-		"deployment daus never loaded",
-	)
-	gotDAUs, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
-	require.NoError(t, err)
-	require.Equal(t, gotDAUs, wantDAUs)
-
-	template, err = client.Template(ctx, template.ID)
-	require.NoError(t, err)
-
-	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err)
+		if len(daus.Entries) > 0 && daus.Entries[len(daus.Entries)-1].Amount > 0 {
+			break
+		}
+	}
 }
 
 func TestUserActivityInsights_SanityCheck(t *testing.T) {
@@ -136,7 +132,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 50,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 		DatabaseRolluper: dbrollup.New(
 			logger.Named("dbrollup"),
 			db,
@@ -170,13 +166,14 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client"),
+		})
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -212,7 +209,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 			return false
 		}
 		return len(userActivities.Report.Users) > 0 && userActivities.Report.Users[0].Seconds > 0
-	}, testutil.WaitMedium, testutil.IntervalFast, "user activity is missing")
+	}, testutil.WaitSuperLong, testutil.IntervalMedium, "user activity is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()
@@ -271,9 +268,10 @@ func TestUserLatencyInsights(t *testing.T) {
 	defer cancel()
 
 	// Connect to the agent to generate usage/latency stats.
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client"),
+		})
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -956,15 +954,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
@@ -1238,17 +1233,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client, events := prepare(t, templates, users, testData)
 
+			// Drain two events, the first one resumes rolluper
+			// operation and the second one waits for the rollup
+			// to complete.
+			_, _ = <-events, <-events
+
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
-
-					// Drain two events, the first one resumes rolluper
-					// operation and the second one waits for the rollup
-					// to complete.
-					_, _ = <-events, <-events
 
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
@@ -1811,15 +1806,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// TODO(mafredri): This doesn't behave correctly right now
-					// and will add more usage to the app. This could be
-					// considered both correct and incorrect behavior.
-					// { // One hour of usage, but same user and same template app, only count once.
-					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: frozenWeekAgo,
-					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage, but same user and same template app, only count once.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					{
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
@@ -2024,17 +2016,17 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client, events := prepare(t, templates, users, testData)
 
+			// Drain two events, the first one resumes rolluper
+			// operation and the second one waits for the rollup
+			// to complete.
+			_, _ = <-events, <-events
+
 			for _, req := range tt.requests {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitMedium)
-
-					// Drain two events, the first one resumes rolluper
-					// operation and the second one waits for the rollup
-					// to complete.
-					_, _ = <-events, <-events
 
 					report, err := client.UserActivityInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")

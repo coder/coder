@@ -1,4 +1,4 @@
-package codersdk
+package healthsdk
 
 import (
 	"context"
@@ -6,14 +6,23 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/net/netcheck"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-
-	"golang.org/x/xerrors"
+	"github.com/coder/coder/v2/codersdk"
 )
+
+// @typescript-ignore HealthClient
+type HealthClient struct {
+	client *codersdk.Client
+}
+
+func New(c *codersdk.Client) *HealthClient {
+	return &HealthClient{client: c}
+}
 
 type HealthSection string
 
@@ -44,34 +53,34 @@ type UpdateHealthSettings struct {
 	DismissedHealthchecks []HealthSection `json:"dismissed_healthchecks"`
 }
 
-func (c *Client) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/debug/health", nil)
+func (c *HealthClient) DebugHealth(ctx context.Context) (HealthcheckReport, error) {
+	res, err := c.client.Request(ctx, http.MethodGet, "/api/v2/debug/health", nil)
 	if err != nil {
 		return HealthcheckReport{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return HealthcheckReport{}, ReadBodyAsError(res)
+		return HealthcheckReport{}, codersdk.ReadBodyAsError(res)
 	}
 	var rpt HealthcheckReport
 	return rpt, json.NewDecoder(res.Body).Decode(&rpt)
 }
 
-func (c *Client) HealthSettings(ctx context.Context) (HealthSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/debug/health/settings", nil)
+func (c *HealthClient) HealthSettings(ctx context.Context) (HealthSettings, error) {
+	res, err := c.client.Request(ctx, http.MethodGet, "/api/v2/debug/health/settings", nil)
 	if err != nil {
 		return HealthSettings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return HealthSettings{}, ReadBodyAsError(res)
+		return HealthSettings{}, codersdk.ReadBodyAsError(res)
 	}
 	var settings HealthSettings
 	return settings, json.NewDecoder(res.Body).Decode(&settings)
 }
 
-func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/debug/health/settings", settings)
+func (c *HealthClient) PutHealthSettings(ctx context.Context, settings HealthSettings) error {
+	res, err := c.client.Request(ctx, http.MethodPut, "/api/v2/debug/health/settings", settings)
 	if err != nil {
 		return err
 	}
@@ -81,7 +90,7 @@ func (c *Client) PutHealthSettings(ctx context.Context, settings HealthSettings)
 		return xerrors.New("health settings not modified")
 	}
 	if res.StatusCode != http.StatusOK {
-		return ReadBodyAsError(res)
+		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -199,8 +208,8 @@ type ProvisionerDaemonsReport struct {
 }
 
 type ProvisionerDaemonsReportItem struct {
-	ProvisionerDaemon `json:"provisioner_daemon"`
-	Warnings          []health.Message `json:"warnings"`
+	codersdk.ProvisionerDaemon `json:"provisioner_daemon"`
+	Warnings                   []health.Message `json:"warnings"`
 }
 
 type WebsocketReport struct {
@@ -222,5 +231,5 @@ type WorkspaceProxyReport struct {
 	Dismissed bool             `json:"dismissed"`
 	Error     *string          `json:"error"`
 
-	WorkspaceProxies RegionsResponse[WorkspaceProxy] `json:"workspace_proxies"`
+	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }

@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
+import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
@@ -16,6 +17,7 @@ import {
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
 import {
+  createTestQueryClient,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
@@ -291,30 +293,7 @@ describe.each([
         );
       }
 
-      render(
-        <AppProviders queryClient={queryClient}>
-          <RouterProvider
-            router={createMemoryRouter(
-              [
-                {
-                  element: <RequireAuth />,
-                  children: [
-                    {
-                      element: <TemplateVersionEditorPage />,
-                      path: "/templates/:template/versions/:version/edit",
-                    },
-                  ],
-                },
-              ],
-              {
-                initialEntries: [
-                  `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
-                ],
-              },
-            )}
-          />
-        </AppProviders>,
-      );
+      renderEditorPage(queryClient);
       await waitForLoaderToBeRemoved();
 
       const dialogSelector = /template variables/i;
@@ -326,3 +305,80 @@ describe.each([
     });
   },
 );
+
+test("display pending badge and update it to running when status changes", async () => {
+  const MockPendingTemplateVersion = {
+    ...MockTemplateVersion,
+    job: {
+      ...MockTemplateVersion.job,
+      status: "pending",
+    },
+  };
+  const MockRunningTemplateVersion = {
+    ...MockTemplateVersion,
+    job: {
+      ...MockTemplateVersion.job,
+      status: "running",
+    },
+  };
+
+  let calls = 0;
+  server.use(
+    http.get(
+      "/api/v2/organizations/:org/templates/:template/versions/:version",
+      () => {
+        calls += 1;
+        return HttpResponse.json(
+          calls > 1 ? MockRunningTemplateVersion : MockPendingTemplateVersion,
+        );
+      },
+    ),
+  );
+
+  // Mock the logs when the status is running. This prevents connection errors
+  // from being thrown in the console during the test.
+  new WS(
+    `ws://localhost/api/v2/templateversions/${MockTemplateVersion.name}/logs?follow=true`,
+  );
+
+  renderEditorPage(createTestQueryClient());
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("Pending");
+
+  await waitFor(
+    () => {
+      expect(status).toHaveTextContent("Running");
+    },
+    // Increase the timeout due to the page fetching results every second, which
+    // may cause delays.
+    { timeout: 5_000 },
+  );
+});
+
+function renderEditorPage(queryClient: QueryClient) {
+  return render(
+    <AppProviders queryClient={queryClient}>
+      <RouterProvider
+        router={createMemoryRouter(
+          [
+            {
+              element: <RequireAuth />,
+              children: [
+                {
+                  element: <TemplateVersionEditorPage />,
+                  path: "/templates/:template/versions/:version/edit",
+                },
+              ],
+            },
+          ],
+          {
+            initialEntries: [
+              `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+            ],
+          },
+        )}
+      />
+    </AppProviders>,
+  );
+}
