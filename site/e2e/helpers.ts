@@ -150,8 +150,8 @@ export const createTemplate = async (
   return name;
 };
 
-// createGroup navigates to the /templates/new page and uploads a template
-// with the resources provided in the responses argument.
+// createGroup navigates to the /groups/create page and creates a group with a
+// random name.
 export const createGroup = async (page: Page): Promise<string> => {
   await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL("/groups/create");
