@@ -3,7 +3,7 @@ import {
   reactRouterParameters,
   reactRouterOutlet,
   type RouteDefinition,
-} from "storybook-addon-react-router-v6";
+} from "storybook-addon-remix-react-router";
 import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
 import { chromatic } from "testHelpers/chromatic";
 import {

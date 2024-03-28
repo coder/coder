@@ -5,7 +5,7 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import { withRouter } from "storybook-addon-react-router-v6";
+import { withRouter } from "storybook-addon-remix-react-router";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
@@ -48,9 +48,6 @@ export const parameters = {
       order: ["design", "pages", "modules", "components"],
       locales: "en-US",
     },
-  },
-  actions: {
-    argTypesRegex: "^(on|handler)[A-Z].*",
   },
   controls: {
     expanded: true,
