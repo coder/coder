@@ -133,7 +133,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [theme, renderer, config.isLoading, terminalWrapperRef, handleWebLinkRef]);
+  }, [config.isLoading, renderer, theme.palette.background.default]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
@@ -149,7 +149,7 @@ const TerminalPage: FC = () => {
         replace: true,
       },
     );
-  }, [searchParams, navigate, reconnectionToken]);
+  }, [navigate, reconnectionToken, searchParams]);
 
   // Hook up the terminal through a web socket.
   useEffect(() => {
