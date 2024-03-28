@@ -7764,6 +7764,9 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "refresh_token": {
+                    "type": "string"
+                },
                 "token_extra": {
                     "type": "object",
                     "additionalProperties": true

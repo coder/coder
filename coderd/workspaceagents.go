@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
@@ -1991,7 +1990,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
@@ -2064,7 +2063,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		if !valid {
 			continue
 		}
-		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create external auth response.",
@@ -2080,33 +2079,34 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
+func createExternalAuthResponse(typ string, link database.ExternalAuthLink) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication
 		resp = agentsdk.ExternalAuthResponse{
 			Username: "oauth2",
-			Password: token,
+			Password: link.OAuthAccessToken,
 		}
 	case string(codersdk.EnhancedExternalAuthProviderBitBucketCloud), string(codersdk.EnhancedExternalAuthProviderBitBucketServer):
 		// The string "bitbucket" was a legacy parameter that needs to still be supported.
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.ExternalAuthResponse{
 			Username: "x-token-auth",
-			Password: token,
+			Password: link.OAuthAccessToken,
 		}
 	default:
 		resp = agentsdk.ExternalAuthResponse{
-			Username: token,
+			Username: link.OAuthAccessToken,
 		}
 	}
-	resp.AccessToken = token
+	resp.RefreshToken = link.OAuthRefreshToken
+	resp.AccessToken = link.OAuthAccessToken
 	resp.Type = typ
 
 	var err error
-	if extra.Valid {
-		err = json.Unmarshal(extra.RawMessage, &resp.TokenExtra)
+	if link.OAuthExtra.Valid {
+		err = json.Unmarshal(link.OAuthExtra.RawMessage, &resp.TokenExtra)
 	}
 	return resp, err
 }
