@@ -1,3 +1,7 @@
+import * as path from "path";
+
+export const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
+
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
@@ -28,3 +32,5 @@ export const gitAuth = {
   validatePath: "/validate",
   installationsPath: "/installations",
 };
+
+export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";

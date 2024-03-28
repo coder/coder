@@ -95,7 +95,7 @@
   },
   "devDependencies": {
     "@octokit/types": "12.3.0",
-    "@playwright/test": "1.39.0",
+    "@playwright/test": "1.42.1",
     "@storybook/addon-actions": "7.6.11",
     "@storybook/addon-essentials": "7.6.11",
     "@storybook/addon-interactions": "7.6.11",
