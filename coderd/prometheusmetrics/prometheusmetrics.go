@@ -79,34 +79,34 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		duration = defaultRefreshRate
 	}
 
-	workspaceStatusTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build_total",
 		Help:      "The current number of workspace builds by status.",
 	}, []string{"status"})
-	if err := registerer.Register(workspaceStatusTotals); err != nil {
+	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
 		return nil, err
 	}
 
-	workspaceStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Name:      "workspace_latest_build_status",
 		Help:      "The current workspace statuses by template, transition, and owner.",
 	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
-	if err := registerer.Register(workspaceStatuses); err != nil {
+	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	updateWorkspaceStatuses := func() {
+	updateWorkspaceTotals := func() {
 		builds, err := db.GetLatestWorkspaceBuilds(ctx)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				// clear all series if there are no database entries
-				workspaceStatusTotals.Reset()
+				workspaceLatestBuildTotals.Reset()
 			}
 
 			logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
@@ -127,14 +127,14 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			return
 		}
 
-		workspaceStatusTotals.Reset()
+		workspaceLatestBuildTotals.Reset()
 		for _, job := range jobs {
 			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			workspaceStatusTotals.WithLabelValues(string(status)).Add(1)
+			workspaceLatestBuildTotals.WithLabelValues(string(status)).Add(1)
 		}
 	}
 
-	updateWorkspaceDetails := func() {
+	updateWorkspaceStatuses := func() {
 		ws, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 			Deleted:     false,
 			WithSummary: false,
@@ -142,16 +142,16 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				// clear all series if there are no database entries
-				workspaceStatuses.Reset()
+				workspaceLatestBuildStatuses.Reset()
 			}
 
 			logger.Warn(ctx, "failed to load active workspaces", slog.Error(err))
 			return
 		}
 
-		workspaceStatuses.Reset()
+		workspaceLatestBuildStatuses.Reset()
 		for _, w := range ws {
-			workspaceStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.Username, string(w.LatestBuildTransition)).Add(1)
+			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.Username, string(w.LatestBuildTransition)).Add(1)
 		}
 	}
 
@@ -161,8 +161,8 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	doTick := func() {
 		defer ticker.Reset(duration)
 
+		updateWorkspaceTotals()
 		updateWorkspaceStatuses()
-		updateWorkspaceDetails()
 	}
 
 	go func() {

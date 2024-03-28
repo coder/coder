@@ -111,7 +111,7 @@ func TestActiveUsers(t *testing.T) {
 	}
 }
 
-func TestWorkspaceStatuses(t *testing.T) {
+func TestWorkspaceLatestBuildTotals(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -184,7 +184,7 @@ func TestWorkspaceStatuses(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDetails(t *testing.T) {
+func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
