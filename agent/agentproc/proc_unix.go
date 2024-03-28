@@ -5,6 +5,7 @@ package agentproc
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -50,10 +51,26 @@ func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
 			}
 			return nil, xerrors.Errorf("read cmdline: %w", err)
 		}
+
+		oomScore, err := afero.ReadFile(fs, filepath.Join(defaultProcDir, entry, "oom_score_adj"))
+		if err != nil {
+			if xerrors.Is(err, os.ErrPermission) {
+				continue
+			}
+
+			return nil, xerrors.Errorf("read oom_score_adj: %w", err)
+		}
+
+		oom, err := strconv.Atoi(strings.TrimSpace(string(oomScore)))
+		if err != nil {
+			return nil, xerrors.Errorf("convert oom score: %w", err)
+		}
+
 		processes = append(processes, &Process{
-			PID:     int32(pid),
-			CmdLine: string(cmdline),
-			Dir:     filepath.Join(defaultProcDir, entry),
+			PID:         int32(pid),
+			CmdLine:     string(cmdline),
+			Dir:         filepath.Join(defaultProcDir, entry),
+			OOMScoreAdj: oom,
 		})
 	}
 

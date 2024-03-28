@@ -2529,11 +2529,11 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
 		)
 
+		requireFileWrite(t, fs, "/proc/self/oom_score_adj", "-500")
+
 		// Create some processes.
 		for i := 0; i < 4; i++ {
-			// Create a prioritized process. This process should
-			// have it's oom_score_adj set to -500 and its nice
-			// score should be untouched.
+			// Create a prioritized process.
 			var proc agentproc.Process
 			if i == 0 {
 				proc = agentproctest.GenerateProcess(t, fs,
@@ -2551,8 +2551,8 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 					},
 				)
 
-				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
 				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
 			}
 			syscaller.EXPECT().
 				Kill(proc.PID, syscall.Signal(0)).
@@ -2571,6 +2571,9 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		})
 		actualProcs := <-modProcs
 		require.Len(t, actualProcs, len(expectedProcs)-1)
+		for _, proc := range actualProcs {
+			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "0")
+		}
 	})
 
 	t.Run("IgnoreCustomNice", func(t *testing.T) {
@@ -2589,8 +2592,11 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
 		)
 
+		err := afero.WriteFile(fs, "/proc/self/oom_score_adj", []byte("0"), 0o644)
+		require.NoError(t, err)
+
 		// Create some processes.
-		for i := 0; i < 2; i++ {
+		for i := 0; i < 3; i++ {
 			proc := agentproctest.GenerateProcess(t, fs)
 			syscaller.EXPECT().
 				Kill(proc.PID, syscall.Signal(0)).
@@ -2618,7 +2624,59 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		})
 		actualProcs := <-modProcs
 		// We should ignore the process with a custom nice score.
-		require.Len(t, actualProcs, 1)
+		require.Len(t, actualProcs, 2)
+		for _, proc := range actualProcs {
+			_, ok := expectedProcs[proc.PID]
+			require.True(t, ok)
+			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "998")
+		}
+	})
+
+	t.Run("CustomOOMScore", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
+		var (
+			fs        = afero.NewMemMapFs()
+			ticker    = make(chan time.Time)
+			syscaller = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			modProcs  = make(chan []*agentproc.Process)
+			logger    = slog.Make(sloghuman.Sink(io.Discard))
+		)
+
+		err := afero.WriteFile(fs, "/proc/self/oom_score_adj", []byte("0"), 0o644)
+		require.NoError(t, err)
+
+		// Create some processes.
+		for i := 0; i < 3; i++ {
+			proc := agentproctest.GenerateProcess(t, fs)
+			syscaller.EXPECT().
+				Kill(proc.PID, syscall.Signal(0)).
+				Return(nil)
+			syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+			syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
+		}
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Syscaller = syscaller
+			o.ModifiedProcesses = modProcs
+			o.EnvironmentVariables = map[string]string{
+				agent.EnvProcPrioMgmt: "1",
+				agent.EnvProcOOMScore: "-567",
+			}
+			o.Filesystem = fs
+			o.Logger = logger
+			o.ProcessManagementTick = ticker
+		})
+		actualProcs := <-modProcs
+		// We should ignore the process with a custom nice score.
+		require.Len(t, actualProcs, 3)
+		for _, proc := range actualProcs {
+			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "-567")
+		}
 	})
 
 	t.Run("DisabledByDefault", func(t *testing.T) {
@@ -2738,4 +2796,18 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+}
+
+func requireFileWrite(t testing.TB, fs afero.Fs, fp, data string) {
+	t.Helper()
+	err := afero.WriteFile(fs, fp, []byte(data), 0o600)
+	require.NoError(t, err)
+}
+
+func requireFileEquals(t testing.TB, fs afero.Fs, fp, expect string) {
+	t.Helper()
+	actual, err := afero.ReadFile(fs, fp)
+	require.NoError(t, err)
+
+	require.Equal(t, expect, string(actual))
 }
