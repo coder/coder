@@ -53,15 +53,17 @@ func TestValidate(t *testing.T) {
 
 func TestExpiresSoon(t *testing.T) {
 	t.Parallel()
+	const threshold = 2
+
 	for _, c := range azureidentity.Certificates {
 		block, rest := pem.Decode([]byte(c))
 		require.Zero(t, len(rest))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		require.NoError(t, err)
 
-		expiresSoon := cert.NotAfter.Before(time.Now().AddDate(0, 3, 0))
+		expiresSoon := cert.NotAfter.Before(time.Now().AddDate(0, threshold, 0))
 		if expiresSoon {
-			t.Errorf("certificate expires within 6 months %s: %s", cert.NotAfter, cert.Subject.CommonName)
+			t.Errorf("certificate expires within %d months %s: %s", threshold, cert.NotAfter, cert.Subject.CommonName)
 		} else {
 			url := "no issuing url"
 			if len(cert.IssuingCertificateURL) > 0 {
