@@ -37,7 +37,9 @@ test("add and remove a group", async ({ page }) => {
   // Select the group from the list and add it
   await page.getByText(groupName).click();
   await page.getByText("Add member").click();
-  expect(page.locator(".MuiTable-root").getByText(groupName)).toBeVisible();
+  await expect(
+    page.locator(".MuiTable-root").getByText(groupName),
+  ).toBeVisible();
 });
 
 test("require latest version", async ({ page }) => {
