@@ -53,6 +53,8 @@ type tailnetAPIConnector struct {
 	coordinateURL string
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
+	agentAckOnce  sync.Once
+	agentAck      chan struct{}
 
 	connected chan error
 	isFirst   bool
@@ -74,6 +76,7 @@ func runTailnetAPIConnector(
 		conn:          conn,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
+		agentAck:      make(chan struct{}),
 	}
 	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
 	go tac.manageGracefulTimeout()
@@ -190,6 +193,17 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 	}()
 	coordination := tailnet.NewRemoteCoordination(tac.logger, coord, tac.conn, tac.agentID)
 	tac.logger.Debug(tac.ctx, "serving coordinator")
+	go func() {
+		select {
+		case <-tac.ctx.Done():
+			tac.logger.Debug(tac.ctx, "ctx timeout before agent ack")
+		case <-coordination.AwaitAck():
+			tac.logger.Debug(tac.ctx, "got agent ack")
+			tac.agentAckOnce.Do(func() {
+				close(tac.agentAck)
+			})
+		}
+	}()
 	select {
 	case <-tac.ctx.Done():
 		tac.logger.Debug(tac.ctx, "main context canceled; do graceful disconnect")

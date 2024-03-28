@@ -412,6 +412,24 @@ func TestCoordinator(t *testing.T) {
 		_ = testutil.RequireRecvCtx(ctx, t, clientErrChan)
 		_ = testutil.RequireRecvCtx(ctx, t, closeClientChan)
 	})
+
+	t.Run("AgentAck", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clientID := uuid.New()
+		agentID := uuid.New()
+
+		aReq, _ := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		_, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+
+		aReq <- &proto.CoordinateRequest{TunnelAck: &proto.CoordinateRequest_Ack{Id: clientID[:]}}
+		ack := testutil.RequireRecvCtx(ctx, t, cRes)
+		require.NotNil(t, ack.TunnelAck)
+		require.Equal(t, agentID[:], ack.TunnelAck.Id)
+	})
 }
 
 // TestCoordinator_AgentUpdateWhileClientConnects tests for regression on
@@ -629,6 +647,61 @@ func TestRemoteCoordination(t *testing.T) {
 	defer uut.Close()
 
 	coordinationTest(ctx, t, uut, fConn, reqs, resps, agentID)
+
+	select {
+	case err := <-uut.Error():
+		require.ErrorContains(t, err, "stream terminated by sending close")
+	default:
+		// OK!
+	}
+}
+
+func TestRemoteCoordination_Ack(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clientID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+	mCoord := tailnettest.NewMockCoordinator(gomock.NewController(t))
+	fConn := &fakeCoordinatee{}
+
+	reqs := make(chan *proto.CoordinateRequest, 100)
+	resps := make(chan *proto.CoordinateResponse, 100)
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+		Times(1).Return(reqs, resps)
+
+	var coord tailnet.Coordinator = mCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	svc, err := tailnet.NewClientService(
+		logger.Named("svc"), &coordPtr,
+		time.Hour,
+		func() *tailcfg.DERPMap { panic("not implemented") },
+	)
+	require.NoError(t, err)
+	sC, cC := net.Pipe()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
+		serveErr <- err
+	}()
+
+	client, err := tailnet.NewDRPCClient(cC, logger)
+	require.NoError(t, err)
+	protocol, err := client.Coordinate(ctx)
+	require.NoError(t, err)
+
+	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, agentID)
+	defer uut.Close()
+
+	testutil.RequireSendCtx(ctx, t, resps, &proto.CoordinateResponse{
+		TunnelAck: &proto.CoordinateResponse_Ack{Id: agentID[:]},
+	})
+
+	testutil.RequireRecvCtx(ctx, t, uut.AwaitAck())
+
+	require.NoError(t, uut.Close())
 
 	select {
 	case err := <-uut.Error():

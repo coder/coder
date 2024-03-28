@@ -102,6 +102,7 @@ type Coordinatee interface {
 }
 
 type Coordination interface {
+	AwaitAck() <-chan struct{}
 	io.Closer
 	Error() <-chan error
 }
@@ -111,9 +112,14 @@ type remoteCoordination struct {
 	closed       bool
 	errChan      chan error
 	coordinatee  Coordinatee
+	tgt          uuid.UUID
 	logger       slog.Logger
 	protocol     proto.DRPCTailnet_CoordinateClient
 	respLoopDone chan struct{}
+
+	ackOnce sync.Once
+	// tgtAck is closed when an ack from tgt is received.
+	tgtAck chan struct{}
 }
 
 func (c *remoteCoordination) Close() (retErr error) {
@@ -161,12 +167,52 @@ func (c *remoteCoordination) respLoop() {
 			c.sendErr(xerrors.Errorf("read: %w", err))
 			return
 		}
-		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
-		if err != nil {
-			c.sendErr(xerrors.Errorf("update peers: %w", err))
-			return
+
+		if len(resp.GetPeerUpdates()) > 0 {
+			err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
+			if err != nil {
+				c.sendErr(xerrors.Errorf("update peers: %w", err))
+				return
+			}
+
+			// Only send acks from agents.
+			if c.tgt == uuid.Nil {
+				// Send an ack back for all received peers. This could
+				// potentially be smarter to only send an ACK once per client,
+				// but there's nothing currently stopping clients from reusing
+				// IDs.
+				for _, peer := range resp.GetPeerUpdates() {
+					err := c.protocol.Send(&proto.CoordinateRequest{
+						TunnelAck: &proto.CoordinateRequest_Ack{Id: peer.Id},
+					})
+					if err != nil {
+						c.sendErr(xerrors.Errorf("send: %w", err))
+						return
+					}
+				}
+			}
+		}
+
+		// If we receive an ack, close the tgtAck channel to notify the waiting
+		// client.
+		if ack := resp.GetTunnelAck(); ack != nil {
+			dstID, err := uuid.FromBytes(ack.Id)
+			if err != nil {
+				c.sendErr(xerrors.Errorf("parse ack id: %w", err))
+				return
+			}
+
+			if c.tgt == dstID {
+				c.ackOnce.Do(func() {
+					close(c.tgtAck)
+				})
+			}
 		}
 	}
+}
+
+func (c *remoteCoordination) AwaitAck() <-chan struct{} {
+	return c.tgtAck
 }
 
 // NewRemoteCoordination uses the provided protocol to coordinate the provided coordinatee (usually a
@@ -179,9 +225,11 @@ func NewRemoteCoordination(logger slog.Logger,
 	c := &remoteCoordination{
 		errChan:      make(chan error, 1),
 		coordinatee:  coordinatee,
+		tgt:          tunnelTarget,
 		logger:       logger,
 		protocol:     protocol,
 		respLoopDone: make(chan struct{}),
+		tgtAck:       make(chan struct{}),
 	}
 	if tunnelTarget != uuid.Nil {
 		c.Lock()
@@ -325,6 +373,13 @@ func (c *inMemoryCoordination) respLoop() {
 			}
 		}
 	}
+}
+
+func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
+	// This is only used for tests, so just return a closed channel.
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }
 
 func (c *inMemoryCoordination) Close() error {
@@ -657,6 +712,31 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 	}
 	if req.Disconnect != nil {
 		c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "graceful disconnect")
+	}
+	if ack := req.TunnelAck; ack != nil {
+		err := c.handleAckLocked(pr, ack)
+		if err != nil {
+			return xerrors.Errorf("handle ack: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *core) handleAckLocked(src *peer, ack *proto.CoordinateRequest_Ack) error {
+	dstID, err := uuid.FromBytes(ack.Id)
+	if err != nil {
+		// this shouldn't happen unless there is a client error.  Close the connection so the client
+		// doesn't just happily continue thinking everything is fine.
+		return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
+	}
+
+	dst, ok := c.peers[dstID]
+	if ok {
+		dst.resps <- &proto.CoordinateResponse{
+			TunnelAck: &proto.CoordinateResponse_Ack{
+				Id: src.id[:],
+			},
+		}
 	}
 	return nil
 }
