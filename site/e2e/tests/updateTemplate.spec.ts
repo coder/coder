@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { createTemplate, updateTemplateSettings } from "../helpers";
 
-test.only("template update with new name redirects on successful submit", async ({
+test("template update with new name redirects on successful submit", async ({
   page,
 }) => {
   const templateName = await createTemplate(page);

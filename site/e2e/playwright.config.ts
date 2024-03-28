@@ -29,7 +29,7 @@ export default defineConfig({
     {
       name: "enterpriseSetup",
       testMatch: /enterprise.setup\.ts/,
-      dependencies: ["tests"],
+      dependencies: ["testsSetup"],
       use: {
         storageState: storageState,
       },
