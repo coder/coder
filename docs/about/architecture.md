@@ -11,22 +11,22 @@ and platform scaling capabilities.
 
 ### coderd
 
-coderd is the service created by running `coder server`. It is a thin API that
-connects workspaces, provisioners and users. coderd stores its state in Postgres
-and is the only service that communicates with Postgres.
+_coderd_ is the service created by running `coder server`. It is a thin API that
+connects workspaces, provisioners and users. _coderd_ stores its state in
+Postgres and is the only service that communicates with Postgres.
 
 It offers:
 
 - Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
-- Workspace Web Applications (e.g easily access code-server)
+- Workspace Web Applications (e.g easily access `code-server`)
 - Agent registration
 
 ### provisionerd
 
-provisionerd is the execution context for infrastructure modifying providers. At
-the moment, the only provider is Terraform (running `terraform`).
+_provisionerd_ is the execution context for infrastructure modifying providers.
+At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the Coder server runs multiple provisioner daemons.
 [External provisioners](../admin/provisioners.md) can be added for security or
@@ -51,7 +51,7 @@ workspaces.
 
 ### Service Bundling
 
-While coderd and Postgres can be orchestrated independently, our default
+While _coderd_ and Postgres can be orchestrated independently, our default
 installation paths bundle them all together into one system service. It's
 perfectly fine to run a production deployment this way, but there are certain
 situations that necessitate decomposition:
@@ -77,6 +77,34 @@ they're destroyed on workspace stop.
 ### Single region architecture
 
 ![Architecture Diagram](../images/architecture-single-region.png)
+
+#### Components
+
+This architecture consists of a single load balancer, several _Coder Server_
+replicas, and _Coder workspaces_ deployed in the same region.
+
+##### Workload resources
+
+- Use Terraform to deploy at least one **Coder Server Replica** with _Coder
+  Server_ instances and provisioners.
+- Single replica deployment is a special case that can address a
+  tiny/small/proof-of-concept installation on a single virtual machine serving
+  less than 100 workspace users.
+
+**Coder workspace**
+
+- For small deployments consider a lightweight workspace runtime like
+  [Sysbox](https://github.com/nestybox/sysbox) container runtime. Learn more how
+  to enable
+  [docker-in-docker using Sysbox](https://asciinema.org/a/kkTmOxl8DhEZiM2fLZNFlYzbo?speed=2).
+
+**HA Database**
+
+##### Workload supporting resources
+
+**Load balancer**
+
+**Single sign-on**
 
 <!-- Single VM, up to 100 users, Docker+sysbox container runtime -->
 
