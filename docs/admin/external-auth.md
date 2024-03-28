@@ -212,8 +212,46 @@ you can require users authenticate via git prior to creating a workspace:
 
 ![Git authentication in template](../images/admin/git-auth-template.png)
 
-The following example will require users authenticate via GitHub and auto-clone
-a repo into the `~/coder` directory.
+### Native git authentication will auto-refresh tokens
+
+<blockquote class="info">
+  <p>
+  This is the preferred authentication method.
+  </p>
+</blockquote>
+
+By default, the coder agent will configure native `git` authentication via the
+`GIT_ASKPASS` environment variable. Meaning, with no additional configuration,
+external authentication will work with native `git` commands.
+
+To check the auth token being used **from inside a running workspace**, run:
+
+```shell
+# If the exit code is non-zero, then the user is not authenticated with the
+# external provider.
+coder external-auth access-token <external-auth-id>
+```
+
+Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
+configured.
+
+**VSCode**
+
+Use the
+[Coder](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
+extension to automatically configure these settings for you!
+
+Otherwise, you can manually configure the following settings:
+
+- Set `git.terminalAuthentication` to `false`
+- Set `git.useIntegratedAskPass` to `false`
+
+### Hard coded tokens do not auto-refresh
+
+If the token is required to be inserted into the workspace, for example
+[GitHub cli](https://cli.github.com/), the auth token can be inserted from the
+template. This token will not auto-refresh. The following example will
+authenticate via GitHub and auto-clone a repo into the `~/coder` directory.
 
 ```hcl
 data "coder_external_auth" "github" {
