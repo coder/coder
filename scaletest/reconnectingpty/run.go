@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -64,7 +65,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	_, _ = fmt.Fprintf(logs, "\tHeight:  %d\n", height)
 	_, _ = fmt.Fprintf(logs, "\tCommand: %q\n\n", r.cfg.Init.Command)
 
-	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+	conn, err := workspacesdk.New(r.client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   r.cfg.AgentID,
 		Reconnect: id,
 		Width:     width,

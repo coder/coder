@@ -18,9 +18,7 @@
         "seconds": 3600
       },
       {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000002"
-        ],
+        "template_ids": [],
         "type": "builtin",
         "display_name": "JetBrains",
         "slug": "jetbrains",
@@ -48,6 +46,14 @@
         "seconds": 10800
       },
       {
+        "template_ids": [],
+        "type": "builtin",
+        "display_name": "SFTP",
+        "slug": "sftp",
+        "icon": "/icon/terminal.svg",
+        "seconds": 0
+      },
+      {
         "template_ids": [
           "00000000-0000-0000-0000-000000000002"
         ],
@@ -55,7 +61,7 @@
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
-        "seconds": 21600
+        "seconds": 25200
       }
     ],
     "parameters_usage": []

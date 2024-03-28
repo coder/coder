@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -23,17 +22,19 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
+// bashEcho is a script that calls the local `echo` with the arguments.  This is preferable to
+// sending the real `echo` binary since macOS 14.4+ immediately sigkills `echo` if it is copied to
+// another directory and run locally.
+const bashEcho = `#!/usr/bin/env bash
+echo $@`
+
 func TestAgentScript(t *testing.T) {
 	t.Parallel()
 	t.Run("Run", func(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			echoPath, err := exec.LookPath("echo")
-			require.NoError(t, err)
-			content, err := os.ReadFile(echoPath)
-			require.NoError(t, err)
 			render.Status(r, http.StatusOK)
-			render.Data(rw, r, content)
+			render.Data(rw, r, []byte(bashEcho))
 		}))
 		defer srv.Close()
 		srvURL, err := url.Parse(srv.URL)
@@ -46,9 +47,6 @@ func TestAgentScript(t *testing.T) {
 		}
 		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 		script = strings.ReplaceAll(script, "${AUTH_TYPE}", "token")
-		// In certain distributions "echo" is a part of coreutils, and determines
-		// it's functionality based on the exec path name.
-		script = strings.ReplaceAll(script, "BINARY_NAME=coder", "BINARY_NAME=echo")
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec

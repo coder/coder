@@ -94,17 +94,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
 	options.Database = cryptDB
-
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
-		AGPL:    coderd.New(options.Options),
 		Options: options,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
 	}
+	// This must happen before coderd initialization!
+	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
+	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {
 			_ = api.Close()
@@ -144,29 +145,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
-	})
-	// Same as above but it redirects to the login page.
-	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -174,33 +168,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
 	}
 
-	api.AGPL.RootHandler.Group(func(r chi.Router) {
-		// OAuth2 linking routes do not make sense under the /api/v2 path.
-		r.Route("/oauth2", func(r chi.Router) {
-			r.Use(
-				api.oAuth2ProviderMiddleware,
-				// Fetch the app as system because in the /tokens route there will be no
-				// authenticated user.
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
-			)
-			r.Route("/authorize", func(r chi.Router) {
-				r.Use(apiKeyMiddlewareRedirect)
-				r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			})
-			r.Route("/tokens", func(r chi.Router) {
-				r.Group(func(r chi.Router) {
-					r.Use(apiKeyMiddleware)
-					// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-					// route used to revoke permissions from an application.  It is here for
-					// parity with POST on /tokens.
-					r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-				})
-				// The POST /tokens endpoint will be called from an unauthorized client so we
-				// cannot require an API key.
-				r.Post("/", api.postOAuth2ProviderAppToken())
-			})
-		})
-	})
 	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
 		return api.refreshEntitlements(ctx)
 	}
@@ -361,33 +328,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/oauth2-provider", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				api.oAuth2ProviderMiddleware,
-			)
-			r.Route("/apps", func(r chi.Router) {
-				r.Get("/", api.oAuth2ProviderApps)
-				r.Post("/", api.postOAuth2ProviderApp)
-
-				r.Route("/{app}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
-					r.Get("/", api.oAuth2ProviderApp)
-					r.Put("/", api.putOAuth2ProviderApp)
-					r.Delete("/", api.deleteOAuth2ProviderApp)
-
-					r.Route("/secrets", func(r chi.Router) {
-						r.Get("/", api.oAuth2ProviderAppSecrets)
-						r.Post("/", api.postOAuth2ProviderAppSecret)
-
-						r.Route("/{secretID}", func(r chi.Router) {
-							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
-							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
-						})
-					})
-				})
-			})
-		})
 		r.Route("/integrations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -531,6 +471,38 @@ type API struct {
 	tailnetService          *tailnet.ClientService
 }
 
+// writeEntitlementWarningsHeader writes the entitlement warnings to the response header
+// for all authenticated users with roles. If there are no warnings, this header will not be written.
+//
+// This header is used by the CLI to display warnings to the user without having
+// to make additional requests!
+func (api *API) writeEntitlementWarningsHeader(a httpmw.Authorization, header http.Header) {
+	roles, err := a.Actor.Roles.Expand()
+	if err != nil {
+		return
+	}
+	nonMemberRoles := 0
+	for _, role := range roles {
+		// The member role is implied, and not assignable.
+		// If there is no display name, then the role is also unassigned.
+		// This is not the ideal logic, but works for now.
+		if role.Name == rbac.RoleMember() || (role.DisplayName == "") {
+			continue
+		}
+		nonMemberRoles++
+	}
+	if nonMemberRoles == 0 {
+		// Don't show entitlement warnings if the user
+		// has no roles. This is a normal user!
+		return
+	}
+	api.entitlementsMu.RLock()
+	defer api.entitlementsMu.RUnlock()
+	for _, warning := range api.entitlements.Warnings {
+		header.Add(codersdk.EntitlementsWarningHeader, warning)
+	}
+}
+
 func (api *API) Close() error {
 	// Replica manager should be closed first. This is because the replica
 	// manager updates the replica's table in the database when it closes.
@@ -560,7 +532,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
-			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,
@@ -686,7 +657,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			})
 		} else {
 			coordinator = agpltailnet.NewCoordinator(api.Logger)
-			api.derpMesh.SetAddresses([]string{}, false)
+			if api.Options.DeploymentValues.DERP.Server.Enable {
+				api.derpMesh.SetAddresses([]string{}, false)
+			}
 			api.replicaManager.SetCallback(func() {
 				// If the amount of replicas change, so should our entitlements.
 				// This is to display a warning in the UI if the user is unlicensed.

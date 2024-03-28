@@ -9,16 +9,16 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 type Checker interface {
-	DERP(ctx context.Context, opts *derphealth.ReportOptions) codersdk.DERPHealthReport
-	AccessURL(ctx context.Context, opts *AccessURLReportOptions) codersdk.AccessURLReport
-	Websocket(ctx context.Context, opts *WebsocketReportOptions) codersdk.WebsocketReport
-	Database(ctx context.Context, opts *DatabaseReportOptions) codersdk.DatabaseReport
-	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) codersdk.WorkspaceProxyReport
-	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) codersdk.ProvisionerDaemonsReport
+	DERP(ctx context.Context, opts *derphealth.ReportOptions) healthsdk.DERPHealthReport
+	AccessURL(ctx context.Context, opts *AccessURLReportOptions) healthsdk.AccessURLReport
+	Websocket(ctx context.Context, opts *WebsocketReportOptions) healthsdk.WebsocketReport
+	Database(ctx context.Context, opts *DatabaseReportOptions) healthsdk.DatabaseReport
+	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport
+	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport
 }
 
 type ReportOptions struct {
@@ -34,46 +34,46 @@ type ReportOptions struct {
 
 type defaultChecker struct{}
 
-func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) codersdk.DERPHealthReport {
+func (defaultChecker) DERP(ctx context.Context, opts *derphealth.ReportOptions) healthsdk.DERPHealthReport {
 	var report derphealth.Report
 	report.Run(ctx, opts)
-	return codersdk.DERPHealthReport(report)
+	return healthsdk.DERPHealthReport(report)
 }
 
-func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) codersdk.AccessURLReport {
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) healthsdk.AccessURLReport {
 	var report AccessURLReport
 	report.Run(ctx, opts)
-	return codersdk.AccessURLReport(report)
+	return healthsdk.AccessURLReport(report)
 }
 
-func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) codersdk.WebsocketReport {
+func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) healthsdk.WebsocketReport {
 	var report WebsocketReport
 	report.Run(ctx, opts)
-	return codersdk.WebsocketReport(report)
+	return healthsdk.WebsocketReport(report)
 }
 
-func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) codersdk.DatabaseReport {
+func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) healthsdk.DatabaseReport {
 	var report DatabaseReport
 	report.Run(ctx, opts)
-	return codersdk.DatabaseReport(report)
+	return healthsdk.DatabaseReport(report)
 }
 
-func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) codersdk.WorkspaceProxyReport {
+func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport {
 	var report WorkspaceProxyReport
 	report.Run(ctx, opts)
-	return codersdk.WorkspaceProxyReport(report)
+	return healthsdk.WorkspaceProxyReport(report)
 }
 
-func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) codersdk.ProvisionerDaemonsReport {
+func (defaultChecker) ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport {
 	var report ProvisionerDaemonsReport
 	report.Run(ctx, opts)
-	return codersdk.ProvisionerDaemonsReport(report)
+	return healthsdk.ProvisionerDaemonsReport(report)
 }
 
-func Run(ctx context.Context, opts *ReportOptions) *codersdk.HealthcheckReport {
+func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport {
 	var (
 		wg     sync.WaitGroup
-		report codersdk.HealthcheckReport
+		report healthsdk.HealthcheckReport
 	)
 
 	if opts.Checker == nil {
@@ -156,24 +156,24 @@ func Run(ctx context.Context, opts *ReportOptions) *codersdk.HealthcheckReport {
 	wg.Wait()
 
 	report.Time = time.Now()
-	report.FailingSections = []codersdk.HealthSection{}
+	report.FailingSections = []healthsdk.HealthSection{}
 	if report.DERP.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDERP)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionDERP)
 	}
 	if report.AccessURL.Severity.Value() > health.SeverityOK.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionAccessURL)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionAccessURL)
 	}
 	if report.Websocket.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWebsocket)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionWebsocket)
 	}
 	if report.Database.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionDatabase)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionDatabase)
 	}
 	if report.WorkspaceProxy.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionWorkspaceProxy)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionWorkspaceProxy)
 	}
 	if report.ProvisionerDaemons.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, codersdk.HealthSectionProvisionerDaemons)
+		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionProvisionerDaemons)
 	}
 
 	report.Healthy = len(report.FailingSections) == 0
