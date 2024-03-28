@@ -593,11 +593,11 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
 		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-			_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. The auto-update policy may require you to restart with the current active template version.")
 			_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceUpdate)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
 			}
+			_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. Your workspace has been updated to the current active template version.")
 		} else if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with current template version: %w", err)
 		}
