@@ -11,12 +11,14 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -40,27 +42,62 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	now := dbtime.Now()
+
+	defer func() {
+		if t.Failed() {
+			t.Logf("Test failed, printing rows...")
+			ctx := testutil.Context(t, testutil.WaitShort)
+			wasRows, err := db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+			if err == nil {
+				for _, row := range wasRows {
+					t.Logf("workspace agent stat: %v", row)
+				}
+			}
+			tusRows, err := db.GetTemplateUsageStats(context.Background(), database.GetTemplateUsageStatsParams{
+				StartTime: now.AddDate(0, -7, 0),
+				EndTime:   now,
+			})
+			if err == nil {
+				for _, row := range tusRows {
+					t.Logf("template usage stat: %v", row)
+				}
+			}
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-
-	now := dbtime.Now()
 
 	// given
 	// Let's use RxBytes to identify stat entries.
 	// Stat inserted 6 months + 1 hour ago, should be deleted.
 	first := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.Add(-6*30*24*time.Hour - time.Hour),
+		CreatedAt:                 now.AddDate(0, -6, 0).Add(-time.Hour),
+		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
+		SessionCountSSH:           1,
 	})
 
-	// Stat inserted 6 months - 1 hour ago, should not be deleted.
+	// Stat inserted 6 months - 1 hour ago, should not be deleted before rollup.
 	second := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.Add(-5*30*24*time.Hour + time.Hour),
+		CreatedAt:                 now.AddDate(0, -6, 0).Add(time.Hour),
+		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
+		SessionCountSSH:           1,
+	})
+
+	// Stat inserted 6 months - 1 day - 2 hour ago, should not be deleted at all.
+	third := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 now.AddDate(0, -6, 0).AddDate(0, 0, 1).Add(2 * time.Hour),
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 1,
+		RxBytes:                   3333,
+		SessionCountSSH:           1,
 	})
 
 	// when
@@ -70,15 +107,39 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	// then
 	var stats []database.GetWorkspaceAgentStatsRow
 	var err error
-	require.Eventually(t, func() bool {
+	require.Eventuallyf(t, func() bool {
 		// Query all stats created not earlier than 7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.Add(-7*30*24*time.Hour))
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
 		if err != nil {
 			return false
 		}
 		return !containsWorkspaceAgentStat(stats, first) &&
 			containsWorkspaceAgentStat(stats, second)
-	}, testutil.WaitShort, testutil.IntervalFast, stats)
+	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old stats: %v", stats)
+
+	// when
+	events := make(chan dbrollup.Event)
+	rolluper := dbrollup.New(logger, db, dbrollup.WithEventChannel(events))
+	defer rolluper.Close()
+
+	_, _ = <-events, <-events
+
+	// Start a new purger to immediately trigger delete after rollup.
+	_ = closer.Close()
+	closer = dbpurge.New(ctx, logger, db)
+	defer closer.Close()
+
+	// then
+	require.Eventuallyf(t, func() bool {
+		// Query all stats created not earlier than 7 months ago
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+		if err != nil {
+			return false
+		}
+		return !containsWorkspaceAgentStat(stats, first) &&
+			!containsWorkspaceAgentStat(stats, second) &&
+			containsWorkspaceAgentStat(stats, third)
+	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old stats after rollup: %v", stats)
 }
 
 func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, needle database.WorkspaceAgentStat) bool {

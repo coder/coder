@@ -1496,13 +1496,47 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	/*
+		DELETE FROM
+			workspace_agent_stats
+		WHERE
+			created_at < (
+				SELECT
+					COALESCE(
+						-- When generating initial template usage stats, all the
+						-- raw agent stats are needed, after that only ~30 mins
+						-- from last rollup is needed. Deployment stats seem to
+						-- use between 15 mins and 1 hour of data. We keep a
+						-- little bit more (1 day) just in case.
+						MAX(start_time) - '1 days'::interval,
+						-- Fall back to 6 months ago if there are no template
+						-- usage stats so that we don't delete the data before
+						-- it's rolled up.
+						NOW() - '6 months'::interval
+					)
+				FROM
+					template_usage_stats
+			);
+	*/
+
 	now := dbtime.Now()
-	sixMonthInterval := 6 * 30 * 24 * time.Hour
-	sixMonthsAgo := now.Add(-sixMonthInterval)
+	var limit time.Time
+	// MAX
+	for _, stat := range q.templateUsageStats {
+		if stat.StartTime.After(limit) {
+			limit = stat.StartTime.AddDate(0, 0, -1)
+		}
+	}
+	// COALESCE
+	if limit.IsZero() {
+		limit = now.AddDate(0, -6, 0)
+	}
 
 	var validStats []database.WorkspaceAgentStat
 	for _, stat := range q.workspaceAgentStats {
-		if stat.CreatedAt.Before(sixMonthsAgo) {
+		fmt.Println(stat.CreatedAt, limit)
+		if stat.CreatedAt.Before(limit) {
+			fmt.Println("delete")
 			continue
 		}
 		validStats = append(validStats, stat)
