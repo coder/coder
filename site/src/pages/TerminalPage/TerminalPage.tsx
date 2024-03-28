@@ -13,7 +13,6 @@ import { WebLinksAddon } from "xterm-addon-web-links";
 import { WebglAddon } from "xterm-addon-webgl";
 import { deploymentConfig } from "api/queries/deployment";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import type { WorkspaceAgent } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import themes from "theme";
@@ -22,20 +21,14 @@ import { pageTitle } from "utils/page";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
-import {
-  DisconnectedAlert,
-  ErrorScriptAlert,
-  LoadedScriptsAlert,
-  LoadingScriptsAlert,
-} from "./TerminalAlerts";
+import { TerminalAlerts } from "./TerminalAlerts";
+import type { TerminalState } from "./types";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
 };
-
-type TerminalState = "connected" | "disconnected" | "initializing";
 
 const TerminalPage: FC = () => {
   // Maybe one day we'll support a light themed terminal, but terminal coloring
@@ -46,8 +39,8 @@ const TerminalPage: FC = () => {
   const { proxy, proxyLatencies } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
-  const xtermRef = useRef<HTMLDivElement>(null);
-  const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null);
+  const terminalWrapperRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<XTerm.Terminal | null>(null);
   const [terminalState, setTerminalState] =
     useState<TerminalState>("initializing");
   const [searchParams] = useSearchParams();
@@ -93,7 +86,7 @@ const TerminalPage: FC = () => {
   // Create the terminal!
   const fitAddonRef = useRef<FitAddon>();
   useEffect(() => {
-    if (!xtermRef.current || config.isLoading) {
+    if (!terminalWrapperRef.current || config.isLoading) {
       return;
     }
     const terminal = new XTerm.Terminal({
@@ -122,7 +115,7 @@ const TerminalPage: FC = () => {
       }),
     );
 
-    terminal.open(xtermRef.current);
+    terminal.open(terminalWrapperRef.current);
 
     // We have to fit twice here. It's unknown why, but the first fit will
     // overflow slightly in some scenarios. Applying a second fit resolves this.
@@ -134,13 +127,13 @@ const TerminalPage: FC = () => {
     window.addEventListener("resize", listener);
 
     // Terminal is correctly sized and is ready to be used.
-    setTerminal(terminal);
+    terminalRef.current = terminal;
 
     return () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [theme, renderer, config.isLoading, xtermRef, handleWebLinkRef]);
+  }, [theme, renderer, config.isLoading, terminalWrapperRef, handleWebLinkRef]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
@@ -160,6 +153,8 @@ const TerminalPage: FC = () => {
 
   // Hook up the terminal through a web socket.
   useEffect(() => {
+    const terminal = terminalRef.current;
+
     if (!terminal) {
       return;
     }
@@ -182,12 +177,14 @@ const TerminalPage: FC = () => {
       terminal.writeln(
         Language.workspaceErrorMessagePrefix + workspace.error.message,
       );
+      setTerminalState("disconnected");
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
         Language.workspaceAgentErrorMessagePrefix +
           "no agent found with ID, is the workspace started?",
       );
+      setTerminalState("disconnected");
       return;
     }
 
@@ -283,9 +280,8 @@ const TerminalPage: FC = () => {
     command,
     proxy.preferredPathAppURL,
     reconnectionToken,
-    terminal,
-    workspace.isLoading,
     workspace.error,
+    workspace.isLoading,
     workspaceAgent,
   ]);
 
@@ -300,7 +296,10 @@ const TerminalPage: FC = () => {
             : ""}
         </title>
       </Helmet>
-      <div css={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div
+        css={{ display: "flex", flexDirection: "column", height: "100vh" }}
+        data-state={terminalState}
+      >
         <TerminalAlerts
           agent={workspaceAgent}
           state={terminalState}
@@ -308,7 +307,11 @@ const TerminalPage: FC = () => {
             fitAddonRef.current?.fit();
           }}
         />
-        <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
+        <div
+          css={styles.terminal}
+          ref={terminalWrapperRef}
+          data-testid="terminal"
+        />
       </div>
 
       {latency && isDebugging && (
@@ -325,62 +328,6 @@ const TerminalPage: FC = () => {
         </span>
       )}
     </ThemeOverride>
-  );
-};
-
-type TerminalAlertsProps = {
-  agent: WorkspaceAgent | undefined;
-  state: TerminalState;
-  onAlertChange: () => void;
-};
-
-const TerminalAlerts = ({
-  agent,
-  state,
-  onAlertChange,
-}: TerminalAlertsProps) => {
-  const lifecycleState = agent?.lifecycle_state;
-  const prevLifecycleState = useRef(lifecycleState);
-  useEffect(() => {
-    prevLifecycleState.current = lifecycleState;
-  }, [lifecycleState]);
-
-  // We want to observe the children of the wrapper to detect when the alert
-  // changes. So the terminal page can resize itself.
-  //
-  // Would it be possible to just always call fit() when this component
-  // re-renders instead of using an observer?
-  //
-  // This is a good question and the why this does not work is that the .fit()
-  // needs to run after the render so in this case, I just think the mutation
-  // observer is more reliable. I could use some hacky setTimeout inside of
-  // useEffect to do that, I guess, but I don't think it would be any better.
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!wrapperRef.current) {
-      return;
-    }
-    const observer = new MutationObserver(onAlertChange);
-    observer.observe(wrapperRef.current, { childList: true });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [onAlertChange]);
-
-  return (
-    <div ref={wrapperRef}>
-      {state === "disconnected" ? (
-        <DisconnectedAlert />
-      ) : lifecycleState === "start_error" ? (
-        <ErrorScriptAlert />
-      ) : lifecycleState === "starting" ? (
-        <LoadingScriptsAlert />
-      ) : lifecycleState === "ready" &&
-        prevLifecycleState.current === "starting" ? (
-        <LoadedScriptsAlert />
-      ) : null}
-    </div>
   );
 };
 
