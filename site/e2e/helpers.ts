@@ -1,4 +1,4 @@
-import { type BrowserContext, expect, type Page } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import axios from "axios";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
@@ -16,6 +16,7 @@ import {
   agentPProfPort,
   coderMain,
   coderPort,
+  enterpriseLicense,
   prometheusPort,
 } from "./constants";
 import {
@@ -29,6 +30,11 @@ import {
   Response,
   type RichParameter,
 } from "./provisionerGenerated";
+
+// requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
+export function requiresEnterpriseLicense() {
+  test.skip(!enterpriseLicense);
+}
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.

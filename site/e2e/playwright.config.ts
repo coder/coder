@@ -15,37 +15,18 @@ export default defineConfig({
   projects: [
     {
       name: "testsSetup",
-      testMatch: /tests.setup\.ts/,
+      testMatch: /global.setup\.ts/,
     },
     {
       name: "tests",
       testMatch: /.*\.spec\.ts/,
       dependencies: ["testsSetup"],
-      use: {
-        storageState: storageState,
-      },
-      timeout: 60_000,
-    },
-    {
-      name: "enterpriseSetup",
-      testMatch: /enterprise.setup\.ts/,
-      dependencies: ["testsSetup"],
-      use: {
-        storageState: storageState,
-      },
-    },
-    {
-      name: "enterprise",
-      testMatch: /.*\.enterpriseSpec\.ts/,
-      dependencies: ["enterpriseSetup"],
-      use: {
-        storageState: storageState,
-      },
       timeout: 60_000,
     },
   ],
   reporter: [["./reporter.ts"]],
   use: {
+    storageState,
     baseURL: `http://localhost:${coderPort}`,
     video: "retain-on-failure",
     ...(wsEndpoint

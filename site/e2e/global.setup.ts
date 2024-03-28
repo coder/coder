@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
+import { requiresEnterpriseLicense } from "./helpers";
 import { storageState } from "./playwright.config";
 
 test("setup first user", async ({ page }) => {
@@ -15,4 +16,15 @@ test("setup first user", async ({ page }) => {
   await page.context().storageState({ path: storageState });
 
   await page.getByTestId("button-select-template").isVisible();
+});
+
+test("setup license", async ({ page }) => {
+  requiresEnterpriseLicense();
+  await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
+
+  await page.getByText("Add a license").click();
+  await page.getByRole("textbox").fill(constants.enterpriseLicense);
+  await page.getByText("Upload License").click();
+
+  await page.getByText("You have successfully added a license").isVisible();
 });

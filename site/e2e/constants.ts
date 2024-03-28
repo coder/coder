@@ -34,4 +34,3 @@ export const gitAuth = {
 };
 
 export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
-export const skipEnterpriseTests = !enterpriseLicense;
