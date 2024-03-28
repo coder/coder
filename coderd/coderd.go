@@ -648,6 +648,10 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	// This incurs a performance hit from the middleware, but is required to make sure
+	// we do not override subdomain app routes.
+	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
@@ -1192,15 +1196,7 @@ func New(options *Options) *API {
 	// static files since it only affects browsers.
 	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
-	// This must be before all middleware to improve the response time.
-	// So make a new router, and mount the old one as the root.
-	rootRouter := chi.NewRouter()
-	// This is the only route we add before all the middleware.
-	// We want to time the latency of the request, so any middleware will
-	// interfere with that timing.
-	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
-	rootRouter.Mount("/", r)
-	api.RootHandler = rootRouter
+	api.RootHandler = r
 
 	return api
 }
