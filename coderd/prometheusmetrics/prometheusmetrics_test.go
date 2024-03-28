@@ -150,7 +150,7 @@ func TestWorkspaceStatuses(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -179,7 +179,7 @@ func TestWorkspaceStatuses(t *testing.T) {
 				}
 				t.Logf("sum %d == total %d", sum, tc.Total)
 				return sum == tc.Total
-			}, testutil.WaitSuperShort, testutil.IntervalFast)
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }
@@ -270,7 +270,7 @@ func TestWorkspaceDetails(t *testing.T) {
 				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedSeries)
 				t.Logf("workspace series = %d, expected == %d", len(wMap), tc.ExpectedWorkspaces)
 				return stSum == tc.ExpectedSeries && len(wMap) == tc.ExpectedWorkspaces
-			}, testutil.WaitSuperShort, testutil.IntervalFast)
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }

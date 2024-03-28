@@ -7,11 +7,10 @@ import "time"
 //
 // Windows durations are adjusted for slow CI workers.
 const (
-	WaitSuperShort = time.Second
-	WaitShort      = 15 * time.Second
-	WaitMedium     = 20 * time.Second
-	WaitLong       = 35 * time.Second
-	WaitSuperLong  = 120 * time.Second
+	WaitShort     = 15 * time.Second
+	WaitMedium    = 20 * time.Second
+	WaitLong      = 35 * time.Second
+	WaitSuperLong = 120 * time.Second
 )
 
 // Constants for delaying repeated operations, e.g. in
