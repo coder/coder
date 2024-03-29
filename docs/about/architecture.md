@@ -20,7 +20,7 @@ It offers:
 - Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
-- Workspace Web Applications (e.g easily access `code-server`)
+- Workspace Web Applications (e.g easily access to `code-server`)
 - Agent registration
 
 ### provisionerd
@@ -113,15 +113,16 @@ replicas, and _Coder workspaces_ deployed in the same region.
 - Distributes and load balances traffic from agents and clients to _Coder
   Server_ replicas across zones.
 - Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
-  re-encrypt using internal certificate.
-- Sessions persistence (sticky sessions) can be disabled as _Coder Server_
+  re-encrypt using an internal certificate.
+- Session persistence (sticky sessions) can be disabled as _Coder Server_
   instances are stateless.
-- WebSocket and long-time connections must be supported.
+- WebSocket and long-lived connections must be supported.
 
 **Single sign-on**
 
-- Integrate with existing Single Sign-On (SSO) solution used within the
-  organization, OAuth 2.0 or OpenID Connect standards are supported.
+- Integrate with existing Single Sign-On (SSO) solutions used within the
+  organization organization via the supported OAuth 2.0 or OpenID Connect
+  standards.
 - Learn more about [Authentication in Coder](../admin/auth.md).
 
 ### Multi-region architecture
@@ -137,7 +138,7 @@ workspaces_ provisioned in different regions.
 
 Note: The _multi-region architecture_ assumes the same deployment principles as
 the _single region architecture_, but it extends them to multi region deployment
-with workspace proxies. Provisioners deployed in regions closed to developers
+with workspace proxies. Proxies are deployed in regions closest to developers to
 offer the fastest developer experience.
 
 ##### Workload resources
@@ -150,7 +151,7 @@ offer the fastest developer experience.
 - Dashboard connections, API calls (e.g. _list workspaces_) are not served over
   proxies.
 - Proxies do not establish connections to the database.
-- Do not share authentication tokens between proxy instances.
+- Proxy instances do not share authentication tokens between one another.
 
 ##### Workload supporting resources
 
