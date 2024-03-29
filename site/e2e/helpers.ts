@@ -150,6 +150,21 @@ export const createTemplate = async (
   return name;
 };
 
+// createGroup navigates to the /groups/create page and creates a group with a
+// random name.
+export const createGroup = async (page: Page): Promise<string> => {
+  await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL("/groups/create");
+
+  const name = randomName();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByTestId("form-submit").click();
+  await expect(page).toHaveURL(
+    /\/groups\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+  return name;
+};
+
 // sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
 export const sshIntoWorkspace = async (
   page: Page,

@@ -3,7 +3,7 @@ import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
 import { storageState } from "./playwright.config";
 
-test("setup first user", async ({ page }) => {
+test("setup deployment", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   // Setup first user
