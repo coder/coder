@@ -527,6 +527,71 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 
+	t.Run("AGPL_RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		req := codersdk.UpdateTemplateMeta{
+			RequireActiveVersion: true,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// An error should be returned reporting that the requested update could not be performed
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.ErrorContains(t, err, "enterprise license required for require_active_version")
+
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		// AGPL cannot enable automatic updates, expect no change
+		assert.False(t, updated.RequireActiveVersion)
+	})
+
+	// AGPL cannot deprecate, but it can be unset
+	t.Run("AGPL_Unset_RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		// nolint:gocritic // Setting up unit test data
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   template.ID,
+			RequireActiveVersion: true,
+		})
+		require.NoError(t, err)
+
+		// Check that the setting is enabled
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.True(t, got.RequireActiveVersion, "setting is enabled to start")
+
+		req := codersdk.UpdateTemplateMeta{
+			RequireActiveVersion: false,
+		}
+
+		// AGPL users are allowed to disable automatic updates
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.False(t, updated.RequireActiveVersion)
+	})
+
 	t.Run("AGPL_Deprecated", func(t *testing.T) {
 		t.Parallel()
 
@@ -545,8 +610,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// An error should be returned reporting that the requested update could not be performed
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "enterprise license required for deprecation_message")
+
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		// AGPL cannot deprecate, expect no change
 		assert.False(t, updated.Deprecated)
@@ -586,11 +653,50 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DeprecationMessage: ptr.Ref(""),
 		}
 
+		// AGPL users are allowed to un-deprecate a template
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.False(t, updated.Deprecated)
 		assert.Empty(t, updated.DeprecationMessage)
+	})
+
+	// AGPL cannot change the deprecation message
+	t.Run("AGPL_Change_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		// nolint:gocritic // Setting up unit test data
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   template.ID,
+			RequireActiveVersion: false,
+			Deprecated:           "Some deprecation message",
+		})
+		require.NoError(t, err)
+
+		// Check that it is deprecated
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got.DeprecationMessage, "template is deprecated to start")
+		require.True(t, got.Deprecated, "template is deprecated to start")
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref("Some more different deprecation message"),
+		}
+
+		// AGPL users are not allowed to change the deprecation message
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.ErrorContains(t, err, "enterprise license required for deprecation_message")
 	})
 
 	t.Run("AGPL_MaxPortShareLevel", func(t *testing.T) {
