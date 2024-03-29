@@ -56,11 +56,11 @@ type phased struct {
 
 type configMaps struct {
 	phased
-	netmapDirty      bool
-	derpMapDirty     bool
-	filterDirty      bool
-	closing          bool
-	waitForHandshake bool
+	netmapDirty           bool
+	derpMapDirty          bool
+	filterDirty           bool
+	closing               bool
+	waitReadyForHandshake bool
 
 	engine         engineConfigurable
 	static         netmap.NetworkMap
@@ -219,7 +219,7 @@ func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	for _, p := range c.peers {
 		// Don't add nodes that we havent received a READY_FOR_HANDSHAKE for
 		// yet, if we want to wait for them.
-		if !p.readyForHandshake && c.waitForHandshake {
+		if !p.readyForHandshake && c.waitReadyForHandshake {
 			continue
 		}
 		n := p.node.Clone()
@@ -234,7 +234,7 @@ func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 func (c *configMaps) setWaitForHandshake(wait bool) {
 	c.L.Lock()
 	defer c.L.Unlock()
-	c.waitForHandshake = wait
+	c.waitReadyForHandshake = wait
 }
 
 // setAddresses sets the addresses belonging to this node to the given slice. It
@@ -413,9 +413,9 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			node:              node,
 			lastHandshake:     lastHandshake,
 			lost:              false,
-			readyForHandshake: !c.waitForHandshake,
+			readyForHandshake: !c.waitReadyForHandshake,
 		}
-		if c.waitForHandshake {
+		if c.waitReadyForHandshake {
 			lc.readyForHandshakeTimer = c.clock.AfterFunc(5*time.Second, func() {
 				logger.Debug(context.Background(), "ready for handshake timeout")
 				c.peerReadyForHandshakeTimeout(id)
