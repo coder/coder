@@ -7,7 +7,7 @@ page describes possible deployments, challenges, and risks associated with them.
 Learn more about our [Reference Architectures](../admin/architectures/index.md)
 and platform scaling capabilities.
 
-## Components
+## Primary components
 
 ### coderd
 
@@ -112,8 +112,8 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 - Distributes and load balances traffic from agents and clients to _Coder
   Server_ replicas across zones.
-- Layer 7 load balancing. Decrypt SSL traffic, and re-encrypt using internal
-  certificate.
+- Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
+  re-encrypt using internal certificate.
 - Sessions persistence (sticky sessions) can be disabled as _Coder Server_
   instances are stateless.
 - WebSocket and long-time connections must be supported.
@@ -158,5 +158,5 @@ offer the fastest developer experience.
 
 - Distributes and load balances workspace relay traffic in a single region
   across availability zones.
-- Layer 7 load balancing. Decrypt SSL traffic, and re-encrypt using internal
-  certificate.
+- Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
+  re-encrypt using internal certificate.
