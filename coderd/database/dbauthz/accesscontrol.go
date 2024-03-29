@@ -34,6 +34,7 @@ var _ AccessControlStore = AGPLTemplateAccessControlStore{}
 
 func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) TemplateAccessControl {
 	return TemplateAccessControl{
+		// An expired license
 		RequireActiveVersion: false,
 		// AGPL cannot set deprecated templates, but it should return
 		// existing deprecated templates. This is erroring on the safe side
@@ -44,24 +45,30 @@ func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(t database.Templa
 }
 
 func (AGPLTemplateAccessControlStore) SetTemplateAccessControl(ctx context.Context, store database.Store, id uuid.UUID, opts TemplateAccessControl) error {
-	// AGPL is allowed to unset deprecated templates.
-	if opts.Deprecated == "" {
-		// This does require fetching again to ensure other fields are not
-		// changed.
-		tpl, err := store.GetTemplateByID(ctx, id)
-		if err != nil {
-			return xerrors.Errorf("get template: %w", err)
-		}
+	// This does require fetching again to ensure other fields are not changed.
+	tpl, err := store.GetTemplateByID(ctx, id)
+	if err != nil {
+		return xerrors.Errorf("get template: %w", err)
+	}
 
-		if tpl.Deprecated != "" {
-			err := store.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
-				ID:                   id,
-				RequireActiveVersion: tpl.RequireActiveVersion,
-				Deprecated:           opts.Deprecated,
-			})
-			if err != nil {
-				return xerrors.Errorf("update template access control: %w", err)
-			}
+	// AGPL is allowed to unset deprecated templates, anything else is an error
+	if opts.Deprecated != "" && tpl.Deprecated != opts.Deprecated {
+		return xerrors.Errorf("enterprise license required for deprecation_message")
+	}
+
+	// AGPL is allowed to disable require_active_version, anything else is an error
+	if opts.RequireActiveVersion && tpl.RequireActiveVersion != opts.RequireActiveVersion {
+		return xerrors.Errorf("enterprise license required for require_active_version")
+	}
+
+	if opts.Deprecated != tpl.Deprecated || opts.RequireActiveVersion != tpl.RequireActiveVersion {
+		err := store.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
+			ID:                   id,
+			RequireActiveVersion: opts.RequireActiveVersion,
+			Deprecated:           opts.Deprecated,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template access control: %w", err)
 		}
 	}
 

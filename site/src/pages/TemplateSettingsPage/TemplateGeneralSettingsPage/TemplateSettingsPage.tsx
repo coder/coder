@@ -20,6 +20,8 @@ export const TemplateSettingsPage: FC = () => {
   const queryClient = useQueryClient();
   const { entitlements, experiments } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
+  const advancedSchedulingEnabled =
+    entitlements.features.advanced_template_scheduling.enabled;
   const sharedPortsExperimentEnabled = experiments.includes("shared-ports");
   const sharedPortControlsEnabled =
     entitlements.features.control_shared_ports.enabled;
@@ -70,6 +72,7 @@ export const TemplateSettingsPage: FC = () => {
           });
         }}
         accessControlEnabled={accessControlEnabled}
+        advancedSchedulingEnabled={advancedSchedulingEnabled}
         sharedPortsExperimentEnabled={sharedPortsExperimentEnabled}
         sharedPortControlsEnabled={sharedPortControlsEnabled}
       />
