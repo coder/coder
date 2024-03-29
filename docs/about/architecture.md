@@ -85,8 +85,9 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 ##### Workload resources
 
-- Use Terraform to deploy at least one **Coder Server Replica** with _Coder
-  Server_ instances and provisioners.
+- Use Terraform to deploy at least one **Coder Server Replica** per availability
+  zone with _Coder Server_ instances and provisioners. High availability is
+  recommended but not essential for small deployments.
 - Single replica deployment is a special case that can address a
   tiny/small/proof-of-concept installation on a single virtual machine serving
   less than 100 workspace users.
@@ -100,13 +101,27 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 **HA Database**
 
+- Enable replication across all availability zones.
+- Monitor replication lag, node status, and resource utilization metrics.
+- Implement robust backup and disaster recovery strategies to protect against
+  data loss.
+
 ##### Workload supporting resources
 
 **Load balancer**
 
+- Distributes and load balances traffic from agents and clients to _Coder
+  Server_ replicas across zones.
+- Layer 4 load balancing.
+- Sessions persistence (sticky sessions) can be disabled as _Coder Server_
+  instances are stateless.
+- WebSocket and long-time connections must be supported.
+
 **Single sign-on**
 
-<!-- Single VM, up to 100 users, Docker+sysbox container runtime -->
+- Integrate with existing Single Sign-On (SSO) solution used within the
+  organization, OAuth 2.0 or OpenID Connect standards are supported.
+- Learn more about [Authentication in Coder](../admin/auth.md).
 
 ### Multi-region architecture
 
