@@ -169,7 +169,8 @@ func TestAcquireJob(t *testing.T) {
 			dv := &codersdk.DeploymentValues{
 				Sessions: codersdk.SessionLifetime{
 					MaxTokenLifetime: serpent.Duration(time.Hour),
-				}}
+				},
+			}
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 				Id: "github",
 			}
