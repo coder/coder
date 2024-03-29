@@ -76,7 +76,7 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 
 // Tokens
 // TODO: the sessions lifetime config passed is for coder api tokens.
-// Should er have a separate config for oauth2 tokens? They are related,
+// Should there be a separate config for oauth2 tokens? They are related,
 // but they are not the same.
 func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
