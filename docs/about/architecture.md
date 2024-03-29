@@ -127,4 +127,17 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 ![Architecture Diagram](../images/architecture-multi-region.png)
 
+#### Components
+
+This architecture is for globally distributed developer teams using Coder
+workspaces on daily basis. It features a single load balancer with regionally
+deployed _Workspace Proxy Replicas_, several _Coder Server_ replicas, and _Coder
+workspaces_ provisioned in different regions.
+
+##### Workload resources
+
 <!-- Run multiple provisioners in each cloud, allowing Coder to deploy against it (zero trust) -->
+
+##### Workload supporting resources
+
+<!-- TODO -->
