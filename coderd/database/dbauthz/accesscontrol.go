@@ -34,8 +34,9 @@ var _ AccessControlStore = AGPLTemplateAccessControlStore{}
 
 func (AGPLTemplateAccessControlStore) GetTemplateAccessControl(t database.Template) TemplateAccessControl {
 	return TemplateAccessControl{
-		// An expired license
-		RequireActiveVersion: false,
+		// An expired license silently disables this feature, but we support explicitly
+		// disabling it in the app.
+		RequireActiveVersion: t.RequireActiveVersion,
 		// AGPL cannot set deprecated templates, but it should return
 		// existing deprecated templates. This is erroring on the safe side
 		// if a license expires, we should not allow deprecated templates
