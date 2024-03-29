@@ -112,7 +112,8 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 - Distributes and load balances traffic from agents and clients to _Coder
   Server_ replicas across zones.
-- Layer 4 load balancing.
+- Layer 7 load balancing. Decrypt SSL traffic, and re-encrypt using internal
+  certificate.
 - Sessions persistence (sticky sessions) can be disabled as _Coder Server_
   instances are stateless.
 - WebSocket and long-time connections must be supported.
@@ -141,4 +142,21 @@ offer the fastest developer experience.
 
 ##### Workload resources
 
+**Workspace proxy**
+
+- Workspace proxy offers developers the option to establish a fast relay
+  connection when accessing their workspace via SSH, a workspace application, or
+  port forwarding.
+- Dashboard connections, API calls (e.g. _list workspaces_) are not served over
+  proxies.
+- Proxies do not establish connections to the database.
+- Do not share authentication tokens between proxy instances.
+
 ##### Workload supporting resources
+
+**Proxy load balancer**
+
+- Distributes and load balances workspace relay traffic in a single region
+  across availability zones.
+- Layer 7 load balancing. Decrypt SSL traffic, and re-encrypt using internal
+  certificate.
