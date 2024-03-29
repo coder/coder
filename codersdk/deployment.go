@@ -242,11 +242,29 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 	return opt[:idx], opt[idx+1:], nil
 }
 
-// SessionLifetime should be any configuration related to creating apikeys and tokens.
+// SessionLifetime refers to "sessions" authenticating into Coderd. Coder has
+// multiple different session types: api keys, tokens, workspace app tokens,
+// agent tokens, etc. This configuration struct should be used to group all
+// settings referring to any of these session lifetime controls.
+// TODO: These config options were created back when coder only had api keys.
+// Today, the config is ambigously used for all of them. For example:
+// - cli based api keys ignore all settings
+// - login uses the default lifetime, not the MaxTokenLifetime
+// - Tokens use the Default & MaxTokenLifetime
+// - ... etc ...
+// The rational behind each decision is undocumented. The naming behind these
+// config options is also confusing without any clear documentation.
+// 'CreateAPIKey' is used to make all sessions, and it's parameters are just
+// 'LifetimeSeconds' and 'DefaultLifetime'. Which does not directly correlate to
+// the config options here.
 type SessionLifetime struct {
+	// DisableSessionExpiryRefresh will disable automatically refreshing api
+	// keys when they are used from the api. This means the api key lifetime at
+	// creation is the lifetime of the api key.
+	DisableSessionExpiryRefresh serpent.Bool `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+
 	// DefaultSessionDuration is for api keys, not tokens.
-	DefaultSessionDuration      serpent.Duration `json:"max_session_expiry" typescript:",notnull"`
-	DisableSessionExpiryRefresh serpent.Bool     `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DefaultSessionDuration serpent.Duration `json:"max_session_expiry" typescript:",notnull"`
 
 	MaxTokenLifetime serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }

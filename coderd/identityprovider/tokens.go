@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -199,9 +198,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbCode.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:     dbCode.UserID,
-		LoginType:  database.LoginTypeOAuth2ProviderApp,
-		SessionCfg: lifetimes,
+		UserID:          dbCode.UserID,
+		LoginType:       database.LoginTypeOAuth2ProviderApp,
+		DefaultLifetime: lifetimes.DefaultSessionDuration.Value(),
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
@@ -328,9 +327,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:     prevKey.UserID,
-		LoginType:  database.LoginTypeOAuth2ProviderApp,
-		SessionCfg: lifetimes,
+		UserID:          prevKey.UserID,
+		LoginType:       database.LoginTypeOAuth2ProviderApp,
+		DefaultLifetime: lifetimes.DefaultSessionDuration.Value(),
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
