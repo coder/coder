@@ -75,7 +75,11 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 	return params, nil, nil
 }
 
-func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
+// Tokens
+// TODO: the sessions lifetime config passed is for coder api tokens.
+// Should er have a separate config for oauth2 tokens? They are related,
+// but they are not the same.
+func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
@@ -104,9 +108,9 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 		switch params.grantType {
 		// TODO: Client creds, device code.
 		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
-			token, err = refreshTokenGrant(ctx, db, app, defaultLifetime, params)
+			token, err = refreshTokenGrant(ctx, db, app, lifetimes, params)
 		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
-			token, err = authorizationCodeGrant(ctx, db, app, defaultLifetime, params)
+			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, params)
 		default:
 			// Grant types are validated by the parser, so getting through here means
 			// the developer added a type but forgot to add a case here.
@@ -137,7 +141,7 @@ func Tokens(db database.Store, defaultLifetime time.Duration) http.HandlerFunc {
 	}
 }
 
-func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, defaultLifetime time.Duration, params tokenParams) (oauth2.Token, error) {
+func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
 	secret, err := parseSecret(params.clientSecret)
 	if err != nil {
@@ -195,11 +199,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", dbCode.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:    dbCode.UserID,
-		LoginType: database.LoginTypeOAuth2ProviderApp,
-		// TODO: This is just the lifetime for api keys, maybe have its own config
-		//       settings. #11693
-		DefaultLifetime: defaultLifetime,
+		UserID:     dbCode.UserID,
+		LoginType:  database.LoginTypeOAuth2ProviderApp,
+		SessionCfg: lifetimes,
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
@@ -271,7 +273,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}, nil
 }
 
-func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, defaultLifetime time.Duration, params tokenParams) (oauth2.Token, error) {
+func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the token.
 	token, err := parseSecret(params.refreshToken)
 	if err != nil {
@@ -326,11 +328,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	// TODO: We are ignoring scopes for now.
 	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:    prevKey.UserID,
-		LoginType: database.LoginTypeOAuth2ProviderApp,
-		// TODO: This is just the lifetime for api keys, maybe have its own config
-		//       settings. #11693
-		DefaultLifetime: defaultLifetime,
+		UserID:     prevKey.UserID,
+		LoginType:  database.LoginTypeOAuth2ProviderApp,
+		SessionCfg: lifetimes,
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})

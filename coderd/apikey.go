@@ -354,7 +354,7 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.MaxTokenLifetime.Value(),
+			MaxTokenLifetime: values.Sessions.MaxTokenLifetime.Value(),
 		},
 	)
 }
@@ -364,10 +364,10 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.MaxTokenLifetime.Value() {
+	if lifetime > api.DeploymentValues.Sessions.MaxTokenLifetime.Value() {
 		return xerrors.Errorf(
 			"lifetime must be less than %v",
-			api.DeploymentValues.MaxTokenLifetime,
+			api.DeploymentValues.Sessions.MaxTokenLifetime,
 		)
 	}
 

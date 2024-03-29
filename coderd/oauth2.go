@@ -354,7 +354,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Success 200 {object} oauth2.Token
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
-	return identityprovider.Tokens(api.Database, api.DeploymentValues.SessionDuration.Value())
+	return identityprovider.Tokens(api.Database, api.DeploymentValues.Sessions)
 }
 
 // @Summary Delete OAuth2 application tokens.

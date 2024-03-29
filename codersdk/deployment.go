@@ -182,13 +182,11 @@ type DeploymentValues struct {
 	RateLimit                       RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     serpent.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                     serpent.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                serpent.Duration                     `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 	Swagger                         SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
 	Logging                         LoggingConfig                        `json:"logging,omitempty" typescript:",notnull"`
 	Dangerous                       DangerousConfig                      `json:"dangerous,omitempty" typescript:",notnull"`
 	DisablePathApps                 serpent.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 serpent.Duration                     `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     serpent.Bool                         `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
@@ -242,6 +240,15 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
+}
+
+// SessionLifetime should be any configuration related to creating apikeys and tokens.
+type SessionLifetime struct {
+	// DefaultSessionDuration is for api keys, not tokens.
+	DefaultSessionDuration      serpent.Duration `json:"max_session_expiry" typescript:",notnull"`
+	DisableSessionExpiryRefresh serpent.Bool     `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+
+	MaxTokenLifetime serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1579,7 +1586,7 @@ when required by your organization's security policy.`,
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
 			Default:     ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
-			Value:       &c.MaxTokenLifetime,
+			Value:       &c.Sessions.MaxTokenLifetime,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1773,7 +1780,7 @@ when required by your organization's security policy.`,
 			Flag:        "session-duration",
 			Env:         "CODER_SESSION_DURATION",
 			Default:     (24 * time.Hour).String(),
-			Value:       &c.SessionDuration,
+			Value:       &c.Sessions.DefaultSessionDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1784,7 +1791,7 @@ when required by your organization's security policy.`,
 			Flag:        "disable-session-expiry-refresh",
 			Env:         "CODER_DISABLE_SESSION_EXPIRY_REFRESH",
 
-			Value: &c.DisableSessionExpiryRefresh,
+			Value: &c.Sessions.DisableSessionExpiryRefresh,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disableSessionExpiryRefresh",
 		},
