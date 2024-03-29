@@ -351,7 +351,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return execTmpl(tmpl, state)
 	}
 
-	ctx := dbauthz.As(r.Context(), actor.Actor)
+	ctx := dbauthz.As(r.Context(), *actor)
 
 	var eg errgroup.Group
 	var user database.User

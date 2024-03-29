@@ -107,7 +107,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 			return tags, true
 		}
 		ua := httpmw.UserAuthorization(r)
-		if err := p.authorizer.Authorize(ctx, ua.Actor, rbac.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
+		if err := p.authorizer.Authorize(ctx, ua, rbac.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
 			// User is allowed to create provisioner daemons
 			return tags, true
 		}

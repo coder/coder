@@ -476,8 +476,8 @@ type API struct {
 //
 // This header is used by the CLI to display warnings to the user without having
 // to make additional requests!
-func (api *API) writeEntitlementWarningsHeader(a httpmw.Authorization, header http.Header) {
-	roles, err := a.Actor.Roles.Expand()
+func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Header) {
+	roles, err := a.Roles.Expand()
 	if err != nil {
 		return
 	}
