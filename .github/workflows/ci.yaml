@@ -472,9 +472,17 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test --workers 1
+      # Run tests that don't require an enterprise license without an enterprise license
+      - run: pnpm playwright:test --forbid-only --workers 1
         env:
           DEBUG: pw:api
+        working-directory: site
+
+      # Run all of the tests with an enterprise license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        env:
+          DEBUG: pw:api
+          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
         working-directory: site
 
       - name: Upload Playwright Failed Tests
