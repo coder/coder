@@ -217,7 +217,9 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	out := make([]*tailcfg.Node, 0, len(c.peers))
 	for _, p := range c.peers {
-		if !p.readyForHandshake {
+		// Don't add nodes that we havent received a READY_FOR_HANDSHAKE for
+		// yet, if we want to wait for them.
+		if !p.readyForHandshake && c.waitForHandshake {
 			continue
 		}
 		n := p.node.Clone()
@@ -373,7 +375,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		return false
 	}
 	logger := c.logger.With(slog.F("peer_id", id))
-	lc, ok := c.peers[id]
+	lc, peerOk := c.peers[id]
 	var node *tailcfg.Node
 	if update.Kind == proto.CoordinateResponse_PeerUpdate_NODE {
 		// If no preferred DERP is provided, we can't reach the node.
@@ -387,7 +389,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			return false
 		}
 		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node))
-		peerStatus, ok := status.Peer[node.Key]
+		peerStatus, statusOk := status.Peer[node.Key]
 		// Starting KeepAlive messages at the initialization of a connection
 		// causes a race condition. If we send the handshake before the peer has
 		// our node, we'll have to wait for 5 seconds before trying again.
@@ -397,11 +399,10 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		// SSH connections don't send packets while idle, so we use keep alives
 		// to avoid random hangs while we set up the connection again after
 		// inactivity.
-		// TODO: tie this into waitForHandshake (upstack PR)
-		node.KeepAlive = ok && peerStatus.Active
+		node.KeepAlive = (statusOk && peerStatus.Active) || (peerOk && lc.node.KeepAlive)
 	}
 	switch {
-	case !ok && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
+	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
 		// new!
 		var lastHandshake time.Time
 		if ps, ok := status.Peer[node.Key]; ok {
@@ -425,7 +426,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		// since we just got this node, we don't know if it's ready for
 		// handshakes yet.
 		return lc.readyForHandshake
-	case ok && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
+	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
 		// update
 		node.Created = lc.node.Created
 		dirty = !lc.node.Equal(node) && lc.readyForHandshake
@@ -434,20 +435,22 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		lc.resetTimer()
 		logger.Debug(context.Background(), "node update to existing peer", slog.F("dirty", dirty))
 		return dirty
-	case ok && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
+	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
 		wasReady := lc.readyForHandshake
 		lc.readyForHandshake = true
 		if lc.readyForHandshakeTimer != nil {
 			lc.readyForHandshakeTimer.Stop()
+			lc.readyForHandshakeTimer = nil
 		}
+		lc.node.KeepAlive = true
 		logger.Debug(context.Background(), "peer ready for handshake")
 		return !wasReady
-	case !ok && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
+	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
 		// TODO: should we keep track of ready for handshake messages we get
 		// from unknown nodes?
 		logger.Debug(context.Background(), "got peer ready for handshake for unknown peer")
 		return false
-	case !ok:
+	case !peerOk:
 		// disconnected or lost, but we don't have the node. No op
 		logger.Debug(context.Background(), "skipping update for peer we don't recognize")
 		return false
@@ -596,6 +599,7 @@ func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {
 		lc.readyForHandshakeTimer = nil
 		lc.readyForHandshake = true
 		if !wasReady {
+			c.netmapDirty = true
 			c.Broadcast()
 		}
 	}
