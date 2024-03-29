@@ -134,10 +134,11 @@ workspaces on daily basis. It features a single load balancer with regionally
 deployed _Workspace Proxy Replicas_, several _Coder Server_ replicas, and _Coder
 workspaces_ provisioned in different regions.
 
+Note: The _multi-region architecture_ assumes the same deployment principles as
+the _single region architecture_, but it extends them to multi region deployment
+with workspace proxies. Provisioners deployed in regions closed to developers
+offer the fastest developer experience.
+
 ##### Workload resources
 
-<!-- Run multiple provisioners in each cloud, allowing Coder to deploy against it (zero trust) -->
-
 ##### Workload supporting resources
-
-<!-- TODO -->
