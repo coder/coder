@@ -149,8 +149,9 @@ coder wsproxy server
 
 ### Running as a system service
 
-If you've installed Coder via a [system package](../install/index.md), you
-can configure the workspace proxy by settings in `/etc/coder.d/coder-workspace-proxy.env`
+If you've installed Coder via a [system package](../install/index.md), you can
+configure the workspace proxy by settings in
+`/etc/coder.d/coder-workspace-proxy.env`
 
 To run workspace proxy as a system service on the host:
 
