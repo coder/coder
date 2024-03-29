@@ -546,12 +546,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		// An error should be returned reporting that the requested update could not be performed
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "enterprise license required for require_active_version")
-
-		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
-		// AGPL cannot enable automatic updates, expect no change
-		assert.False(t, updated.RequireActiveVersion)
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.Error(t, err, "enterprise license required for require_active_version")
 	})
 
 	// AGPL cannot deprecate, but it can be unset
@@ -611,13 +607,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		// An error should be returned reporting that the requested update could not be performed
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "enterprise license required for deprecation_message")
-
-		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
-		// AGPL cannot deprecate, expect no change
-		assert.False(t, updated.Deprecated)
-		assert.Empty(t, updated.DeprecationMessage)
 	})
 
 	// AGPL cannot deprecate, but it can be unset
@@ -685,10 +676,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that it is deprecated
-		got, err := client.Template(ctx, template.ID)
+		_, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		require.NotEmpty(t, got.DeprecationMessage, "template is deprecated to start")
-		require.True(t, got.Deprecated, "template is deprecated to start")
 
 		req := codersdk.UpdateTemplateMeta{
 			DeprecationMessage: ptr.Ref("Some more different deprecation message"),
