@@ -203,6 +203,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
+		// TODO: enable in upstack PR
+		// ShouldWaitForHandshake: true,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -259,19 +261,6 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		}
 		options.Logger.Debug(ctx, "connected to tailnet v2+ API")
 	}
-
-	// TODO: uncomment after pgcoord ack's are implemented (upstack pr)
-	// options.Logger.Debug(ctx, "waiting for agent ack")
-	// // 5 seconds is chosen because this is the timeout for failed Wireguard
-	// // handshakes. In the worst case, we wait the same amount of time as a
-	// // failed handshake.
-	// timer := time.NewTimer(5 * time.Second)
-	// select {
-	// case <-connector.agentAck:
-	// case <-timer.C:
-	// 	options.Logger.Debug(ctx, "timed out waiting for agent ack")
-	// }
-	// timer.Stop()
 
 	agentConn = NewAgentConn(conn, AgentConnOptions{
 		AgentID: agentID,

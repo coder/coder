@@ -69,13 +69,14 @@ message CoordinateRequest {
 	Tunnel add_tunnel = 3;
 	Tunnel remove_tunnel = 4;
 
-	// Acks are sent from agents back to the client, acknowledging receipt of
-	// the client's node. If the client starts pinging before an ACK, the
-	// handshake will likely be dropped.
-	message Ack {
+	// ReadyForHandskales are sent from destinations back to the source,
+	// acknowledging receipt of the source's node. If the source starts pinging
+	// before a ReadyForHandshake, the Wireguard handshake will likely be
+	// dropped.
+	message ReadyForHandshake {
 		bytes id = 1;
 	}
-	Ack tunnel_ack = 5;
+	repeated ReadyForHandshake ready_for_handshake = 5;
 }
 
 message CoordinateResponse {
@@ -88,17 +89,13 @@ message CoordinateResponse {
 			NODE = 1;
 			DISCONNECTED = 2;
 			LOST = 3;
+			READY_FOR_HANDSHAKE = 4;
 		}
 		Kind kind = 3;
 
 		string reason = 4;
 	}
 	repeated PeerUpdate peer_updates = 1;
-
-	message Ack {
-		bytes id = 1;
-	}
-	Ack tunnel_ack = 2;
 }
 
 service Tailnet {

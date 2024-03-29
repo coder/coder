@@ -185,6 +185,75 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
 
+func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	uut.setWaitForHandshake(true)
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u1 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(u1)
+
+	// it should not send the peer to the netmap yet
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u2 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+		},
+	}
+	uut.updatePeers(u2)
+
+	// it should now send the peer to the netmap
+
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+
+	require.Len(t, nm.Peers, 1)
+	n1 := getNodeWithID(t, nm.Peers, 1)
+	require.Equal(t, "127.3.3.40:1", n1.DERP)
+	require.Equal(t, p1Node.Endpoints, n1.Endpoints)
+	require.True(t, n1.KeepAlive)
+
+	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
+	// require the right number of peers.
+	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func TestConfigMaps_updatePeers_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

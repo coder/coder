@@ -425,10 +425,14 @@ func TestCoordinator(t *testing.T) {
 		aReq, _ := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
 		_, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
 
-		aReq <- &proto.CoordinateRequest{TunnelAck: &proto.CoordinateRequest_Ack{Id: clientID[:]}}
+		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
+			Id: clientID[:],
+		}}}
 		ack := testutil.RequireRecvCtx(ctx, t, cRes)
-		require.NotNil(t, ack.TunnelAck)
-		require.Equal(t, agentID[:], ack.TunnelAck.Id)
+		require.NotNil(t, ack.PeerUpdates)
+		require.Len(t, ack.PeerUpdates, 1)
+		require.Equal(t, proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE, ack.PeerUpdates[0].Kind)
+		require.Equal(t, agentID[:], ack.PeerUpdates[0].Id)
 	})
 }
 
@@ -656,7 +660,7 @@ func TestRemoteCoordination(t *testing.T) {
 	}
 }
 
-func TestRemoteCoordination_Ack(t *testing.T) {
+func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -692,14 +696,29 @@ func TestRemoteCoordination_Ack(t *testing.T) {
 	protocol, err := client.Coordinate(ctx)
 	require.NoError(t, err)
 
-	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, agentID)
+	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, uuid.UUID{})
 	defer uut.Close()
 
+	nk, err := key.NewNode().Public().MarshalBinary()
+	require.NoError(t, err)
+	dk, err := key.NewDisco().Public().MarshalText()
+	require.NoError(t, err)
 	testutil.RequireSendCtx(ctx, t, resps, &proto.CoordinateResponse{
-		TunnelAck: &proto.CoordinateResponse_Ack{Id: agentID[:]},
+		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
+			Id:   clientID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: &proto.Node{
+				Id:    3,
+				Key:   nk,
+				Disco: string(dk),
+			},
+		}},
 	})
 
-	testutil.RequireRecvCtx(ctx, t, uut.AwaitAck())
+	rfh := testutil.RequireRecvCtx(ctx, t, reqs)
+	require.NotNil(t, rfh.ReadyForHandshake)
+	require.Len(t, rfh.ReadyForHandshake, 1)
+	require.Equal(t, clientID[:], rfh.ReadyForHandshake[0].Id)
 
 	require.NoError(t, uut.Close())
 
