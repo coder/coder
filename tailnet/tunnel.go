@@ -52,6 +52,10 @@ func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 		}
 	}
 
+	if rfh := req.GetReadyForHandshake(); rfh != nil {
+		return xerrors.Errorf("clients may not send ready_for_handshake")
+	}
+
 	return nil
 }
 
