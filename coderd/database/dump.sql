@@ -1624,7 +1624,7 @@ CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coo
 
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
 
-CREATE UNIQUE INDEX idx_user_link_linked_id ON user_links USING btree (linked_id) WHERE (linked_id <> ''::text);
+CREATE UNIQUE INDEX idx_user_link_linked_id ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
