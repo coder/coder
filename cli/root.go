@@ -1094,7 +1094,7 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 		for _, e := range err.Validations {
 			_, _ = str.WriteString("\n\t")
 			_, _ = str.WriteString(pretty.Sprint(cliui.DefaultStyles.Field, e.Field))
-			_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), ": %s", e.Detail))
+			_, _ = str.WriteString(pretty.Sprintf(cliui.DefaultStyles.Warn, ": %s", e.Detail))
 		}
 	}
 
