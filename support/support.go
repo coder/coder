@@ -21,6 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -37,16 +39,16 @@ type Bundle struct {
 }
 
 type Deployment struct {
-	BuildInfo    *codersdk.BuildInfoResponse `json:"build"`
-	Config       *codersdk.DeploymentConfig  `json:"config"`
-	Experiments  codersdk.Experiments        `json:"experiments"`
-	HealthReport *codersdk.HealthcheckReport `json:"health_report"`
+	BuildInfo    *codersdk.BuildInfoResponse  `json:"build"`
+	Config       *codersdk.DeploymentConfig   `json:"config"`
+	Experiments  codersdk.Experiments         `json:"experiments"`
+	HealthReport *healthsdk.HealthcheckReport `json:"health_report"`
 }
 
 type Network struct {
-	CoordinatorDebug string                                 `json:"coordinator_debug"`
-	TailnetDebug     string                                 `json:"tailnet_debug"`
-	Netcheck         *codersdk.WorkspaceAgentConnectionInfo `json:"netcheck"`
+	CoordinatorDebug string                            `json:"coordinator_debug"`
+	TailnetDebug     string                            `json:"tailnet_debug"`
+	Netcheck         *workspacesdk.AgentConnectionInfo `json:"netcheck"`
 }
 
 type Workspace struct {
@@ -110,7 +112,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	})
 
 	eg.Go(func() error {
-		hr, err := client.DebugHealth(ctx)
+		hr, err := healthsdk.New(client).DebugHealth(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch health report: %w", err)
 		}
@@ -173,7 +175,7 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 			log.Warn(ctx, "agent id required for agent connection info")
 			return nil
 		}
-		connInfo, err := client.WorkspaceAgentConnectionInfo(ctx, agentID)
+		connInfo, err := workspacesdk.New(client).AgentConnectionInfo(ctx, agentID)
 		if err != nil {
 			return xerrors.Errorf("fetch agent conn info: %w", err)
 		}
@@ -331,10 +333,11 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 }
 
 func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
-	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger:         log.Named("dial-agent"),
-		BlockEndpoints: false,
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+			Logger:         log.Named("dial-agent"),
+			BlockEndpoints: false,
+		})
 
 	closer = func() {}
 

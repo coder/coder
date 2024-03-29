@@ -25,6 +25,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
@@ -159,7 +161,7 @@ func assertBundleContents(t *testing.T, path string, badValues ...string) {
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, f, v, "experiments should not be empty")
 		case "deployment/health.json":
-			var v codersdk.HealthcheckReport
+			var v healthsdk.HealthcheckReport
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "health report should not be empty")
 		case "network/coordinator_debug.html":
@@ -169,7 +171,7 @@ func assertBundleContents(t *testing.T, path string, badValues ...string) {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
 		case "network/netcheck.json":
-			var v codersdk.WorkspaceAgentConnectionInfo
+			var v workspacesdk.AgentConnectionInfo
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "connection info should not be empty")
 		case "workspace/workspace.json":

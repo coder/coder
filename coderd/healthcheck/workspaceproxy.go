@@ -9,9 +9,10 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
-type WorkspaceProxyReport codersdk.WorkspaceProxyReport
+type WorkspaceProxyReport healthsdk.WorkspaceProxyReport
 
 type WorkspaceProxyReportOptions struct {
 	WorkspaceProxiesFetchUpdater WorkspaceProxiesFetchUpdater

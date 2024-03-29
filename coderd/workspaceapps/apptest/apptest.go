@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -950,7 +951,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			defer cancel()
 
 			app := appDetails.Apps.Port
-			app.AppSlugOrPort = strconv.Itoa(codersdk.WorkspaceAgentMinimumListeningPort - 1)
+			app.AppSlugOrPort = strconv.Itoa(workspacesdk.AgentMinimumListeningPort - 1)
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.SubdomainAppURL(app).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
@@ -1695,7 +1696,7 @@ func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.Stat
 }
 
 func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, agentID uuid.UUID, signedToken string) {
-	opts := codersdk.WorkspaceAgentReconnectingPTYOpts{
+	opts := workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   agentID,
 		Reconnect: uuid.New(),
 		Width:     80,
@@ -1720,7 +1721,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 		return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 	}
 
-	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, opts)
+	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, opts)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -1729,7 +1730,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	// will sometimes put the command output on the same line as the command and the test will flake
 	require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "find prompt")
 
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+	data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
 		Data: "echo test\r",
 	})
 	require.NoError(t, err)
@@ -1740,7 +1741,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, tr.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
-	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+	data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 		Data: "exit\r",
 	})
 	require.NoError(t, err)

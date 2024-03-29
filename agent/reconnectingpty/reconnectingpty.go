@@ -14,8 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -197,7 +196,7 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (Stat
 func readConnLoop(ctx context.Context, conn net.Conn, ptty pty.PTYCmd, metrics *prometheus.CounterVec, logger slog.Logger) {
 	decoder := json.NewDecoder(conn)
 	for {
-		var req codersdk.ReconnectingPTYRequest
+		var req workspacesdk.ReconnectingPTYRequest
 		err := decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
 			return

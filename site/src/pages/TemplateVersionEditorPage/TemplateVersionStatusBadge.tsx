@@ -1,9 +1,11 @@
 import CheckIcon from "@mui/icons-material/CheckOutlined";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import type { FC, ReactNode } from "react";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
 import type { ThemeRole } from "theme/roles";
+import { getPendingStatusLabel } from "utils/provisionerJob";
 
 interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;
@@ -14,7 +16,12 @@ export const TemplateVersionStatusBadge: FC<
 > = ({ version }) => {
   const { text, icon, type } = getStatus(version);
   return (
-    <Pill icon={icon} type={type} title={`Build status is ${text}`}>
+    <Pill
+      icon={icon}
+      type={type}
+      title={`Build status is ${text}`}
+      role="status"
+    >
       {text}
     </Pill>
   );
@@ -37,8 +44,8 @@ export const getStatus = (
     case "pending":
       return {
         type: "info",
-        text: "Pending",
-        icon: <PillSpinner />,
+        text: getPendingStatusLabel(version.job),
+        icon: <QueuedIcon />,
       };
     case "canceling":
       return {

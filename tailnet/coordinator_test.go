@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -155,7 +155,7 @@ func TestCoordinator(t *testing.T) {
 		}()
 		sendNode(&tailnet.Node{
 			Addresses: []netip.Prefix{
-				netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+				netip.PrefixFrom(workspacesdk.AgentIP, 128),
 			},
 			PreferredDERP: 10,
 		})

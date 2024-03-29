@@ -32,14 +32,19 @@ const insightsTimeLayout = time.RFC3339
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	vals := r.URL.Query()
+	api.returnDAUsInternal(rw, r, nil)
+}
+
+func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
+	ctx := r.Context()
+
 	p := httpapi.NewQueryParamParser()
+	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -50,12 +55,41 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, resp, _ := api.metricsCache.DeploymentDAUs(tzOffset)
-	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
-			Entries: []codersdk.DAUEntry{},
+	loc := time.FixedZone("", tzOffset*3600)
+	// If the time is 14:01 or 14:31, we still want to include all the
+	// data between 14:00 and 15:00. Our rollups buckets are 30 minutes
+	// so this works nicely. It works just as well for 23:59 as well.
+	nextHourInLoc := time.Now().In(loc).Truncate(time.Hour).Add(time.Hour)
+	// Always return 60 days of data (2 months).
+	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
+
+	rows, err := api.Database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
+		StartTime:    sixtyDaysAgo,
+		EndTime:      nextHourInLoc,
+		IntervalDays: 1,
+		TemplateIDs:  templateIDs,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching DAUs.",
+			Detail:  err.Error(),
 		})
-		return
+	}
+
+	resp := codersdk.DAUsResponse{
+		TZHourOffset: tzOffset,
+		Entries:      make([]codersdk.DAUEntry, 0, len(rows)),
+	}
+	for _, row := range rows {
+		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
+			Date:   row.StartTime.Format(time.DateOnly),
+			Amount: int(row.ActiveUsers),
+		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
@@ -474,41 +508,38 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
 		},
+		{
+			TemplateIDs: usage.SftpTemplateIds,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
+			Slug:        "sftp",
+			Icon:        "/icon/terminal.svg",
+			Seconds:     usage.UsageSftpSeconds,
+		},
 	}
 
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
 	// collation.
 	//
-	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
+	// ORDER BY slug, display_name, icon
 	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.SlugOrPort != b.SlugOrPort {
-			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
+		if a.Slug != b.Slug {
+			return strings.Compare(a.Slug, b.Slug)
 		}
 		if a.DisplayName != b.DisplayName {
 			return strings.Compare(a.DisplayName, b.DisplayName)
 		}
-		if a.Icon != b.Icon {
-			return strings.Compare(a.Icon, b.Icon)
-		}
-		if !a.IsApp && b.IsApp {
-			return -1
-		} else if a.IsApp && !b.IsApp {
-			return 1
-		}
-		return 0
+		return strings.Compare(a.Icon, b.Icon)
 	})
 
 	// Template apps.
 	for _, app := range appUsage {
-		if !app.IsApp {
-			continue
-		}
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
 			DisplayName: app.DisplayName,
-			Slug:        app.SlugOrPort,
+			Slug:        app.Slug,
 			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
 		})

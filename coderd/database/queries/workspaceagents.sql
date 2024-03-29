@@ -220,31 +220,32 @@ SELECT
 	sqlc.embed(workspace_agents),
 	sqlc.embed(workspace_build_with_user)
 FROM
-	-- Only get the latest build for each workspace
-	(
-	SELECT
-		workspace_id, MAX(build_number) as max_build_number
-	FROM
-		workspace_build_with_user
-	GROUP BY
-		workspace_id
-	) as latest_builds
-	-- Pull the workspace_build rows for returning
-INNER JOIN workspace_build_with_user
-	ON workspace_build_with_user.workspace_id = latest_builds.workspace_id
-	AND workspace_build_with_user.build_number = latest_builds.max_build_number
-	-- For each latest build, grab the resources to relate to an agent
-INNER JOIN workspace_resources
-	ON workspace_resources.job_id = workspace_build_with_user.job_id
-	-- Agent <-> Resource is 1:1
-INNER JOIN workspace_agents
-	ON workspace_agents.resource_id = workspace_resources.id
-	-- We need the owner ID
-INNER JOIN workspaces
-	ON workspace_build_with_user.workspace_id = workspaces.id
+	workspace_agents
+JOIN
+	workspace_resources
+ON
+	workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_build_with_user
+ON
+	workspace_resources.job_id = workspace_build_with_user.job_id
+JOIN
+	workspaces
+ON
+	workspace_build_with_user.workspace_id = workspaces.id
 WHERE
-	-- This should only match 1 agent, so 1 returned row or 0
-	workspace_agents.auth_token = @auth_token
-AND
-	workspaces.deleted = FALSE
+	-- This should only match 1 agent, so 1 returned row or 0.
+	workspace_agents.auth_token = @auth_token::uuid
+	AND workspaces.deleted = FALSE
+	-- Filter out builds that are not the latest.
+	AND workspace_build_with_user.build_number = (
+		-- Select from workspace_builds as it's one less join compared
+		-- to workspace_build_with_user.
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_id = workspace_build_with_user.workspace_id
+	)
 ;
