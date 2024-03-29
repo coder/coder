@@ -3,7 +3,6 @@ package cli_test
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -61,12 +60,6 @@ ExtractCommandPathsLoop:
 			inv, _ := clitest.NewWithCommand(t, coderRootCmd, tt.Cmd...)
 			inv.Stderr = &outBuf
 			inv.Stdout = &outBuf
-
-			// This example expects to close stdin twice and joins
-			// the error messages to create a multi-multi error.
-			if tt.Name == "coder exp example-error multi-multi-error" {
-				inv.Stdin = os.Stdin
-			}
 
 			err := inv.Run()
 
