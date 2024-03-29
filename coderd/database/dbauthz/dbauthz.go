@@ -155,7 +155,8 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 
 var (
 	subjectProvisionerd = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Provisioner Daemon",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "provisionerd",
@@ -182,7 +183,8 @@ var (
 	}.WithCachedASTValue()
 
 	subjectAutostart = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Autostart",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "autostart",
@@ -203,7 +205,8 @@ var (
 
 	// See unhanger package.
 	subjectHangDetector = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Hang Detector",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "hangdetector",
@@ -221,7 +224,8 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemRestricted = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "System",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "system",

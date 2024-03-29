@@ -133,7 +133,7 @@ type Options struct {
 	// after a successful authentication.
 	// This is somewhat janky, but seemingly the only reasonable way to add a header
 	// for all authenticated users under a condition, only in Enterprise.
-	PostAuthAdditionalHeadersFunc func(auth httpmw.Authorization, header http.Header)
+	PostAuthAdditionalHeadersFunc func(auth rbac.Subject, header http.Header)
 
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate

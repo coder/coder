@@ -5,8 +5,6 @@ import (
 	"crypto/subtle"
 	"net/http"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -68,18 +66,6 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig, ps
 			ctx = context.WithValue(ctx, provisionerDaemonContextKey{}, true)
 			// nolint:gocritic // Authenticating as a provisioner daemon.
 			ctx = dbauthz.AsProvisionerd(ctx)
-			subj, ok := dbauthz.ActorFromContext(ctx)
-			if !ok {
-				// This should never happen
-				httpapi.InternalServerError(w, xerrors.New("developer error: ExtractProvisionerDaemonAuth missing rbac actor"))
-			}
-
-			// Use the same subject for the userAuthKey
-			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
-				Actor:     subj,
-				ActorName: "provisioner_daemon",
-			})
-
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
