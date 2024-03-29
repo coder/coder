@@ -387,9 +387,18 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			return false
 		}
 		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node))
-		// Since we don't send nodes into Tailscale unless we're sure that the
-		// peer is ready for handshakes, we always enable keepalives.
-		node.KeepAlive = true
+		peerStatus, ok := status.Peer[node.Key]
+		// Starting KeepAlive messages at the initialization of a connection
+		// causes a race condition. If we send the handshake before the peer has
+		// our node, we'll have to wait for 5 seconds before trying again.
+		// Ideally, the first handshake starts when the user first initiates a
+		// connection to the peer. After a successful connection we enable
+		// keep alives to persist the connection and keep it from becoming idle.
+		// SSH connections don't send packets while idle, so we use keep alives
+		// to avoid random hangs while we set up the connection again after
+		// inactivity.
+		// TODO: tie this into waitForHandshake (upstack PR)
+		node.KeepAlive = ok && peerStatus.Active
 	}
 	switch {
 	case !ok && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
