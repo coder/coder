@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"golang.org/x/xerrors"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -67,6 +69,11 @@ fi
 
 			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
+
+			if r.agentToken == "" {
+				_, _ = fmt.Fprint(inv.Stderr, pretty.Sprintf(headLineStyle(), "No agent token found, this command must be run from inside a running workspace.\n"))
+				return xerrors.Errorf("agent token not found")
+			}
 
 			client, err := r.createAgentClient()
 			if err != nil {

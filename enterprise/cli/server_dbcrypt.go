@@ -12,6 +12,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/serpent"
 
@@ -88,7 +90,15 @@ func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -145,7 +155,15 @@ func (*RootCmd) dbcryptDecryptCmd() *serpent.Command {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -192,7 +210,16 @@ Are you sure you want to continue?`
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			var err error
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -212,9 +239,10 @@ Are you sure you want to continue?`
 }
 
 type rotateFlags struct {
-	PostgresURL string
-	New         string
-	Old         []string
+	PostgresURL  string
+	PostgresAuth string
+	New          string
+	Old          []string
 }
 
 func (f *rotateFlags) attach(opts *serpent.OptionSet) {
@@ -225,6 +253,14 @@ func (f *rotateFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 		serpent.Option{
 			Flag:        "new-key",
@@ -274,8 +310,9 @@ func (f *rotateFlags) valid() error {
 }
 
 type decryptFlags struct {
-	PostgresURL string
-	Keys        []string
+	PostgresURL  string
+	PostgresAuth string
+	Keys         []string
 }
 
 func (f *decryptFlags) attach(opts *serpent.OptionSet) {
@@ -286,6 +323,14 @@ func (f *decryptFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 		serpent.Option{
 			Flag:        "keys",
@@ -318,8 +363,9 @@ func (f *decryptFlags) valid() error {
 }
 
 type deleteFlags struct {
-	PostgresURL string
-	Confirm     bool
+	PostgresURL  string
+	PostgresAuth string
+	Confirm      bool
 }
 
 func (f *deleteFlags) attach(opts *serpent.OptionSet) {
@@ -330,6 +376,14 @@ func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL",
 			Description: "The connection URL for the Postgres database.",
 			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 		cliui.SkipPromptOption(),
 	)

@@ -22,8 +22,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -95,7 +95,7 @@ func TestMigrate(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, closeFn, err := postgres.Open()
+	connection, closeFn, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFn)
 
@@ -103,7 +103,7 @@ func testSQLDB(t testing.TB) *sql.DB {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	// postgres.Open automatically runs migrations, but we want to actually test
+	// dbtestutil.Open automatically runs migrations, but we want to actually test
 	// migration behavior in this package.
 	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
 	require.NoError(t, err)

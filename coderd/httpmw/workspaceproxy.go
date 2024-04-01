@@ -141,18 +141,6 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			// they can still only access the routes that the middleware is
 			// mounted to.
 			ctx = dbauthz.AsSystemRestricted(ctx)
-			subj, ok := dbauthz.ActorFromContext(ctx)
-			if !ok {
-				// This should never happen
-				httpapi.InternalServerError(w, xerrors.New("developer error: ExtractWorkspaceProxy missing rbac actor"))
-				return
-			}
-			// Use the same subject for the userAuthKey
-			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
-				Actor:     subj,
-				ActorName: "proxy_" + proxy.Name,
-			})
-
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

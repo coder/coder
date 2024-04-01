@@ -28,7 +28,7 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Actor.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 // assignableSiteRoles returns all org wide roles that can be assigned.
@@ -52,7 +52,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Actor.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []codersdk.AssignableRoles {

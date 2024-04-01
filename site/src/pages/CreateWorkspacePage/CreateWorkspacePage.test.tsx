@@ -233,6 +233,46 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
+  it("optional external auth is optional", async () => {
+    jest
+      .spyOn(API, "getWorkspaceQuota")
+      .mockResolvedValueOnce(MockWorkspaceQuota);
+    jest
+      .spyOn(API, "getUsers")
+      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([
+        { ...MockTemplateVersionExternalAuthGithub, optional: true },
+      ]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const nameField = await screen.findByLabelText(nameLabelText);
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    });
+
+    // Ensure we're not logged in
+    await screen.findByText("Login with GitHub");
+
+    const submitButton = screen.getByText(createWorkspaceText);
+    await userEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(API.createWorkspace).toBeCalledWith(
+        MockUser.organization_ids[0],
+        MockUser.id,
+        expect.objectContaining({
+          ...MockWorkspaceRequest,
+        }),
+      ),
+    );
+  });
+
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";

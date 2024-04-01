@@ -137,7 +137,74 @@ func TestSearchWorkspace(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:  "ParamName",
+			Query: "param:foo",
+			Expected: database.GetWorkspacesParams{
+				HasParam: []string{"foo"},
+			},
+		},
+		{
+			Name:  "MultipleParamNames",
+			Query: "param:foo param:bar param:baz",
+			Expected: database.GetWorkspacesParams{
+				HasParam: []string{"foo", "bar", "baz"},
+			},
+		},
+		{
+			Name:  "ParamValue",
+			Query: "param:foo=bar",
+			Expected: database.GetWorkspacesParams{
+				ParamNames:  []string{"foo"},
+				ParamValues: []string{"bar"},
+			},
+		},
+		{
+			Name:  "QuotedParamValue",
+			Query: `param:"image=ghcr.io/coder/coder-preview:main"`,
+			Expected: database.GetWorkspacesParams{
+				ParamNames:  []string{"image"},
+				ParamValues: []string{"ghcr.io/coder/coder-preview:main"},
+			},
+		},
+		{
+			Name:  "MultipleParamValues",
+			Query: "param:foo=bar param:fuzz=buzz",
+			Expected: database.GetWorkspacesParams{
+				ParamNames:  []string{"foo", "fuzz"},
+				ParamValues: []string{"bar", "buzz"},
+			},
+		},
+		{
+			Name:  "MixedParams",
+			Query: "param:dot    param:foo=bar param:fuzz=buzz param:tot",
+			Expected: database.GetWorkspacesParams{
+				HasParam:    []string{"dot", "tot"},
+				ParamNames:  []string{"foo", "fuzz"},
+				ParamValues: []string{"bar", "buzz"},
+			},
+		},
+		{
+			Name:  "ParamSpaces",
+			Query: `param:"   dot "     param:"   foo=bar   "`,
+			Expected: database.GetWorkspacesParams{
+				HasParam:    []string{"dot"},
+				ParamNames:  []string{"foo"},
+				ParamValues: []string{"bar"},
+			},
+		},
+
 		// Failures
+		{
+			Name:                  "ParamExcessValue",
+			Query:                 "param:foo=bar=baz",
+			ExpectedErrorContains: "can only contain 1 '='",
+		},
+		{
+			Name:                  "ParamNoValue",
+			Query:                 "param:foo=",
+			ExpectedErrorContains: "omit the '=' to match",
+		},
 		{
 			Name:                  "NoPrefix",
 			Query:                 `:foo`,
@@ -163,6 +230,11 @@ func TestSearchWorkspace(t *testing.T) {
 			Query:                 `foo:bar`,
 			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
+		{
+			Name:                  "ParamExtraColons",
+			Query:                 "param:foo:value",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
 	}
 
 	for _, c := range testCases {
@@ -181,6 +253,10 @@ func TestSearchWorkspace(t *testing.T) {
 				if len(c.Expected.WorkspaceIds) == len(values.WorkspaceIds) {
 					// nil slice vs 0 len slice is equivalent for our purposes.
 					c.Expected.WorkspaceIds = values.WorkspaceIds
+				}
+				if len(c.Expected.HasParam) == len(values.HasParam) {
+					// nil slice vs 0 len slice is equivalent for our purposes.
+					c.Expected.HasParam = values.HasParam
 				}
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")

@@ -48,6 +48,9 @@ sql:
           - column: "template_with_users.group_acl"
             go_type:
               type: "TemplateACL"
+          - column: "template_usage_stats.app_usage_mins"
+            go_type:
+              type: "StringMapOfInt"
         rename:
           template: TemplateTable
           template_with_user: Template

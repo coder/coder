@@ -18,7 +18,6 @@ import (
 
 	"github.com/coder/pretty"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
@@ -180,19 +179,9 @@ func (r *RootCmd) login() *serpent.Command {
 				serverURL.Scheme = "https"
 			}
 
-			client, err := r.createUnauthenticatedClient(ctx, serverURL)
+			client, err := r.createUnauthenticatedClient(ctx, serverURL, inv)
 			if err != nil {
 				return err
-			}
-
-			// Try to check the version of the server prior to logging in.
-			// It may be useful to warn the user if they are trying to login
-			// on a very old client.
-			err = r.checkVersions(inv, client, buildinfo.Version())
-			if err != nil {
-				// Checking versions isn't a fatal error so we print a warning
-				// and proceed.
-				_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, err.Error()))
 			}
 
 			hasFirstUser, err := client.HasFirstUser(ctx)

@@ -25,8 +25,24 @@ while ($true) {
 	}
 }
 
-# If the below fails, retrying probably will not help.
-Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
+# Check if running in a Windows container
+if (-not (Get-Command 'Set-MpPreference' -ErrorAction SilentlyContinue)) {
+    Write-Output "Set-MpPreference not available, skipping..."
+} else {
+    Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
+}
+
 $env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
 $env:CODER_AGENT_URL = "${ACCESS_URL}"
-Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
+
+# Check if we're running inside a Windows container!
+$inContainer = $false
+if ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name 'ContainerType' -ErrorAction SilentlyContinue) -ne $null) {
+    $inContainer = $true
+}
+if ($inContainer) {
+    # If we're in a container, run in a the foreground!
+    Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -Wait -NoNewWindow
+} else {
+    Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
+}

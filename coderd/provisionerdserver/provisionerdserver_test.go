@@ -44,13 +44,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-func mockAuditor() *atomic.Pointer[audit.Auditor] {
-	ptr := &atomic.Pointer[audit.Auditor]{}
-	mock := audit.Auditor(audit.NewMock())
-	ptr.Store(&mock)
-	return ptr
-}
-
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
 	ptr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 	store := schedule.NewAGPLTemplateScheduleStore()
@@ -822,20 +815,18 @@ func TestFailJob(t *testing.T) {
 		//
 		//	(*Server).FailJob       audit log - get build {"error": "sql: no rows in result set"}
 		ignoreLogErrors := true
-		srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{})
+		auditor := audit.NewMock()
+		srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
+			auditor: auditor,
+		})
+		org := dbgen.Organization(t, db, database.Organization{})
 		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:               uuid.New(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
+			OrganizationID:   org.ID,
 		})
 		require.NoError(t, err)
 		buildID := uuid.New()
-		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:          buildID,
-			WorkspaceID: workspace.ID,
-			Transition:  database.WorkspaceTransitionStart,
-			Reason:      database.BuildReasonInitiator,
-		})
-		require.NoError(t, err)
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: buildID,
 		})
@@ -849,6 +840,15 @@ func TestFailJob(t *testing.T) {
 			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
+		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID:          buildID,
+			WorkspaceID: workspace.ID,
+			Transition:  database.WorkspaceTransitionStart,
+			Reason:      database.BuildReasonInitiator,
+			JobID:       job.ID,
+		})
+		require.NoError(t, err)
+
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 			WorkerID: uuid.NullUUID{
 				UUID:  pd.ID,
@@ -871,6 +871,7 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 		defer closeLogsSubscribe()
 
+		auditor.ResetLogs()
 		_, err = srv.FailJob(ctx, &proto.FailedJob{
 			JobId: job.ID.String(),
 			Type: &proto.FailedJob_WorkspaceBuild_{
@@ -885,6 +886,13 @@ func TestFailJob(t *testing.T) {
 		build, err := db.GetWorkspaceBuildByID(ctx, buildID)
 		require.NoError(t, err)
 		require.Equal(t, "some state", string(build.ProvisionerState))
+		require.Len(t, auditor.AuditLogs(), 1)
+
+		// Assert that the workspace_id field get populated
+		var additionalFields audit.AdditionalFields
+		err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, additionalFields.WorkspaceID)
 	})
 }
 
@@ -1130,12 +1138,14 @@ func TestCompleteJob(t *testing.T) {
 				start := time.Now()
 				tss := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 				uqhss := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
+				auditor := audit.NewMock()
 				srv, db, ps, pd := setup(t, false, &overrides{
 					timeNowFn: func() time.Time {
 						return c.now.Add(time.Since(start))
 					},
 					templateScheduleStore:       tss,
 					userQuietHoursScheduleStore: uqhss,
+					auditor:                     auditor,
 				})
 
 				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
@@ -1291,6 +1301,12 @@ func TestCompleteJob(t *testing.T) {
 					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
+
+				require.Len(t, auditor.AuditLogs(), 1)
+				var additionalFields audit.AdditionalFields
+				err = json.Unmarshal(auditor.AuditLogs()[0].AdditionalFields, &additionalFields)
+				require.NoError(t, err)
+				require.Equal(t, workspace.ID, additionalFields.WorkspaceID)
 			})
 		}
 	})
@@ -1506,6 +1522,7 @@ type overrides struct {
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
+	auditor                     audit.Auditor
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -1560,6 +1577,12 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	if ov.timeNowFn != nil {
 		timeNowFn = ov.timeNowFn
 	}
+	auditPtr := &atomic.Pointer[audit.Auditor]{}
+	var auditor audit.Auditor = audit.NewMock()
+	if ov.auditor != nil {
+		auditor = ov.auditor
+	}
+	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
@@ -1588,7 +1611,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
-		mockAuditor(),
+		auditPtr,
 		tss,
 		uqhss,
 		deploymentValues,

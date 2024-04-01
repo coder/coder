@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import axios from "axios";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
@@ -12,8 +12,13 @@ import type {
   UpdateTemplateMeta,
 } from "api/typesGenerated";
 import { TarWriter } from "utils/tar";
-import { prometheusPort, agentPProfPort } from "./constants";
-import { port } from "./playwright.config";
+import {
+  agentPProfPort,
+  coderMain,
+  coderPort,
+  enterpriseLicense,
+  prometheusPort,
+} from "./constants";
 import {
   Agent,
   type App,
@@ -25,6 +30,11 @@ import {
   Response,
   type RichParameter,
 } from "./provisionerGenerated";
+
+// requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
+export function requiresEnterpriseLicense() {
+  test.skip(!enterpriseLicense);
+}
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -140,6 +150,21 @@ export const createTemplate = async (
   return name;
 };
 
+// createGroup navigates to the /groups/create page and creates a group with a
+// random name.
+export const createGroup = async (page: Page): Promise<string> => {
+  await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL("/groups/create");
+
+  const name = randomName();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByTestId("form-submit").click();
+  await expect(page).toHaveURL(
+    /\/groups\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+  return name;
+};
+
 // sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
 export const sshIntoWorkspace = async (
   page: Page,
@@ -148,7 +173,7 @@ export const sshIntoWorkspace = async (
   binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
   if (binaryPath === "go") {
-    binaryArgs = ["run", coderMainPath()];
+    binaryArgs = ["run", coderMain];
   }
   const sessionToken = await findSessionToken(page);
   return new Promise<ssh.Client>((resolve, reject) => {
@@ -156,7 +181,7 @@ export const sshIntoWorkspace = async (
       env: {
         ...process.env,
         CODER_SESSION_TOKEN: sessionToken,
-        CODER_URL: "http://localhost:3000",
+        CODER_URL: `http://localhost:${coderPort}`,
       },
     });
     cp.on("error", (err) => reject(err));
@@ -230,7 +255,7 @@ export const startAgent = async (
   page: Page,
   token: string,
 ): Promise<ChildProcess> => {
-  return startAgentWithCommand(page, token, "go", "run", coderMainPath());
+  return startAgentWithCommand(page, token, "go", "run", coderMain);
 };
 
 // downloadCoderVersion downloads the version provided into a temporary dir and
@@ -304,7 +329,7 @@ export const startAgentWithCommand = async (
   const cp = spawn(command, [...args, "agent", "--no-reap"], {
     env: {
       ...process.env,
-      CODER_AGENT_URL: "http://localhost:" + port,
+      CODER_AGENT_URL: `http://localhost:${coderPort}`,
       CODER_AGENT_TOKEN: token,
       CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + agentPProfPort,
       CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
@@ -356,18 +381,6 @@ const waitUntilUrlIsNotResponding = async (url: string) => {
   }
   throw new Error(
     `URL ${url} is still responding after ${maxRetries * retryIntervalMs}ms`,
-  );
-};
-
-const coderMainPath = (): string => {
-  return path.join(
-    __dirname,
-    "..",
-    "..",
-    "enterprise",
-    "cmd",
-    "coder",
-    "main.go",
   );
 };
 
@@ -446,7 +459,7 @@ const createTemplateVersionTar = async (
       resource.agents = resource.agents?.map(
         (agent: RecursivePartial<Agent>) => {
           if (agent.apps) {
-            agent.apps = agent.apps?.map((app: RecursivePartial<App>) => {
+            agent.apps = agent.apps.map((app) => {
               return {
                 command: "",
                 displayName: "example",
@@ -687,7 +700,7 @@ export const updateTemplate = async (
     "go",
     [
       "run",
-      coderMainPath(),
+      coderMain,
       "templates",
       "push",
       "--test.provisioner",
@@ -701,7 +714,7 @@ export const updateTemplate = async (
       env: {
         ...process.env,
         CODER_SESSION_TOKEN: sessionToken,
-        CODER_URL: "http://localhost:3000",
+        CODER_URL: `http://localhost:${coderPort}`,
       },
     },
   );
@@ -792,3 +805,23 @@ export const updateWorkspaceParameters = async (
     state: "visible",
   });
 };
+
+export async function openTerminalWindow(
+  page: Page,
+  context: BrowserContext,
+  workspaceName: string,
+): Promise<Page> {
+  // Wait for the web terminal to open in a new tab
+  const pagePromise = context.waitForEvent("page");
+  await page.getByTestId("terminal").click();
+  const terminal = await pagePromise;
+  await terminal.waitForLoadState("domcontentloaded");
+
+  // Specify that the shell should be `bash`, to prevent inheriting a shell that
+  // isn't POSIX compatible, such as Fish.
+  const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
+  await expect(terminal).toHaveURL(`/@admin/${workspaceName}.dev/terminal`);
+  await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
+
+  return terminal;
+}

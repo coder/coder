@@ -155,7 +155,8 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 
 var (
 	subjectProvisionerd = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Provisioner Daemon",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "provisionerd",
@@ -182,7 +183,8 @@ var (
 	}.WithCachedASTValue()
 
 	subjectAutostart = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Autostart",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "autostart",
@@ -203,7 +205,8 @@ var (
 
 	// See unhanger package.
 	subjectHangDetector = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "Hang Detector",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "hangdetector",
@@ -221,7 +224,8 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemRestricted = rbac.Subject{
-		ID: uuid.Nil.String(),
+		FriendlyName: "System",
+		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "system",
@@ -1615,6 +1619,29 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 		}
 	}
 	return q.db.GetTemplateParameterInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
+	// Used by dbrollup tests, use same safe-guard as other insights endpoints.
+	// For auditors, check read template_insights, and fall back to update template.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {
+		for _, templateID := range arg.TemplateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+				return nil, err
+			}
+		}
+		if len(arg.TemplateIDs) == 0 {
+			if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return q.db.GetTemplateUsageStats(ctx, arg)
 }
 
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -3411,6 +3438,13 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertTemplateUsageStats(ctx)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

@@ -1,4 +1,4 @@
-package codersdk_test
+package workspacesdk_test
 
 import (
 	"net/url"

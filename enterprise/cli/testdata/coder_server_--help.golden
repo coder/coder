@@ -45,6 +45,9 @@ OPTIONS:
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
+      --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all

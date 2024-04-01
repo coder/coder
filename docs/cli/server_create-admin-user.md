@@ -21,6 +21,16 @@ coder server create-admin-user [flags]
 
 URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).
 
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsiamrds]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+
 ### --ssh-keygen-algorithm
 
 |             |                                          |

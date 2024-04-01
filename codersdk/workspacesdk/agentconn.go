@@ -1,4 +1,4 @@
-package codersdk
+package workspacesdk
 
 import (
 	"context"
@@ -9,9 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,141 +21,40 @@ import (
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
-// WorkspaceAgentIP is a static IPv6 address with the Tailscale prefix that is used to route
-// connections from clients to this node. A dynamic address is not required because a Tailnet
-// client only dials a single agent at a time.
-//
-// Deprecated: use tailnet.IP() instead. This is kept for backwards
-// compatibility with outdated CLI clients and Workspace Proxies that dial it.
-// See: https://github.com/coder/coder/issues/11819
-var WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
-var ErrSkipClose = xerrors.New("skip tailnet close")
-
-const (
-	WorkspaceAgentSSHPort             = tailnet.WorkspaceAgentSSHPort
-	WorkspaceAgentReconnectingPTYPort = tailnet.WorkspaceAgentReconnectingPTYPort
-	WorkspaceAgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
-	// WorkspaceAgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
-	// gathering agent statistics.
-	WorkspaceAgentHTTPAPIServerPort = 4
-
-	// WorkspaceAgentMinimumListeningPort is the minimum port that the listening-ports
-	// endpoint will return to the client, and the minimum port that is accepted
-	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
-	// moment, and we reserve some extra ports for future use. Port 9 and up are
-	// available for the user.
-	//
-	// This is not enforced in the CLI intentionally as we don't really care
-	// *that* much. The user could bypass this in the CLI by using SSH instead
-	// anyways.
-	WorkspaceAgentMinimumListeningPort = 9
-)
-
-// WorkspaceAgentIgnoredListeningPorts contains a list of ports to ignore when looking for
-// running applications inside a workspace. We want to ignore non-HTTP servers,
-// so we pre-populate this list with common ports that are not HTTP servers.
-//
-// This is implemented as a map for fast lookup.
-var WorkspaceAgentIgnoredListeningPorts = map[uint16]struct{}{
-	0: {},
-	// Ports 1-8 are reserved for future use by the Coder agent.
-	1: {},
-	2: {},
-	3: {},
-	4: {},
-	5: {},
-	6: {},
-	7: {},
-	8: {},
-	// ftp
-	20: {},
-	21: {},
-	// ssh
-	22: {},
-	// telnet
-	23: {},
-	// smtp
-	25: {},
-	// dns over TCP
-	53: {},
-	// pop3
-	110: {},
-	// imap
-	143: {},
-	// bgp
-	179: {},
-	// ldap
-	389: {},
-	636: {},
-	// smtps
-	465: {},
-	// smtp
-	587: {},
-	// ftps
-	989: {},
-	990: {},
-	// imaps
-	993: {},
-	// pop3s
-	995: {},
-	// mysql
-	3306: {},
-	// rdp
-	3389: {},
-	// postgres
-	5432: {},
-	// mongodb
-	27017: {},
-	27018: {},
-	27019: {},
-	28017: {},
-}
-
-func init() {
-	if !strings.HasSuffix(os.Args[0], ".test") {
-		return
-	}
-	// Add a thousand more ports to the ignore list during tests so it's easier
-	// to find an available port.
-	for i := 63000; i < 64000; i++ {
-		WorkspaceAgentIgnoredListeningPorts[uint16(i)] = struct{}{}
-	}
-}
-
-// NewWorkspaceAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
+// NewAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
 // to the WorkspaceAgentConn, or it may be shared in the case of coderd. If the
 // conn is shared and closing it is undesirable, you may return ErrNoClose from
 // opts.CloseFunc. This will ensure the underlying conn is not closed.
-func NewWorkspaceAgentConn(conn *tailnet.Conn, opts WorkspaceAgentConnOptions) *WorkspaceAgentConn {
-	return &WorkspaceAgentConn{
+func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) *AgentConn {
+	return &AgentConn{
 		Conn: conn,
 		opts: opts,
 	}
 }
 
-// WorkspaceAgentConn represents a connection to a workspace agent.
-// @typescript-ignore WorkspaceAgentConn
-type WorkspaceAgentConn struct {
+// AgentConn represents a connection to a workspace agent.
+// @typescript-ignore AgentConn
+type AgentConn struct {
 	*tailnet.Conn
-	opts WorkspaceAgentConnOptions
+	opts AgentConnOptions
 }
 
-// @typescript-ignore WorkspaceAgentConnOptions
-type WorkspaceAgentConnOptions struct {
+// @typescript-ignore AgentConnOptions
+type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
 }
 
-func (c *WorkspaceAgentConn) agentAddress() netip.Addr {
+func (c *AgentConn) agentAddress() netip.Addr {
 	return tailnet.IPFromUUID(c.opts.AgentID)
 }
 
 // AwaitReachable waits for the agent to be reachable.
-func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
+func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -166,7 +63,7 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 
 // Ping pings the agent and returns the round-trip time.
 // The bool returns true if the ping was made P2P.
-func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
+func (c *AgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -174,7 +71,7 @@ func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ip
 }
 
 // Close ends the connection to the workspace agent.
-func (c *WorkspaceAgentConn) Close() error {
+func (c *AgentConn) Close() error {
 	var cerr error
 	if c.opts.CloseFunc != nil {
 		cerr = c.opts.CloseFunc()
@@ -188,9 +85,9 @@ func (c *WorkspaceAgentConn) Close() error {
 	return c.Conn.Close()
 }
 
-// WorkspaceAgentReconnectingPTYInit initializes a new reconnecting PTY session.
-// @typescript-ignore WorkspaceAgentReconnectingPTYInit
-type WorkspaceAgentReconnectingPTYInit struct {
+// AgentReconnectingPTYInit initializes a new reconnecting PTY session.
+// @typescript-ignore AgentReconnectingPTYInit
+type AgentReconnectingPTYInit struct {
 	ID      uuid.UUID
 	Height  uint16
 	Width   uint16
@@ -209,7 +106,7 @@ type ReconnectingPTYRequest struct {
 // ReconnectingPTY spawns a new reconnecting terminal session.
 // `ReconnectingPTYRequest` should be JSON marshaled and written to the returned net.Conn.
 // Raw terminal output will be read from the returned net.Conn.
-func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
+func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -217,11 +114,11 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentReconnectingPTYPort))
+	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(WorkspaceAgentReconnectingPTYInit{
+	data, err := json.Marshal(AgentReconnectingPTYInit{
 		ID:      id,
 		Height:  height,
 		Width:   width,
@@ -244,7 +141,7 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 
 // SSH pipes the SSH protocol over the returned net.Conn.
 // This connects to the built-in SSH server in the workspace agent.
-func (c *WorkspaceAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
+func (c *AgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -252,12 +149,12 @@ func (c *WorkspaceAgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSSHPort))
+	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSSHPort))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
 // to improve throughput.
-func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
+func (c *AgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -280,7 +177,7 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 }
 
 // Speedtest runs a speedtest against the workspace agent.
-func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -288,7 +185,7 @@ func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSpeedtestPort))
+	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -303,7 +200,7 @@ func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.
 
 // DialContext dials the address provided in the workspace agent.
 // The network must be "tcp" or "udp".
-func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (c *AgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -325,39 +222,25 @@ func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, ad
 	}
 }
 
-type WorkspaceAgentListeningPortsResponse struct {
-	// If there are no ports in the list, nothing should be displayed in the UI.
-	// There must not be a "no ports available" message or anything similar, as
-	// there will always be no ports displayed on platforms where our port
-	// detection logic is unsupported.
-	Ports []WorkspaceAgentListeningPort `json:"ports"`
-}
-
-type WorkspaceAgentListeningPort struct {
-	ProcessName string `json:"process_name"` // may be empty
-	Network     string `json:"network"`      // only "tcp" at the moment
-	Port        uint16 `json:"port"`
-}
-
 // ListeningPorts lists the ports that are currently in use by the workspace.
-func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgentListeningPortsResponse, error) {
+func (c *AgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
-		return WorkspaceAgentListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
+		return codersdk.WorkspaceAgentListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentListeningPortsResponse{}, ReadBodyAsError(res)
+		return codersdk.WorkspaceAgentListeningPortsResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var resp WorkspaceAgentListeningPortsResponse
+	var resp codersdk.WorkspaceAgentListeningPortsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // DebugMagicsock makes a request to the workspace agent's magicsock debug endpoint.
-func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
+func (c *AgentConn) DebugMagicsock(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/magicsock", nil)
@@ -365,7 +248,7 @@ func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error)
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	defer res.Body.Close()
 	bs, err := io.ReadAll(res.Body)
@@ -377,7 +260,7 @@ func (c *WorkspaceAgentConn) DebugMagicsock(ctx context.Context) ([]byte, error)
 
 // DebugManifest returns the agent's in-memory manifest. Unfortunately this must
 // be returns as a []byte to avoid an import cycle.
-func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
+func (c *AgentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/manifest", nil)
@@ -386,7 +269,7 @@ func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -396,7 +279,7 @@ func (c *WorkspaceAgentConn) DebugManifest(ctx context.Context) ([]byte, error) 
 }
 
 // DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
-func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+func (c *AgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
@@ -405,7 +288,7 @@ func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -415,7 +298,7 @@ func (c *WorkspaceAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
-func (c *WorkspaceAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
+func (c *AgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/prometheus", nil)
@@ -424,7 +307,7 @@ func (c *WorkspaceAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -434,11 +317,11 @@ func (c *WorkspaceAgentConn) PrometheusMetrics(ctx context.Context) ([]byte, err
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
-func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+func (c *AgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -451,7 +334,7 @@ func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string
 
 // apiClient returns an HTTP client that can be used to make
 // requests to the workspace agent's HTTP API server.
-func (c *WorkspaceAgentConn) apiClient() *http.Client {
+func (c *AgentConn) apiClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
@@ -468,7 +351,7 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 				}
 
 				// Verify that the port is TailnetStatisticsPort.
-				if port != strconv.Itoa(WorkspaceAgentHTTPAPIServerPort) {
+				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 
@@ -481,7 +364,7 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 					return nil, xerrors.Errorf("parse host addr: %w", err)
 				}
 
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, WorkspaceAgentHTTPAPIServerPort))
+				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}
@@ -492,6 +375,6 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 	}
 }
 
-func (c *WorkspaceAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
+func (c *AgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
 }

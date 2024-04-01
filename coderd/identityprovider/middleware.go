@@ -142,7 +142,7 @@ func authorizeMW(accessURL *url.URL) func(next http.Handler) http.Handler {
 				AppName:     app.Name,
 				CancelURI:   cancel.String(),
 				RedirectURI: r.URL.String(),
-				Username:    ua.ActorName,
+				Username:    ua.FriendlyName,
 			})
 		})
 	}

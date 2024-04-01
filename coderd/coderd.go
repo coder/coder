@@ -37,7 +37,6 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -47,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -66,8 +66,10 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -127,6 +129,12 @@ type Options struct {
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
+	// PostAuthAdditionalHeadersFunc is used to add additional headers to the response
+	// after a successful authentication.
+	// This is somewhat janky, but seemingly the only reasonable way to add a header
+	// for all authenticated users under a condition, only in Enterprise.
+	PostAuthAdditionalHeadersFunc func(auth rbac.Subject, header http.Header)
+
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -145,7 +153,7 @@ type Options struct {
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -190,6 +198,12 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
+	// DatabaseRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	DatabaseRolluper *dbrollup.Rolluper
+	// WorkspaceUsageTracker tracks workspace usage by the CLI.
+	WorkspaceUsageTracker *workspaceusage.Tracker
 }
 
 // @title Coder API
@@ -284,7 +298,7 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.DERPServer == nil {
+	if options.DERPServer == nil && options.DeploymentValues.DERP.Server.Enable {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
 	if options.DERPMapUpdateFrequency == 0 {
@@ -352,14 +366,24 @@ func New(options *Options) *API {
 		options.Database,
 		options.Logger.Named("metrics_cache"),
 		metricscache.Intervals{
-			TemplateDAUs:    options.MetricsCacheRefreshInterval,
-			DeploymentStats: options.AgentStatsRefreshInterval,
+			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
+			DeploymentStats:    options.AgentStatsRefreshInterval,
 		},
 	)
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
+	}
+
+	if options.DatabaseRolluper == nil {
+		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
+	}
+
+	if options.WorkspaceUsageTracker == nil {
+		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
+			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+		)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -399,12 +423,15 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
 		Experiments:                 experiments,
-		healthCheckGroup:            &singleflight.Group[string, *codersdk.HealthcheckReport]{},
+		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
 			options.Database,
-			options.Pubsub),
+			options.Pubsub,
+		),
+		dbRolluper:            options.DatabaseRolluper,
+		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
@@ -435,7 +462,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -454,7 +481,6 @@ func New(options *Options) *API {
 					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
-					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
@@ -537,38 +563,39 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               true,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
-	derpHandler := derphttp.Handler(api.DERPServer)
-	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
 	// These are the metrics the DERP server exposes.
 	// TODO: export via prometheus
@@ -577,7 +604,9 @@ func New(options *Options) *API {
 		// register multiple times.  In production there is only one Coderd and one DERP server per
 		// process, but in testing, we create multiple of both, so the Once protects us from
 		// panicking.
-		expvar.Publish("derp", api.DERPServer.ExpVar())
+		if options.DERPServer != nil {
+			expvar.Publish("derp", api.DERPServer.ExpVar())
+		}
 	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
@@ -619,6 +648,10 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	// This incurs a performance hit from the middleware, but is required to make sure
+	// we do not override subdomain app routes.
+	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
@@ -627,13 +660,18 @@ func New(options *Options) *API {
 		api.workspaceAppServer.Attach(r)
 	})
 
-	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derpHandler.ServeHTTP)
-		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
+	if options.DERPServer != nil {
+		derpHandler := derphttp.Handler(api.DERPServer)
+		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+
+		r.Route("/derp", func(r chi.Router) {
+			r.Get("/", derpHandler.ServeHTTP)
+			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
 		})
-	})
+	}
 
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
@@ -654,6 +692,34 @@ func New(options *Options) *API {
 			}
 		})
 	}
+
+	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
+	// for an external application to use Coder as an OAuth2 provider, not for
+	// logging into Coder with an external OAuth2 provider.
+	r.Route("/oauth2", func(r chi.Router) {
+		r.Use(
+			api.oAuth2ProviderMiddleware,
+			// Fetch the app as system because in the /tokens route there will be no
+			// authenticated user.
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+		)
+		r.Route("/authorize", func(r chi.Router) {
+			r.Use(apiKeyMiddlewareRedirect)
+			r.Get("/", api.getOAuth2ProviderAppAuthorize())
+		})
+		r.Route("/tokens", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+				// route used to revoke permissions from an application.  It is here for
+				// parity with POST on /tokens.
+				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
+			})
+			// The POST /tokens endpoint will be called from an unauthorized client so
+			// we cannot require an API key.
+			r.Post("/", api.postOAuth2ProviderAppToken())
+		})
+	})
 
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
@@ -972,6 +1038,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
 				r.Put("/favorite", api.putFavoriteWorkspace)
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
@@ -1056,10 +1123,40 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
-			r.Route("/derp", func(r chi.Router) {
-				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
-			})
+			if options.DERPServer != nil {
+				r.Route("/derp", func(r chi.Router) {
+					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+				})
+			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
+		})
+		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
+		r.Route("/oauth2-provider", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.oAuth2ProviderMiddleware,
+			)
+			r.Route("/apps", func(r chi.Router) {
+				r.Get("/", api.oAuth2ProviderApps)
+				r.Post("/", api.postOAuth2ProviderApp)
+
+				r.Route("/{app}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
+					r.Get("/", api.oAuth2ProviderApp)
+					r.Put("/", api.putOAuth2ProviderApp)
+					r.Delete("/", api.deleteOAuth2ProviderApp)
+
+					r.Route("/secrets", func(r chi.Router) {
+						r.Get("/", api.oAuth2ProviderAppSecrets)
+						r.Post("/", api.postOAuth2ProviderAppSecret)
+
+						r.Route("/{secretID}", func(r chi.Router) {
+							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
+						})
+					})
+				})
+			})
 		})
 	})
 
@@ -1099,15 +1196,7 @@ func New(options *Options) *API {
 	// static files since it only affects browsers.
 	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
-	// This must be before all middleware to improve the response time.
-	// So make a new router, and mount the old one as the root.
-	rootRouter := chi.NewRouter()
-	// This is the only route we add before all the middleware.
-	// We want to time the latency of the request, so any middleware will
-	// interfere with that timing.
-	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
-	rootRouter.Mount("/", r)
-	api.RootHandler = rootRouter
+	api.RootHandler = r
 
 	return api
 }
@@ -1173,23 +1262,44 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *codersdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[codersdk.HealthcheckReport]
+	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
+	// dbRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	dbRolluper            *dbrollup.Rolluper
+	workspaceUsageTracker *workspaceusage.Tracker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	api.cancel()
-	api.derpCloseFunc()
+	if api.derpCloseFunc != nil {
+		api.derpCloseFunc()
+	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Wait()
-	api.WebsocketWaitMutex.Unlock()
+	wsDone := make(chan struct{})
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	go func() {
+		api.WebsocketWaitMutex.Lock()
+		defer api.WebsocketWaitMutex.Unlock()
+		api.WebsocketWaitGroup.Wait()
+		close(wsDone)
+	}()
+	// This will technically leak the above func if the timer fires, but this is
+	// maintly a last ditch effort to un-stuck coderd on shutdown. This
+	// shouldn't affect tests at all.
+	select {
+	case <-wsDone:
+	case <-timer.C:
+		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
+	}
 
+	api.dbRolluper.Close()
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
@@ -1200,6 +1310,7 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.agentProvider.Close()
+	api.workspaceUsageTracker.Close()
 	return nil
 }
 

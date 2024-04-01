@@ -1084,6 +1084,24 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, code, resp)
 }
 
+// @Summary Post Workspace Usage by ID
+// @ID post-workspace-usage-by-id
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/usage [post]
+func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	api.workspaceUsageTracker.Add(workspace.ID)
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Favorite workspace by ID.
 // @ID favorite-workspace-by-id
 // @Security CoderSessionToken

@@ -28,7 +28,7 @@ import (
 
 var (
 	// baseDirs are the directories to introspect for types to generate.
-	baseDirs = [...]string{"./codersdk"}
+	baseDirs = [...]string{"./codersdk", "./codersdk/healthsdk"}
 	// externalTypes are types that are not in the baseDirs, but we want to
 	// support. These are usually types that are used in the baseDirs.
 	// Do not include things like "Database", as that would break the idea
@@ -357,7 +357,7 @@ type Maps struct {
 
 // objName prepends the package name of a type if it is outside of codersdk.
 func objName(obj types.Object) string {
-	if pkgName := obj.Pkg().Name(); pkgName != "codersdk" {
+	if pkgName := obj.Pkg().Name(); pkgName != "codersdk" && pkgName != "healthsdk" {
 		return cases.Title(language.English).String(pkgName) + obj.Name()
 	}
 	return obj.Name()
@@ -879,7 +879,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "HealthMessage"}, nil
 		case "github.com/coder/coder/v2/coderd/healthcheck/health.Severity":
 			return TypescriptType{ValueType: "HealthSeverity"}, nil
-		case "github.com/coder/coder/v2/codersdk.HealthSection":
+		case "github.com/coder/coder/v2/healthsdk.HealthSection":
 			return TypescriptType{ValueType: "HealthSection"}, nil
 		case "github.com/coder/coder/v2/codersdk.ProvisionerDaemon":
 			return TypescriptType{ValueType: "ProvisionerDaemon"}, nil

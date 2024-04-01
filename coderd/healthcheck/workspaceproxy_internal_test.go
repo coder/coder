@@ -72,21 +72,25 @@ func Test_calculateSeverity(t *testing.T) {
 	for _, tt := range []struct {
 		total    int
 		healthy  int
+		warning  int
 		expected health.Severity
 	}{
-		{0, 0, health.SeverityOK},
-		{1, 1, health.SeverityOK},
-		{1, 0, health.SeverityError},
-		{2, 2, health.SeverityOK},
-		{2, 1, health.SeverityWarning},
-		{2, 0, health.SeverityError},
+		{0, 0, 0, health.SeverityOK},
+		{1, 1, 0, health.SeverityOK},
+		{1, 1, 1, health.SeverityWarning},
+		{1, 0, 0, health.SeverityError},
+		{2, 2, 0, health.SeverityOK},
+		{2, 1, 0, health.SeverityWarning},
+		{2, 1, 1, health.SeverityWarning},
+		{2, 0, 0, health.SeverityError},
+		{2, 0, 1, health.SeverityError},
 	} {
 		tt := tt
-		name := fmt.Sprintf("%d total, %d healthy -> %s", tt.total, tt.healthy, tt.expected)
+		name := fmt.Sprintf("%d total, %d healthy, %d warning -> %s", tt.total, tt.healthy, tt.warning, tt.expected)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := calculateSeverity(tt.total, tt.healthy)
+			actual := calculateSeverity(tt.total, tt.healthy, tt.warning)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

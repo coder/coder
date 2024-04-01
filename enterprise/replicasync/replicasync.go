@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
@@ -38,8 +37,9 @@ type Options struct {
 	TLSConfig       *tls.Config
 }
 
-// New registers the replica with the database and periodically updates to ensure
-// it's healthy. It contacts all other alive replicas to ensure they are reachable.
+// New registers the replica with the database and periodically updates to
+// ensure it's healthy. It contacts all other alive replicas to ensure they are
+// reachable.
 func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub, options *Options) (*Manager, error) {
 	if options == nil {
 		options = &Options{}
@@ -253,6 +253,13 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.peers = make([]database.Replica, 0, len(replicas))
 	for _, replica := range replicas {
 		if replica.ID == m.id {
+			continue
+		}
+		// Don't peer with nodes that have an empty relay address.
+		if replica.RelayAddress == "" {
+			m.logger.Debug(ctx, "peer doesn't have an address, skipping",
+				slog.F("replica_hostname", replica.Hostname),
+			)
 			continue
 		}
 		m.peers = append(m.peers, replica)

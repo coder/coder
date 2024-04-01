@@ -222,9 +222,7 @@ func TestUpdateStates(t *testing.T) {
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
-					ConnectionsByProto: map[string]int64{
-						"tcp": 1,
-					},
+					ConnectionsByProto:        map[string]int64{},
 					ConnectionCount:           0,
 					ConnectionMedianLatencyMs: 23,
 				},
@@ -262,16 +260,14 @@ func TestUpdateStates(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("NoConnectionsByProto", func(t *testing.T) {
+	t.Run("NoStats", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			dbM = dbmock.NewMockStore(gomock.NewController(t))
 			ps  = pubsub.NewInMemory()
 			req = &agentproto.UpdateStatsRequest{
-				Stats: &agentproto.Stats{
-					ConnectionsByProto: map[string]int64{}, // len() == 0
-				},
+				Stats: nil,
 			}
 		)
 		api := agentapi.StatsAPI{

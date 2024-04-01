@@ -15,10 +15,12 @@ const (
 	// CodeUnknown is a catch-all health code when something unexpected goes wrong (for example, a panic).
 	CodeUnknown Code = "EUNKNOWN"
 
-	CodeProxyUpdate          Code = "EWP01"
-	CodeProxyFetch           Code = "EWP02"
-	CodeProxyVersionMismatch Code = "EWP03"
-	CodeProxyUnhealthy       Code = "EWP04"
+	CodeProxyUpdate Code = "EWP01"
+	CodeProxyFetch  Code = "EWP02"
+	// CodeProxyVersionMismatch is no longer used as it's no longer a critical
+	// error.
+	// CodeProxyVersionMismatch Code = "EWP03"
+	CodeProxyUnhealthy Code = "EWP04"
 
 	CodeDatabasePingFailed Code = "EDB01"
 	CodeDatabasePingSlow   Code = "EDB02"
