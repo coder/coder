@@ -633,8 +633,8 @@ github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e h1:OP0ZMFeZkU
 github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e/go.mod h1:mQak9GHqbspjC/5iUx3qMlIho8xBS/ppAL/hX5SmPJU=
 github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88 h1:tvG/qs5c4worwGyGnbbb4i/dYYLjpFwDMqcIT3awAf8=
 github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88/go.mod h1:Z0Nnk4+3Cy89smEbrq+sl1bxc9198gIP4I7wcQF6Kqs=
-github.com/kylecarbs/validator/v10 v10.0.0-20240401200135-cf222ac94618 h1:OqN1NhVKYipmiKmuyfnCl+SfaRED1by9V+69jdHdT4o=
-github.com/kylecarbs/validator/v10 v10.0.0-20240401200135-cf222ac94618/go.mod h1:dbuPbCMFw/DrkbEynArYaCwl3amGuJotoKCe95atGMM=
+github.com/kylecarbs/validator/v10 v10.0.0-20240401212606-930c004c6428 h1:p3shTqgFvpr3jE9p/zCv8DuWOdn/iwrh4YBwfeRHKzA=
+github.com/kylecarbs/validator/v10 v10.0.0-20240401212606-930c004c6428/go.mod h1:dbuPbCMFw/DrkbEynArYaCwl3amGuJotoKCe95atGMM=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
