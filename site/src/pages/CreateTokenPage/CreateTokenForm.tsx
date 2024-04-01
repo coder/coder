@@ -80,14 +80,12 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       <FormSection
         title="Expiration"
         description={
-          <span data-chromatic="ignore">
-            {form.values.lifetime
-              ? `The token will expire on ${dayjs()
-                  .add(form.values.lifetime, "days")
-                  .utc()
-                  .format("MMMM DD, YYYY")}`
-              : "Please set a token expiration."}
-          </span>
+          form.values.lifetime
+            ? `The token will expire on ${dayjs()
+                .add(form.values.lifetime, "days")
+                .utc()
+                .format("MMMM DD, YYYY")}`
+            : "Please set a token expiration."
         }
         classes={{ sectionInfo: classNames.sectionInfo }}
       >
