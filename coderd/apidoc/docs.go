@@ -9045,6 +9045,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateWorkspaceRequest": {
+            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the latest version of the template will be used.",
             "type": "object",
             "required": [
                 "name"
