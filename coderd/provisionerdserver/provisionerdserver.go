@@ -467,6 +467,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		ownerGroups, err := s.Database.GetGroupsByUserId(ctx, owner.ID)
+		ownerGroupNames := make([]string, 0, len(ownerGroups))
+		for _, group := range ownerGroups {
+			ownerGroupNames = append(ownerGroupNames, group.Name)
+		}
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get owner groups: %s", err))
+		}
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
@@ -567,6 +575,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwner:                owner.Username,
 					WorkspaceOwnerEmail:           owner.Email,
 					WorkspaceOwnerName:            owner.Name,
+					WorkspaceOwnerGroups:          ownerGroupNames,
 					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
 					WorkspaceId:                   workspace.ID.String(),
 					WorkspaceOwnerId:              owner.ID.String(),

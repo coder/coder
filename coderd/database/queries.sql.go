@@ -1353,6 +1353,50 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 	return items, nil
 }
 
+const getGroupsByUserId = `-- name: GetGroupsByUserId :many
+SELECT
+	groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
+FROM
+	groups
+LEFT JOIN
+	group_members
+ON
+	group_members.group_id = groups.id
+WHERE
+	group_members.user_id = $1
+`
+
+func (q *sqlQuerier) GetGroupsByUserId(ctx context.Context, userID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByUserId, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+			&i.QuotaAllowance,
+			&i.DisplayName,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertGroupMember = `-- name: InsertGroupMember :exec
 INSERT INTO
     group_members (user_id, group_id)

@@ -124,6 +124,7 @@ type sqlcQuerier interface {
 	// If it is the "Everyone" group, then we need to check the organization_members table.
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
+	GetGroupsByUserId(ctx context.Context, userID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)

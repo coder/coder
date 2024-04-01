@@ -23,6 +23,18 @@ WHERE
 AND
 	users.deleted = 'false';
 
+-- name: GetGroupsByUserId :many
+SELECT
+	groups.*
+FROM
+	groups
+LEFT JOIN
+	group_members
+ON
+	group_members.group_id = groups.id
+WHERE
+	group_members.user_id = @user_id;
+
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
 WITH groups AS (

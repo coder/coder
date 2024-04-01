@@ -197,6 +197,32 @@ func (e BuildError) Unwrap() error {
 	return e.Wrapped
 }
 
+type Adder interface {
+	Add() int
+}
+
+type myAdder struct {
+	val int
+}
+
+func (m *myAdder) Add() int {
+	return m.val
+}
+
+func sum(adder []Adder) int {
+	sum := 0
+	for _, a := range adder {
+		sum += a.Add()
+	}
+	return sum
+}
+
+var x = sum([]Adder{&myAdder{
+	val: 2,
+}, &myAdder{
+	val: 4,
+}})
+
 // Build computes and inserts a new workspace build into the database.  If authFunc is provided, it also performs
 // authorization preflight checks.
 func (b *Builder) Build(

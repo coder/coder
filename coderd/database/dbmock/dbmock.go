@@ -1110,6 +1110,21 @@ func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
 }
 
+// GetGroupsByUserId mocks base method.
+func (m *MockStore) GetGroupsByUserId(arg0 context.Context, arg1 uuid.UUID) ([]database.Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupsByUserId", arg0, arg1)
+	ret0, _ := ret[0].([]database.Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupsByUserId indicates an expected call of GetGroupsByUserId.
+func (mr *MockStoreMockRecorder) GetGroupsByUserId(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByUserId", reflect.TypeOf((*MockStore)(nil).GetGroupsByUserId), arg0, arg1)
+}
+
 // GetHealthSettings mocks base method.
 func (m *MockStore) GetHealthSettings(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
