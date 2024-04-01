@@ -88,7 +88,7 @@ const TerminalPage: FC = () => {
   // Create the terminal!
   const fitAddonRef = useRef<FitAddon>();
   useEffect(() => {
-    if (!terminalWrapperRef.current || config.isLoading) {
+    if (!terminalWrapperRef.current || !renderer) {
       return;
     }
     const terminal = new XTerm.Terminal({
@@ -135,7 +135,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [config.isLoading, renderer, theme.palette.background.default]);
+  }, [renderer, theme.palette.background.default]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
