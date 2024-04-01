@@ -8,26 +8,9 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import TerminalPage, { Language } from "./TerminalPage";
-
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
 
 const renderTerminal = async (
   route = `/${MockUser.username}/${MockWorkspace.name}/terminal`,
@@ -36,7 +19,16 @@ const renderTerminal = async (
     route,
     path: "/:username/:workspace/terminal",
   });
-  await waitForLoaderToBeRemoved();
+  await waitFor(() => {
+    // To avoid 'act' errors during testing, we ensure the component is
+    // completely rendered without any outstanding state updates. This is
+    // accomplished by incorporating a 'data-status' attribute into the
+    // component. We then observe this attribute for any changes, as we cannot
+    // rely on other screen elements to indicate completion.
+    const wrapper =
+      utils.container.querySelector<HTMLDivElement>("[data-status]")!;
+    expect(wrapper.dataset.state).not.toBe("initializing");
+  });
   return utils;
 };
 
@@ -58,11 +50,15 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 };
 
 describe("TerminalPage", () => {
+  afterEach(() => {
+    WS.clean();
+  });
+
   it("loads the right workspace data", async () => {
-    const spy = jest
+    jest
       .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
-    const ws = new WS(
+    new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     );
     await renderTerminal(
@@ -75,57 +71,45 @@ describe("TerminalPage", () => {
         { include_deleted: true },
       );
     });
-    spy.mockRestore();
-    ws.close();
   });
 
   it("shows an error if fetching workspace fails", async () => {
-    // Given
     server.use(
       http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
         return HttpResponse.json({ id: "workspace-id" }, { status: 500 });
       }),
     );
 
-    // When
     const { container } = await renderTerminal();
 
-    // Then
     await expectTerminalText(container, Language.workspaceErrorMessagePrefix);
   });
 
   it("shows an error if the websocket fails", async () => {
-    // Given
     server.use(
       http.get("/api/v2/workspaceagents/:agentId/pty", () => {
         return HttpResponse.json({}, { status: 500 });
       }),
     );
 
-    // When
     const { container } = await renderTerminal();
 
-    // Then
     await expectTerminalText(container, Language.websocketErrorMessagePrefix);
   });
 
   it("renders data from the backend", async () => {
-    // Given
     const ws = new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     );
     const text = "something to render";
 
-    // When
     const { container } = await renderTerminal();
-
-    // Then
     // Ideally we could use ws.connected but that seems to pause React updates.
     // For now, wait for the initial resize message instead.
     await ws.nextMessage;
     ws.send(text);
+
     await expectTerminalText(container, text);
-    ws.close();
   });
 
   // Ideally we could just pass the correct size in the web socket URL without
@@ -134,40 +118,32 @@ describe("TerminalPage", () => {
   // in the other tests since ws.connected appears to pause React updates.  So
   // for now the initial resize message (and this test) are here to stay.
   it("resizes on connect", async () => {
-    // Given
     const ws = new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     );
 
-    // When
     await renderTerminal();
 
-    // Then
     const msg = await ws.nextMessage;
     const req = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
     expect(req.height).toBeGreaterThan(0);
     expect(req.width).toBeGreaterThan(0);
-    ws.close();
   });
 
   it("supports workspace.agent syntax", async () => {
-    // Given
     const ws = new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     );
     const text = "something to render";
 
-    // When
     const { container } = await renderTerminal(
       `/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
     );
 
-    // Then
     // Ideally we could use ws.connected but that seems to pause React updates.
     // For now, wait for the initial resize message instead.
     await ws.nextMessage;
     ws.send(text);
     await expectTerminalText(container, text);
-    ws.close();
   });
 });
