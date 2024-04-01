@@ -12,7 +12,7 @@ March 17, 2024
 
 This guide will walk you through the process of adding
 [JFrog Xray](https://jfrog.com/xray/) integration to Coder Kubernetes workspaces
-using Coder's [JFrog Xray Integration](github.com/coder/coder-xray).
+using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
 
 ## Prerequisites
 
