@@ -2,6 +2,9 @@ module github.com/coder/coder/v2
 
 go 1.21.4
 
+// Required until https://github.com/go-playground/validator/pull/1246 is merged.
+replace github.com/go-playground/validator/v10 => github.com/kylecarbs/validator/v10 v10.0.0-20240401200135-cf222ac94618
+
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
