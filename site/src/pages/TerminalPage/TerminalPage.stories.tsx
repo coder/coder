@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   reactRouterOutlet,
   reactRouterParameters,
-} from "storybook-addon-react-router-v6";
+} from "storybook-addon-remix-react-router";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
