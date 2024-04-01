@@ -40,7 +40,9 @@ const TerminalPage: FC = () => {
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
   const terminalWrapperRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<XTerm.Terminal | null>(null);
+  // The terminal is maintained as a state to trigger certain effects when it
+  // updates.
+  const [terminal, setTerminal] = useState<XTerm.Terminal>();
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("initializing");
   const [searchParams] = useSearchParams();
@@ -127,7 +129,7 @@ const TerminalPage: FC = () => {
     window.addEventListener("resize", listener);
 
     // Terminal is correctly sized and is ready to be used.
-    terminalRef.current = terminal;
+    setTerminal(terminal);
 
     return () => {
       window.removeEventListener("resize", listener);
@@ -153,8 +155,6 @@ const TerminalPage: FC = () => {
 
   // Hook up the terminal through a web socket.
   useEffect(() => {
-    const terminal = terminalRef.current;
-
     if (!terminal) {
       return;
     }
@@ -280,6 +280,7 @@ const TerminalPage: FC = () => {
     command,
     proxy.preferredPathAppURL,
     reconnectionToken,
+    terminal,
     workspace.error,
     workspace.isLoading,
     workspaceAgent,
