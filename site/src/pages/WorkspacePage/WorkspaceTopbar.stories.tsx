@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within, screen } from "@storybook/test";
-import { addDays, addHours, addMinutes } from "date-fns";
+import { addHours, addMinutes } from "date-fns";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import {
   MockTemplate,
@@ -159,7 +159,7 @@ export const Dormant: Story = {
   args: {
     workspace: {
       ...baseWorkspace,
-      deleting_at: addDays(new Date(), 7).toISOString(),
+      deleting_at: new Date("2024/01/01").toISOString(),
       latest_build: {
         ...baseWorkspace.latest_build,
         status: "failed",
