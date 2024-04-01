@@ -1774,21 +1774,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	err = enc.Encode(n)
 	require.NoError(t, err)
 
-	wantByt := wantBuf.Bytes()
-
-	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
-
-	wantByt = clitest.NormalizeGoldenFile(t, wantByt)
-	if *clitest.UpdateGoldenFiles {
-		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
-		return
-	}
-
-	got, err := os.ReadFile(goldenPath)
-	require.NoError(t, err)
-	got = clitest.NormalizeGoldenFile(t, got)
-
-	require.Equal(t, string(wantByt), string(got))
+	clitest.TestGoldenFile(t, "server-config.yaml", wantBuf.Bytes(), nil)
 }
 
 func TestConnectToPostgres(t *testing.T) {

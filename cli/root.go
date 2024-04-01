@@ -167,9 +167,9 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			//nolint:revive
 			os.Exit(code)
 		}
-		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
+		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
-			f.format(err)
+			f.Format(err)
 		}
 		//nolint:revive
 		os.Exit(code)
@@ -909,15 +909,23 @@ func ExitError(code int, err error) error {
 	return &exitError{code: code, err: err}
 }
 
-type prettyErrorFormatter struct {
+// NewPrettyErrorFormatter creates a new PrettyErrorFormatter.
+func NewPrettyErrorFormatter(w io.Writer, verbose bool) *PrettyErrorFormatter {
+	return &PrettyErrorFormatter{
+		w:       w,
+		verbose: verbose,
+	}
+}
+
+type PrettyErrorFormatter struct {
 	w io.Writer
 	// verbose turns on more detailed error logs, such as stack traces.
 	verbose bool
 }
 
-// format formats the error to the console. This error should be human
-// readable.
-func (p *prettyErrorFormatter) format(err error) {
+// Format formats the error to the writer in PrettyErrorFormatter.
+// This error should be human readable.
+func (p *PrettyErrorFormatter) Format(err error) {
 	output, _ := cliHumanFormatError("", err, &formatOpts{
 		Verbose: p.verbose,
 	})
