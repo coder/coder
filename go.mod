@@ -2,6 +2,12 @@ module github.com/coder/coder/v2
 
 go 1.21.4
 
+// Required until a v3 of chroma is created to lazily initialize all XML files.
+// None of our dependencies seem to use the registries anyways, so this
+// should be fine...
+// See: https://github.com/kylecarbs/chroma/commit/9e036e0631f38ef60de5ee8eec7a42e9cb7da423
+replace github.com/alecthomas/chroma/v2 => github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3
+
 // Required until https://github.com/go-playground/validator/pull/1246 is merged.
 replace github.com/go-playground/validator/v10 => github.com/kylecarbs/validator/v10 v10.0.0-20240401200135-cf222ac94618
 
