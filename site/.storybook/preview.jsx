@@ -14,6 +14,15 @@ import "theme/globalFonts";
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 export const decorators = [
+  withRouter,
+  withQuery,
+  (Story) => {
+    return (
+      <HelmetProvider>
+        <Story />
+      </HelmetProvider>
+    );
+  },
   (Story, context) => {
     const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
     const { themeOverride } = DecoratorHelpers.useThemeParameters();
@@ -30,15 +39,6 @@ export const decorators = [
       </StyledEngineProvider>
     );
   },
-  withRouter,
-  (Story) => {
-    return (
-      <HelmetProvider>
-        <Story />
-      </HelmetProvider>
-    );
-  },
-  withQuery,
 ];
 
 export const parameters = {
