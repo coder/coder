@@ -1,1 +1,1 @@
-export type TerminalState = "connected" | "disconnected" | "initializing";
+export type ConnectionStatus = "connected" | "disconnected" | "initializing";

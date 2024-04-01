@@ -22,7 +22,7 @@ import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import { TerminalAlerts } from "./TerminalAlerts";
-import type { TerminalState } from "./types";
+import type { ConnectionStatus } from "./types";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -41,8 +41,8 @@ const TerminalPage: FC = () => {
   const username = params.username.replace("@", "");
   const terminalWrapperRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<XTerm.Terminal | null>(null);
-  const [terminalState, setTerminalState] =
-    useState<TerminalState>("initializing");
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("initializing");
   const [searchParams] = useSearchParams();
   const isDebugging = searchParams.has("debug");
   // The reconnection token is a unique token that identifies
@@ -177,14 +177,14 @@ const TerminalPage: FC = () => {
       terminal.writeln(
         Language.workspaceErrorMessagePrefix + workspace.error.message,
       );
-      setTerminalState("disconnected");
+      setConnectionStatus("disconnected");
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
         Language.workspaceAgentErrorMessagePrefix +
           "no agent found with ID, is the workspace started?",
       );
-      setTerminalState("disconnected");
+      setConnectionStatus("disconnected");
       return;
     }
 
@@ -240,18 +240,18 @@ const TerminalPage: FC = () => {
               }),
             ),
           );
-          setTerminalState("connected");
+          setConnectionStatus("connected");
         });
         websocket.addEventListener("error", () => {
           terminal.options.disableStdin = true;
           terminal.writeln(
             Language.websocketErrorMessagePrefix + "socket errored",
           );
-          setTerminalState("disconnected");
+          setConnectionStatus("disconnected");
         });
         websocket.addEventListener("close", () => {
           terminal.options.disableStdin = true;
-          setTerminalState("disconnected");
+          setConnectionStatus("disconnected");
         });
         websocket.addEventListener("message", (event) => {
           if (typeof event.data === "string") {
@@ -268,7 +268,7 @@ const TerminalPage: FC = () => {
           return; // Unmounted while we waited for the async call.
         }
         terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
-        setTerminalState("disconnected");
+        setConnectionStatus("disconnected");
       });
 
     return () => {
@@ -298,11 +298,11 @@ const TerminalPage: FC = () => {
       </Helmet>
       <div
         css={{ display: "flex", flexDirection: "column", height: "100vh" }}
-        data-state={terminalState}
+        data-status={connectionStatus}
       >
         <TerminalAlerts
           agent={workspaceAgent}
-          state={terminalState}
+          status={connectionStatus}
           onAlertChange={() => {
             fitAddonRef.current?.fit();
           }}

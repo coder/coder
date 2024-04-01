@@ -22,11 +22,11 @@ const renderTerminal = async (
   await waitFor(() => {
     // To avoid 'act' errors during testing, we ensure the component is
     // completely rendered without any outstanding state updates. This is
-    // accomplished by incorporating a 'data-state' attribute into the
+    // accomplished by incorporating a 'data-status' attribute into the
     // component. We then observe this attribute for any changes, as we cannot
     // rely on other screen elements to indicate completion.
     const wrapper =
-      utils.container.querySelector<HTMLDivElement>("[data-state]")!;
+      utils.container.querySelector<HTMLDivElement>("[data-status]")!;
     expect(wrapper.dataset.state).not.toBe("initializing");
   });
   return utils;

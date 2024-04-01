@@ -4,17 +4,17 @@ import { type FC, useState, useEffect, useRef } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, type AlertProps } from "components/Alert/Alert";
 import { docs } from "utils/docs";
-import type { TerminalState } from "./types";
+import type { ConnectionStatus } from "./types";
 
 type TerminalAlertsProps = {
   agent: WorkspaceAgent | undefined;
-  state: TerminalState;
+  status: ConnectionStatus;
   onAlertChange: () => void;
 };
 
 export const TerminalAlerts = ({
   agent,
-  state,
+  status,
   onAlertChange,
 }: TerminalAlertsProps) => {
   const lifecycleState = agent?.lifecycle_state;
@@ -48,7 +48,7 @@ export const TerminalAlerts = ({
 
   return (
     <div ref={wrapperRef}>
-      {state === "disconnected" ? (
+      {status === "disconnected" ? (
         <DisconnectedAlert />
       ) : lifecycleState === "start_error" ? (
         <ErrorScriptAlert />
