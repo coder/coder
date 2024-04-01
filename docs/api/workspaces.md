@@ -14,6 +14,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /organizations/{organization}/members/{user}/workspaces`
 
+Create a new workspace using a template. The request must
+specify either the Template ID or the Template Version ID,
+not both. If the Template ID is specified, the active version
+of the template will be used.
+
 > Body parameter
 
 ```json

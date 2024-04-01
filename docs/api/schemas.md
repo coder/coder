@@ -1646,7 +1646,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 }
 ```
 
-CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the latest version of the template will be used.
+CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.
 
 ### Properties
 

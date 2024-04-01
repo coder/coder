@@ -140,7 +140,7 @@ type CreateTemplateRequest struct {
 // Either TemplateID or TemplateVersionID must be specified. They cannot both be present.
 // @Description CreateWorkspaceRequest provides options for creating a new workspace.
 // @Description Only one of TemplateID or TemplateVersionID can be specified, not both.
-// @Description If TemplateID is specified, the latest version of the template will be used.
+// @Description If TemplateID is specified, the active version of the template will be used.
 type CreateWorkspaceRequest struct {
 	// TemplateID specifies which template should be used for creating the workspace.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
