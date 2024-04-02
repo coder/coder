@@ -4,4 +4,6 @@ error: 3 errors encountered: Trace=[wrapped: ])
 2.  second error: function decided not to work, and it never will
 3.  Trace=[wrapped api error: ]
     Top level sdk error message.
+    1 validation error(s) found
+    	 region : magic dust is not available in your region
     magic dust unavailable, please try again later
