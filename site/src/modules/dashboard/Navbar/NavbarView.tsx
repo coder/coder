@@ -168,7 +168,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
         <NavLink css={styles.logo} to="/workspaces">
           {logo_url ? (
-            <img src={logo_url} alt="Custom Logo" />
+            <ExternalImage src={logo_url} alt="Custom Logo" />
           ) : (
             <CoderIcon fill="white" opacity={1} width={125} />
           )}
