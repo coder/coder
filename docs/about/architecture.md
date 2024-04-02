@@ -80,14 +80,14 @@ they're destroyed on workspace stop.
 
 #### Components
 
-This architecture consists of a single load balancer, several _Coder Server_
-replicas, and _Coder workspaces_ deployed in the same region.
+This architecture consists of a single load balancer, several _coderd_ replicas,
+and _Coder workspaces_ deployed in the same region.
 
 ##### Workload resources
 
-- Use Terraform to deploy at least one **Coder Server Replica** per availability
-  zone with _Coder Server_ instances and provisioners. High availability is
-  recommended but not essential for small deployments.
+- Deploy at least one _coderd_ replica per availability zone with _coderd_
+  instances and provisioners. High availability is recommended but not essential
+  for small deployments.
 - Single replica deployment is a special case that can address a
   tiny/small/proof-of-concept installation on a single virtual machine. If you
   are serving more than 100 users/workspaces, you should add more replicas.
@@ -114,8 +114,8 @@ replicas, and _Coder workspaces_ deployed in the same region.
   Server_ replicas across availability zones.
 - Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
   re-encrypt using an internal certificate.
-- Session persistence (sticky sessions) can be disabled as _Coder Server_
-  instances are stateless.
+- Session persistence (sticky sessions) can be disabled as _coderd_ instances
+  are stateless.
 - WebSocket and long-lived connections must be supported.
 
 **Single sign-on**
@@ -132,7 +132,7 @@ replicas, and _Coder workspaces_ deployed in the same region.
 
 This architecture is for globally distributed developer teams using Coder
 workspaces on daily basis. It features a single load balancer with regionally
-deployed _Workspace Proxy Replicas_, several _Coder Server_ replicas, and _Coder
+deployed _Workspace Proxy Replicas_, several _coderd_ replicas, and _Coder
 workspaces_ provisioned in different regions.
 
 Note: The _multi-region architecture_ assumes the same deployment principles as
@@ -160,6 +160,6 @@ offer the fastest developer experience.
   across availability zones.
 - Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
   re-encrypt using internal certificate.
-- Session persistence (sticky sessions) can be disabled as _Coder Server_
-  instances are stateless.
+- Session persistence (sticky sessions) can be disabled as _coderd_ instances
+  are stateless.
 - WebSocket and long-lived connections must be supported.
