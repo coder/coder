@@ -33,7 +33,7 @@ serviceAccount:
 
 ## Installation
 
-Install the `coder-kubestream-logs` helm chart on the cluster where the
+Install the `coder-logstream-kube` helm chart on the cluster where the
 deployment is running.
 
 ```shell
