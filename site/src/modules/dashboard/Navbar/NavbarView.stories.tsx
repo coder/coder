@@ -25,3 +25,9 @@ export const ForMember: Story = {
     canViewAllUsers: false,
   },
 };
+
+export const CustomLogo: Story = {
+  args: {
+    logo_url: "/icon/github.svg",
+  },
+};
