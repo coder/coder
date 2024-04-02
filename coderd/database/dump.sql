@@ -1624,8 +1624,6 @@ CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coo
 
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
 
-CREATE UNIQUE INDEX idx_user_link_linked_id ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
-
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
@@ -1645,6 +1643,8 @@ CREATE UNIQUE INDEX template_usage_stats_start_time_template_id_user_id_idx ON t
 COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Index for primary key.';
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 

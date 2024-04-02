@@ -1,1 +1,1 @@
-DROP INDEX idx_user_link_linked_id;
+DROP INDEX user_links_linked_id_login_type_idx;
