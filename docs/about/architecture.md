@@ -1,7 +1,7 @@
 # Architecture
 
 The Coder deployment model is flexible and offers various components that
-platform administrators can deploy and scale depending on the use cases. This
+platform administrators can deploy and scale depending on their use case. This
 page describes possible deployments, challenges, and risks associated with them.
 
 Learn more about our [Reference Architectures](../admin/architectures/index.md)
@@ -20,7 +20,7 @@ It offers:
 - Dashboard (UI)
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
-- Workspace Web Applications (e.g easily access to `code-server`)
+- Workspace Web Applications (e.g for easy access to `code-server`)
 - Agent registration
 
 ### provisionerd
@@ -89,12 +89,12 @@ replicas, and _Coder workspaces_ deployed in the same region.
   zone with _Coder Server_ instances and provisioners. High availability is
   recommended but not essential for small deployments.
 - Single replica deployment is a special case that can address a
-  tiny/small/proof-of-concept installation on a single virtual machine serving
-  less than 100 workspace users.
+  tiny/small/proof-of-concept installation on a single virtual machine. If you
+  are serving more than 100 users/workspaces, you should add more replicas.
 
 **Coder workspace**
 
-- For small deployments consider a lightweight workspace runtime like
+- For small deployments consider a lightweight workspace runtime like the
   [Sysbox](https://github.com/nestybox/sysbox) container runtime. Learn more how
   to enable
   [docker-in-docker using Sysbox](https://asciinema.org/a/kkTmOxl8DhEZiM2fLZNFlYzbo?speed=2).
@@ -111,7 +111,7 @@ replicas, and _Coder workspaces_ deployed in the same region.
 **Load balancer**
 
 - Distributes and load balances traffic from agents and clients to _Coder
-  Server_ replicas across zones.
+  Server_ replicas across availability zones.
 - Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
   re-encrypt using an internal certificate.
 - Session persistence (sticky sessions) can be disabled as _Coder Server_
@@ -121,8 +121,7 @@ replicas, and _Coder workspaces_ deployed in the same region.
 **Single sign-on**
 
 - Integrate with existing Single Sign-On (SSO) solutions used within the
-  organization organization via the supported OAuth 2.0 or OpenID Connect
-  standards.
+  organization via the supported OAuth 2.0 or OpenID Connect standards.
 - Learn more about [Authentication in Coder](../admin/auth.md).
 
 ### Multi-region architecture
@@ -161,3 +160,6 @@ offer the fastest developer experience.
   across availability zones.
 - Layer 7 load balancing. The load balancer can decrypt SSL traffic, and
   re-encrypt using internal certificate.
+- Session persistence (sticky sessions) can be disabled as _Coder Server_
+  instances are stateless.
+- WebSocket and long-lived connections must be supported.
