@@ -77,7 +77,16 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
-WITH filtered_workspaces AS (
+WITH
+-- build_params is used to filter by build parameters if present.
+-- It has to be a CTE because the set returning function 'unnest' cannot
+-- be used in a WHERE clause.
+build_params AS (
+SELECT
+	LOWER(unnest(@param_names :: text[])) AS name,
+	LOWER(unnest(@param_values :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
@@ -87,7 +96,8 @@ SELECT
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
-	latest_build.transition as latest_build_transition
+	latest_build.transition as latest_build_transition,
+	latest_build.job_status as latest_build_status
 FROM
     workspaces
 JOIN
@@ -96,6 +106,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -108,7 +119,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -184,6 +195,40 @@ WHERE
 			workspaces.owner_id = @owner_id
 		ELSE true
 	END
+	-- Filter by build parameter
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length(@has_param :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY(@has_param)
+		)
+		ELSE true
+	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length(@param_names :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
@@ -330,7 +375,8 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
-		'start'::workspace_transition -- latest_build_transition
+		'start'::workspace_transition, -- latest_build_transition
+		'unknown'::provisioner_job_status -- latest_build_status
 	WHERE
 		@with_summary :: boolean = true
 ), total_count AS (
@@ -433,7 +479,10 @@ UPDATE
 SET
 	last_used_at = @last_used_at
 WHERE
-	id = ANY(@ids :: uuid[]);
+	id = ANY(@ids :: uuid[])
+AND
+  -- Do not overwrite with older data
+  last_used_at < @last_used_at;
 
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (

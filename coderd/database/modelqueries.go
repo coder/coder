@@ -78,7 +78,6 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
@@ -89,7 +88,6 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
-			&i.UseMaxTtl,
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
@@ -215,9 +213,12 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		pq.Array(arg.ParamNames),
+		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
@@ -265,6 +266,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildCanceledAt,
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
+			&i.LatestBuildStatus,
 			&i.Count,
 		); err != nil {
 			return nil, err

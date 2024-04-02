@@ -46,7 +46,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
@@ -55,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
@@ -113,7 +113,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.NoError(t, err)
 	defer ptyConn.Close()
 
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+	data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
 		Data: "echo test\r\n",
 	})
 	require.NoError(t, err)
@@ -1606,7 +1606,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
 			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
 
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "echo test\r",
 			})
 			require.NoError(t, err)
@@ -1634,7 +1634,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, tr3.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Exit should cause the connection to close.
-			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "exit\r",
 			})
 			require.NoError(t, err)
@@ -1783,7 +1783,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 
 	// Setup a client connection.
-	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *codersdk.WorkspaceAgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   derpMap,
@@ -1812,9 +1812,9 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		// Force DERP.
 		conn.SetBlockEndpoints(true)
 
-		sdkConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+		sdkConn := workspacesdk.NewAgentConn(conn, workspacesdk.AgentConnOptions{
 			AgentID:   agentID,
-			CloseFunc: func() error { return codersdk.ErrSkipClose },
+			CloseFunc: func() error { return workspacesdk.ErrSkipClose },
 		})
 		t.Cleanup(func() {
 			t.Logf("closing sdkConn %s", name)
@@ -2223,7 +2223,7 @@ func setupSSHSession(
 }
 
 func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
-	*codersdk.WorkspaceAgentConn,
+	*workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
 	afero.Fs,
@@ -2296,7 +2296,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 			t.Logf("error closing in-mem coordination: %s", err.Error())
 		}
 	})
-	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+	agentConn := workspacesdk.NewAgentConn(conn, workspacesdk.AgentConnOptions{
 		AgentID: metadata.AgentID,
 	})
 	t.Cleanup(func() {

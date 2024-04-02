@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
-import { rest } from "msw";
+import WS from "jest-websocket-mock";
+import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import * as api from "api/api";
@@ -16,6 +17,7 @@ import {
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
 import {
+  createTestQueryClient,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
@@ -275,49 +277,23 @@ describe.each([
       );
 
       server.use(
-        rest.get(
+        http.get(
           "/api/v2/organizations/:org/templates/:template/versions/:version",
-          (req, res, ctx) => {
-            return res(ctx.json(templateVersion));
+          () => {
+            return HttpResponse.json(templateVersion);
           },
         ),
       );
 
       if (loadedVariables) {
         server.use(
-          rest.get(
-            "/api/v2/templateversions/:version/variables",
-            (req, res, ctx) => {
-              return res(ctx.json(loadedVariables));
-            },
-          ),
+          http.get("/api/v2/templateversions/:version/variables", () => {
+            return HttpResponse.json(loadedVariables);
+          }),
         );
       }
 
-      render(
-        <AppProviders queryClient={queryClient}>
-          <RouterProvider
-            router={createMemoryRouter(
-              [
-                {
-                  element: <RequireAuth />,
-                  children: [
-                    {
-                      element: <TemplateVersionEditorPage />,
-                      path: "/templates/:template/versions/:version/edit",
-                    },
-                  ],
-                },
-              ],
-              {
-                initialEntries: [
-                  `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
-                ],
-              },
-            )}
-          />
-        </AppProviders>,
-      );
+      renderEditorPage(queryClient);
       await waitForLoaderToBeRemoved();
 
       const dialogSelector = /template variables/i;
@@ -329,3 +305,80 @@ describe.each([
     });
   },
 );
+
+test("display pending badge and update it to running when status changes", async () => {
+  const MockPendingTemplateVersion = {
+    ...MockTemplateVersion,
+    job: {
+      ...MockTemplateVersion.job,
+      status: "pending",
+    },
+  };
+  const MockRunningTemplateVersion = {
+    ...MockTemplateVersion,
+    job: {
+      ...MockTemplateVersion.job,
+      status: "running",
+    },
+  };
+
+  let calls = 0;
+  server.use(
+    http.get(
+      "/api/v2/organizations/:org/templates/:template/versions/:version",
+      () => {
+        calls += 1;
+        return HttpResponse.json(
+          calls > 1 ? MockRunningTemplateVersion : MockPendingTemplateVersion,
+        );
+      },
+    ),
+  );
+
+  // Mock the logs when the status is running. This prevents connection errors
+  // from being thrown in the console during the test.
+  new WS(
+    `ws://localhost/api/v2/templateversions/${MockTemplateVersion.name}/logs?follow=true`,
+  );
+
+  renderEditorPage(createTestQueryClient());
+
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("Pending");
+
+  await waitFor(
+    () => {
+      expect(status).toHaveTextContent("Running");
+    },
+    // Increase the timeout due to the page fetching results every second, which
+    // may cause delays.
+    { timeout: 5_000 },
+  );
+});
+
+function renderEditorPage(queryClient: QueryClient) {
+  return render(
+    <AppProviders queryClient={queryClient}>
+      <RouterProvider
+        router={createMemoryRouter(
+          [
+            {
+              element: <RequireAuth />,
+              children: [
+                {
+                  element: <TemplateVersionEditorPage />,
+                  path: "/templates/:template/versions/:version/edit",
+                },
+              ],
+            },
+          ],
+          {
+            initialEntries: [
+              `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+            ],
+          },
+        )}
+      />
+    </AppProviders>,
+  );
+}

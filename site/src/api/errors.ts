@@ -24,7 +24,26 @@ export type ApiError = AxiosError<ApiErrorResponse> & {
 };
 
 export const isApiError = (err: unknown): err is ApiError => {
-  return axios.isAxiosError(err) && err.response !== undefined;
+  return (
+    axios.isAxiosError(err) &&
+    err.response !== undefined &&
+    isApiErrorResponse(err.response.data)
+  );
+};
+
+export const isApiErrorResponse = (err: unknown): err is ApiErrorResponse => {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "message" in err &&
+    typeof err.message === "string" &&
+    (!("detail" in err) ||
+      err.detail === undefined ||
+      typeof err.detail === "string") &&
+    (!("validations" in err) ||
+      err.validations === undefined ||
+      Array.isArray(err.validations))
+  );
 };
 
 export const hasApiFieldErrors = (error: ApiError): boolean =>
@@ -67,6 +86,9 @@ export const getErrorMessage = (
   if (isApiError(error) && error.response.data.message) {
     return error.response.data.message;
   }
+  if (isApiErrorResponse(error)) {
+    return error.message;
+  }
   // if error is a non-empty string
   if (error && typeof error === "string") {
     return error;
@@ -88,9 +110,15 @@ export const getValidationErrorMessage = (error: unknown): string => {
   return validationErrors.map((error) => error.detail).join("\n");
 };
 
-export const getErrorDetail = (error: unknown): string | undefined | null =>
-  isApiError(error)
-    ? error.response.data.detail
-    : error instanceof Error
-      ? `Please check the developer console for more details.`
-      : null;
+export const getErrorDetail = (error: unknown): string | undefined | null => {
+  if (error instanceof Error) {
+    return "Please check the developer console for more details.";
+  }
+  if (isApiError(error)) {
+    return error.response.data.detail;
+  }
+  if (isApiErrorResponse(error)) {
+    return error.detail;
+  }
+  return null;
+};

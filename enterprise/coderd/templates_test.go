@@ -29,69 +29,6 @@ import (
 func TestTemplates(t *testing.T) {
 	t.Parallel()
 
-	// TODO(@dean): remove legacy max_ttl tests
-	t.Run("CreateUpdateWorkspaceMaxTTL", func(t *testing.T) {
-		t.Parallel()
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
-			},
-		})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		exp := 24 * time.Hour.Milliseconds()
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = &exp
-			ctr.MaxTTLMillis = &exp
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// No TTL provided should use template default
-		req := codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "testing",
-		}
-		ws, err := anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.NoError(t, err)
-		require.NotNil(t, ws.TTLMillis)
-		require.EqualValues(t, exp, *ws.TTLMillis)
-
-		// Editing a workspace to have a higher TTL than the template's max
-		// should error
-		exp = exp + time.Minute.Milliseconds()
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: &exp,
-		})
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
-
-		// Creating workspace with TTL higher than max should error
-		req.Name = "testing2"
-		req.TTLMillis = &exp
-		ws, err = anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.Error(t, err)
-		apiErr = nil
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
-	})
-
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 
@@ -247,60 +184,6 @@ func TestTemplates(t *testing.T) {
 		wpsr, err = client.GetWorkspaceAgentPortShares(ctx, ws.ID)
 		require.NoError(t, err)
 		require.Empty(t, wpsr.Shares)
-	})
-
-	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
-		t.Parallel()
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
-			},
-		})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		exp := 24 * time.Hour.Milliseconds()
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = &exp
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// No TTL provided should use template default
-		req := codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "testing",
-		}
-		ws, err := anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.NoError(t, err)
-		require.NotNil(t, ws.TTLMillis)
-		require.EqualValues(t, exp, *ws.TTLMillis)
-
-		// Editing a workspace to disable the TTL should do nothing
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: nil,
-		})
-		require.NoError(t, err)
-		ws, err = anotherClient.Workspace(ctx, ws.ID)
-		require.NoError(t, err)
-		require.EqualValues(t, exp, *ws.TTLMillis)
-
-		// Editing a workspace to have a TTL of 0 should do nothing
-		zero := int64(0)
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: &zero,
-		})
-		require.NoError(t, err)
-		ws, err = anotherClient.Workspace(ctx, ws.ID)
-		require.NoError(t, err)
-		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
 
 	t.Run("SetAutostartRequirement", func(t *testing.T) {

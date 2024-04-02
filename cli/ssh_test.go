@@ -117,13 +117,25 @@ func TestSSH(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
+
+		// Delay until workspace is starting, otherwise the agent may be
+		// booted due to outdated build.
+		var err error
+		for {
+			workspace, err = client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+				break
+			}
+			time.Sleep(testutil.IntervalFast)
+		}
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -365,7 +377,7 @@ func TestSSH(t *testing.T) {
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		clientStdinR, clientStdinW := io.Pipe()
@@ -460,6 +472,18 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
+
+		// Delay until workspace is starting, otherwise the agent may be
+		// booted due to outdated build.
+		var err error
+		for {
+			workspace, err = client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
+				break
+			}
+			time.Sleep(testutil.IntervalFast)
+		}
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.

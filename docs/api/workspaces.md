@@ -14,6 +14,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /organizations/{organization}/members/{user}/workspaces`
 
+Create a new workspace using a template. The request must
+specify either the Template ID or the Template Version ID,
+not both. If the Template ID is specified, the active version
+of the template will be used.
+
 > Body parameter
 
 ```json
@@ -1376,6 +1381,32 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 | ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
 | `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Post Workspace Usage by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaces/{workspace}/usage`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
 
 ### Responses
 

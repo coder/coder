@@ -8,14 +8,14 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 const (
 	DatabaseDefaultThreshold = 15 * time.Millisecond
 )
 
-type DatabaseReport codersdk.DatabaseReport
+type DatabaseReport healthsdk.DatabaseReport
 
 type DatabaseReportOptions struct {
 	DB        database.Store

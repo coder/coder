@@ -15,7 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -29,10 +29,10 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
 					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
-					return &codersdk.HealthcheckReport{
+					return &healthsdk.HealthcheckReport{
 						Time: time.Now(),
 					}
 				},
@@ -62,10 +62,10 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
 					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
-					return &codersdk.HealthcheckReport{
+					return &healthsdk.HealthcheckReport{
 						Time: time.Now(),
 					}
 				},
@@ -97,15 +97,15 @@ func TestDebugHealth(t *testing.T) {
 			client      = coderdtest.New(t, &coderdtest.Options{
 				Logger:             &logger,
 				HealthcheckTimeout: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
 					t := time.NewTimer(time.Second)
 					defer t.Stop()
 
 					select {
 					case <-ctx.Done():
-						return &codersdk.HealthcheckReport{}
+						return &healthsdk.HealthcheckReport{}
 					case <-t.C:
-						return &codersdk.HealthcheckReport{}
+						return &healthsdk.HealthcheckReport{}
 					}
 				},
 			})
@@ -129,9 +129,9 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
 					calls <- struct{}{}
-					return &codersdk.HealthcheckReport{}
+					return &healthsdk.HealthcheckReport{}
 				},
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
@@ -174,9 +174,9 @@ func TestDebugHealth(t *testing.T) {
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Hour,
 				HealthcheckTimeout: time.Hour,
-				HealthcheckFunc: func(context.Context, string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
 					calls++
-					return &codersdk.HealthcheckReport{
+					return &healthsdk.HealthcheckReport{
 						Time: time.Now(),
 					}
 				},
@@ -208,12 +208,12 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *codersdk.HealthcheckReport {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
 					assert.Equal(t, sessionToken, apiKey)
-					return &codersdk.HealthcheckReport{
+					return &healthsdk.HealthcheckReport{
 						Time:    time.Now(),
 						Healthy: true,
-						DERP:    codersdk.DERPHealthReport{Healthy: true},
+						DERP:    healthsdk.DERPHealthReport{Healthy: true},
 					}
 				},
 			})
@@ -251,11 +251,11 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		// when
-		settings, err := adminClient.HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 
 		// then
-		require.Equal(t, codersdk.HealthSettings{DismissedHealthchecks: []codersdk.HealthSection{}}, settings)
+		require.Equal(t, healthsdk.HealthSettings{DismissedHealthchecks: []healthsdk.HealthSection{}}, settings)
 	})
 
 	t.Run("DismissSection", func(t *testing.T) {
@@ -268,16 +268,16 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		expected := codersdk.HealthSettings{
-			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
 		}
 
 		// when: dismiss "derp" and "websocket"
-		err := adminClient.PutHealthSettings(ctx, expected)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := adminClient.HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -287,7 +287,7 @@ func TestHealthSettings(t *testing.T) {
 		bs, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		var hc codersdk.HealthcheckReport
+		var hc healthsdk.HealthcheckReport
 		require.NoError(t, json.Unmarshal(bs, &hc))
 		require.True(t, hc.DERP.Dismissed)
 		require.True(t, hc.Websocket.Dismissed)
@@ -303,23 +303,23 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		initial := codersdk.HealthSettings{
-			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		initial := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
 		}
 
-		err := adminClient.PutHealthSettings(ctx, initial)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, initial)
 		require.NoError(t, err)
 
-		expected := codersdk.HealthSettings{
-			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP},
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
 		}
 
 		// when: undismiss "websocket"
-		err = adminClient.PutHealthSettings(ctx, expected)
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// then
-		settings, err := adminClient.HealthSettings(ctx)
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, settings)
 
@@ -329,7 +329,7 @@ func TestHealthSettings(t *testing.T) {
 		bs, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		var hc codersdk.HealthcheckReport
+		var hc healthsdk.HealthcheckReport
 		require.NoError(t, json.Unmarshal(bs, &hc))
 		require.True(t, hc.DERP.Dismissed)
 		require.False(t, hc.Websocket.Dismissed)
@@ -345,15 +345,15 @@ func TestHealthSettings(t *testing.T) {
 		adminClient := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
-		expected := codersdk.HealthSettings{
-			DismissedHealthchecks: []codersdk.HealthSection{codersdk.HealthSectionDERP, codersdk.HealthSectionWebsocket},
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
 		}
 
-		err := adminClient.PutHealthSettings(ctx, expected)
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
 		// when
-		err = adminClient.PutHealthSettings(ctx, expected)
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 
 		// then
 		require.Error(t, err)

@@ -7,6 +7,9 @@ USAGE:
   it to every organization.
 
 OPTIONS:
+      --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
       --email string, $CODER_EMAIL
           The email of the new user. If not specified, you will be prompted via
           stdin.

@@ -35,6 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"gopkg.in/yaml.v3"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -43,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -972,16 +973,11 @@ func TestServer(t *testing.T) {
 
 			scanner := bufio.NewScanner(res.Body)
 			hasActiveUsers := false
-			hasWorkspaces := false
 			for scanner.Scan() {
 				// This metric is manually registered to be tracked in the server. That's
 				// why we test it's tracked here.
 				if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
 					hasActiveUsers = true
-					continue
-				}
-				if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
-					hasWorkspaces = true
 					continue
 				}
 				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
@@ -991,7 +987,6 @@ func TestServer(t *testing.T) {
 			}
 			require.NoError(t, scanner.Err())
 			require.True(t, hasActiveUsers)
-			require.True(t, hasWorkspaces)
 		})
 
 		t.Run("DBMetricsEnabled", func(t *testing.T) {
@@ -1582,7 +1577,7 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := postgres.Open()
+	connectionURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	defer closeFunc()
 
@@ -1773,21 +1768,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	err = enc.Encode(n)
 	require.NoError(t, err)
 
-	wantByt := wantBuf.Bytes()
-
-	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
-
-	wantByt = clitest.NormalizeGoldenFile(t, wantByt)
-	if *clitest.UpdateGoldenFiles {
-		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
-		return
-	}
-
-	got, err := os.ReadFile(goldenPath)
-	require.NoError(t, err)
-	got = clitest.NormalizeGoldenFile(t, got)
-
-	require.Equal(t, string(wantByt), string(got))
+	clitest.TestGoldenFile(t, "server-config.yaml", wantBuf.Bytes(), nil)
 }
 
 func TestConnectToPostgres(t *testing.T) {
@@ -1801,7 +1782,7 @@ func TestConnectToPostgres(t *testing.T) {
 
 	log := slogtest.Make(t, nil)
 
-	dbURL, closeFunc, err := postgres.Open()
+	dbURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -1830,4 +1811,33 @@ func TestServer_InvalidDERP(t *testing.T) {
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
+}
+
+func TestServer_DisabledDERP(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancelFunc()
+
+	// Try to start a server with the built-in DERP server disabled and an
+	// external DERP map.
+	inv, cfg := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--derp-server-enable=false",
+		"--derp-config-url", "https://controlplane.tailscale.com/derpmap/default",
+	)
+	clitest.Start(t, inv.WithContext(ctx))
+	accessURL := waitAccessURL(t, cfg)
+	derpURL, err := accessURL.Parse("/derp")
+	require.NoError(t, err)
+
+	c, err := derphttp.NewClient(key.NewNode(), derpURL.String(), func(format string, args ...any) {})
+	require.NoError(t, err)
+
+	// DERP should fail to connect
+	err = c.Connect(ctx)
+	require.Error(t, err)
 }

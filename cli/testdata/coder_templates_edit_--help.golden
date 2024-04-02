@@ -28,6 +28,16 @@ OPTIONS:
           this value for the template (and allow autostart on all days), pass
           'all'.
 
+      --autostop-requirement-weekdays string-array
+          Edit the template autostop requirement weekdays - workspaces created
+          from this template must be restarted on the given weekdays. To unset
+          this value for the template (and disable the autostop requirement for
+          the template), pass 'none'.
+
+      --autostop-requirement-weeks int
+          Edit the template autostop requirement weeks - workspaces created from
+          this template must be restarted on an n-weekly basis.
+
       --default-ttl duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value. Maps to "Default autostop"
@@ -61,12 +71,6 @@ OPTIONS:
 
       --icon string
           Edit the template icon path.
-
-      --max-ttl duration
-          Edit the template maximum time before shutdown - workspaces created
-          from this template must shutdown within the given duration after
-          starting, regardless of user activity. This is an enterprise-only
-          feature. Maps to "Max lifetime" in the UI.
 
       --name string
           Edit the template name.

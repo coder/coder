@@ -332,6 +332,10 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // Create a new workspace for the currently authenticated user.
 //
 // @Summary Create user workspace by organization
+// @Description Create a new workspace using a template. The request must
+// @Description specify either the Template ID or the Template Version ID,
+// @Description not both. If the Template ID is specified, the active version
+// @Description of the template will be used.
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Accept json
@@ -480,13 +484,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	maxTTL := templateSchedule.MaxTTL
-	if !templateSchedule.UseMaxTTL {
-		// If we're using autostop requirements, there isn't a max TTL.
-		maxTTL = 0
-	}
-
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, maxTTL)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -857,16 +855,10 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
 		}
 
-		maxTTL := templateSchedule.MaxTTL
-		if !templateSchedule.UseMaxTTL {
-			// If we're using autostop requirements, there isn't a max TTL.
-			maxTTL = 0
-		}
-
 		// don't override 0 ttl with template default here because it indicates
 		// disabled autostop
 		var validityErr error
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, maxTTL)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
@@ -1094,6 +1086,24 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
+}
+
+// @Summary Post Workspace Usage by ID
+// @ID post-workspace-usage-by-id
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 204
+// @Router /workspaces/{workspace}/usage [post]
+func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	api.workspaceUsageTracker.Add(workspace.ID)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Favorite workspace by ID.
@@ -1685,20 +1695,9 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {
-	if templateDefault == 0 && templateMax != 0 || (templateMax > 0 && templateDefault > templateMax) {
-		templateDefault = templateMax
-	}
-
+func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
 		if templateDefault == 0 {
-			if templateMax > 0 {
-				return sql.NullInt64{
-					Int64: int64(templateMax),
-					Valid: true,
-				}, nil
-			}
-
 			return sql.NullInt64{}, nil
 		}
 
@@ -1716,10 +1715,6 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Du
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
-	}
-
-	if templateMax > 0 && truncated > templateMax {
-		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be less than or equal to the template's maximum TTL %q", templateMax.String())
 	}
 
 	return sql.NullInt64{

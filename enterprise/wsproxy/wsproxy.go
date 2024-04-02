@@ -168,7 +168,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		client.SDKClient.HTTPClient = opts.HTTPClient
 	}
 
-	// TODO: Probably do some version checking here
 	info, err := client.SDKClient.BuildInfo(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("buildinfo: %w", errors.Join(
@@ -178,6 +177,15 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	}
 	if info.WorkspaceProxy {
 		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
+	}
+	// We don't want to crash the proxy if the versions don't match because
+	// it'll enter crash loop backoff (and most patches don't make any backwards
+	// incompatible changes to the proxy API anyways)
+	if !buildinfo.VersionsMatch(info.Version, buildinfo.Version()) {
+		opts.Logger.Warn(ctx, "workspace proxy version doesn't match Minor.Major version of the primary, please keep them in sync",
+			slog.F("primary_version", info.Version),
+			slog.F("proxy_version", buildinfo.Version()),
+		)
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(opts.AccessURL.Hostname(), opts.TLSCertificates)

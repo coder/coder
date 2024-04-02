@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
 
@@ -90,7 +91,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(ctx, client, serverURL)
+			err = r.configureClient(ctx, client, serverURL, inv)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}
@@ -164,10 +165,11 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			if r.disableDirect {
 				logger.Info(ctx, "direct connections disabled")
 			}
-			agentConn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			agentConn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:         logger,
+					BlockEndpoints: r.disableDirect,
+				})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
@@ -280,7 +282,7 @@ type sshNetworkStats struct {
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err

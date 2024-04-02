@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   createTemplate,
   createWorkspace,
+  openTerminalWindow,
   startAgent,
   stopAgent,
 } from "../helpers";
@@ -33,14 +34,9 @@ test("web terminal", async ({ context, page }) => {
       },
     ],
   });
-  await createWorkspace(page, template);
+  const workspaceName = await createWorkspace(page, template);
   const agent = await startAgent(page, token);
-
-  // Wait for the web terminal to open in a new tab
-  const pagePromise = context.waitForEvent("page");
-  await page.getByTestId("terminal").click();
-  const terminal = await pagePromise;
-  await terminal.waitForLoadState("domcontentloaded");
+  const terminal = await openTerminalWindow(page, context, workspaceName);
 
   await terminal.waitForSelector("div.xterm-rows", {
     state: "visible",

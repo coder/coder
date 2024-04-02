@@ -74,6 +74,12 @@ func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
+	// FriendlyName is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	// It is usually the "username" of the user, but it can be the name of the
+	// external workspace proxy or other service type actor.
+	FriendlyName string
+
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string

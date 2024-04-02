@@ -29,7 +29,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		failureTTL           time.Duration
 		dormancyThreshold    time.Duration
 		dormancyAutoDeletion time.Duration
-		maxTTL               time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -46,7 +45,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0 || maxTTL != 0
+			isTemplateSchedulingOptionsSet := failureTTL != 0 || dormancyThreshold != 0 || dormancyAutoDeletion != 0
 
 			if isTemplateSchedulingOptionsSet || requireActiveVersion {
 				entitlements, err := client.Entitlements(inv.Context())
@@ -58,7 +57,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 
 				if isTemplateSchedulingOptionsSet {
 					if !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
-						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, --inactivity-ttl, or --max-ttl")
+						return xerrors.Errorf("your license is not entitled to use advanced template scheduling, so you cannot set --failure-ttl, or --inactivity-ttl")
 					}
 				}
 
@@ -154,7 +153,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				VersionID:                      job.ID,
 				DefaultTTLMillis:               ptr.Ref(defaultTTL.Milliseconds()),
 				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				MaxTTLMillis:                   ptr.Ref(maxTTL.Milliseconds()),
 				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
 				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
 				DisableEveryoneGroupAccess:     disableEveryone,
@@ -228,12 +226,6 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			Description: "Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to \"Dormancy Auto-Deletion\" in the UI.",
 			Default:     "0h",
 			Value:       serpent.DurationOf(&dormancyAutoDeletion),
-		},
-
-		{
-			Flag:        "max-ttl",
-			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
-			Value:       serpent.DurationOf(&maxTTL),
 		},
 		{
 			Flag:        "test.provisioner",

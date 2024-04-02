@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -337,7 +338,8 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		conn, err := workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer func() {
 			_ = conn.Close()
@@ -448,13 +450,14 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-	conn, err := func() (*codersdk.WorkspaceAgentConn, error) {
+	conn, err := func() (*workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
-		return client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-		})
+		return workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+				Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+			})
 	}()
 	require.NoError(t, err)
 	defer conn.Close()
@@ -547,7 +550,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	var connInfo codersdk.WorkspaceAgentConnectionInfo
+	var connInfo workspacesdk.AgentConnectionInfo
 	err = json.NewDecoder(res.Body).Decode(&connInfo)
 	require.NoError(t, err)
 	require.True(t, connInfo.DisableDirectConnections)
@@ -563,9 +566,10 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 		}
 	}
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -603,10 +607,10 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	}
 
 	willFilterPort := func(port int) bool {
-		if port < codersdk.WorkspaceAgentMinimumListeningPort || port > 65535 {
+		if port < workspacesdk.AgentMinimumListeningPort || port > 65535 {
 			return true
 		}
-		if _, ok := codersdk.WorkspaceAgentIgnoredListeningPorts[uint16(port)]; ok {
+		if _, ok := workspacesdk.AgentIgnoredListeningPorts[uint16(port)]; ok {
 			return true
 		}
 
@@ -646,7 +650,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			port uint16
 		)
 		require.Eventually(t, func() bool {
-			for ignoredPort := range codersdk.WorkspaceAgentIgnoredListeningPorts {
+			for ignoredPort := range workspacesdk.AgentIgnoredListeningPorts {
 				if ignoredPort < 1024 || ignoredPort == 5432 {
 					continue
 				}
@@ -1623,13 +1627,14 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	agentID := resources[0].Agents[0].ID
 
 	// Connect from a client.
-	conn1, err := func() (*codersdk.WorkspaceAgentConn, error) {
+	conn1, err := func() (*workspacesdk.AgentConn, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel() // Connection should remain open even if the dial context is canceled.
 
-		return client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-			Logger: logger.Named("client1"),
-		})
+		return workspacesdk.New(client).
+			DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+				Logger: logger.Named("client1"),
+			})
 	}()
 	require.NoError(t, err)
 	defer conn1.Close()
@@ -1672,9 +1677,10 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	require.True(t, ok)
 
 	// Connect from a second client.
-	conn2, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("client2"),
-	})
+	conn2, err := workspacesdk.New(client).
+		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client2"),
+		})
 	require.NoError(t, err)
 	defer conn2.Close()
 	ok = conn2.AwaitReachable(ctx)

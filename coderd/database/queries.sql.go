@@ -1698,57 +1698,116 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 }
 
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.access_method,
-		was.slug_or_port,
-		wa.display_name,
-		wa.icon,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+WITH
+	-- Create a list of all unique apps by template, this is used to
+	-- filter out irrelevant template usage stats.
+	apps AS (
+		SELECT DISTINCT ON (ws.template_id, app.slug)
+			ws.template_id,
+			app.slug,
+			app.display_name,
+			app.icon
+		FROM
+			workspaces ws
+		JOIN
+			workspace_builds AS build
+		ON
+			build.workspace_id = ws.id
+		JOIN
+			workspace_resources AS resource
+		ON
+			resource.job_id = build.job_id
+		JOIN
+			workspace_agents AS agent
+		ON
+			agent.resource_id = resource.id
+		JOIN
+			workspace_apps AS app
+		ON
+			app.agent_id = agent.id
+		WHERE
+			-- Partial query parameter filter.
+			CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN ws.template_id = ANY($1::uuid[]) ELSE TRUE END
+		ORDER BY
+			ws.template_id, app.slug, app.created_at DESC
+	),
+	-- Join apps and template usage stats to filter out irrelevant rows.
+	-- Note that this way of joining will eliminate all data-points that
+	-- aren't for "real" apps. That means ports are ignored (even though
+	-- they're part of the dataset), as well as are "[terminal]" entries
+	-- which are alternate datapoints for reconnecting pty usage.
+	template_usage_stats_with_apps AS (
+		SELECT
+			tus.start_time,
+			tus.template_id,
+			tus.user_id,
+			apps.slug,
+			apps.display_name,
+			apps.icon,
+			tus.app_usage_mins
+		FROM
+			apps
+		JOIN
+			template_usage_stats AS tus
+		ON
+			-- Query parameter filter.
+			tus.start_time >= $2::timestamptz
+			AND tus.end_time <= $3::timestamptz
+			AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
+			-- Primary join condition.
+			AND tus.template_id = apps.template_id
+			AND tus.app_usage_mins ? apps.slug -- Key exists in object.
+	),
+	-- Group the app insights by interval, user and unique app. This
+	-- allows us to deduplicate a user using the same app across
+	-- multiple templates.
+	app_insights AS (
+		SELECT
+			user_id,
+			slug,
+			display_name,
+			icon,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+		FROM
+			template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
+		WHERE
+			app_usage.key = slug
+		GROUP BY
+			start_time, user_id, slug, display_name, icon
+	),
+	-- Even though we allow identical apps to be aggregated across
+	-- templates, we still want to be able to report which templates
+	-- the data comes from.
+	templates AS (
+		SELECT
+			slug,
+			display_name,
+			icon,
+			array_agg(DISTINCT template_id)::uuid[] AS template_ids
+		FROM
+			template_usage_stats_with_apps
+		GROUP BY
+			slug, display_name, icon
 	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $2::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
-)
 
 SELECT
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateInsights.
-	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
-	access_method,
-	slug_or_port,
-	display_name,
-	icon,
-	is_app,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-GROUP BY access_method, slug_or_port, display_name, icon, is_app
+	t.template_ids,
+	COUNT(DISTINCT ai.user_id) AS active_users,
+	ai.slug,
+	ai.display_name,
+	ai.icon,
+	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	app_insights AS ai
+JOIN
+	templates AS t
+ON
+	t.slug = ai.slug
+	AND t.display_name = ai.display_name
+	AND t.icon = ai.icon
+GROUP BY
+	t.template_ids, ai.slug, ai.display_name, ai.icon
 `
 
 type GetTemplateAppInsightsParams struct {
@@ -1758,14 +1817,12 @@ type GetTemplateAppInsightsParams struct {
 }
 
 type GetTemplateAppInsightsRow struct {
-	TemplateIDs   []uuid.UUID    `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs []uuid.UUID    `db:"active_user_ids" json:"active_user_ids"`
-	AccessMethod  string         `db:"access_method" json:"access_method"`
-	SlugOrPort    string         `db:"slug_or_port" json:"slug_or_port"`
-	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
-	Icon          sql.NullString `db:"icon" json:"icon"`
-	IsApp         bool           `db:"is_app" json:"is_app"`
-	UsageSeconds  int64          `db:"usage_seconds" json:"usage_seconds"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers  int64       `db:"active_users" json:"active_users"`
+	Slug         string      `db:"slug" json:"slug"`
+	DisplayName  string      `db:"display_name" json:"display_name"`
+	Icon         string      `db:"icon" json:"icon"`
+	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
 }
 
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -1782,12 +1839,10 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 		var i GetTemplateAppInsightsRow
 		if err := rows.Scan(
 			pq.Array(&i.TemplateIDs),
-			pq.Array(&i.ActiveUserIDs),
-			&i.AccessMethod,
-			&i.SlugOrPort,
+			&i.ActiveUsers,
+			&i.Slug,
 			&i.DisplayName,
 			&i.Icon,
-			&i.IsApp,
 			&i.UsageSeconds,
 		); err != nil {
 			return nil, err
@@ -1804,51 +1859,67 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 }
 
 const getTemplateAppInsightsByTemplate = `-- name: GetTemplateAppInsightsByTemplate :many
-WITH app_stats_by_user_and_agent AS (
-	SELECT
-		s.start_time,
-		60 as seconds,
-		w.template_id,
-		was.user_id,
-		was.agent_id,
-		was.slug_or_port,
-		wa.display_name,
-		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
+WITH
+	-- This CTE is used to explode app usage into minute buckets, then
+	-- flatten the users app usage within the template so that usage in
+	-- multiple workspaces under one template is only counted once for
+	-- every minute.
+	app_insights AS (
+		SELECT
+			w.template_id,
+			was.user_id,
+			-- Both app stats and agent stats track web terminal usage, but
+			-- by different means. The app stats value should be more
+			-- accurate so we don't want to discard it just yet.
+			CASE
+				WHEN was.access_method = 'terminal'
+				THEN '[terminal]' -- Unique name, app names can't contain brackets.
+				ELSE was.slug_or_port
+			END::text AS app_name,
+			COALESCE(wa.display_name, '') AS display_name,
+			(wa.slug IS NOT NULL)::boolean AS is_app,
+			COUNT(DISTINCT s.minute_bucket) AS app_minutes
+		FROM
+			workspace_app_stats AS was
+		JOIN
+			workspaces AS w
+		ON
+			w.id = was.workspace_id
+		-- We do a left join here because we want to include user IDs that have used
+		-- e.g. ports when counting active users.
+		LEFT JOIN
+			workspace_apps wa
+		ON
+			wa.agent_id = was.agent_id
+			AND wa.slug = was.slug_or_port
+		-- Generate a series of minute buckets for each session for computing the
+		-- mintes/bucket.
+		CROSS JOIN
+			generate_series(
+				date_trunc('minute', was.session_started_at),
+				-- Subtract 1 μs to avoid creating an extra series.
+				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				'1 minute'::interval
+			) AS s(minute_bucket)
+		WHERE
+			s.minute_bucket >= $1::timestamptz
+			AND s.minute_bucket < $2::timestamptz
+		GROUP BY
+			w.template_id, was.user_id, was.access_method, was.slug_or_port, wa.display_name, wa.slug
 	)
-	-- We do a left join here because we want to include user IDs that have used
-	-- e.g. ports when counting active users.
-	LEFT JOIN workspace_apps wa ON (
-		wa.agent_id = was.agent_id
-		AND wa.slug = was.slug_or_port
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $1::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($2::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.slug_or_port, wa.display_name, wa.slug
-)
 
 SELECT
 	template_id,
-	display_name,
-	slug_or_port,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-WHERE is_app IS TRUE
-GROUP BY template_id, display_name, slug_or_port
+	app_name AS slug_or_port,
+	display_name AS display_name,
+	COUNT(DISTINCT user_id)::bigint AS active_users,
+	(SUM(app_minutes) * 60)::bigint AS usage_seconds
+FROM
+	app_insights
+WHERE
+	is_app IS TRUE
+GROUP BY
+	template_id, slug_or_port, display_name
 `
 
 type GetTemplateAppInsightsByTemplateParams struct {
@@ -1857,13 +1928,15 @@ type GetTemplateAppInsightsByTemplateParams struct {
 }
 
 type GetTemplateAppInsightsByTemplateRow struct {
-	TemplateID   uuid.UUID      `db:"template_id" json:"template_id"`
-	DisplayName  sql.NullString `db:"display_name" json:"display_name"`
-	SlugOrPort   string         `db:"slug_or_port" json:"slug_or_port"`
-	ActiveUsers  int64          `db:"active_users" json:"active_users"`
-	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+	TemplateID   uuid.UUID `db:"template_id" json:"template_id"`
+	SlugOrPort   string    `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	ActiveUsers  int64     `db:"active_users" json:"active_users"`
+	UsageSeconds int64     `db:"usage_seconds" json:"usage_seconds"`
 }
 
+// GetTemplateAppInsightsByTemplate is used for Prometheus metrics. Keep
+// in sync with GetTemplateAppInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateAppInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
@@ -1875,8 +1948,8 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 		var i GetTemplateAppInsightsByTemplateRow
 		if err := rows.Scan(
 			&i.TemplateID,
-			&i.DisplayName,
 			&i.SlugOrPort,
+			&i.DisplayName,
 			&i.ActiveUsers,
 			&i.UsageSeconds,
 		); err != nil {
@@ -1894,37 +1967,58 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at),
-		was.user_id,
-		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id
-), template_ids AS (
-	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
-	WHERE template_id IS NOT NULL
-)
+WITH
+	insights AS (
+		SELECT
+			user_id,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins,
+			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
+			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
+			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
+			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
+			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	templates AS (
+		SELECT
+			array_agg(DISTINCT template_id) AS template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
+			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
 
 SELECT
-	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
-	-- Return IDs so we can combine this with GetTemplateAppInsights.
-	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
+	COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
+	COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
+	COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
+	COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
+	COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
+	COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
+	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
+	COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
+	COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
+	COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+FROM
+	insights
 `
 
 type GetTemplateInsightsParams struct {
@@ -1935,96 +2029,91 @@ type GetTemplateInsightsParams struct {
 
 type GetTemplateInsightsRow struct {
 	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUserIDs               []uuid.UUID `db:"active_user_ids" json:"active_user_ids"`
+	SshTemplateIds              []uuid.UUID `db:"ssh_template_ids" json:"ssh_template_ids"`
+	SftpTemplateIds             []uuid.UUID `db:"sftp_template_ids" json:"sftp_template_ids"`
+	ReconnectingPtyTemplateIds  []uuid.UUID `db:"reconnecting_pty_template_ids" json:"reconnecting_pty_template_ids"`
+	VscodeTemplateIds           []uuid.UUID `db:"vscode_template_ids" json:"vscode_template_ids"`
+	JetbrainsTemplateIds        []uuid.UUID `db:"jetbrains_template_ids" json:"jetbrains_template_ids"`
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	UsageTotalSeconds           int64       `db:"usage_total_seconds" json:"usage_total_seconds"`
+	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+	UsageSftpSeconds            int64       `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
+	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
 	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
-	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
-// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-// in use during a minute, we will add 5 minutes to the total usage for that
-// session/app (per user).
+// GetTemplateInsights returns the aggregate user-produced usage of all
+// workspaces in a given timeframe. The template IDs, active users, and
+// usage_seconds all reflect any usage in the template, including apps.
+//
+// When combining data from multiple templates, we must make a guess at
+// how the user behaved for the 30 minute interval. In this case we make
+// the assumption that if the user used two workspaces for 15 minutes,
+// they did so sequentially, thus we sum the usage up to a maximum of
+// 30 minutes with LEAST(SUM(n), 30).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		pq.Array(&i.ActiveUserIDs),
+		pq.Array(&i.SshTemplateIds),
+		pq.Array(&i.SftpTemplateIds),
+		pq.Array(&i.ReconnectingPtyTemplateIds),
+		pq.Array(&i.VscodeTemplateIds),
+		pq.Array(&i.JetbrainsTemplateIds),
+		&i.ActiveUsers,
+		&i.UsageTotalSeconds,
+		&i.UsageSshSeconds,
+		&i.UsageSftpSeconds,
+		&i.UsageReconnectingPtySeconds,
 		&i.UsageVscodeSeconds,
 		&i.UsageJetbrainsSeconds,
-		&i.UsageReconnectingPtySeconds,
-		&i.UsageSshSeconds,
 	)
 	return i, err
 }
 
 const getTemplateInsightsByInterval = `-- name: GetTemplateInsightsByInterval :many
-WITH ts AS (
-	SELECT
-		d::timestamptz AS from_,
-		CASE
-			WHEN (d::timestamptz + ($1::int || ' day')::interval) <= $2::timestamptz
-			THEN (d::timestamptz + ($1::int || ' day')::interval)
-			ELSE $2::timestamptz
-		END AS to_
-	FROM
-		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
-		generate_series($3::timestamptz, ($2::timestamptz) - '1 microsecond'::interval, ($1::int || ' day')::interval) AS d
-), unflattened_usage_by_interval AS (
-	-- We select data from both workspace agent stats and workspace app stats to
-	-- get a complete picture of usage. This matches how usage is calculated by
-	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
-	-- a union all to avoid a costly distinct operation.
-	--
-	-- Note that one query must perform a left join so that all intervals are
-	-- present at least once.
-	SELECT
-		ts.from_, ts.to_,
-		was.template_id,
-		was.user_id
-	FROM ts
-	LEFT JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN was.template_id = ANY($4::uuid[]) ELSE TRUE END
+WITH
+	ts AS (
+		SELECT
+			d::timestamptz AS from_,
+			LEAST(
+				(d::timestamptz + ($2::int || ' day')::interval)::timestamptz,
+				$3::timestamptz
+			)::timestamptz AS to_
+		FROM
+			generate_series(
+				$4::timestamptz,
+				-- Subtract 1 μs to avoid creating an extra series.
+				($3::timestamptz) - '1 microsecond'::interval,
+				($2::int || ' day')::interval
+			) AS d
 	)
-	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
-
-	UNION ALL
-
-	SELECT
-		ts.from_, ts.to_,
-		w.template_id,
-		was.user_id
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN w.template_id = ANY($4::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
-)
 
 SELECT
-	from_ AS start_time,
-	to_ AS end_time,
-	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users
-FROM unflattened_usage_by_interval
-GROUP BY from_, to_
+	ts.from_ AS start_time,
+	ts.to_ AS end_time,
+	array_remove(array_agg(DISTINCT tus.template_id), NULL)::uuid[] AS template_ids,
+	COUNT(DISTINCT tus.user_id) AS active_users
+FROM
+	ts
+LEFT JOIN
+	template_usage_stats AS tus
+ON
+	tus.start_time >= ts.from_
+	AND tus.start_time < ts.to_ -- End time exclusion criteria optimization for index.
+	AND tus.end_time <= ts.to_
+	AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($1::uuid[]) ELSE TRUE END
+GROUP BY
+	ts.from_, ts.to_
 `
 
 type GetTemplateInsightsByIntervalParams struct {
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 	IntervalDays int32       `db:"interval_days" json:"interval_days"`
 	EndTime      time.Time   `db:"end_time" json:"end_time"`
 	StartTime    time.Time   `db:"start_time" json:"start_time"`
-	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateInsightsByIntervalRow struct {
@@ -2040,10 +2129,10 @@ type GetTemplateInsightsByIntervalRow struct {
 // interval/template, it will be included in the results with 0 active users.
 func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByInterval,
+		pq.Array(arg.TemplateIDs),
 		arg.IntervalDays,
 		arg.EndTime,
 		arg.StartTime,
-		pq.Array(arg.TemplateIDs),
 	)
 	if err != nil {
 		return nil, err
@@ -2072,32 +2161,57 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 }
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
-WITH agent_stats_by_interval_and_user AS (
-	SELECT
-		date_trunc('minute', was.created_at) AS created_at_trunc,
-		was.template_id,
-		was.user_id,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $1::timestamptz
-		AND was.created_at < $2::timestamptz
-		AND was.connection_count > 0
-	GROUP BY created_at_trunc, was.template_id, was.user_id
-)
+WITH
+	-- This CTE is used to truncate agent usage into minute buckets, then
+	-- flatten the users agent usage within the template so that usage in
+	-- multiple workspaces under one template is only counted once for
+	-- every minute (per user).
+	insights AS (
+		SELECT
+			template_id,
+			user_id,
+			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			-- TODO(mafredri): Enable when we have the column.
+			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
+			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			-- NOTE(mafredri): The agent stats are currently very unreliable, and
+			-- sometimes the connections are missing, even during active sessions.
+			-- Since we can't fully rely on this, we check for "any connection
+			-- within this bucket". A better solution here would be preferable.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			workspace_agent_stats
+		WHERE
+			created_at >= $1::timestamptz
+			AND created_at < $2::timestamptz
+			-- Inclusion criteria to filter out empty results.
+			AND (
+				session_count_ssh > 0
+				-- TODO(mafredri): Enable when we have the column.
+				-- OR session_count_sftp > 0
+				OR session_count_reconnecting_pty > 0
+				OR session_count_vscode > 0
+				OR session_count_jetbrains > 0
+			)
+		GROUP BY
+			template_id, user_id
+	)
 
 SELECT
 	template_id,
-	COALESCE(COUNT(DISTINCT user_id))::bigint AS active_users,
-	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
-	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM agent_stats_by_interval_and_user
-GROUP BY template_id
+	COUNT(DISTINCT user_id)::bigint AS active_users,
+	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
+	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds,
+	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
+	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds
+FROM
+	insights
+WHERE
+	has_connection
+GROUP BY
+	template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
@@ -2114,6 +2228,8 @@ type GetTemplateInsightsByTemplateRow struct {
 	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
+// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
+// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
@@ -2250,81 +2366,113 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 	return items, nil
 }
 
-const getUserActivityInsights = `-- name: GetUserActivityInsights :many
-WITH app_stats AS (
-	SELECT
-		s.start_time,
-		was.user_id,
-		w.template_id,
-		60 as seconds
-	FROM workspace_app_stats was
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
-	)
-	-- This table contains both 1 minute entries and >1 minute entries,
-	-- to calculate this with our uniqueness constraints, we generate series
-	-- for the longer intervals.
-	CROSS JOIN LATERAL generate_series(
-		date_trunc('minute', was.session_started_at),
-		-- Subtract 1 microsecond to avoid creating an extra series.
-		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
-		'1 minute'::interval
-	) s(start_time)
-	WHERE
-		s.start_time >= $2::timestamptz
-		-- Subtract one minute because the series only contains the start time.
-		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
-	GROUP BY s.start_time, w.template_id, was.user_id
-), session_stats AS (
-	SELECT
-		date_trunc('minute', was.created_at) as start_time,
-		was.user_id,
-		was.template_id,
-		CASE WHEN
-			SUM(was.session_count_vscode) > 0 OR
-			SUM(was.session_count_jetbrains) > 0 OR
-			SUM(was.session_count_reconnecting_pty) > 0 OR
-			SUM(was.session_count_ssh) > 0
-		THEN 60 ELSE 0 END as seconds
-	FROM workspace_agent_stats was
-	WHERE
-		was.created_at >= $2::timestamptz
-		AND was.created_at < $3::timestamptz
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN was.template_id = ANY($1::uuid[]) ELSE TRUE END
-	GROUP BY date_trunc('minute', was.created_at), was.user_id, was.template_id
-), combined_stats AS (
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM app_stats
-	UNION
-	SELECT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM session_stats
-)
+const getTemplateUsageStats = `-- name: GetTemplateUsageStats :many
 SELECT
-	users.id as user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	SUM(seconds) AS usage_seconds
-FROM combined_stats
-JOIN users ON (users.id = combined_stats.user_id)
-GROUP BY users.id, username, avatar_url
-ORDER BY user_id ASC
+	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, ssh_mins, sftp_mins, reconnecting_pty_mins, vscode_mins, jetbrains_mins, app_usage_mins
+FROM
+	template_usage_stats
+WHERE
+	start_time >= $1::timestamptz
+	AND end_time <= $2::timestamptz
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+`
+
+type GetTemplateUsageStatsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateUsageStats, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateUsageStat
+	for rows.Next() {
+		var i TemplateUsageStat
+		if err := rows.Scan(
+			&i.StartTime,
+			&i.EndTime,
+			&i.TemplateID,
+			&i.UserID,
+			&i.MedianLatencyMs,
+			&i.UsageMins,
+			&i.SshMins,
+			&i.SftpMins,
+			&i.ReconnectingPtyMins,
+			&i.VscodeMins,
+			&i.JetbrainsMins,
+			&i.AppUsageMins,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserActivityInsights = `-- name: GetUserActivityInsights :many
+WITH
+	deployment_stats AS (
+		SELECT
+			start_time,
+			user_id,
+			array_agg(template_id) AS template_ids,
+			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
+			LEAST(SUM(usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats
+		WHERE
+			start_time >= $1::timestamptz
+			AND end_time <= $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			start_time, user_id
+	),
+	template_ids AS (
+		SELECT
+			user_id,
+			array_agg(DISTINCT template_id) AS ids
+		FROM
+			deployment_stats, unnest(template_ids) template_id
+		GROUP BY
+			user_id
+	)
+
+SELECT
+	ds.user_id,
+	u.username,
+	u.avatar_url,
+	t.ids::uuid[] AS template_ids,
+	(SUM(ds.usage_mins) * 60)::bigint AS usage_seconds
+FROM
+	deployment_stats ds
+JOIN
+	users u
+ON
+	u.id = ds.user_id
+JOIN
+	template_ids t
+ON
+	ds.user_id = t.user_id
+GROUP BY
+	ds.user_id, u.username, u.avatar_url, t.ids
+ORDER BY
+	ds.user_id ASC
 `
 
 type GetUserActivityInsightsParams struct {
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetUserActivityInsightsRow struct {
@@ -2336,14 +2484,14 @@ type GetUserActivityInsightsRow struct {
 }
 
 // GetUserActivityInsights returns the ranking with top active users.
-// The result can be filtered on template_ids, meaning only user data from workspaces
-// based on those templates will be included.
-// Note: When selecting data from multiple templates or the entire deployment,
-// be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
-// users may be counted multiple times for the same time interval if they have used multiple templates
+// The result can be filtered on template_ids, meaning only user data
+// from workspaces based on those templates will be included.
+// Note: The usage_seconds and usage_seconds_cumulative differ only when
+// requesting deployment-wide (or multiple template) data. Cumulative
+// produces a bloated value if a user has used multiple templates
 // simultaneously.
 func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -2373,22 +2521,26 @@ func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserAct
 
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
-	workspace_agent_stats.user_id,
-	users.username,
-	users.avatar_url,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-FROM workspace_agent_stats
-JOIN users ON (users.id = workspace_agent_stats.user_id)
+	tus.user_id,
+	u.username,
+	u.avatar_url,
+	array_agg(DISTINCT tus.template_id)::uuid[] AS template_ids,
+	COALESCE((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_50,
+	COALESCE((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY tus.median_latency_ms)), -1)::float AS workspace_connection_latency_95
+FROM
+	template_usage_stats tus
+JOIN
+	users u
+ON
+	u.id = tus.user_id
 WHERE
-	workspace_agent_stats.created_at >= $1
-	AND workspace_agent_stats.created_at < $2
-	AND workspace_agent_stats.connection_median_latency_ms > 0
-	AND workspace_agent_stats.connection_count > 0
-	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
-ORDER BY user_id ASC
+	tus.start_time >= $1::timestamptz
+	AND tus.end_time <= $2::timestamptz
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tus.template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY
+	tus.user_id, u.username, u.avatar_url
+ORDER BY
+	tus.user_id ASC
 `
 
 type GetUserLatencyInsightsParams struct {
@@ -2438,6 +2590,269 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
+WITH
+	latest_start AS (
+		SELECT
+			-- Truncate to hour so that we always look at even ranges of data.
+			date_trunc('hour', COALESCE(
+				MAX(start_time) - '1 hour'::interval,
+				-- Fallback when there are no template usage stats yet.
+				-- App stats can exist before this, but not agent stats,
+				-- limit the lookback to avoid inconsistency.
+				(SELECT MIN(created_at) FROM workspace_agent_stats)
+			)) AS t
+		FROM
+			template_usage_stats
+	),
+	workspace_app_stat_buckets AS (
+		SELECT
+			-- Truncate the minute to the nearest half hour, this is the bucket size
+			-- for the data.
+			date_trunc('hour', s.minute_bucket) + trunc(date_part('minute', s.minute_bucket) / 30) * 30 * '1 minute'::interval AS time_bucket,
+			w.template_id,
+			was.user_id,
+			-- Both app stats and agent stats track web terminal usage, but
+			-- by different means. The app stats value should be more
+			-- accurate so we don't want to discard it just yet.
+			CASE
+				WHEN was.access_method = 'terminal'
+				THEN '[terminal]' -- Unique name, app names can't contain brackets.
+				ELSE was.slug_or_port
+			END AS app_name,
+			COUNT(DISTINCT s.minute_bucket) AS app_minutes,
+			-- Store each unique minute bucket for later merge between datasets.
+			array_agg(DISTINCT s.minute_bucket) AS minute_buckets
+		FROM
+			workspace_app_stats AS was
+		JOIN
+			workspaces AS w
+		ON
+			w.id = was.workspace_id
+		-- Generate a series of minute buckets for each session for computing the
+		-- mintes/bucket.
+		CROSS JOIN
+			generate_series(
+				date_trunc('minute', was.session_started_at),
+				-- Subtract 1 μs to avoid creating an extra series.
+				date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+				'1 minute'::interval
+			) AS s(minute_bucket)
+		WHERE
+			-- s.minute_bucket >= @start_time::timestamptz
+			-- AND s.minute_bucket < @end_time::timestamptz
+			s.minute_bucket >= (SELECT t FROM latest_start)
+			AND s.minute_bucket < NOW()
+		GROUP BY
+			time_bucket, w.template_id, was.user_id, was.access_method, was.slug_or_port
+	),
+	agent_stats_buckets AS (
+		SELECT
+			-- Truncate the minute to the nearest half hour, this is the bucket size
+			-- for the data.
+			date_trunc('hour', created_at) + trunc(date_part('minute', created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
+			template_id,
+			user_id,
+			-- Store each unique minute bucket for later merge between datasets.
+			array_agg(
+				DISTINCT CASE
+				WHEN
+					session_count_ssh > 0
+					-- TODO(mafredri): Enable when we have the column.
+					-- OR session_count_sftp > 0
+					OR session_count_reconnecting_pty > 0
+					OR session_count_vscode > 0
+					OR session_count_jetbrains > 0
+				THEN
+					date_trunc('minute', created_at)
+				ELSE
+					NULL
+				END
+			) AS minute_buckets,
+			COUNT(DISTINCT CASE WHEN session_count_ssh > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			-- TODO(mafredri): Enable when we have the column.
+			-- COUNT(DISTINCT CASE WHEN session_count_sftp > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS sftp_mins,
+			COUNT(DISTINCT CASE WHEN session_count_reconnecting_pty > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_count_vscode > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_count_jetbrains > 0 THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			-- NOTE(mafredri): The agent stats are currently very unreliable, and
+			-- sometimes the connections are missing, even during active sessions.
+			-- Since we can't fully rely on this, we check for "any connection
+			-- during this half-hour". A better solution here would be preferable.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			workspace_agent_stats
+		WHERE
+			-- created_at >= @start_time::timestamptz
+			-- AND created_at < @end_time::timestamptz
+			created_at >= (SELECT t FROM latest_start)
+			AND created_at < NOW()
+			-- Inclusion criteria to filter out empty results.
+			AND (
+				session_count_ssh > 0
+				-- TODO(mafredri): Enable when we have the column.
+				-- OR session_count_sftp > 0
+				OR session_count_reconnecting_pty > 0
+				OR session_count_vscode > 0
+				OR session_count_jetbrains > 0
+			)
+		GROUP BY
+			time_bucket, template_id, user_id
+	),
+	stats AS (
+		SELECT
+			stats.time_bucket AS start_time,
+			stats.time_bucket + '30 minutes'::interval AS end_time,
+			stats.template_id,
+			stats.user_id,
+			-- Sum/distinct to handle zero/duplicate values due union and to unnest.
+			COUNT(DISTINCT minute_bucket) AS usage_mins,
+			array_agg(DISTINCT minute_bucket) AS minute_buckets,
+			SUM(DISTINCT stats.ssh_mins) AS ssh_mins,
+			SUM(DISTINCT stats.sftp_mins) AS sftp_mins,
+			SUM(DISTINCT stats.reconnecting_pty_mins) AS reconnecting_pty_mins,
+			SUM(DISTINCT stats.vscode_mins) AS vscode_mins,
+			SUM(DISTINCT stats.jetbrains_mins) AS jetbrains_mins,
+			-- This is what we unnested, re-nest as json.
+			jsonb_object_agg(stats.app_name, stats.app_minutes) FILTER (WHERE stats.app_name IS NOT NULL) AS app_usage_mins
+		FROM (
+			SELECT
+				time_bucket,
+				template_id,
+				user_id,
+				0 AS ssh_mins,
+				0 AS sftp_mins,
+				0 AS reconnecting_pty_mins,
+				0 AS vscode_mins,
+				0 AS jetbrains_mins,
+				app_name,
+				app_minutes,
+				minute_buckets
+			FROM
+				workspace_app_stat_buckets
+
+			UNION ALL
+
+			SELECT
+				time_bucket,
+				template_id,
+				user_id,
+				ssh_mins,
+				-- TODO(mafredri): Enable when we have the column.
+				0 AS sftp_mins,
+				reconnecting_pty_mins,
+				vscode_mins,
+				jetbrains_mins,
+				NULL AS app_name,
+				NULL AS app_minutes,
+				minute_buckets
+			FROM
+				agent_stats_buckets
+			WHERE
+				-- See note in the agent_stats_buckets CTE.
+				has_connection
+		) AS stats, unnest(minute_buckets) AS minute_bucket
+		GROUP BY
+			stats.time_bucket, stats.template_id, stats.user_id
+	),
+	minute_buckets AS (
+		-- Create distinct minute buckets for user-activity, so we can filter out
+		-- irrelevant latencies.
+		SELECT DISTINCT ON (stats.start_time, stats.template_id, stats.user_id, minute_bucket)
+			stats.start_time,
+			stats.template_id,
+			stats.user_id,
+			minute_bucket
+		FROM
+			stats, unnest(minute_buckets) AS minute_bucket
+	),
+	latencies AS (
+		-- Select all non-zero latencies for all the minutes that a user used the
+		-- workspace in some way.
+		SELECT
+			mb.start_time,
+			mb.template_id,
+			mb.user_id,
+			-- TODO(mafredri): We're doing medians on medians here, we may want to
+			-- improve upon this at some point.
+			PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY was.connection_median_latency_ms)::real AS median_latency_ms
+		FROM
+			minute_buckets AS mb
+		JOIN
+			workspace_agent_stats AS was
+		ON
+			was.created_at >= (SELECT t FROM latest_start)
+			AND was.created_at < NOW()
+			AND date_trunc('minute', was.created_at) = mb.minute_bucket
+			AND was.template_id = mb.template_id
+			AND was.user_id = mb.user_id
+			AND was.connection_median_latency_ms >= 0
+		GROUP BY
+			mb.start_time, mb.template_id, mb.user_id
+	)
+
+INSERT INTO template_usage_stats AS tus (
+	start_time,
+	end_time,
+	template_id,
+	user_id,
+	usage_mins,
+	median_latency_ms,
+	ssh_mins,
+	sftp_mins,
+	reconnecting_pty_mins,
+	vscode_mins,
+	jetbrains_mins,
+	app_usage_mins
+) (
+	SELECT
+		stats.start_time,
+		stats.end_time,
+		stats.template_id,
+		stats.user_id,
+		stats.usage_mins,
+		latencies.median_latency_ms,
+		stats.ssh_mins,
+		stats.sftp_mins,
+		stats.reconnecting_pty_mins,
+		stats.vscode_mins,
+		stats.jetbrains_mins,
+		stats.app_usage_mins
+	FROM
+		stats
+	LEFT JOIN
+		latencies
+	ON
+		-- The latencies group-by ensures there at most one row.
+		latencies.start_time = stats.start_time
+		AND latencies.template_id = stats.template_id
+		AND latencies.user_id = stats.user_id
+)
+ON CONFLICT
+	(start_time, template_id, user_id)
+DO UPDATE
+SET
+	usage_mins = EXCLUDED.usage_mins,
+	median_latency_ms = EXCLUDED.median_latency_ms,
+	ssh_mins = EXCLUDED.ssh_mins,
+	sftp_mins = EXCLUDED.sftp_mins,
+	reconnecting_pty_mins = EXCLUDED.reconnecting_pty_mins,
+	vscode_mins = EXCLUDED.vscode_mins,
+	jetbrains_mins = EXCLUDED.jetbrains_mins,
+	app_usage_mins = EXCLUDED.app_usage_mins
+WHERE
+	(tus.*) IS DISTINCT FROM (EXCLUDED.*)
+`
+
+// This query aggregates the workspace_agent_stats and workspace_app_stats data
+// into a single table for efficient storage and querying. Half-hour buckets are
+// used to store the data, and the minutes are summed for each user and template
+// combination. The result is stored in the template_usage_stats table.
+func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats)
+	return err
 }
 
 const getJFrogXrayScanByWorkspaceAndAgentID = `-- name: GetJFrogXrayScanByWorkspaceAndAgentID :one
@@ -6056,7 +6471,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -6085,7 +6500,6 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
 		&i.FailureTTL,
@@ -6096,7 +6510,6 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
 		&i.Deprecated,
-		&i.UseMaxTtl,
 		&i.ActivityBump,
 		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
@@ -6107,7 +6520,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -6144,7 +6557,6 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
 		&i.FailureTTL,
@@ -6155,7 +6567,6 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AutostartBlockDaysOfWeek,
 		&i.RequireActiveVersion,
 		&i.Deprecated,
-		&i.UseMaxTtl,
 		&i.ActivityBump,
 		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
@@ -6165,7 +6576,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -6195,7 +6606,6 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
@@ -6206,7 +6616,6 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
-			&i.UseMaxTtl,
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
@@ -6227,7 +6636,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -6307,7 +6716,6 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
@@ -6318,7 +6726,6 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
-			&i.UseMaxTtl,
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
@@ -6535,14 +6942,12 @@ SET
 	allow_user_autostop = $4,
 	default_ttl = $5,
 	activity_bump = $6,
-	use_max_ttl = $7,
-	max_ttl = $8,
-	autostop_requirement_days_of_week = $9,
-	autostop_requirement_weeks = $10,
-	autostart_block_days_of_week = $11,
-	failure_ttl = $12,
-	time_til_dormant = $13,
-	time_til_dormant_autodelete = $14
+	autostop_requirement_days_of_week = $7,
+	autostop_requirement_weeks = $8,
+	autostart_block_days_of_week = $9,
+	failure_ttl = $10,
+	time_til_dormant = $11,
+	time_til_dormant_autodelete = $12
 WHERE
 	id = $1
 `
@@ -6554,8 +6959,6 @@ type UpdateTemplateScheduleByIDParams struct {
 	AllowUserAutostop             bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
 	DefaultTTL                    int64     `db:"default_ttl" json:"default_ttl"`
 	ActivityBump                  int64     `db:"activity_bump" json:"activity_bump"`
-	UseMaxTtl                     bool      `db:"use_max_ttl" json:"use_max_ttl"`
-	MaxTTL                        int64     `db:"max_ttl" json:"max_ttl"`
 	AutostopRequirementDaysOfWeek int16     `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64     `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	AutostartBlockDaysOfWeek      int16     `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
@@ -6572,8 +6975,6 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.ActivityBump,
-		arg.UseMaxTtl,
-		arg.MaxTTL,
 		arg.AutostopRequirementDaysOfWeek,
 		arg.AutostopRequirementWeeks,
 		arg.AutostartBlockDaysOfWeek,
@@ -8680,33 +9081,34 @@ SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order,
 	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.provisioner_state, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username
 FROM
-	-- Only get the latest build for each workspace
-	(
-	SELECT
-		workspace_id, MAX(build_number) as max_build_number
-	FROM
-		workspace_build_with_user
-	GROUP BY
-		workspace_id
-	) as latest_builds
-	-- Pull the workspace_build rows for returning
-INNER JOIN workspace_build_with_user
-	ON workspace_build_with_user.workspace_id = latest_builds.workspace_id
-	AND workspace_build_with_user.build_number = latest_builds.max_build_number
-	-- For each latest build, grab the resources to relate to an agent
-INNER JOIN workspace_resources
-	ON workspace_resources.job_id = workspace_build_with_user.job_id
-	-- Agent <-> Resource is 1:1
-INNER JOIN workspace_agents
-	ON workspace_agents.resource_id = workspace_resources.id
-	-- We need the owner ID
-INNER JOIN workspaces
-	ON workspace_build_with_user.workspace_id = workspaces.id
+	workspace_agents
+JOIN
+	workspace_resources
+ON
+	workspace_agents.resource_id = workspace_resources.id
+JOIN
+	workspace_build_with_user
+ON
+	workspace_resources.job_id = workspace_build_with_user.job_id
+JOIN
+	workspaces
+ON
+	workspace_build_with_user.workspace_id = workspaces.id
 WHERE
-	-- This should only match 1 agent, so 1 returned row or 0
-	workspace_agents.auth_token = $1
-AND
-	workspaces.deleted = FALSE
+	-- This should only match 1 agent, so 1 returned row or 0.
+	workspace_agents.auth_token = $1::uuid
+	AND workspaces.deleted = FALSE
+	-- Filter out builds that are not the latest.
+	AND workspace_build_with_user.build_number = (
+		-- Select from workspace_builds as it's one less join compared
+		-- to workspace_build_with_user.
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_id = workspace_build_with_user.workspace_id
+	)
 `
 
 type GetWorkspaceAgentAndLatestBuildByAuthTokenRow struct {
@@ -11518,6 +11920,9 @@ SET
 	last_used_at = $1
 WHERE
 	id = ANY($2 :: uuid[])
+AND
+  -- Do not overwrite with older data
+  last_used_at < $1
 `
 
 type BatchUpdateWorkspaceLastUsedAtParams struct {
@@ -11859,7 +12264,13 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
-WITH filtered_workspaces AS (
+WITH
+build_params AS (
+SELECT
+	LOWER(unnest($1 :: text[])) AS name,
+	LOWER(unnest($2 :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite,
 	COALESCE(template.name, 'unknown') as template_name,
@@ -11869,7 +12280,8 @@ SELECT
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
-	latest_build.transition as latest_build_transition
+	latest_build.transition as latest_build_transition,
+	latest_build.job_status as latest_build_status
 FROM
     workspaces
 JOIN
@@ -11878,6 +12290,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -11890,7 +12303,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -11907,7 +12320,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, use_max_ttl, activity_bump, max_port_sharing_level
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level
 	FROM
 		templates
 	WHERE
@@ -11915,32 +12328,32 @@ LEFT JOIN LATERAL (
 ) template ON true
 WHERE
 	-- Optionally include deleted workspaces
-	workspaces.deleted = $1
+	workspaces.deleted = $3
 	AND CASE
-		WHEN $2 :: text != '' THEN
+		WHEN $4 :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
 			    -- 'running' states
-				WHEN $2 = 'starting' THEN
+				WHEN $4 = 'starting' THEN
 				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-				WHEN $2 = 'stopping' THEN
+				WHEN $4 = 'stopping' THEN
 					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'deleting' THEN
+				WHEN $4 = 'deleting' THEN
 					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
 			    -- 'succeeded' states
-			    WHEN $2 = 'deleted' THEN
+			    WHEN $4 = 'deleted' THEN
 			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
 			    	latest_build.transition = 'delete'::workspace_transition
-				WHEN $2 = 'stopped' THEN
+				WHEN $4 = 'stopped' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-				WHEN $2 = 'started' THEN
+				WHEN $4 = 'started' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
@@ -11948,13 +12361,13 @@ WHERE
 			    -- differ. A workspace is "running" if the job is "succeeded" and
 			    -- the transition is "start". This is because a workspace starts
 			    -- running when a job is complete.
-			    WHEN $2 = 'running' THEN
+			    WHEN $4 = 'running' THEN
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $2 != '' THEN
+				WHEN $4 != '' THEN
 				    -- By default just match the job status exactly
-			    	latest_build.job_status = $2::provisioner_job_status
+			    	latest_build.job_status = $4::provisioner_job_status
 				ELSE
 					true
 			END
@@ -11962,46 +12375,80 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			workspaces.owner_id = $3
+		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $5
 		ELSE true
 	END
+	-- Filter by build parameter
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length($6 :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY($6)
+		)
+		ELSE true
+	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+		WHEN $7 :: text != '' THEN
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
+		WHEN $8 :: text != '' THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			workspaces.template_id = ANY($6)
+		WHEN array_length($9 :: uuid[], 1) > 0 THEN
+			workspaces.template_id = ANY($9)
 		ELSE true
 	END
   	-- Filter by workspace_ids
   	AND CASE
-		  WHEN array_length($7 :: uuid[], 1) > 0 THEN
-			  workspaces.id = ANY($7)
+		  WHEN array_length($10 :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY($10)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			workspaces.name ILIKE '%' || $8 || '%'
+		WHEN $11 :: text != '' THEN
+			workspaces.name ILIKE '%' || $11 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $9 :: text != '' THEN
+		WHEN $12 :: text != '' THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -12013,7 +12460,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
-					$9 = (
+					$12 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -12024,7 +12471,7 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $10 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $13 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
@@ -12037,36 +12484,36 @@ WHERE
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $11 :: boolean != 'false' THEN
+		WHEN $14 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $12 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $12
+		  WHEN $15 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $15
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $13 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $13
+		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $16
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $14 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $14 :: boolean
+		  WHEN $17 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $17 :: boolean
 		  ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.template_name, fw.template_version_id, fw.template_version_name, fw.username, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.template_name, fw.template_version_id, fw.template_version_name, fw.username, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status
 	FROM
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $15 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $18 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -12075,14 +12522,14 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $17 :: integer > 0 THEN
-				$17
+			WHEN $20 :: integer > 0 THEN
+				$20
 		END
 	OFFSET
-		$16
+		$19
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -12112,9 +12559,10 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
-		'start'::workspace_transition -- latest_build_transition
+		'start'::workspace_transition, -- latest_build_transition
+		'unknown'::provisioner_job_status -- latest_build_status
 	WHERE
-		$18 :: boolean = true
+		$21 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -12122,7 +12570,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.template_name, fwos.template_version_id, fwos.template_version_name, fwos.username, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.template_name, fwos.template_version_id, fwos.template_version_name, fwos.username, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status,
 	tc.count
 FROM
 	filtered_workspaces_order_with_summary fwos
@@ -12131,9 +12579,12 @@ CROSS JOIN
 `
 
 type GetWorkspacesParams struct {
+	ParamNames                            []string     `db:"param_names" json:"param_names"`
+	ParamValues                           []string     `db:"param_values" json:"param_values"`
 	Deleted                               bool         `db:"deleted" json:"deleted"`
 	Status                                string       `db:"status" json:"status"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
+	HasParam                              []string     `db:"has_param" json:"has_param"`
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
 	TemplateName                          string       `db:"template_name" json:"template_name"`
 	TemplateIDs                           []uuid.UUID  `db:"template_ids" json:"template_ids"`
@@ -12152,37 +12603,44 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                     uuid.UUID           `db:"id" json:"id"`
-	CreatedAt              time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time           `db:"updated_at" json:"updated_at"`
-	OwnerID                uuid.UUID           `db:"owner_id" json:"owner_id"`
-	OrganizationID         uuid.UUID           `db:"organization_id" json:"organization_id"`
-	TemplateID             uuid.UUID           `db:"template_id" json:"template_id"`
-	Deleted                bool                `db:"deleted" json:"deleted"`
-	Name                   string              `db:"name" json:"name"`
-	AutostartSchedule      sql.NullString      `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                    sql.NullInt64       `db:"ttl" json:"ttl"`
-	LastUsedAt             time.Time           `db:"last_used_at" json:"last_used_at"`
-	DormantAt              sql.NullTime        `db:"dormant_at" json:"dormant_at"`
-	DeletingAt             sql.NullTime        `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates       AutomaticUpdates    `db:"automatic_updates" json:"automatic_updates"`
-	Favorite               bool                `db:"favorite" json:"favorite"`
-	TemplateName           string              `db:"template_name" json:"template_name"`
-	TemplateVersionID      uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName    sql.NullString      `db:"template_version_name" json:"template_version_name"`
-	Username               string              `db:"username" json:"username"`
-	LatestBuildCompletedAt sql.NullTime        `db:"latest_build_completed_at" json:"latest_build_completed_at"`
-	LatestBuildCanceledAt  sql.NullTime        `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
-	LatestBuildError       sql.NullString      `db:"latest_build_error" json:"latest_build_error"`
-	LatestBuildTransition  WorkspaceTransition `db:"latest_build_transition" json:"latest_build_transition"`
-	Count                  int64               `db:"count" json:"count"`
+	ID                     uuid.UUID            `db:"id" json:"id"`
+	CreatedAt              time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time            `db:"updated_at" json:"updated_at"`
+	OwnerID                uuid.UUID            `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID            `db:"organization_id" json:"organization_id"`
+	TemplateID             uuid.UUID            `db:"template_id" json:"template_id"`
+	Deleted                bool                 `db:"deleted" json:"deleted"`
+	Name                   string               `db:"name" json:"name"`
+	AutostartSchedule      sql.NullString       `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                    sql.NullInt64        `db:"ttl" json:"ttl"`
+	LastUsedAt             time.Time            `db:"last_used_at" json:"last_used_at"`
+	DormantAt              sql.NullTime         `db:"dormant_at" json:"dormant_at"`
+	DeletingAt             sql.NullTime         `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates       AutomaticUpdates     `db:"automatic_updates" json:"automatic_updates"`
+	Favorite               bool                 `db:"favorite" json:"favorite"`
+	TemplateName           string               `db:"template_name" json:"template_name"`
+	TemplateVersionID      uuid.UUID            `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName    sql.NullString       `db:"template_version_name" json:"template_version_name"`
+	Username               string               `db:"username" json:"username"`
+	LatestBuildCompletedAt sql.NullTime         `db:"latest_build_completed_at" json:"latest_build_completed_at"`
+	LatestBuildCanceledAt  sql.NullTime         `db:"latest_build_canceled_at" json:"latest_build_canceled_at"`
+	LatestBuildError       sql.NullString       `db:"latest_build_error" json:"latest_build_error"`
+	LatestBuildTransition  WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
+	LatestBuildStatus      ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	Count                  int64                `db:"count" json:"count"`
 }
 
+// build_params is used to filter by build parameters if present.
+// It has to be a CTE because the set returning function 'unnest' cannot
+// be used in a WHERE clause.
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
+		pq.Array(arg.ParamNames),
+		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
@@ -12230,6 +12688,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildCanceledAt,
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
+			&i.LatestBuildStatus,
 			&i.Count,
 		); err != nil {
 			return nil, err

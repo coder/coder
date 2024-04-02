@@ -642,7 +642,7 @@ update-golden-files: \
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
-	go test ./cli -run="Test(CommandHelp|ServerYAML)" -update
+	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples)" -update
 	touch "$@"
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
@@ -783,6 +783,7 @@ test-postgres: test-postgres-docker
 		-count=1
 .PHONY: test-postgres
 
+# NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	docker rm -f test-postgres-docker || true
 	docker run \
@@ -795,6 +796,7 @@ test-postgres-docker:
 		--name test-postgres-docker \
 		--restart no \
 		--detach \
+		--memory 16GB \
 		gcr.io/coder-dev-1/postgres:13 \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \

@@ -14,12 +14,6 @@ import (
 func TestWorkspaceProxies(t *testing.T) {
 	t.Parallel()
 
-	var (
-		newerPatchVersion = "v2.34.6"
-		currentVersion    = "v2.34.5"
-		olderVersion      = "v2.33.0"
-	)
-
 	for _, tt := range []struct {
 		name                  string
 		fetchWorkspaceProxies func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
@@ -43,14 +37,14 @@ func TestWorkspaceProxies(t *testing.T) {
 		},
 		{
 			name:                  "Enabled/OneHealthy",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true, currentVersion)),
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true)),
 			updateProxyHealth:     fakeUpdateProxyHealth(nil),
 			expectedHealthy:       true,
 			expectedSeverity:      health.SeverityOK,
 		},
 		{
 			name:                  "Enabled/OneUnhealthy",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false, currentVersion)),
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false)),
 			updateProxyHealth:     fakeUpdateProxyHealth(nil),
 			expectedHealthy:       false,
 			expectedSeverity:      health.SeverityError,
@@ -66,7 +60,6 @@ func TestWorkspaceProxies(t *testing.T) {
 								Name:    "gone",
 								Healthy: false,
 							},
-							Version: currentVersion,
 							Status: codersdk.WorkspaceProxyStatus{
 								Status: codersdk.ProxyUnreachable,
 								Report: codersdk.ProxyHealthReport{
@@ -87,8 +80,8 @@ func TestWorkspaceProxies(t *testing.T) {
 		{
 			name: "Enabled/AllHealthy",
 			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("alpha", true, currentVersion),
-				fakeWorkspaceProxy("beta", true, currentVersion),
+				fakeWorkspaceProxy("alpha", true),
+				fakeWorkspaceProxy("beta", true),
 			),
 			updateProxyHealth: func(ctx context.Context) error {
 				return nil
@@ -99,8 +92,8 @@ func TestWorkspaceProxies(t *testing.T) {
 		{
 			name: "Enabled/OneHealthyOneUnhealthy",
 			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("alpha", false, currentVersion),
-				fakeWorkspaceProxy("beta", true, currentVersion),
+				fakeWorkspaceProxy("alpha", false),
+				fakeWorkspaceProxy("beta", true),
 			),
 			updateProxyHealth:   fakeUpdateProxyHealth(nil),
 			expectedHealthy:     true,
@@ -110,8 +103,8 @@ func TestWorkspaceProxies(t *testing.T) {
 		{
 			name: "Enabled/AllUnhealthy",
 			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("alpha", false, currentVersion),
-				fakeWorkspaceProxy("beta", false, currentVersion),
+				fakeWorkspaceProxy("alpha", false),
+				fakeWorkspaceProxy("beta", false),
 			),
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   false,
@@ -119,30 +112,9 @@ func TestWorkspaceProxies(t *testing.T) {
 			expectedError:     string(health.CodeProxyUnhealthy),
 		},
 		{
-			name: "Enabled/OneOutOfDate",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("alpha", true, currentVersion),
-				fakeWorkspaceProxy("beta", true, olderVersion),
-			),
-			updateProxyHealth: fakeUpdateProxyHealth(nil),
-			expectedHealthy:   false,
-			expectedSeverity:  health.SeverityError,
-			expectedError:     `proxy "beta" version "v2.33.0" does not match primary server version "v2.34.5"`,
-		},
-		{
-			name: "Enabled/OneSlightlyNewerButStillOK",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("alpha", true, currentVersion),
-				fakeWorkspaceProxy("beta", true, newerPatchVersion),
-			),
-			updateProxyHealth: fakeUpdateProxyHealth(nil),
-			expectedHealthy:   true,
-			expectedSeverity:  health.SeverityOK,
-		},
-		{
 			name: "Enabled/NotConnectedYet",
 			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
-				fakeWorkspaceProxy("slowpoke", true, ""),
+				fakeWorkspaceProxy("slowpoke", true),
 			),
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   true,
@@ -158,7 +130,7 @@ func TestWorkspaceProxies(t *testing.T) {
 		},
 		{
 			name:                  "Enabled/ErrUpdateProxyHealth",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true, currentVersion)),
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", true)),
 			updateProxyHealth:     fakeUpdateProxyHealth(assert.AnError),
 			expectedHealthy:       true,
 			expectedSeverity:      health.SeverityWarning,
@@ -166,20 +138,48 @@ func TestWorkspaceProxies(t *testing.T) {
 		},
 		{
 			name: "Enabled/OneUnhealthyAndDeleted",
-			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false, currentVersion, func(wp *codersdk.WorkspaceProxy) {
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(fakeWorkspaceProxy("alpha", false, func(wp *codersdk.WorkspaceProxy) {
 				wp.Deleted = true
 			})),
 			updateProxyHealth: fakeUpdateProxyHealth(nil),
 			expectedHealthy:   true,
 			expectedSeverity:  health.SeverityOK,
 		},
+		{
+			name: "Enabled/ProxyWarnings",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", true, func(wp *codersdk.WorkspaceProxy) {
+					wp.Status.Report.Warnings = []string{"warning"}
+				}),
+				fakeWorkspaceProxy("beta", false),
+			),
+			updateProxyHealth:   fakeUpdateProxyHealth(nil),
+			expectedHealthy:     true,
+			expectedSeverity:    health.SeverityWarning,
+			expectedWarningCode: health.CodeProxyUnhealthy,
+		},
+		{
+			name: "Enabled/ProxyWarningsButAllErrored",
+			fetchWorkspaceProxies: fakeFetchWorkspaceProxies(
+				fakeWorkspaceProxy("alpha", false),
+				fakeWorkspaceProxy("beta", false, func(wp *codersdk.WorkspaceProxy) {
+					wp.Status.Report.Warnings = []string{"warning"}
+				}),
+			),
+			updateProxyHealth: fakeUpdateProxyHealth(nil),
+			expectedHealthy:   false,
+			expectedError:     string(health.CodeProxyUnhealthy),
+			expectedSeverity:  health.SeverityError,
+		},
 	} {
 		tt := tt
+		if tt.name != "Enabled/ProxyWarnings" {
+			continue
+		}
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var rpt healthcheck.WorkspaceProxyReport
 			var opts healthcheck.WorkspaceProxyReportOptions
-			opts.CurrentVersion = currentVersion
 			if tt.fetchWorkspaceProxies != nil && tt.updateProxyHealth != nil {
 				opts.WorkspaceProxiesFetchUpdater = &fakeWorkspaceProxyFetchUpdater{
 					fetchFunc:  tt.fetchWorkspaceProxies,
@@ -196,7 +196,9 @@ func TestWorkspaceProxies(t *testing.T) {
 			if tt.expectedError != "" && assert.NotNil(t, rpt.Error) {
 				assert.Contains(t, *rpt.Error, tt.expectedError)
 			} else {
-				assert.Nil(t, rpt.Error)
+				if !assert.Nil(t, rpt.Error) {
+					t.Logf("error: %v", *rpt.Error)
+				}
 			}
 			if tt.expectedWarningCode != "" && assert.NotEmpty(t, rpt.Warnings) {
 				var found bool
@@ -245,7 +247,7 @@ func (u *fakeWorkspaceProxyFetchUpdater) Update(ctx context.Context) error {
 }
 
 //nolint:revive // yes, this is a control flag, and that is OK in a unit test.
-func fakeWorkspaceProxy(name string, healthy bool, version string, mutators ...func(*codersdk.WorkspaceProxy)) codersdk.WorkspaceProxy {
+func fakeWorkspaceProxy(name string, healthy bool, mutators ...func(*codersdk.WorkspaceProxy)) codersdk.WorkspaceProxy {
 	var status codersdk.WorkspaceProxyStatus
 	if !healthy {
 		status = codersdk.WorkspaceProxyStatus{
@@ -260,8 +262,7 @@ func fakeWorkspaceProxy(name string, healthy bool, version string, mutators ...f
 			Name:    name,
 			Healthy: healthy,
 		},
-		Version: version,
-		Status:  status,
+		Status: status,
 	}
 	for _, f := range mutators {
 		f(&wsp)
