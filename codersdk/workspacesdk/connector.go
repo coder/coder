@@ -78,7 +78,8 @@ func runTailnetAPIConnector(
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 	}
-	conn.SetTunnelDestination(agentID)
+	// TODO: reenable in upstack pr
+	// conn.SetTunnelDestination(agentID)
 	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
 	go tac.manageGracefulTimeout()
 	go tac.run()

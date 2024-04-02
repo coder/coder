@@ -203,8 +203,6 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
-		// TODO: enable in upstack PR
-		// ShouldWaitForHandshake: true,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
