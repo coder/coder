@@ -151,6 +151,12 @@ func (s *tunnelStore) findTunnelPeers(id uuid.UUID) []uuid.UUID {
 	return out
 }
 
+func (s *tunnelStore) tunnelExists(src, dst uuid.UUID) bool {
+	_, srcOK := s.bySrc[src][dst]
+	_, dstOK := s.byDst[src][dst]
+	return srcOK || dstOK
+}
+
 func (s *tunnelStore) htmlDebug() []HTMLTunnel {
 	out := make([]HTMLTunnel, 0)
 	for src, dsts := range s.bySrc {

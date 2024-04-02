@@ -422,8 +422,28 @@ func TestCoordinator(t *testing.T) {
 		clientID := uuid.New()
 		agentID := uuid.New()
 
-		aReq, _ := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
-		_, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		cReq, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+
+		{
+			nk, err := key.NewNode().Public().MarshalBinary()
+			require.NoError(t, err)
+			dk, err := key.NewDisco().Public().MarshalText()
+			require.NoError(t, err)
+			cReq <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
+				Node: &proto.Node{
+					Id:    3,
+					Key:   nk,
+					Disco: string(dk),
+				},
+			}}
+		}
+
+		cReq <- &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{
+			Id: agentID[:],
+		}}
+
+		testutil.RequireRecvCtx(ctx, t, aRes)
 
 		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
 			Id: clientID[:],
@@ -433,6 +453,44 @@ func TestCoordinator(t *testing.T) {
 		require.Len(t, ack.PeerUpdates, 1)
 		require.Equal(t, proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE, ack.PeerUpdates[0].Kind)
 		require.Equal(t, agentID[:], ack.PeerUpdates[0].Id)
+	})
+
+	t.Run("AgentAck_NoPermission", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clientID := uuid.New()
+		agentID := uuid.New()
+
+		aReq, _ := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		_, _ = coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+
+		nk, err := key.NewNode().Public().MarshalBinary()
+		require.NoError(t, err)
+		dk, err := key.NewDisco().Public().MarshalText()
+		require.NoError(t, err)
+		aReq <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
+			Node: &proto.Node{
+				Id:    3,
+				Key:   nk,
+				Disco: string(dk),
+			},
+		}}
+
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agentID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
+			Id: clientID[:],
+		}}}
+
+		// The agent node should disappear, indicating it was booted off.
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agentID) == nil
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 

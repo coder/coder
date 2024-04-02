@@ -711,6 +711,10 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
 		}
 
+		if !c.tunnels.tunnelExists(src.id, dstID) {
+			return xerrors.Errorf("tunnel does not exist between %s and %s", src.id.String(), dstID.String())
+		}
+
 		dst, ok := c.peers[dstID]
 		if ok {
 			select {
