@@ -2211,6 +2211,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9045,6 +9046,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateWorkspaceRequest": {
+            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.",
             "type": "object",
             "required": [
                 "name"
