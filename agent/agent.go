@@ -1643,9 +1643,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		return nil, xerrors.Errorf("list: %w", err)
 	}
 
-	var (
-		modProcs = []*agentproc.Process{}
-	)
+	modProcs := []*agentproc.Process{}
 
 	for _, proc := range procs {
 		containsFn := func(e string) bool {
