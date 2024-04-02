@@ -56,11 +56,10 @@ type phased struct {
 
 type configMaps struct {
 	phased
-	netmapDirty           bool
-	derpMapDirty          bool
-	filterDirty           bool
-	closing               bool
-	waitReadyForHandshake bool
+	netmapDirty  bool
+	derpMapDirty bool
+	filterDirty  bool
+	closing      bool
 
 	engine         engineConfigurable
 	static         netmap.NetworkMap
@@ -218,8 +217,9 @@ func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	out := make([]*tailcfg.Node, 0, len(c.peers))
 	for _, p := range c.peers {
 		// Don't add nodes that we havent received a READY_FOR_HANDSHAKE for
-		// yet, if we want to wait for them.
-		if !p.readyForHandshake && c.waitReadyForHandshake {
+		// yet, if they're a destination. If we received a READY_FOR_HANDSHAKE
+		// for a peer before we receive their node, the node will be nil.
+		if (!p.readyForHandshake && p.isDestination) || p.node == nil {
 			continue
 		}
 		n := p.node.Clone()
@@ -231,10 +231,17 @@ func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	return out
 }
 
-func (c *configMaps) setWaitForHandshake(wait bool) {
+func (c *configMaps) setTunnelDestinaion(id uuid.UUID) {
 	c.L.Lock()
 	defer c.L.Unlock()
-	c.waitReadyForHandshake = wait
+	lc, ok := c.peers[id]
+	if !ok {
+		lc = &peerLifecycle{
+			peerID: id,
+		}
+		c.peers[id] = lc
+	}
+	lc.isDestination = true
 }
 
 // setAddresses sets the addresses belonging to this node to the given slice. It
@@ -343,8 +350,10 @@ func (c *configMaps) updatePeers(updates []*proto.CoordinateResponse_PeerUpdate)
 	// worry about them being up-to-date when handling updates below, and it covers
 	// all peers, not just the ones we got updates about.
 	for _, lc := range c.peers {
-		if peerStatus, ok := status.Peer[lc.node.Key]; ok {
-			lc.lastHandshake = peerStatus.LastHandshake
+		if lc.node != nil {
+			if peerStatus, ok := status.Peer[lc.node.Key]; ok {
+				lc.lastHandshake = peerStatus.LastHandshake
+			}
 		}
 	}
 
@@ -399,7 +408,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		// SSH connections don't send packets while idle, so we use keep alives
 		// to avoid random hangs while we set up the connection again after
 		// inactivity.
-		node.KeepAlive = (statusOk && peerStatus.Active) || (peerOk && lc.node.KeepAlive)
+		node.KeepAlive = (statusOk && peerStatus.Active) || (peerOk && lc.node != nil && lc.node.KeepAlive)
 	}
 	switch {
 	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
@@ -409,17 +418,14 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lastHandshake = ps.LastHandshake
 		}
 		lc = &peerLifecycle{
-			peerID:            id,
-			node:              node,
-			lastHandshake:     lastHandshake,
-			lost:              false,
-			readyForHandshake: !c.waitReadyForHandshake,
-		}
-		if c.waitReadyForHandshake {
-			lc.readyForHandshakeTimer = c.clock.AfterFunc(5*time.Second, func() {
-				logger.Debug(context.Background(), "ready for handshake timeout")
-				c.peerReadyForHandshakeTimeout(id)
-			})
+			peerID:        id,
+			node:          node,
+			lastHandshake: lastHandshake,
+			lost:          false,
+			// If we're receiving a NODE update for a peer we don't already have
+			// a lifecycle for, it's likely the source of a tunnel. We don't
+			// need to wait for a READY_FOR_HANDSHAKE.
+			readyForHandshake: true,
 		}
 		c.peers[id] = lc
 		logger.Debug(context.Background(), "adding new peer")
@@ -428,27 +434,50 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		return lc.readyForHandshake
 	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
 		// update
-		node.Created = lc.node.Created
+		if lc.node != nil {
+			node.Created = lc.node.Created
+		}
 		dirty = !lc.node.Equal(node) && lc.readyForHandshake
 		lc.node = node
 		lc.lost = false
 		lc.resetTimer()
+		if lc.isDestination {
+			if !lc.readyForHandshake {
+				lc.setReadyForHandshakeTimer(c)
+			} else {
+				lc.node.KeepAlive = true
+			}
+		}
 		logger.Debug(context.Background(), "node update to existing peer", slog.F("dirty", dirty))
 		return dirty
 	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
-		wasReady := lc.readyForHandshake
+		dirty := !lc.readyForHandshake
 		lc.readyForHandshake = true
 		if lc.readyForHandshakeTimer != nil {
 			lc.readyForHandshakeTimer.Stop()
 			lc.readyForHandshakeTimer = nil
 		}
-		lc.node.KeepAlive = true
+		if lc.node != nil {
+			dirty = dirty || !lc.node.KeepAlive
+			lc.node.KeepAlive = true
+		}
 		logger.Debug(context.Background(), "peer ready for handshake")
-		return !wasReady
+		// only force a reconfig if the node populated
+		return dirty && lc.node != nil
 	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
-		// TODO: should we keep track of ready for handshake messages we get
-		// from unknown nodes?
+		// When we receive a READY_FOR_HANDSHAKE for a peer we don't know about,
+		// we create a peerLifecycle with the peerID and set readyForHandshake
+		// to true. Eventually we should receive a NODE update for this peer,
+		// and it'll be programmed into wireguard.
 		logger.Debug(context.Background(), "got peer ready for handshake for unknown peer")
+		lc = &peerLifecycle{
+			peerID:            id,
+			lost:              true,
+			readyForHandshake: true,
+		}
+		// Timeout the peer in case we never receive a NODE update for it.
+		lc.setLostTimer(c)
+		c.peers[id] = lc
 		return false
 	case !peerOk:
 		// disconnected or lost, but we don't have the node. No op
@@ -606,32 +635,47 @@ func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {
 }
 
 type peerLifecycle struct {
-	peerID                 uuid.UUID
+	peerID uuid.UUID
+	// isDestination specifies if the peer is a destination, meaning we
+	// initiated a tunnel to the peer. When the peer is a destination, we do not
+	// respond to node updates with READY_FOR_HANDSHAKEs, and we wait to program
+	// the peer into wireguard until we receive a READY_FOR_HANDSHAKE from the
+	// peer or the timeout is reached.
+	isDestination bool
+	// node is the tailcfg.Node for the peer. It may be nil until we receive a
+	// NODE update for it.
 	node                   *tailcfg.Node
 	lost                   bool
 	lastHandshake          time.Time
-	timer                  *clock.Timer
+	lostTimer              *clock.Timer
 	readyForHandshake      bool
 	readyForHandshakeTimer *clock.Timer
 }
 
 func (l *peerLifecycle) resetTimer() {
-	if l.timer != nil {
-		l.timer.Stop()
-		l.timer = nil
+	if l.lostTimer != nil {
+		l.lostTimer.Stop()
+		l.lostTimer = nil
 	}
 }
 
 func (l *peerLifecycle) setLostTimer(c *configMaps) {
-	if l.timer != nil {
-		l.timer.Stop()
+	if l.lostTimer != nil {
+		l.lostTimer.Stop()
 	}
 	ttl := lostTimeout - c.clock.Since(l.lastHandshake)
 	if ttl <= 0 {
 		ttl = time.Nanosecond
 	}
-	l.timer = c.clock.AfterFunc(ttl, func() {
+	l.lostTimer = c.clock.AfterFunc(ttl, func() {
 		c.peerLostTimeout(l.peerID)
+	})
+}
+
+func (l *peerLifecycle) setReadyForHandshakeTimer(c *configMaps) {
+	l.readyForHandshakeTimer = c.clock.AfterFunc(5*time.Second, func() {
+		c.logger.Debug(context.Background(), "ready for handshake timeout", slog.F("peer_id", l.peerID))
+		c.peerReadyForHandshakeTimeout(l.peerID)
 	})
 }
 

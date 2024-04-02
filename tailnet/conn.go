@@ -87,8 +87,8 @@ type Options struct {
 	// connections, rather than trying `Upgrade: derp` first and potentially
 	// falling back. This is useful for misbehaving proxies that prevent
 	// fallback due to odd behavior, like Azure App Proxy.
-	DERPForceWebSockets    bool
-	ShouldWaitForHandshake bool
+	DERPForceWebSockets         bool
+	ShouldWaitReadyForHandshake bool
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
@@ -216,7 +216,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodePrivateKey,
 		magicConn.DiscoPublicKey(),
 	)
-	cfgMaps.setWaitForHandshake(options.ShouldWaitForHandshake)
 	cfgMaps.setAddresses(options.Addresses)
 	if options.DERPMap != nil {
 		cfgMaps.setDERPMap(options.DERPMap)
@@ -310,6 +309,10 @@ type Conn struct {
 	listeners        map[listenKey]*listener
 
 	trafficStats *connstats.Statistics
+}
+
+func (c *Conn) SetTunnelDestination(id uuid.UUID) {
+	c.configMaps.setTunnelDestinaion(id)
 }
 
 func (c *Conn) GetBlockEndpoints() bool {
