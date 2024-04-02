@@ -2264,10 +2264,6 @@ func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID)
 	return groups, nil
 }
 
-func (q *FakeQuerier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
-	panic("not implemented")
-}
-
 func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

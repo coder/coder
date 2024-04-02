@@ -1145,10 +1145,6 @@ func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID 
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
-func (q *querier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
-	panic("not implemented")
-}
-
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetHealthSettings(ctx)
