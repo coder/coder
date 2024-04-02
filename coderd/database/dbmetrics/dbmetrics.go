@@ -79,13 +79,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGroupsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetGroupsByUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
