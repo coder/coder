@@ -23,7 +23,7 @@ WHERE
 AND
 	users.deleted = 'false';
 
--- name: GetGroupsByUserId :many
+-- name: GetGroupsByUserID :many
 SELECT
 	groups.*
 FROM

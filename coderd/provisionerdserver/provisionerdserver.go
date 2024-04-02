@@ -467,7 +467,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
-		ownerGroups, err := s.Database.GetGroupsByUserId(ctx, owner.ID)
+		ownerGroups, err := s.Database.GetGroupsByUserID(ctx, owner.ID)
 		ownerGroupNames := make([]string, 0, len(ownerGroups))
 		for _, group := range ownerGroups {
 			ownerGroupNames = append(ownerGroupNames, group.Name)

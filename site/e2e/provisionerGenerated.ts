@@ -230,7 +230,7 @@ export interface Metadata {
   workspaceOwnerSessionToken: string;
   templateId: string;
   workspaceOwnerName: string;
-  workspaceOwnerGroups: string;
+  workspaceOwnerGroups: string[];
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -833,8 +833,8 @@ export const Metadata = {
     if (message.workspaceOwnerName !== "") {
       writer.uint32(106).string(message.workspaceOwnerName);
     }
-    if (message.workspaceOwnerGroups !== "") {
-      writer.uint32(114).string(message.workspaceOwnerGroups);
+    for (const v of message.workspaceOwnerGroups) {
+      writer.uint32(114).string(v!);
     }
     return writer;
   },

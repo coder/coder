@@ -2264,7 +2264,7 @@ func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID)
 	return groups, nil
 }
 
-func (q *FakeQuerier) GetGroupsByUserId(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
 	panic("not implemented")
 }
 

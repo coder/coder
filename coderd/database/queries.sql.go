@@ -1353,7 +1353,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 	return items, nil
 }
 
-const getGroupsByUserId = `-- name: GetGroupsByUserId :many
+const getGroupsByUserId = `-- name: GetGroupsByUserID :many
 SELECT
 	groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
 FROM
@@ -1366,7 +1366,7 @@ WHERE
 	group_members.user_id = $1
 `
 
-func (q *sqlQuerier) GetGroupsByUserId(ctx context.Context, userID uuid.UUID) ([]Group, error) {
+func (q *sqlQuerier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]Group, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupsByUserId, userID)
 	if err != nil {
 		return nil, err
@@ -2932,7 +2932,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -2941,7 +2941,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6

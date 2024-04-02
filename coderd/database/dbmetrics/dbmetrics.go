@@ -566,10 +566,10 @@ func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	return groups, err
 }
 
-func (m metricsStore) GetGroupsByUserId(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
+func (m metricsStore) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetGroupsByUserId(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetGroupsByUserId").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetGroupsByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetGroupsByUserID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
