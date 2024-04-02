@@ -1648,7 +1648,6 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 	)
 
 	for _, proc := range procs {
-
 		containsFn := func(e string) bool {
 			contains := strings.Contains(proc.Cmd(), e)
 			return contains
@@ -2099,9 +2098,9 @@ func isCustomOOMScore(agentScore int, process *agentproc.Process) bool {
 	return agentScore != score && score != 1000 && score != 0 && score != 998
 }
 
-// logDebouncer prevents generating a log for a particular message if
+// logDebouncer skips writing a log for a particular message if
 // it's been emitted within the given interval duration.
-// It's a shoddy implementation use in one spot that should be replaced at
+// It's a shoddy implementation used in one spot that should be replaced at
 // some point.
 type logDebouncer struct {
 	logger   slog.Logger
@@ -2120,8 +2119,7 @@ func (l *logDebouncer) Error(ctx context.Context, msg string, fields ...any) {
 func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fields ...any) {
 	// This (bad) implementation assumes you wouldn't reuse the same msg
 	// for different levels.
-	last, ok := l.messages[msg]
-	if ok && time.Since(last) < l.interval {
+	if last, ok := l.messages[msg]; ok && time.Since(last) < l.interval {
 		return
 	}
 	switch level {
