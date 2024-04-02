@@ -11081,13 +11081,13 @@ const docTemplate = `{
         "codersdk.SessionLifetime": {
             "type": "object",
             "properties": {
-                "disable_session_expiry_refresh": {
-                    "description": "DisableSessionExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
-                    "type": "boolean"
-                },
-                "max_session_expiry": {
+                "default_duration": {
                     "description": "DefaultDuration is for api keys, not tokens.",
                     "type": "integer"
+                },
+                "disable_expiry_refresh": {
+                    "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
+                    "type": "boolean"
                 },
                 "max_token_lifetime": {
                     "type": "integer"

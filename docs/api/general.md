@@ -339,8 +339,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "scim_api_key": "string",
     "secure_auth_cookie": true,
     "session_lifetime": {
-      "disable_session_expiry_refresh": true,
-      "max_session_expiry": 0,
+      "default_duration": 0,
+      "disable_expiry_refresh": true,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",

@@ -2064,8 +2064,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scim_api_key": "string",
     "secure_auth_cookie": true,
     "session_lifetime": {
-      "disable_session_expiry_refresh": true,
-      "max_session_expiry": 0,
+      "default_duration": 0,
+      "disable_expiry_refresh": true,
       "max_token_lifetime": 0
     },
     "ssh_keygen_algorithm": "string",
@@ -2436,8 +2436,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "scim_api_key": "string",
   "secure_auth_cookie": true,
   "session_lifetime": {
-    "disable_session_expiry_refresh": true,
-    "max_session_expiry": 0,
+    "default_duration": 0,
+    "disable_expiry_refresh": true,
     "max_token_lifetime": 0
   },
   "ssh_keygen_algorithm": "string",
@@ -4300,19 +4300,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "disable_session_expiry_refresh": true,
-  "max_session_expiry": 0,
+  "default_duration": 0,
+  "disable_expiry_refresh": true,
   "max_token_lifetime": 0
 }
 ```
 
 ### Properties
 
-| Name                             | Type    | Required | Restrictions | Description                                                                                                                                                                                |
-| -------------------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `disable_session_expiry_refresh` | boolean | false    |              | Disable session expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
-| `max_session_expiry`             | integer | false    |              | Max session expiry is for api keys, not tokens.                                                                                                                                            |
-| `max_token_lifetime`             | integer | false    |              |                                                                                                                                                                                            |
+| Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
+| ------------------------ | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default_duration`       | integer | false    |              | Default duration is for api keys, not tokens.                                                                                                                                      |
+| `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
+| `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
 
 ## codersdk.SupportConfig
 

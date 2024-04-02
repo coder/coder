@@ -998,8 +998,8 @@ export interface SessionCountDeploymentStats {
 
 // From codersdk/deployment.go
 export interface SessionLifetime {
-  readonly disable_session_expiry_refresh?: boolean;
-  readonly max_session_expiry: number;
+  readonly disable_expiry_refresh?: boolean;
+  readonly default_duration: number;
   readonly max_token_lifetime?: number;
 }
 
