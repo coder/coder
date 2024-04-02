@@ -1581,15 +1581,28 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 	oomScore := unsetOOMScore
 	if scoreStr, ok := a.environmentVariables[EnvProcOOMScore]; ok {
 		score, err := strconv.Atoi(strings.TrimSpace(scoreStr))
-		if err == nil {
+		if err == nil && score >= -1000 && score <= 1000 {
 			oomScore = score
+		} else {
+			a.logger.Error(ctx, "invalid oom score",
+				slog.F("min_value", -1000),
+				slog.F("max_value", 1000),
+				slog.F("value", scoreStr),
+			)
 		}
 	}
 
+	debouncer := &logDebouncer{
+		logger:   a.logger,
+		messages: map[string]time.Time{},
+		interval: time.Minute,
+	}
+
 	for {
-		procs, err := a.manageProcessPriority(ctx, oomScore)
+		procs, err := a.manageProcessPriority(ctx, debouncer, oomScore)
+		// Avoid spamming the logs too often.
 		if err != nil {
-			a.logger.Error(ctx, "manage process priority",
+			debouncer.Error(ctx, "manage process priority",
 				slog.Error(err),
 			)
 		}
@@ -1605,13 +1618,16 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 	}
 }
 
+// unsetOOMScore is set to an invalid OOM score to imply an unset value.
 const unsetOOMScore = 1001
 
-func (a *agent) manageProcessPriority(ctx context.Context, oomScore int) ([]*agentproc.Process, error) {
+func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebouncer, oomScore int) ([]*agentproc.Process, error) {
 	const (
 		niceness = 10
 	)
 
+	// We fetch the agent score each time because it's possible someone updates the
+	// value after it is started.
 	agentScore, err := a.getAgentOOMScore()
 	if err != nil {
 		agentScore = unsetOOMScore
@@ -1629,14 +1645,9 @@ func (a *agent) manageProcessPriority(ctx context.Context, oomScore int) ([]*age
 
 	var (
 		modProcs = []*agentproc.Process{}
-		logger   slog.Logger
 	)
 
 	for _, proc := range procs {
-		logger = a.logger.With(
-			slog.F("cmd", proc.Cmd()),
-			slog.F("pid", proc.PID),
-		)
 
 		containsFn := func(e string) bool {
 			contains := strings.Contains(proc.Cmd(), e)
@@ -1651,7 +1662,9 @@ func (a *agent) manageProcessPriority(ctx context.Context, oomScore int) ([]*age
 
 		score, niceErr := proc.Niceness(a.syscaller)
 		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
-			logger.Warn(ctx, "unable to get proc niceness",
+			debouncer.Warn(ctx, "unable to get proc niceness",
+				slog.F("cmd", proc.Cmd()),
+				slog.F("pid", proc.PID),
 				slog.Error(niceErr),
 			)
 			continue
@@ -1662,27 +1675,31 @@ func (a *agent) manageProcessPriority(ctx context.Context, oomScore int) ([]*age
 		// Getpriority actually returns priority for the nice value
 		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
 		if score != 20 {
+			// We don't log here since it can get spammy
 			continue
 		}
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
 			if err != nil && !xerrors.Is(err, os.ErrPermission) {
-				logger.Warn(ctx, "unable to set proc niceness",
+				debouncer.Warn(ctx, "unable to set proc niceness",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
 					slog.F("niceness", niceness),
 					slog.Error(err),
 				)
 			}
 		}
 
-		// If the oom score is valid and it's not already set and isn't a custom value set by another process
-		// then it's ok to update it.
+		// If the oom score is valid and it's not already set and isn't a custom value set by another process then it's ok to update it.
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
 			if err != nil && !xerrors.Is(err, os.ErrPermission) {
-				logger.Warn(ctx, "unable to set oom_score_adj",
-					slog.F("score", "0"),
+				debouncer.Warn(ctx, "unable to set oom_score_adj",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
+					slog.F("score", oomScoreStr),
 					slog.Error(err),
 				)
 			}
@@ -2080,4 +2097,38 @@ func (a *agent) getAgentOOMScore() (int, error) {
 func isCustomOOMScore(agentScore int, process *agentproc.Process) bool {
 	score := process.OOMScoreAdj
 	return agentScore != score && score != 1000 && score != 0 && score != 998
+}
+
+// logDebouncer prevents generating a log for a particular message if
+// it's been emitted within the given interval duration.
+// It's a shoddy implementation use in one spot that should be replaced at
+// some point.
+type logDebouncer struct {
+	logger   slog.Logger
+	messages map[string]time.Time
+	interval time.Duration
+}
+
+func (l *logDebouncer) Warn(ctx context.Context, msg string, fields ...any) {
+	l.log(ctx, slog.LevelWarn, msg, fields...)
+}
+
+func (l *logDebouncer) Error(ctx context.Context, msg string, fields ...any) {
+	l.log(ctx, slog.LevelError, msg, fields...)
+}
+
+func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fields ...any) {
+	// This (bad) implementation assumes you wouldn't reuse the same msg
+	// for different levels.
+	last, ok := l.messages[msg]
+	if ok && time.Since(last) < l.interval {
+		return
+	}
+	switch level {
+	case slog.LevelWarn:
+		l.logger.Warn(ctx, msg, fields...)
+	case slog.LevelError:
+		l.logger.Error(ctx, msg, fields...)
+	}
+	l.messages[msg] = time.Now()
 }
