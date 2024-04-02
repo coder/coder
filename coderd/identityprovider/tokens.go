@@ -200,7 +200,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          dbCode.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
-		DefaultLifetime: lifetimes.DefaultSessionDuration.Value(),
+		DefaultLifetime: lifetimes.DefaultDuration.Value(),
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})
@@ -329,7 +329,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          prevKey.UserID,
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
-		DefaultLifetime: lifetimes.DefaultSessionDuration.Value(),
+		DefaultLifetime: lifetimes.DefaultDuration.Value(),
 		// For now, we allow only one token per app and user at a time.
 		TokenName: tokenName,
 	})

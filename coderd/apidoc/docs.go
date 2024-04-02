@@ -11086,7 +11086,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "max_session_expiry": {
-                    "description": "DefaultSessionDuration is for api keys, not tokens.",
+                    "description": "DefaultDuration is for api keys, not tokens.",
                     "type": "integer"
                 },
                 "max_token_lifetime": {

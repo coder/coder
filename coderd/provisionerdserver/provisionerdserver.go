@@ -1726,8 +1726,8 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
 		TokenName:       workspaceSessionTokenName(workspace),
-		DefaultLifetime: s.DeploymentValues.Sessions.DefaultSessionDuration.Value(),
-		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaxTokenLifetime.Value().Seconds()),
+		DefaultLifetime: s.DeploymentValues.Sessions.DefaultDuration.Value(),
+		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
 	if err != nil {
 		return "", xerrors.Errorf("generate API key: %w", err)

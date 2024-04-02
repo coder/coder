@@ -168,7 +168,7 @@ func TestAcquireJob(t *testing.T) {
 			// deployment config.
 			dv := &codersdk.DeploymentValues{
 				Sessions: codersdk.SessionLifetime{
-					MaxTokenLifetime: serpent.Duration(time.Hour),
+					MaximumTokenDuration: serpent.Duration(time.Hour),
 				},
 			}
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
@@ -314,8 +314,8 @@ func TestAcquireJob(t *testing.T) {
 			require.Len(t, toks, 2, "invalid api key")
 			key, err := db.GetAPIKeyByID(ctx, toks[0])
 			require.NoError(t, err)
-			require.Equal(t, int64(dv.Sessions.MaxTokenLifetime.Value().Seconds()), key.LifetimeSeconds)
-			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaxTokenLifetime.Value()), key.ExpiresAt, time.Minute)
+			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{

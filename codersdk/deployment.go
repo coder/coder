@@ -249,8 +249,8 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 // TODO: These config options were created back when coder only had api keys.
 // Today, the config is ambigously used for all of them. For example:
 // - cli based api keys ignore all settings
-// - login uses the default lifetime, not the MaxTokenLifetime
-// - Tokens use the Default & MaxTokenLifetime
+// - login uses the default lifetime, not the MaximumTokenDuration
+// - Tokens use the Default & MaximumTokenDuration
 // - ... etc ...
 // The rational behind each decision is undocumented. The naming behind these
 // config options is also confusing without any clear documentation.
@@ -258,15 +258,15 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 // 'LifetimeSeconds' and 'DefaultLifetime'. Which does not directly correlate to
 // the config options here.
 type SessionLifetime struct {
-	// DisableSessionExpiryRefresh will disable automatically refreshing api
+	// DisableExpiryRefresh will disable automatically refreshing api
 	// keys when they are used from the api. This means the api key lifetime at
 	// creation is the lifetime of the api key.
-	DisableSessionExpiryRefresh serpent.Bool `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
 
-	// DefaultSessionDuration is for api keys, not tokens.
-	DefaultSessionDuration serpent.Duration `json:"max_session_expiry" typescript:",notnull"`
+	// DefaultDuration is for api keys, not tokens.
+	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
 
-	MaxTokenLifetime serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1604,7 +1604,7 @@ when required by your organization's security policy.`,
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
 			Default:     ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
-			Value:       &c.Sessions.MaxTokenLifetime,
+			Value:       &c.Sessions.MaximumTokenDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1798,7 +1798,7 @@ when required by your organization's security policy.`,
 			Flag:        "session-duration",
 			Env:         "CODER_SESSION_DURATION",
 			Default:     (24 * time.Hour).String(),
-			Value:       &c.Sessions.DefaultSessionDuration,
+			Value:       &c.Sessions.DefaultDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1809,7 +1809,7 @@ when required by your organization's security policy.`,
 			Flag:        "disable-session-expiry-refresh",
 			Env:         "CODER_DISABLE_SESSION_EXPIRY_REFRESH",
 
-			Value: &c.Sessions.DisableSessionExpiryRefresh,
+			Value: &c.Sessions.DisableExpiryRefresh,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disableSessionExpiryRefresh",
 		},
