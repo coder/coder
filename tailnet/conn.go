@@ -312,7 +312,7 @@ type Conn struct {
 }
 
 func (c *Conn) SetTunnelDestination(id uuid.UUID) {
-	c.configMaps.setTunnelDestinaion(id)
+	c.configMaps.setTunnelDestination(id)
 }
 
 func (c *Conn) GetBlockEndpoints() bool {

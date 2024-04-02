@@ -231,7 +231,7 @@ func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	return out
 }
 
-func (c *configMaps) setTunnelDestinaion(id uuid.UUID) {
+func (c *configMaps) setTunnelDestination(id uuid.UUID) {
 	c.L.Lock()
 	defer c.L.Unlock()
 	lc, ok := c.peers[id]
@@ -542,10 +542,12 @@ func (c *configMaps) peerLostTimeout(id uuid.UUID) {
 			"timeout triggered for peer that is removed from the map")
 		return
 	}
-	if peerStatus, ok := status.Peer[lc.node.Key]; ok {
-		lc.lastHandshake = peerStatus.LastHandshake
+	if lc.node != nil {
+		if peerStatus, ok := status.Peer[lc.node.Key]; ok {
+			lc.lastHandshake = peerStatus.LastHandshake
+		}
+		logger = logger.With(slog.F("key_id", lc.node.Key.ShortString()))
 	}
-	logger = logger.With(slog.F("key_id", lc.node.Key.ShortString()))
 	if !lc.lost {
 		logger.Debug(context.Background(),
 			"timeout triggered for peer that is no longer lost")
@@ -588,7 +590,7 @@ func (c *configMaps) nodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bo
 	c.L.Lock()
 	defer c.L.Unlock()
 	for _, lc := range c.peers {
-		if lc.node.Key == publicKey {
+		if lc.node != nil && lc.node.Key == publicKey {
 			return lc.node.Addresses, true
 		}
 	}
@@ -608,12 +610,16 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	if !ok {
 		return
 	}
+
 	d.ReceivedNode = lc.node
-	ps, ok := status.Peer[lc.node.Key]
-	if !ok {
-		return
+	if lc.node != nil {
+		ps, ok := status.Peer[lc.node.Key]
+		if !ok {
+			return
+		}
+		d.LastWireguardHandshake = ps.LastHandshake
 	}
-	d.LastWireguardHandshake = ps.LastHandshake
+	return
 }
 
 func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {
@@ -638,9 +644,9 @@ type peerLifecycle struct {
 	peerID uuid.UUID
 	// isDestination specifies if the peer is a destination, meaning we
 	// initiated a tunnel to the peer. When the peer is a destination, we do not
-	// respond to node updates with READY_FOR_HANDSHAKEs, and we wait to program
-	// the peer into wireguard until we receive a READY_FOR_HANDSHAKE from the
-	// peer or the timeout is reached.
+	// respond to node updates with `READY_FOR_HANDSHAKE`s, and we wait to
+	// program the peer into wireguard until we receive a READY_FOR_HANDSHAKE
+	// from the peer or the timeout is reached.
 	isDestination bool
 	// node is the tailcfg.Node for the peer. It may be nil until we receive a
 	// NODE update for it.

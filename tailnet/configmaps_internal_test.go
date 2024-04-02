@@ -204,7 +204,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 	p1Node := newTestNode(1)
 	p1n, err := NodeToProto(p1Node)
 	require.NoError(t, err)
-	uut.setTunnelDestinaion(p1ID)
+	uut.setTunnelDestination(p1ID)
 
 	// it should not send the peer to the netmap
 	requireNeverConfigures(ctx, t, &uut.phased)
@@ -250,7 +250,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 	p1Node := newTestNode(1)
 	p1n, err := NodeToProto(p1Node)
 	require.NoError(t, err)
-	uut.setTunnelDestinaion(p1ID)
+	uut.setTunnelDestination(p1ID)
 
 	go func() {
 		<-fEng.status
@@ -323,7 +323,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	p1Node := newTestNode(1)
 	p1n, err := NodeToProto(p1Node)
 	require.NoError(t, err)
-	uut.setTunnelDestinaion(p1ID)
+	uut.setTunnelDestination(p1ID)
 
 	go func() {
 		<-fEng.status
@@ -396,7 +396,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 	p1Node := newTestNode(1)
 	p1n, err := NodeToProto(p1Node)
 	require.NoError(t, err)
-	uut.setTunnelDestinaion(p1ID)
+	uut.setTunnelDestination(p1ID)
 
 	go func() {
 		<-fEng.status
