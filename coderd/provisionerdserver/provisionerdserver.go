@@ -467,7 +467,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
-		orgGroups, err := s.Database.GetGroupsByOrganizationID(ctx, workspace.OrganizationID)
+		orgGroups, err := s.Database.GetGroupsByOrganizationID(ctx, s.OrganizationID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner groups: %s", err))
 		}

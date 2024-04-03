@@ -174,6 +174,7 @@ var (
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {rbac.ActionRead},
+					rbac.ResourceGroup.Type:        {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
