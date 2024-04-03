@@ -827,8 +827,8 @@ export async function openTerminalWindow(
   return terminal;
 }
 
-export const setupApiCalls = async (page: Page, baseURL?: string) => {
+export const setupApiCalls = async (page: Page) => {
   const token = await findSessionToken(page);
   API.setSessionToken(token);
-  API.setHost(baseURL);
+  API.setHost(`http://127.0.0.1:${coderPort}`);
 };

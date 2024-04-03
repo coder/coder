@@ -7,10 +7,10 @@ test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("remove user", async ({ page, baseURL }) => {
   try {
-    await setupApiCalls(page, baseURL);
-    console.log("GET CURRENT USER", baseURL);
+    await setupApiCalls(page);
+    console.log("GET CURRENT USER");
     const currentUser = await API.getAuthenticatedUser();
-    console.log("DONE! GET CURRENT USER", baseURL);
+    console.log("DONE! GET CURRENT USER");
     const name = randomName();
     const user = await API.createUser({
       email: `${name}@coder.com`,
@@ -39,5 +39,6 @@ test("remove user", async ({ page, baseURL }) => {
   } catch (e) {
     console.log("ERROR ON REMOVE USER");
     console.error(e);
+    throw e;
   }
 });
