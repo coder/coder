@@ -138,6 +138,7 @@ export const logout = async (): Promise<void> => {
 };
 
 export const getAuthenticatedUser = async () => {
+  console.log("AXIOS DEFAULTS:", axios.defaults.baseURL);
   const response = await axios.get<TypesGen.User>("/api/v2/users/me");
   return response.data;
 };
