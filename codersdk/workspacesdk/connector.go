@@ -27,9 +27,6 @@ import (
 type tailnetConn interface {
 	tailnet.Coordinatee
 	SetDERPMap(derpMap *tailcfg.DERPMap)
-	// SetTunnelDestination indicates to tailnet that the peer id is a
-	// destination.
-	SetTunnelDestination(id uuid.UUID)
 }
 
 // tailnetAPIConnector dials the tailnet API (v2+) and then uses the API with a tailnet.Conn to
@@ -78,8 +75,6 @@ func runTailnetAPIConnector(
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 	}
-	// TODO: reenable in upstack pr
-	// conn.SetTunnelDestination(agentID)
 	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
 	go tac.manageGracefulTimeout()
 	go tac.run()

@@ -87,8 +87,7 @@ type Options struct {
 	// connections, rather than trying `Upgrade: derp` first and potentially
 	// falling back. This is useful for misbehaving proxies that prevent
 	// fallback due to odd behavior, like Azure App Proxy.
-	DERPForceWebSockets         bool
-	ShouldWaitReadyForHandshake bool
+	DERPForceWebSockets bool
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool

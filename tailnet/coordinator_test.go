@@ -848,6 +848,7 @@ type fakeCoordinatee struct {
 	callback             func(*tailnet.Node)
 	updates              [][]*proto.CoordinateResponse_PeerUpdate
 	setAllPeersLostCalls int
+	tunnelDestinations   map[uuid.UUID]struct{}
 }
 
 func (f *fakeCoordinatee) UpdatePeers(updates []*proto.CoordinateResponse_PeerUpdate) error {
@@ -861,6 +862,16 @@ func (f *fakeCoordinatee) SetAllPeersLost() {
 	f.Lock()
 	defer f.Unlock()
 	f.setAllPeersLostCalls++
+}
+
+func (f *fakeCoordinatee) SetTunnelDestination(id uuid.UUID) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.tunnelDestinations == nil {
+		f.tunnelDestinations = map[uuid.UUID]struct{}{}
+	}
+	f.tunnelDestinations[id] = struct{}{}
 }
 
 func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {

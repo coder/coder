@@ -186,7 +186,7 @@ func (c *configMaps) close() {
 	c.L.Lock()
 	defer c.L.Unlock()
 	for _, lc := range c.peers {
-		lc.resetTimer()
+		lc.resetLostTimer()
 	}
 	c.closing = true
 	c.Broadcast()
@@ -398,17 +398,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			return false
 		}
 		logger = logger.With(slog.F("key_id", node.Key.ShortString()), slog.F("node", node))
-		peerStatus, statusOk := status.Peer[node.Key]
-		// Starting KeepAlive messages at the initialization of a connection
-		// causes a race condition. If we send the handshake before the peer has
-		// our node, we'll have to wait for 5 seconds before trying again.
-		// Ideally, the first handshake starts when the user first initiates a
-		// connection to the peer. After a successful connection we enable
-		// keep alives to persist the connection and keep it from becoming idle.
-		// SSH connections don't send packets while idle, so we use keep alives
-		// to avoid random hangs while we set up the connection again after
-		// inactivity.
-		node.KeepAlive = (statusOk && peerStatus.Active) || (peerOk && lc.node != nil && lc.node.KeepAlive)
+		node.KeepAlive = c.nodeKeepalive(lc, status, node)
 	}
 	switch {
 	case !peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
@@ -422,31 +412,27 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			node:          node,
 			lastHandshake: lastHandshake,
 			lost:          false,
-			// If we're receiving a NODE update for a peer we don't already have
-			// a lifecycle for, it's likely the source of a tunnel. We don't
-			// need to wait for a READY_FOR_HANDSHAKE.
-			readyForHandshake: true,
 		}
 		c.peers[id] = lc
 		logger.Debug(context.Background(), "adding new peer")
-		// since we just got this node, we don't know if it's ready for
-		// handshakes yet.
-		return lc.readyForHandshake
+		return lc.validForWireguard()
 	case peerOk && update.Kind == proto.CoordinateResponse_PeerUpdate_NODE:
 		// update
 		if lc.node != nil {
 			node.Created = lc.node.Created
 		}
-		dirty = !lc.node.Equal(node) && lc.readyForHandshake
+		dirty = !lc.node.Equal(node)
 		lc.node = node
+		// validForWireguard checks that the node is non-nil, so should be
+		// called after we update the node.
+		dirty = dirty && lc.validForWireguard()
 		lc.lost = false
-		lc.resetTimer()
-		if lc.isDestination {
-			if !lc.readyForHandshake {
-				lc.setReadyForHandshakeTimer(c)
-			} else {
-				lc.node.KeepAlive = true
-			}
+		lc.resetLostTimer()
+		if lc.isDestination && !lc.readyForHandshake {
+			// We received the node of a destination peer before we've received
+			// their READY_FOR_HANDSHAKE. Set a timer
+			lc.setReadyForHandshakeTimer(c)
+			logger.Debug(context.Background(), "setting ready for handshake timeout")
 		}
 		logger.Debug(context.Background(), "node update to existing peer", slog.F("dirty", dirty))
 		return dirty
@@ -455,7 +441,6 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		lc.readyForHandshake = true
 		if lc.readyForHandshakeTimer != nil {
 			lc.readyForHandshakeTimer.Stop()
-			lc.readyForHandshakeTimer = nil
 		}
 		if lc.node != nil {
 			dirty = dirty || !lc.node.KeepAlive
@@ -475,8 +460,6 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lost:              true,
 			readyForHandshake: true,
 		}
-		// Timeout the peer in case we never receive a NODE update for it.
-		lc.setLostTimer(c)
 		c.peers[id] = lc
 		return false
 	case !peerOk:
@@ -484,7 +467,7 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		logger.Debug(context.Background(), "skipping update for peer we don't recognize")
 		return false
 	case update.Kind == proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
-		lc.resetTimer()
+		lc.resetLostTimer()
 		delete(c.peers, id)
 		logger.Debug(context.Background(), "disconnected peer")
 		return true
@@ -607,37 +590,56 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 		}
 	}
 	lc, ok := c.peers[peerID]
-	if !ok {
+	if !ok || lc.node == nil {
 		return
 	}
 
 	d.ReceivedNode = lc.node
-	if lc.node != nil {
-		ps, ok := status.Peer[lc.node.Key]
-		if !ok {
-			return
-		}
-		d.LastWireguardHandshake = ps.LastHandshake
+	ps, ok := status.Peer[lc.node.Key]
+	if !ok {
+		return
 	}
-	return
+	d.LastWireguardHandshake = ps.LastHandshake
 }
 
 func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {
+	logger := c.logger.With(slog.F("peer_id", peerID))
+	logger.Debug(context.Background(), "peer ready for handshake timeout")
 	c.L.Lock()
 	defer c.L.Unlock()
 	lc, ok := c.peers[peerID]
 	if !ok {
+		logger.Debug(context.Background(),
+			"ready for handshake timeout triggered for peer that is removed from the map")
 		return
 	}
-	if lc.readyForHandshakeTimer != nil {
-		wasReady := lc.readyForHandshake
-		lc.readyForHandshakeTimer = nil
-		lc.readyForHandshake = true
-		if !wasReady {
-			c.netmapDirty = true
-			c.Broadcast()
-		}
+
+	wasReady := lc.readyForHandshake
+	lc.readyForHandshake = true
+	if !wasReady {
+		logger.Info(context.Background(), "setting peer ready for handshake after timeout")
+		c.netmapDirty = true
+		c.Broadcast()
 	}
+}
+
+func (*configMaps) nodeKeepalive(lc *peerLifecycle, status *ipnstate.Status, node *tailcfg.Node) bool {
+	// If the peer is already active, keepalives should be enabled.
+	if peerStatus, statusOk := status.Peer[node.Key]; statusOk && peerStatus.Active {
+		return true
+	}
+	// If the peer is a destination, we should only enable keepalives if we've
+	// received the READY_FOR_HANDSHAKE.
+	if lc != nil && lc.isDestination && lc.readyForHandshake {
+		return true
+	}
+	// If keepalives are already enabled on the node, keep them enabled.
+	if lc != nil && lc.node != nil && lc.node.KeepAlive {
+		return true
+	}
+
+	// If none of the above are true, keepalives should not be enabled.
+	return false
 }
 
 type peerLifecycle struct {
@@ -658,7 +660,7 @@ type peerLifecycle struct {
 	readyForHandshakeTimer *clock.Timer
 }
 
-func (l *peerLifecycle) resetTimer() {
+func (l *peerLifecycle) resetLostTimer() {
 	if l.lostTimer != nil {
 		l.lostTimer.Stop()
 		l.lostTimer = nil
@@ -678,11 +680,26 @@ func (l *peerLifecycle) setLostTimer(c *configMaps) {
 	})
 }
 
+const readyForHandshakeTimeout = 5 * time.Second
+
 func (l *peerLifecycle) setReadyForHandshakeTimer(c *configMaps) {
-	l.readyForHandshakeTimer = c.clock.AfterFunc(5*time.Second, func() {
+	if l.readyForHandshakeTimer != nil {
+		l.readyForHandshakeTimer.Stop()
+	}
+	l.readyForHandshakeTimer = c.clock.AfterFunc(readyForHandshakeTimeout, func() {
 		c.logger.Debug(context.Background(), "ready for handshake timeout", slog.F("peer_id", l.peerID))
 		c.peerReadyForHandshakeTimeout(l.peerID)
 	})
+}
+
+// validForWireguard returns true if the peer is ready to be programmed into
+// wireguard.
+func (l *peerLifecycle) validForWireguard() bool {
+	valid := l.node != nil
+	if l.isDestination {
+		return valid && l.readyForHandshake
+	}
+	return valid
 }
 
 // prefixesDifferent returns true if the two slices contain different prefixes

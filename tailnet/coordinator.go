@@ -99,6 +99,9 @@ type Coordinatee interface {
 	UpdatePeers([]*proto.CoordinateResponse_PeerUpdate) error
 	SetAllPeersLost()
 	SetNodeCallback(func(*Node))
+	// SetTunnelDestination indicates to tailnet that the peer id is a
+	// destination.
+	SetTunnelDestination(id uuid.UUID)
 }
 
 type Coordination interface {
@@ -212,6 +215,8 @@ func NewRemoteCoordination(logger slog.Logger,
 		respLoopDone: make(chan struct{}),
 	}
 	if tunnelTarget != uuid.Nil {
+		// TODO: reenable in upstack PR
+		// c.coordinatee.SetTunnelDestination(tunnelTarget)
 		c.Lock()
 		err := c.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tunnelTarget[:]}})
 		c.Unlock()
