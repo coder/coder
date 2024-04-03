@@ -2,6 +2,7 @@ package agentproctest
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -29,8 +30,9 @@ func GenerateProcess(t *testing.T, fs afero.Fs, muts ...func(*agentproc.Process)
 	cmdline := fmt.Sprintf("%s\x00%s\x00%s", arg1, arg2, arg3)
 
 	process := agentproc.Process{
-		CmdLine: cmdline,
-		PID:     int32(pid),
+		CmdLine:     cmdline,
+		PID:         int32(pid),
+		OOMScoreAdj: 0,
 	}
 
 	for _, mut := range muts {
@@ -43,6 +45,10 @@ func GenerateProcess(t *testing.T, fs afero.Fs, muts ...func(*agentproc.Process)
 	require.NoError(t, err)
 
 	err = afero.WriteFile(fs, fmt.Sprintf("%s/cmdline", process.Dir), []byte(process.CmdLine), 0o444)
+	require.NoError(t, err)
+
+	score := strconv.Itoa(process.OOMScoreAdj)
+	err = afero.WriteFile(fs, fmt.Sprintf("%s/oom_score_adj", process.Dir), []byte(score), 0o444)
 	require.NoError(t, err)
 
 	return process

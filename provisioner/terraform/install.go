@@ -19,6 +19,7 @@ var (
 	// TerraformVersion is the version of Terraform used internally
 	// when Terraform is not available on the system.
 	// NOTE: Keep this in sync with the version in scripts/Dockerfile.base.
+	// NOTE: Keep this in sync with the version in install.sh.
 	TerraformVersion = version.Must(version.NewVersion("1.6.6"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
