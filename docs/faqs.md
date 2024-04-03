@@ -31,7 +31,6 @@ If the license is in a file:
 coder licenses add -f <path/filename>
 ```
 
-
 ### I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets
 
 The primary developer use case is a local IDE connecting over SSH to a Coder
@@ -59,13 +58,11 @@ troubleshooting.
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
-
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
 [This doc](https://github.com/coder/coder/tree/main/examples/web-server/nginx#configure-nginx)
 in our repo explains in detail how to configure NGINX with Coder so that our
 Tailscale Wireguard networking functions properly.
-
 
 ### How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
@@ -85,7 +82,6 @@ of a template and configure as needed:
 ```
 
 This example will hide all built-in coder_app icons except the web terminal.
-
 
 ### I want to allow code-server to be accessible by other users in my deployment.
 
@@ -117,7 +113,6 @@ resource "coder_app" "code-server" {
 }
 ```
 
-
 ### I installed Coder and created a workspace but the icons do not load.
 
 An important concept to understand is that Coder creates workspaces which have
@@ -142,7 +137,6 @@ coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
 > Even `coder server` which creates a reverse proxy, will let you use
 > http://localhost to access Coder from a browser.
 
-
 ### I updated a template, and an existing workspace based on that template fails to start.
 
 When updating a template, be aware of potential issues with input variables. For
@@ -163,7 +157,6 @@ potentially saving the workspace from a failed status.
 coder update --always-prompt <workspace name>
 ```
 
-
 ### I'm running coder on a VM with systemd but latest release installed isn't showing up.
 
 Take, for example, a Coder deployment on a VM with a 2 shared vCPU systemd
@@ -179,7 +172,6 @@ sudo systemctl daemon-reload
 sudo systemctl restart coder.service
 ```
 
-
 ### I'm using the built-in Postgres database and forgot admin email I set up.
 
 1. Run the `coder server` command below to retrieve the `psql` connection URL
@@ -193,7 +185,6 @@ coder server postgres-builtin-url
 psql "postgres://coder@localhost:53737/coder?sslmode=disable&password=I2S...pTk"
 ```
 
-
 ### How to find out Coder's latest Terraform provider version?
 
 [Coder is on the HashiCorp's Terraform registry](https://registry.terraform.io/providers/coder/coder/latest).
@@ -202,7 +193,6 @@ Check this frequently to make sure you are on the latest version.
 Sometimes, the version may change and `resource` configurations will either
 become deprecated or new ones will be added when you get warnings or errors
 creating and pushing templates.
-
 
 ### How can I set up TLS for my deployment and not create a signed certificate?
 
@@ -228,7 +218,6 @@ coder.example.com {
   }
 }
 ```
-
 
 ### I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
 
@@ -259,7 +248,6 @@ The updated Caddyfile configuration will look like this:
 
 }
 ```
-
 
 ### Can I use local or remote Terraform Modules in Coder templates?
 
@@ -318,7 +306,6 @@ defaults to Google's STUN servers, so you can either create your STUN server in
 your network or disable and force all traffic through the control plane's DERP
 proxy.
 
-
 ### Create a randomized computer_name for an Azure VM
 
 Azure VMs have a 15 character limit for the `computer_name` which can lead to
@@ -333,7 +320,6 @@ locals {
   truncated_hash = substr(local.hashed_string, 0, 16)
 }
 ```
-
 
 ### Do you have example JetBrains Gateway templates?
 
@@ -383,7 +369,6 @@ https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.
 
-
 ### I want to run Docker for my workspaces but not install Docker Desktop.
 
 [Colima](https://github.com/abiosoft/colima) is a Docker Desktop alternative.
@@ -418,7 +403,6 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 Colima will show the path to the docker socket so we have a
 [community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
 that prompts the Coder admin to enter the docker socket as a Terraform variable.
-
 
 ### How to make a `coder_app` optional?
 
@@ -478,7 +462,6 @@ resource "coder_app" "code-server" {
 }
 ```
 
-
 ### Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
@@ -489,7 +472,6 @@ instance, Alpine is not supported at all. If so, you need to find a container
 image or supported OS for the VS Code Server. For more information on OS
 prerequisites for Linux, please look at the VSCode docs.
 https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
-
 
 ### How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
@@ -519,4 +501,3 @@ Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it
 re-authenticates to your Coder deployment so you must add the above config as a
 separate block and not add it to any existing ones.
-
