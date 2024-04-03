@@ -303,7 +303,7 @@ main() {
 		--version=*)
 			VERSION="$(parse_arg "$@")"
 			;;
-		# Support edge for backwards compatibility.
+		# Support edge for backward compatibility.
 		--mainline | --edge)
 			MAINLINE=1
 			;;
