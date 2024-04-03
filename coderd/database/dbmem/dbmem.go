@@ -4334,7 +4334,7 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
-func (q *FakeQuerier) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
+func (q *FakeQuerier) GetUserGroupNames(_ context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
