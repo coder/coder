@@ -831,4 +831,5 @@ export const setupApiCalls = async (page: Page, baseURL?: string) => {
   const token = await findSessionToken(page);
   API.setSessionToken(token);
   API.setHost(baseURL);
+  console.log("Setting up API calls", token, baseURL);
 };
