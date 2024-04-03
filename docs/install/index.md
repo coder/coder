@@ -2,7 +2,8 @@
 
 A single CLI (`coder`) is used for both the Coder server and the client.
 
-We support two release channels: mainline and stable - read the [Releases](./releases.md) page to learn more about which best suits your team.
+We support two release channels: mainline and stable - read the
+[Releases](./releases.md) page to learn more about which best suits your team.
 
 There are several ways to install Coder. For production deployments with 50+
 users, we recommend [installing on Kubernetes](./kubernetes.md). Otherwise, you
