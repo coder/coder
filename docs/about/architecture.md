@@ -194,12 +194,24 @@ Learn more about
 
 ##### Workload resources
 
-**Managed PostgreSQL**
+**HA Database**
+
+- For AWS: TODO
+- For Azure: Azure Postgres Single Server, Managed PostgreSQL
+- For GCP: TODO
+
+**Workspace proxy**
 
 TODO
 
 ##### Workload supporting resources
 
-**Microsoft Entra ID Single sign-on**
+**Load balancer**
 
-TODO
+- For Azure: Azure Load Balancer, primary endpoint
+
+**Single sign-on**
+
+- For Azure: Microsoft Entra ID
+
+**TLS certificates**
