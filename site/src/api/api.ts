@@ -78,7 +78,6 @@ export const setSessionToken = (token: string) => {
 
 export const setHost = (host?: string) => {
   axios.defaults.baseURL = host;
-  console.log("AFTER SET", axios.defaults.baseURL);
 };
 
 const CONTENT_TYPE_JSON = {
