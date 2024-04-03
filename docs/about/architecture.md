@@ -162,3 +162,35 @@ offer the fastest developer experience.
 - Session persistence (sticky sessions) can be disabled as _coderd_ instances
   are stateless.
 - WebSocket and long-lived connections must be supported.
+
+### Multi-cloud architecture
+
+By distributing Coder instances across different cloud providers, organizations
+can mitigate the risk of downtime caused by provider-specific outages or
+disruptions. Additionally, multi-cloud deployment enables organizations to
+leverage the unique features and capabilities offered by each cloud provider,
+such as region availability and pricing models.
+
+<!-- TODO Architecture Diagram -->
+
+#### Components
+
+The deployment model includes:
+
+- The `coderd` instances deployed in a single region within the same cloud
+  provider, with replicas distributed across availability zones
+- Workspace provisioners deployed in each cloud, communicating with `coderd`
+  instances.
+- Workspace proxies running in the same locations as provisioners to ensure the
+  fastest user connections to workspaces.
+
+Note: The _multi-cloud architecture_ assumes the same deployment principles as
+the _multi-region architecture_, but it selects available components depending
+on the specific cloud provider. Developers can start workspaces depending on the
+closest region and technical requirements from cloud providers
+
+<!-- Run multiple provisioners in each cloud, allowing Coder to deploy against it (zero trust). -->
+
+##### Workload resources
+
+##### Workload supporting resources
