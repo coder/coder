@@ -26,17 +26,20 @@ The remote host must have internet access.
 ${not_curl_usage-}
 Usage:
 
-  $arg0 [--dry-run] [--version X.X.X] [--edge] [--method detect] \
+  ${arg0} [--dry-run] [--mainline | --stable | --version X.X.X] [--method detect] \
         [--prefix ~/.local] [--rsh ssh] [user@host]
 
   --dry-run
       Echo the commands for the install process without running them.
 
+  --mainline
+      Install the latest mainline version (default).
+
+  --stable
+	  Install the latest stable version instead of the latest mainline version.
+
   --version X.X.X
       Install a specific version instead of the latest.
-
-  --edge
-      Install the latest edge version instead of the latest stable version.
 
   --method [detect | standalone]
       Choose the installation method. Defaults to detect.
@@ -89,15 +92,26 @@ EOF
 }
 
 echo_latest_version() {
-	if [ "${EDGE-}" ]; then
-		version="$(curl -fsSL https://api.github.com/repos/coder/coder/releases | awk 'match($0,/.*"html_url": "(.*\/releases\/tag\/.*)".*/)' | head -n 1 | awk -F '"' '{print $4}')"
-	else
+	if [ "${MAINLINE}" = 0 ]; then
 		# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c#gistcomment-2758860
 		version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
+		version="${version#https://github.com/coder/coder/releases/tag/v}"
+	else
+		# Fetch the releases from the GitHub API, sort by version number,
+		# and take the first result. Note that we're sorting by space-
+		# separated numbers and without utilizing the sort -V flag for the
+		# best compatibility.
+		version="$(
+			curl -fsSL https://api.github.com/repos/coder/coder/releases |
+				awk -F'"' '/"tag_name"/ {print $4}' |
+				tr -d v |
+				tr . ' ' |
+				sort -k1,1nr -k2,2nr -k3,3nr |
+				head -n1 |
+				tr ' ' .
+		)"
 	fi
-	version="${version#https://github.com/coder/coder/releases/tag/}"
-	version="${version#v}"
-	echo "$version"
+	echo "${version}"
 }
 
 echo_standalone_postinstall() {
@@ -224,6 +238,7 @@ EOF
 }
 
 main() {
+	MAINLINE=1
 	TERRAFORM_VERSION="1.6.6"
 
 	if [ "${TRACE-}" ]; then
@@ -236,7 +251,6 @@ main() {
 		OPTIONAL \
 		ALL_FLAGS \
 		RSH_ARGS \
-		EDGE \
 		RSH \
 		WITH_TERRAFORM \
 		CAP_NET_ADMIN
@@ -282,8 +296,12 @@ main() {
 		--version=*)
 			VERSION="$(parse_arg "$@")"
 			;;
-		--edge)
-			EDGE=1
+		# Support edge for backwards compatibility.
+		--mainline | --edge)
+			MAINLINE=1
+			;;
+		--stable)
+			MAINLINE=0
 			;;
 		--rsh)
 			RSH="$(parse_arg "$@")"
