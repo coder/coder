@@ -314,6 +314,15 @@ func (s *MethodTestSuite) TestGroup() {
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
 		check.Args(g.ID).Asserts(g, rbac.ActionRead)
 	}))
+	s.Run("GetUserGroupNames", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.GetUserGroupNamesParams{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		}).Asserts(rbac.ResourceUserObject(u.ID), rbac.ActionRead)
+	}))
+
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate)
