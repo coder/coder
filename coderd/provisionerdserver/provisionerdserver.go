@@ -467,22 +467,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
-		orgGroups, err := s.Database.GetGroupsByOrganizationID(ctx, s.OrganizationID)
+		ownerGroupNames, err := s.Database.GetUserGroupNames(ctx, database.GetUserGroupNamesParams{
+			UserID:         owner.ID,
+			OrganizationID: s.OrganizationID,
+		})
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get owner groups: %s", err))
-		}
-		ownerGroupNames := []string{}
-		for _, group := range orgGroups {
-			members, err := s.Database.GetGroupMembers(ctx, group.ID)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("get group members: %s", err))
-			}
-			for _, member := range members {
-				if member.ID == owner.ID {
-					ownerGroupNames = append(ownerGroupNames, group.Name)
-					break
-				}
-			}
+			return nil, failJob(fmt.Sprintf("get owner group names: %s", err))
 		}
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 		if err != nil {

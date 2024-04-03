@@ -1833,6 +1833,13 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 	return q.db.GetUserCount(ctx)
 }
 
+func (q *querier) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceGroup); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserGroupNames(ctx, arg)
+}
+
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplateInsights); err != nil {

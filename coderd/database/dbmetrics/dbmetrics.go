@@ -1061,6 +1061,13 @@ func (m metricsStore) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (m metricsStore) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserGroupNames(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserGroupNames").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserLatencyInsights(ctx, arg)

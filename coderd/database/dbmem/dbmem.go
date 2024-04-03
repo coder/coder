@@ -4334,6 +4334,30 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
+func (q *FakeQuerier) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var groupIds []uuid.UUID
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			groupIds = append(groupIds, member.GroupID)
+		}
+	}
+	groupNames := []string{}
+	for _, group := range q.groups {
+		if slices.Contains(groupIds, group.ID) {
+			groupNames = append(groupNames, group.Name)
+		}
+	}
+
+	return groupNames, nil
+}
+
 func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
