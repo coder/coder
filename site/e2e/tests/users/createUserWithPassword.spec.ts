@@ -18,6 +18,7 @@ test("create user with password", async ({ page, baseURL }) => {
     loginType: "password",
     password: "s3cure&password!",
   };
+
   await page.getByLabel("Username").fill(userValues.username);
   await page.getByLabel("Email").fill(userValues.email);
   await page.getByLabel("Login Type").click();
@@ -27,7 +28,8 @@ test("create user with password", async ({ page, baseURL }) => {
   const passwordField = page.locator("input[name=password]");
   await passwordField.fill(userValues.password);
   await page.getByRole("button", { name: "Create user" }).click();
-
   await expect(page.getByText("Successfully created user.")).toBeVisible();
+
+  await expect(page).toHaveTitle("Users - Coder");
   await expect(page.locator("tr", { hasText: userValues.email })).toBeVisible();
 });
