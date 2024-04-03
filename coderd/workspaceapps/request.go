@@ -291,7 +291,18 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		appURL                string
 		appSharingLevel       database.AppSharingLevel
 		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
+		protocol              = "http"
 	)
+	// If we fail to parse the port, see if it's a port with a trailing "s" for
+	// HTTPS.
+	if portUintErr != nil && strings.HasSuffix(r.AppSlugOrPort, "s") {
+		appSlugOrPort := strings.TrimRight(r.AppSlugOrPort, "s")
+		portUint, portUintErr = strconv.ParseUint(appSlugOrPort, 10, 16)
+		if portUintErr == nil {
+			protocol = "https"
+		}
+	}
+
 	if portUintErr == nil {
 		if r.AccessMethod != AccessMethodSubdomain {
 			// TODO(@deansheather): this should return a 400 instead of a 500.
@@ -312,7 +323,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		// "anonymous app". We only support HTTP for port-based URLs.
 		//
 		// This is only supported for subdomain-based applications.
-		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
+		appURL = fmt.Sprintf("%s://127.0.0.1:%d", protocol, portUint)
 		appSharingLevel = database.AppSharingLevelOwner
 
 		// Port sharing authorization
