@@ -202,7 +202,8 @@ Learn more about
 
 **Workspace proxy**
 
-<!-- Each instance has own regional token. -->
+- _Security recommendation_: Use `coder` CLI to create individual authentication
+  tokens for every workspace proxy, and keep them in regional secret stores.
 
 ##### Workload supporting resources
 
