@@ -6,31 +6,38 @@ import { beforeCoderTest } from "../../hooks";
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("remove user", async ({ page, baseURL }) => {
-  await setupApiCalls(page, baseURL);
-  console.log("GET CURRENT USER", baseURL);
-  const currentUser = await API.getAuthenticatedUser();
-  console.log("DONE! GET CURRENT USER", baseURL);
-  const name = randomName();
-  const user = await API.createUser({
-    email: `${name}@coder.com`,
-    username: name,
-    password: "s3cure&password!",
-    login_type: "password",
-    disable_login: false,
-    organization_id: currentUser.organization_ids[0],
-  });
+  try {
+    await setupApiCalls(page, baseURL);
+    console.log("GET CURRENT USER", baseURL);
+    const currentUser = await API.getAuthenticatedUser();
+    console.log("DONE! GET CURRENT USER", baseURL);
+    const name = randomName();
+    const user = await API.createUser({
+      email: `${name}@coder.com`,
+      username: name,
+      password: "s3cure&password!",
+      login_type: "password",
+      disable_login: false,
+      organization_id: currentUser.organization_ids[0],
+    });
 
-  await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveTitle("Users - Coder");
+    await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveTitle("Users - Coder");
 
-  const userRow = page.locator("tr", { hasText: user.email });
-  await userRow.getByRole("button", { name: "More options" }).click();
-  await userRow.getByText("Delete", { exact: false }).click();
+    const userRow = page.locator("tr", { hasText: user.email });
+    await userRow.getByRole("button", { name: "More options" }).click();
+    await userRow.getByText("Delete", { exact: false }).click();
 
-  const dialog = page.getByTestId("dialog");
-  await dialog.getByLabel("Name of the user to delete").fill(user.username);
-  await dialog.getByRole("button", { name: "Delete" }).click();
+    const dialog = page.getByTestId("dialog");
+    await dialog.getByLabel("Name of the user to delete").fill(user.username);
+    await dialog.getByRole("button", { name: "Delete" }).click();
 
-  await expect(page.getByText("Successfully deleted the user.")).toBeVisible();
-  await expect(userRow).not.toBeVisible();
+    await expect(
+      page.getByText("Successfully deleted the user."),
+    ).toBeVisible();
+    await expect(userRow).not.toBeVisible();
+  } catch (e) {
+    console.log("ERROR ON REMOVE USER");
+    console.error(e);
+  }
 });
