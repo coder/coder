@@ -194,24 +194,33 @@ Learn more about
 
 ##### Workload resources
 
-**HA Database**
+**Managed database**
 
-- For AWS: TODO
-- For Azure: Azure Postgres Single Server, Managed PostgreSQL
-- For GCP: TODO
+- For AWS: _Amazon RDS for PostgreSQL_
+- For Azure: _Azure Database for PostgreSQL - Flexible Server_
+- For GCP: _Cloud SQL for PostgreSQL_
 
 **Workspace proxy**
 
-TODO
+<!-- Each instance has own regional token. -->
 
 ##### Workload supporting resources
 
 **Load balancer**
 
-- For Azure: Azure Load Balancer, primary endpoint
+- For AWS: _AWS Classic Load Balancer_
+- For Azure: _Azure Load Balancer_
+- For GCP: _Cloud Load Balancing_
 
 **Single sign-on**
 
-- For Azure: Microsoft Entra ID
+- For AWS: _AWS Single Sign-On_
+- For Azure: _Microsoft Entra ID_
+- For GCP: _Google Cloud Identity Platform_
 
 **TLS certificates**
+
+TODO
+
+- Domain certificate, stored in external store
+- local HTTPs traffic between LB and coderd
