@@ -175,21 +175,19 @@ such as region availability and pricing models.
 
 #### Components
 
-The deployment model includes:
+The deployment model comprises:
 
-- The `coderd` instances deployed in a single region within the same cloud
-  provider, with replicas distributed across availability zones
+- `coderd` instances deployed within a single region of the same cloud provider,
+  with replicas strategically distributed across availability zones.
 - Workspace provisioners deployed in each cloud, communicating with `coderd`
   instances.
-- Workspace proxies running in the same locations as provisioners to ensure the
-  fastest user connections to workspaces.
+- Workspace proxies running in the same locations as provisioners to optimize
+  user connections to workspaces for maximum speed.
 
-Note: The _multi-cloud architecture_ assumes the same deployment principles as
-the _multi-region architecture_, but it selects available components depending
-on the specific cloud provider. Developers can start workspaces depending on the
-closest region and technical requirements from cloud providers
-
-<!-- Run multiple provisioners in each cloud, allowing Coder to deploy against it (zero trust). -->
+Note: The _multi-cloud architecture_ follows the deployment principles outlined
+in the _multi-region architecture_. However, it adapts component selection based
+on the specific cloud provider. Developers can initiate workspaces based on the
+nearest region and technical specifications provided by the cloud providers.
 
 ##### Workload resources
 
