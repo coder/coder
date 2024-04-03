@@ -717,7 +717,12 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 		}
 
 		if !c.tunnels.tunnelExists(src.id, dstID) {
-			return xerrors.Errorf("tunnel does not exist between %s and %s", src.id.String(), dstID.String())
+			// We intentionally do not return an error here, since it's
+			// inherently racy. It's possible for a source to connect, then
+			// subsequently disconnect before the agent has sent back the RFH.
+			// Since this could potentially happen to a non-malicious agent, we
+			// don't want to kill its connection.
+			continue
 		}
 
 		dst, ok := c.peers[dstID]
