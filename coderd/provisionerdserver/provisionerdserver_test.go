@@ -182,6 +182,15 @@ func TestAcquireJob(t *testing.T) {
 			defer cancel()
 
 			user := dbgen.User(t, db, database.User{})
+			group1 := dbgen.Group(t, db, database.Group{
+				Name:           "group1",
+				OrganizationID: pd.OrganizationID,
+			})
+			err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+				UserID:  user.ID,
+				GroupID: group1.ID,
+			})
+			require.NoError(t, err)
 			link := dbgen.UserLink(t, db, database.UserLink{
 				LoginType:        database.LoginTypeOIDC,
 				UserID:           user.ID,
@@ -340,6 +349,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerEmail:           user.Email,
 						WorkspaceOwnerName:            user.Name,
 						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
+						WorkspaceOwnerGroups:          []string{group1.Name},
 						WorkspaceId:                   workspace.ID.String(),
 						WorkspaceOwnerId:              user.ID.String(),
 						TemplateId:                    template.ID.String(),
