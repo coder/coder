@@ -189,6 +189,17 @@ in the _multi-region architecture_. However, it adapts component selection based
 on the specific cloud provider. Developers can initiate workspaces based on the
 nearest region and technical specifications provided by the cloud providers.
 
+Learn more about
+[deploying Coder on Azure Kubernetes Service](https://github.com/ericpaulsen/coder-aks).
+
 ##### Workload resources
 
+**Managed PostgreSQL**
+
+TODO
+
 ##### Workload supporting resources
+
+**Microsoft Entra ID Single sign-on**
+
+TODO
