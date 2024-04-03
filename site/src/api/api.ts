@@ -72,6 +72,14 @@ if (token !== null && token.getAttribute("content") !== null) {
   }
 }
 
+export const setSessionToken = (token: string) => {
+  axios.defaults.headers.common["Coder-Session-Token"] = token;
+};
+
+export const setHost = (host?: string) => {
+  axios.defaults.baseURL = host;
+};
+
 const CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 };
