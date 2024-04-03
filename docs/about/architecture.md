@@ -194,16 +194,24 @@ Learn more about
 
 ##### Workload resources
 
-**Managed database**
+**Workspace provisioner**
 
-- For AWS: _Amazon RDS for PostgreSQL_
-- For Azure: _Azure Database for PostgreSQL - Flexible Server_
-- For GCP: _Cloud SQL for PostgreSQL_
+- _Security recommendation_: Create a long, random pre-shared key (PSK) and add
+  it to the regional secret store, so that local _provisionerd_ can access it.
+  Remember to distribute it using safe, encrypted communication channel. The PSK
+  must be also added to the _coderd_ configuration.
 
 **Workspace proxy**
 
 - _Security recommendation_: Use `coder` CLI to create individual authentication
   tokens for every workspace proxy, and keep them in regional secret stores.
+  Remember to distribute them using safe, encrypted communication channel.
+
+**Managed database**
+
+- For AWS: _Amazon RDS for PostgreSQL_
+- For Azure: _Azure Database for PostgreSQL - Flexible Server_
+- For GCP: _Cloud SQL for PostgreSQL_
 
 ##### Workload supporting resources
 
