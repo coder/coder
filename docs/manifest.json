@@ -1101,7 +1101,7 @@
           "path": "./guides/azure-federation.md"
         },
         {
-          "title": "Scanning Coder Workspaces with Xray",
+          "title": "Scanning Coder Workspaces with JFrog Xray",
           "description": "Integrate Coder with JFrog Xray",
           "path": "./guides/xray-integration.md"
         }
