@@ -101,8 +101,7 @@ and _Coder workspaces_ deployed in the same region.
 
 **HA Database**
 
-- Enable replication across all availability zones.
-- Monitor replication lag, node status, and resource utilization metrics.
+- Monitor node status and resource utilization metrics.
 - Implement robust backup and disaster recovery strategies to protect against
   data loss.
 
