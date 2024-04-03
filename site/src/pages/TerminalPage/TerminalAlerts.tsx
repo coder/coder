@@ -1,8 +1,66 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { type FC, useState } from "react";
+import { type FC, useState, useEffect, useRef } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, type AlertProps } from "components/Alert/Alert";
 import { docs } from "utils/docs";
+import type { ConnectionStatus } from "./types";
+
+type TerminalAlertsProps = {
+  agent: WorkspaceAgent | undefined;
+  status: ConnectionStatus;
+  onAlertChange: () => void;
+};
+
+export const TerminalAlerts = ({
+  agent,
+  status,
+  onAlertChange,
+}: TerminalAlertsProps) => {
+  const lifecycleState = agent?.lifecycle_state;
+  const prevLifecycleState = useRef(lifecycleState);
+  useEffect(() => {
+    prevLifecycleState.current = lifecycleState;
+  }, [lifecycleState]);
+
+  // We want to observe the children of the wrapper to detect when the alert
+  // changes. So the terminal page can resize itself.
+  //
+  // Would it be possible to just always call fit() when this component
+  // re-renders instead of using an observer?
+  //
+  // This is a good question and the why this does not work is that the .fit()
+  // needs to run after the render so in this case, I just think the mutation
+  // observer is more reliable. I could use some hacky setTimeout inside of
+  // useEffect to do that, I guess, but I don't think it would be any better.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!wrapperRef.current) {
+      return;
+    }
+    const observer = new MutationObserver(onAlertChange);
+    observer.observe(wrapperRef.current, { childList: true });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [onAlertChange]);
+
+  return (
+    <div ref={wrapperRef}>
+      {status === "disconnected" ? (
+        <DisconnectedAlert />
+      ) : lifecycleState === "start_error" ? (
+        <ErrorScriptAlert />
+      ) : lifecycleState === "starting" ? (
+        <LoadingScriptsAlert />
+      ) : lifecycleState === "ready" &&
+        prevLifecycleState.current === "starting" ? (
+        <LoadedScriptsAlert />
+      ) : null}
+    </div>
+  );
+};
 
 export const ErrorScriptAlert: FC = () => {
   return (

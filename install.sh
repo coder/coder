@@ -224,7 +224,7 @@ EOF
 }
 
 main() {
-	TERRAFORM_VERSION="1.3.4"
+	TERRAFORM_VERSION="1.6.6"
 
 	if [ "${TRACE-}" ]; then
 		set -x

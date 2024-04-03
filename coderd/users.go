@@ -518,7 +518,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = user
 	defer commitAudit()
 
-	if auth.Actor.ID == user.ID.String() {
+	if auth.ID == user.ID.String() {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You cannot delete yourself!",
 		})

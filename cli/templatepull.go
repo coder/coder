@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/codeclysm/extract/v3"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/serpent"
 )
 
@@ -161,7 +161,7 @@ func (r *RootCmd) templatePull() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stderr, "Extracting template to %q\n", dest)
-			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
+			err = provisionersdk.Untar(dest, bytes.NewReader(raw))
 			return err
 		},
 	}

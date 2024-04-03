@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 
 	"golang.org/x/xerrors"
 
@@ -83,15 +82,12 @@ func (RootCmd) errorExample() *serpent.Command {
 				Use:   "multi-multi-error",
 				Short: "This is a multi error inside a multi error",
 				Handler: func(inv *serpent.Invocation) error {
-					// Closing the stdin file descriptor will cause the next close
-					// to fail. This is joined to the returned Command error.
-					if f, ok := inv.Stdin.(*os.File); ok {
-						_ = f.Close()
-					}
-
 					return errors.Join(
-						xerrors.Errorf("first error: %w", errorWithStackTrace()),
-						xerrors.Errorf("second error: %w", errorWithStackTrace()),
+						xerrors.Errorf("parent error: %w", errorWithStackTrace()),
+						errors.Join(
+							xerrors.Errorf("child first error: %w", errorWithStackTrace()),
+							xerrors.Errorf("child second error: %w", errorWithStackTrace()),
+						),
 					)
 				},
 			},

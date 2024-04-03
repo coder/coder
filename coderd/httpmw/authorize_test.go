@@ -127,8 +127,8 @@ func TestExtractUserRoles(t *testing.T) {
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
 				roles := httpmw.UserAuthorization(r)
-				require.Equal(t, user.ID.String(), roles.Actor.ID)
-				require.ElementsMatch(t, expRoles, roles.Actor.Roles.Names())
+				require.Equal(t, user.ID.String(), roles.ID)
+				require.ElementsMatch(t, expRoles, roles.Roles.Names())
 			})
 
 			req := httptest.NewRequest("GET", "/", nil)

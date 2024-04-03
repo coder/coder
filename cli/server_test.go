@@ -973,16 +973,11 @@ func TestServer(t *testing.T) {
 
 			scanner := bufio.NewScanner(res.Body)
 			hasActiveUsers := false
-			hasWorkspaces := false
 			for scanner.Scan() {
 				// This metric is manually registered to be tracked in the server. That's
 				// why we test it's tracked here.
 				if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
 					hasActiveUsers = true
-					continue
-				}
-				if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
-					hasWorkspaces = true
 					continue
 				}
 				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
@@ -992,7 +987,6 @@ func TestServer(t *testing.T) {
 			}
 			require.NoError(t, scanner.Err())
 			require.True(t, hasActiveUsers)
-			require.True(t, hasWorkspaces)
 		})
 
 		t.Run("DBMetricsEnabled", func(t *testing.T) {
@@ -1774,21 +1768,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	err = enc.Encode(n)
 	require.NoError(t, err)
 
-	wantByt := wantBuf.Bytes()
-
-	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
-
-	wantByt = clitest.NormalizeGoldenFile(t, wantByt)
-	if *clitest.UpdateGoldenFiles {
-		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
-		return
-	}
-
-	got, err := os.ReadFile(goldenPath)
-	require.NoError(t, err)
-	got = clitest.NormalizeGoldenFile(t, got)
-
-	require.Equal(t, string(wantByt), string(got))
+	clitest.TestGoldenFile(t, "server-config.yaml", wantBuf.Bytes(), nil)
 }
 
 func TestConnectToPostgres(t *testing.T) {

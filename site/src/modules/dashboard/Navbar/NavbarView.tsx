@@ -13,6 +13,7 @@ import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Latency } from "components/Latency/Latency";
@@ -150,7 +151,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
             <div css={styles.drawerHeader}>
               <div css={[styles.logo, styles.drawerLogo]}>
                 {logo_url ? (
-                  <img src={logo_url} alt="Custom Logo" />
+                  <ExternalImage src={logo_url} alt="Custom Logo" />
                 ) : (
                   <CoderIcon />
                 )}
@@ -167,7 +168,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
         <NavLink css={styles.logo} to="/workspaces">
           {logo_url ? (
-            <img src={logo_url} alt="Custom Logo" />
+            <ExternalImage src={logo_url} alt="Custom Logo" />
           ) : (
             <CoderIcon fill="white" opacity={1} width={125} />
           )}
