@@ -188,7 +188,7 @@ func provisionEnv(
 	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
-	ownerGroups, err := json.Marshal(metadata.WorkspaceOwnerGroups)
+	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal owner groups: %w", err)
 	}
