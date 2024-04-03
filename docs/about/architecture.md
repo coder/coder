@@ -206,21 +206,51 @@ Learn more about
 
 ##### Workload supporting resources
 
+**Kubernetes platform (optional)**
+
+- For AWS: _Amazon Elastic Kubernetes Service_
+- For Azure: _Azure Kubernetes Service_
+- For GCP: _Google Kubernetes Engine_
+
+Learn more about [security requirements](../install/kubernetes.md) for deploying
+Coder on Kubernetes.
+
 **Load balancer**
 
-- For AWS: _AWS Classic Load Balancer_
-- For Azure: _Azure Load Balancer_
-- For GCP: _Cloud Load Balancing_
+- For AWS:
+  - _AWS Network Load Balancer_
+    - Level 4 load balancing
+    - For Kubernetes deployment: annotate service with
+      `service.beta.kubernetes.io/aws-load-balancer-type: "nlb"`, preserve the
+      client source IP with `externalTrafficPolicy: Local`
+  - _AWS Classic Load Balancer_
+    - Level 7 load balancing
+    - For Kubernetes deployment: set `sessionAffinity` to `None`
+- For Azure:
+  - _Azure Load Balancer_
+    - Level 7 load balancing
+  - Azure Application Gateway
+    - Deploy Azure Application Gateway when more advanced traffic routing
+      policies are needed for Kubernetes applications.
+    - Take advantage of features such as WebSocket support and TLS termination
+      provided by Azure Application Gateway, enhancing the capabilities of
+      Kubernetes deployments on Azure.
+- For GCP:
+  - _Cloud Load Balancing_ with SSL load balancer:
+    - Layer 4 load balancing, SSL enabled
+  - _Cloud Load Balancing_ with HTTPS load balancer:
+    - Layer 7 load balancing
+    - For Kubernetes deployment: annotate service with
+      `kubernetes.io/ingress.class: "gce"`, leverage the `NodePort` service
+      type.
+    - Note: HTTP load balancer rejects DERP upgrade, Coder will fallback to
+      WebSockets
 
 **Single sign-on**
 
-- For AWS: _AWS Single Sign-On_
-- For Azure: _Microsoft Entra ID_
-- For GCP: _Google Cloud Identity Platform_
-
-**TLS certificates**
-
-TODO
-
-- Domain certificate, stored in external store
-- local HTTPs traffic between LB and coderd
+- For AWS:
+  [AWS IAM Identity Center](https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html)
+- For Azure:
+  [Microsoft Entra ID Sign-On](https://learn.microsoft.com/en-us/entra/identity/app-proxy/)
+- For GCP:
+  [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
