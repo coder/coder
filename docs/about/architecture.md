@@ -165,7 +165,7 @@ offer the fastest developer experience.
 
 ### Multi-cloud architecture
 
-By distributing Coder instances across different cloud providers, organizations
+By distributing Coder workspaces across different cloud providers, organizations
 can mitigate the risk of downtime caused by provider-specific outages or
 disruptions. Additionally, multi-cloud deployment enables organizations to
 leverage the unique features and capabilities offered by each cloud provider,
@@ -184,13 +184,14 @@ The deployment model comprises:
 - Workspace proxies running in the same locations as provisioners to optimize
   user connections to workspaces for maximum speed.
 
+Due to the relatively large overhead of cross-regional communication, it is not
+advised to set up multi-cloud control planes. It is recommended to keep coderd
+replicas and the database within the same region.
+
 Note: The _multi-cloud architecture_ follows the deployment principles outlined
 in the _multi-region architecture_. However, it adapts component selection based
 on the specific cloud provider. Developers can initiate workspaces based on the
 nearest region and technical specifications provided by the cloud providers.
-
-Learn more about
-[deploying Coder on Azure Kubernetes Service](https://github.com/ericpaulsen/coder-aks).
 
 ##### Workload resources
 
@@ -220,6 +221,9 @@ Learn more about
 - For AWS: _Amazon Elastic Kubernetes Service_
 - For Azure: _Azure Kubernetes Service_
 - For GCP: _Google Kubernetes Engine_
+
+See how to deploy
+[Coder on Azure Kubernetes Service](https://github.com/ericpaulsen/coder-aks).
 
 Learn more about [security requirements](../install/kubernetes.md) for deploying
 Coder on Kubernetes.
