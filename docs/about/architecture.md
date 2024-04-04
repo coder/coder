@@ -200,13 +200,14 @@ nearest region and technical specifications provided by the cloud providers.
 - _Security recommendation_: Create a long, random pre-shared key (PSK) and add
   it to the regional secret store, so that local _provisionerd_ can access it.
   Remember to distribute it using safe, encrypted communication channel. The PSK
-  must be also added to the _coderd_ configuration.
+  must also be added to the _coderd_ configuration.
 
 **Workspace proxy**
 
-- _Security recommendation_: Use `coder` CLI to create individual authentication
-  tokens for every workspace proxy, and keep them in regional secret stores.
-  Remember to distribute them using safe, encrypted communication channel.
+- _Security recommendation_: Use `coder` CLI to create
+  [authentication tokens for every workspace proxy](../admin/workspace-proxies.md#requirements),
+  and keep them in regional secret stores. Remember to distribute them using
+  safe, encrypted communication channel.
 
 **Managed database**
 
