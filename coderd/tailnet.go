@@ -37,6 +37,9 @@ func init() {
 	if !valid {
 		panic("dev error: default transport is the wrong type")
 	}
+	// We do not want to respect the proxy settings from the environment, since
+	// all network traffic happens over wireguard.
+	tailnetTransport.Proxy = nil
 }
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
