@@ -186,7 +186,7 @@ The deployment model comprises:
 
 Due to the relatively large overhead of cross-regional communication, it is not
 advised to set up multi-cloud control planes. It is recommended to keep coderd
-replicas and the database within the same region.
+replicas and the database within the same cloud-provider and region.
 
 Note: The _multi-cloud architecture_ follows the deployment principles outlined
 in the _multi-region architecture_. However, it adapts component selection based
