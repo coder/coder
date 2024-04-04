@@ -608,6 +608,26 @@
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
+          "title": "auth",
+          "description": "Manage information about internal authentication.",
+          "path": "cli/auth.md"
+        },
+        {
+          "title": "auth login",
+          "description": "Authenticate with Coder deployment",
+          "path": "cli/auth_login.md"
+        },
+        {
+          "title": "auth status",
+          "description": "Show user authentication status.",
+          "path": "cli/auth_status.md"
+        },
+        {
+          "title": "auth token",
+          "description": "Show session token value and expiration time.",
+          "path": "cli/auth_token.md"
+        },
+        {
           "title": "autoupdate",
           "description": "Toggle auto-update policy for a workspace",
           "path": "cli/autoupdate.md"

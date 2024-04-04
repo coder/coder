@@ -1,0 +1,9 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder auth token
+
+  Show session token value and expiration time.
+
+———
+Run `coder --help` for a list of global options.

@@ -169,7 +169,7 @@ func (c *Client) SessionToken() string {
 	return c.sessionToken
 }
 
-// SetSessionToken returns the currently set token for the client.
+// SetSessionToken sets sessionToken for the client.
 func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
