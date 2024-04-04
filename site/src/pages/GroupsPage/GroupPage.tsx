@@ -197,6 +197,7 @@ export const GroupPage: FC = () => {
           onConfirm={async () => {
             try {
               await deleteGroupMutation.mutateAsync(groupId);
+              displaySuccess("Group deleted successfully.");
               navigate("/groups");
             } catch (error) {
               displayError(getErrorMessage(error, "Failed to delete group."));
