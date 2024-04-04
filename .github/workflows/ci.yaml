@@ -463,14 +463,14 @@ jobs:
 
       # Run tests that don't require an enterprise license without an enterprise license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: !matrix.variant.enterprise
+        if: ${{ !matrix.variant.enterprise }}
         env:
           DEBUG: pw:api
         working-directory: site
 
       # Run all of the tests with an enterprise license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: matrix.variant.enterprise
+        if: ${{ matrix.variant.enterprise }}
         env:
           DEBUG: pw:api
           CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
