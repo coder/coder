@@ -12,7 +12,7 @@ test("navigate to group page", async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveTitle("Users - Coder");
 
-  await page.getByText("Groups").click();
+  await page.getByRole("link", { name: "Groups" }).click();
   await expect(page).toHaveTitle("Groups - Coder");
 
   const groupRow = page.getByRole("row", { name: group.display_name });
