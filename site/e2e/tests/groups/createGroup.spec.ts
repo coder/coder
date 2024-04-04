@@ -8,7 +8,7 @@ test("create group", async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/groups`, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveTitle("Groups - Coder");
 
-  await page.getByRole("button", { name: "Create group" }).click();
+  await page.getByText("Create group").click();
   await expect(page).toHaveTitle("Create Group - Coder");
 
   const name = randomName();
