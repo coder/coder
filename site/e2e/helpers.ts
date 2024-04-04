@@ -7,6 +7,7 @@ import capitalize from "lodash/capitalize";
 import path from "path";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
+import * as API from "api/api";
 import type {
   WorkspaceBuildParameter,
   UpdateTemplateMeta,
@@ -565,7 +566,7 @@ const createTemplateVersionTar = async (
   );
 };
 
-const randomName = () => {
+export const randomName = () => {
   return randomUUID().slice(0, 8);
 };
 
@@ -603,7 +604,7 @@ export const createServer = async (
   return e;
 };
 
-const findSessionToken = async (page: Page): Promise<string> => {
+export const findSessionToken = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies();
   const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
   if (!sessionCookie) {
@@ -825,3 +826,9 @@ export async function openTerminalWindow(
 
   return terminal;
 }
+
+export const setupApiCalls = async (page: Page) => {
+  const token = await findSessionToken(page);
+  API.setSessionToken(token);
+  API.setHost(`http://127.0.0.1:${coderPort}`);
+};
