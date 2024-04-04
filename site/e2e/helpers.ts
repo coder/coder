@@ -18,6 +18,7 @@ import {
   coderPort,
   enterpriseLicense,
   prometheusPort,
+  requireEnterpriseTests,
 } from "./constants";
 import {
   Agent,
@@ -33,6 +34,10 @@ import {
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
 export function requiresEnterpriseLicense() {
+  if (requireEnterpriseTests) {
+    return;
+  }
+
   test.skip(!enterpriseLicense);
 }
 

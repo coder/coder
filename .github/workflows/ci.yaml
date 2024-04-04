@@ -483,6 +483,7 @@ jobs:
         env:
           DEBUG: pw:api
           CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
+          CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
         working-directory: site
 
       - name: Upload Playwright Failed Tests
