@@ -435,11 +435,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        - enterprise: false
-          name: test-e2e
-        - enterprise: true
-          name: test-e2e-enterprise
-    name: ${{ matrix.name }}
+        variant:
+          - enterprise: false
+            name: test-e2e
+          - enterprise: true
+            name: test-e2e-enterprise
+    name: ${{ matrix.variant.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -462,14 +463,14 @@ jobs:
 
       # Run tests that don't require an enterprise license without an enterprise license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: !matrix.enterprise
+        if: !matrix.variant.enterprise
         env:
           DEBUG: pw:api
         working-directory: site
 
       # Run all of the tests with an enterprise license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: matrix.enterprise
+        if: matrix.variant.enterprise
         env:
           DEBUG: pw:api
           CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
