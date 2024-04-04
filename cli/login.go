@@ -274,7 +274,59 @@ func (r *RootCmd) login() *serpent.Command {
 				return nil
 			}
 
+			var userResp codersdk.User
+
+			// Check for session token from flags or environment.
 			sessionToken, _ := inv.ParsedFlags().GetString(varToken)
+			if sessionToken != "" && !useTokenForSession {
+				// If a session token is provided on the cli, use it to generate
+				// a new one. This is because the cli `--token` flag provides
+				// a token for the command being invoked. We should not store
+				// this token, and `/logout` should not delete it.
+				// /login should generate a new token and store that.
+				client.SetSessionToken(sessionToken)
+				// Use CreateAPIKey over CreateToken because this is a session
+				// key that should not show on the `tokens` page. This should
+				// match the same behavior of the `/cli-auth` page for generating
+				// a session token.
+				key, err := client.CreateAPIKey(ctx, "me")
+				if err != nil {
+					_, err = cliui.Prompt(inv, cliui.PromptOptions{
+						Text:      fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", sessionToken),
+						IsConfirm: true,
+						Default:   cliui.ConfirmYes,
+					})
+					if err != nil {
+						return xerrors.Errorf("create api key: %w", err)
+					}
+					sessionToken = ""
+				} else {
+					sessionToken = key.Key
+				}
+			}
+
+			// Check for existing session token on disk, and validate user data.
+			// If the token exists but is invalid, then it is probably expired.
+			// Skip this check if the user has provided a valid token; a new token
+			// should be generated.
+			if configToken, _ := r.createConfig().Session().Read(); sessionToken == "" && configToken != "" {
+				client.SetSessionToken(configToken)
+				userResp, err = client.User(ctx, codersdk.Me)
+				if err == nil {
+					_, err = cliui.Prompt(inv, cliui.PromptOptions{
+						Text: fmt.Sprintf("You are already authenticated %s. Are you sure you want to log in again?",
+							pretty.Sprint(cliui.DefaultStyles.Keyword, userResp.Username)),
+						IsConfirm: true,
+						Default:   cliui.ConfirmYes,
+					})
+					if err != nil {
+						return nil
+					}
+				}
+				sessionToken = ""
+			}
+
+			// If we still don't have a session token, prompt the user for one.
 			if sessionToken == "" {
 				authURL := *serverURL
 				// Don't use filepath.Join, we don't want to use the os separator
@@ -300,29 +352,16 @@ func (r *RootCmd) login() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("paste token prompt: %w", err)
 				}
-			} else if !useTokenForSession {
-				// If a session token is provided on the cli, use it to generate
-				// a new one. This is because the cli `--token` flag provides
-				// a token for the command being invoked. We should not store
-				// this token, and `/logout` should not delete it.
-				// /login should generate a new token and store that.
-				client.SetSessionToken(sessionToken)
-				// Use CreateAPIKey over CreateToken because this is a session
-				// key that should not show on the `tokens` page. This should
-				// match the same behavior of the `/cli-auth` page for generating
-				// a session token.
-				key, err := client.CreateAPIKey(ctx, "me")
-				if err != nil {
-					return xerrors.Errorf("create api key: %w", err)
-				}
-				sessionToken = key.Key
 			}
 
+			// If we didn't login via session token on disk
 			// Login to get user data - verify it is OK before persisting
-			client.SetSessionToken(sessionToken)
-			resp, err := client.User(ctx, codersdk.Me)
-			if err != nil {
-				return xerrors.Errorf("get user: %w", err)
+			if userResp.Email == "" {
+				client.SetSessionToken(sessionToken)
+				userResp, err = client.User(ctx, codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("get user: %w", err)
+				}
 			}
 
 			config := r.createConfig()
@@ -335,7 +374,8 @@ func (r *RootCmd) login() *serpent.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, userResp.Username))
 			return nil
 		},
 	}
@@ -366,7 +406,7 @@ func (r *RootCmd) login() *serpent.Command {
 		},
 		{
 			Flag:        "use-token-as-session",
-			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
+			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token. See `coder --help` for more information on how to set a token.",
 			Value:       serpent.BoolOf(&useTokenForSession),
 		},
 	}

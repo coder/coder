@@ -225,6 +225,8 @@ func TestLogin(t *testing.T) {
 
 		inv, root := clitest.New(t, "login", "--no-open")
 		clitest.SetupConfig(t, client, root)
+		err := root.Session().Delete()
+		assert.NoError(t, err)
 
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -288,6 +290,192 @@ func TestLogin(t *testing.T) {
 		}
 		pty.ExpectMatch("That's not a valid token!")
 		cancelFunc()
+		<-doneChan
+	})
+
+	t.Run("AuthenticatedUserInvalidEnvToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		invalidToken := "an-invalid-token"
+		inv.Environ.Set("CODER_SESSION_TOKEN", invalidToken)
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Are you sure you want to log in again?")
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserExpiredSessionToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open", client.URL.String())
+		pty := ptytest.New(t).Attach(inv)
+
+		err := root.Session().Write("an-expired-token")
+		assert.NoError(t, err)
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserInvalidEnvToken", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, _ := clitest.New(t, "login", "--no-open", client.URL.String())
+		pty := ptytest.New(t).Attach(inv)
+
+		invalidToken := "an-invalid-token"
+		inv.Environ.Set("CODER_SESSION_TOKEN", invalidToken)
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserRelogin", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("You are already authenticated")
+		pty.ExpectMatch("Are you sure you want to log in again?")
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserReloginRejection", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("You are already authenticated")
+		pty.ExpectMatch("Are you sure you want to log in again?")
+		pty.WriteLine("no")
+		<-doneChan
+	})
+
+	t.Run("AuthenticatedUserTokenFlagValid", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", client.URL.String(), "--no-open", "--token", client.SessionToken())
+		clitest.SetupConfig(t, client, root)
+
+		err := inv.Run()
+		assert.NoError(t, err)
+
+		sessionFile, err := root.Session().Read()
+		require.NoError(t, err)
+		// This **should not be equal** to the token we passed in.
+		require.NotEqual(t, client.SessionToken(), sessionFile)
+	})
+
+	t.Run("AuthenticatedUserTokenFlagValidUseTokenAsSession", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", client.URL.String(), "--no-open", "--token", client.SessionToken(), "--use-token-as-session")
+		clitest.SetupConfig(t, client, root)
+
+		err := inv.Run()
+		assert.NoError(t, err)
+
+		sessionFile, err := root.Session().Read()
+		require.NoError(t, err)
+		require.Equal(t, client.SessionToken(), sessionFile)
+	})
+
+	t.Run("AuthenticatedUserTokenFlagInvalid", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		invalidToken := "an-invalid-token"
+		inv, root := clitest.New(t, "login", client.URL.String(), "--no-open", "--token", invalidToken)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan struct{})
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Are you sure you want to log in again?")
+		pty.WriteLine("yes")
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
 

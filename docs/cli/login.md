@@ -54,4 +54,4 @@ Specifies whether a trial license should be provisioned for the Coder deployment
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.
+By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token. See `coder --help` for more information on how to set a token.
