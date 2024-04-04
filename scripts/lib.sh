@@ -190,6 +190,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 		if isdarwin; then
 			log "On darwin:"
 			log "- brew install bash"
+			# shellcheck disable=SC2016
 			log '- Add "$(brew --prefix bash)/bin" to your PATH'
 			log "- Restart your terminal"
 		fi

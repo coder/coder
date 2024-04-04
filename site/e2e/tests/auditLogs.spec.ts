@@ -17,7 +17,7 @@ test("inspecting and filtering audit logs", async ({ page }) => {
   const workspaceName = await createWorkspace(page, templateName);
 
   // Go to the audit history
-  page.goto("/audit");
+  await page.goto("/audit");
 
   // Make sure those things we did all actually show up
   await expect(page.getByText(`${userName} logged in`)).toBeVisible();
