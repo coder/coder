@@ -457,9 +457,6 @@ jobs:
       - run: make gen/mark-fresh
         name: make gen
 
-      - run: ./scripts/pnpm_install.sh
-        name: pnpm install
-
       - run: pnpm build
         working-directory: site
 
