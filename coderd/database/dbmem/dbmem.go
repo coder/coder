@@ -2250,7 +2250,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	return users, nil
 }
 
-func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2266,7 +2266,7 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg 
 	}
 	groups := []database.Group{}
 	for _, group := range q.groups {
-		if slices.Contains(groupIds, group.ID) {
+		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
 			groups = append(groups, group)
 		}
 	}
