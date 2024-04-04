@@ -190,6 +190,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 		if isdarwin; then
 			log "On darwin:"
 			log "- brew install bash"
+			log '- Add "$(brew --prefix bash)/bin" to your PATH'
 			log "- Restart your terminal"
 		fi
 		log
@@ -203,7 +204,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 			log "On darwin:"
 			log "- brew install gnu-getopt"
 			# shellcheck disable=SC2016
-			log '- Add "$(brew --prefix)/opt/gnu-getopt/bin" to your PATH'
+			log '- Add "$(brew --prefix gnu-getopt)/bin" to your PATH'
 			log "- Restart your terminal"
 		fi
 		log
@@ -226,7 +227,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 			log "On darwin:"
 			log "- brew install make"
 			# shellcheck disable=SC2016
-			log '- Add "$(brew --prefix)/opt/make/libexec/gnubin" to your PATH (you should Google this first)'
+			log '- Add "$(brew --prefix make)/libexec/gnubin" to your PATH'
 			log "- Restart your terminal"
 		fi
 		log
