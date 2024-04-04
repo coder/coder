@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { createGroup, getCurrentOrgId, setupApiCalls } from "../../api";
+import { requiresEnterpriseLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("remove group", async ({ page, baseURL }) => {
+  requiresEnterpriseLicense();
   await setupApiCalls(page);
   const orgId = await getCurrentOrgId();
   const group = await createGroup(orgId);
