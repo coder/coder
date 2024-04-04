@@ -9,15 +9,12 @@ test("remove group", async ({ page, baseURL }) => {
   const orgId = await getCurrentOrgId();
   const group = await createGroup(orgId);
 
-  await page.goto(`${baseURL}/groups`, { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveTitle("Groups - Coder");
-
-  const groupRow = page.getByRole("row", { name: group.display_name });
-  await groupRow.click();
-
+  await page.goto(`${baseURL}/groups/${group.id}`, {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page).toHaveTitle(`${group.display_name} - Coder`);
-  await page.getByRole("button", { name: "Delete" }).click();
 
+  await page.getByRole("button", { name: "Delete" }).click();
   const dialog = page.getByTestId("dialog");
   await dialog.getByLabel("Name of the group to delete").fill(group.name);
   await dialog.getByRole("button", { name: "Delete" }).click();

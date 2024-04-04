@@ -37,7 +37,7 @@ export const createGroup = async (orgId: string) => {
   const name = randomName();
   const group = await API.createGroup(orgId, {
     name,
-    display_name: `Display Name of ${name}`,
+    display_name: `Display ${name}`,
     avatar_url: "/emojis/1f60d.png",
     quota_allowance: 0,
   });

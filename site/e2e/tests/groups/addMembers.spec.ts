@@ -18,11 +18,9 @@ test("add members", async ({ page, baseURL }) => {
     Array.from({ length: numberOfMembers }, () => createUser(orgId)),
   );
 
-  await page.goto(`${baseURL}/groups`, { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveTitle("Groups - Coder");
-
-  const groupRow = page.getByRole("row", { name: group.display_name });
-  await groupRow.click();
+  await page.goto(`${baseURL}/groups/${group.id}`, {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page).toHaveTitle(`${group.display_name} - Coder`);
 
   for (const user of users) {
