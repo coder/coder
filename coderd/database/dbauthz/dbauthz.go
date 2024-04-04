@@ -1834,7 +1834,7 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceGroup); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserGroupNames(ctx, arg)

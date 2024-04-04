@@ -315,15 +315,13 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(g.ID).Asserts(g, rbac.ActionRead)
 	}))
 	s.Run("GetUserGroupNames", s.Subtest(func(db database.Store, check *expects) {
-		o := dbgen.Organization(s.T(), db, database.Organization{})
-		u := dbgen.User(s.T(), db, database.User{})
-		g := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g := dbgen.Group(s.T(), db, database.Group{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g.ID})
 		check.Args(database.GetUserGroupNamesParams{
-			OrganizationID: o.ID,
-			UserID:         u.ID,
-		}).Asserts(g, rbac.ActionRead)
+			OrganizationID: g.OrganizationID,
+			UserID:         gm.UserID,
+		}).Asserts(rbac.ResourceGroup.InOrg(g.OrganizationID), rbac.ActionRead)
 	}))
-
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate)
