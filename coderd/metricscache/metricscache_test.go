@@ -280,14 +280,14 @@ func TestCache_DeploymentStats(t *testing.T) {
 	})
 	defer cache.Close()
 
-	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
-		ID:                 uuid.New(),
-		AgentID:            uuid.New(),
-		CreatedAt:          dbtime.Now(),
-		ConnectionCount:    1,
-		RxBytes:            1,
-		TxBytes:            1,
-		SessionCountVSCode: 1,
+	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
+		ID:                 []uuid.UUID{uuid.New()},
+		AgentID:            []uuid.UUID{uuid.New()},
+		CreatedAt:          []time.Time{dbtime.Now()},
+		ConnectionCount:    []int64{1},
+		RxBytes:            []int64{1},
+		TxBytes:            []int64{1},
+		SessionCountVSCode: []int64{1},
 	})
 	require.NoError(t, err)
 
