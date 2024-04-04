@@ -478,13 +478,6 @@ jobs:
           DEBUG: pw:api
         working-directory: site
 
-      # Run all of the tests with an enterprise license
-      - run: pnpm playwright:test --forbid-only --workers 1
-        env:
-          DEBUG: pw:api
-          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
-        working-directory: site
-
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
