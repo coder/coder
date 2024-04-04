@@ -453,10 +453,15 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Build
-        run: |
-          make gen/mark-fresh # Assume that the checked-in versions are up-to-date
-          make -B site/out/index.html
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
+
+      - run: ./scripts/pnpm_install.sh
+        name: pnpm install
+
+      - run: pnpm build
+        working-directory: site
 
       - run: pnpm playwright:install
         working-directory: site
