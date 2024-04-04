@@ -1,5 +1,4 @@
 import { test } from "@playwright/test";
-import { enterpriseLicense } from "../constants";
 import {
   createTemplate,
   createWorkspace,
@@ -62,11 +61,6 @@ test("update workspace, new optional, immutable parameter added", async ({
 test("update workspace, new required, mutable parameter added", async ({
   page,
 }) => {
-  // This should be removed ASAP, but this test is currently failing when run with
-  // an enterprise license. I'll look into the root cause, but for now it's more
-  // important to get tests passing on the main branch again. -Kayla
-  test.skip(Boolean(enterpriseLicense));
-
   const richParameters: RichParameter[] = [firstParameter, secondParameter];
   const template = await createTemplate(
     page,
