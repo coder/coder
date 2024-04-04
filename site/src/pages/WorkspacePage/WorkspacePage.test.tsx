@@ -18,10 +18,7 @@ import {
   MockDeploymentConfig,
   MockWorkspaceBuildDelete,
 } from "testHelpers/entities";
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
@@ -45,7 +42,6 @@ const renderWorkspacePage = async (workspace: Workspace) => {
     path: "/:username/:workspace",
   });
 
-  await waitForLoaderToBeRemoved();
   await screen.findByText(workspace.name);
 };
 
