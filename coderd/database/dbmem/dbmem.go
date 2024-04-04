@@ -2250,6 +2250,30 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	return users, nil
 }
 
+func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var groupIds []uuid.UUID
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			groupIds = append(groupIds, member.GroupID)
+		}
+	}
+	groups := []database.Group{}
+	for _, group := range q.groups {
+		if slices.Contains(groupIds, group.ID) {
+			groups = append(groups, group)
+		}
+	}
+
+	return groups, nil
+}
+
 func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4332,30 +4356,6 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return existing, nil
-}
-
-func (q *FakeQuerier) GetUserGroupNames(_ context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	var groupIds []uuid.UUID
-	for _, member := range q.groupMembers {
-		if member.UserID == arg.UserID {
-			groupIds = append(groupIds, member.GroupID)
-		}
-	}
-	groupNames := []string{}
-	for _, group := range q.groups {
-		if slices.Contains(groupIds, group.ID) {
-			groupNames = append(groupNames, group.Name)
-		}
-	}
-
-	return groupNames, nil
 }
 
 func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {

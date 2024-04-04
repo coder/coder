@@ -123,6 +123,7 @@ type sqlcQuerier interface {
 	// If the group is a user made group, then we need to check the group_members table.
 	// If it is the "Everyone" group, then we need to check the organization_members table.
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
@@ -226,7 +227,6 @@ type sqlcQuerier interface {
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
-	GetUserGroupNames(ctx context.Context, arg GetUserGroupNamesParams) ([]string, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates

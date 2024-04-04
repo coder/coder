@@ -1095,6 +1095,21 @@ func (mr *MockStoreMockRecorder) GetGroupMembers(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembers", reflect.TypeOf((*MockStore)(nil).GetGroupMembers), arg0, arg1)
 }
 
+// GetGroupsByOrganizationAndUserID mocks base method.
+func (m *MockStore) GetGroupsByOrganizationAndUserID(arg0 context.Context, arg1 database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupsByOrganizationAndUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupsByOrganizationAndUserID indicates an expected call of GetGroupsByOrganizationAndUserID.
+func (mr *MockStoreMockRecorder) GetGroupsByOrganizationAndUserID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationAndUserID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationAndUserID), arg0, arg1)
+}
+
 // GetGroupsByOrganizationID mocks base method.
 func (m *MockStore) GetGroupsByOrganizationID(arg0 context.Context, arg1 uuid.UUID) ([]database.Group, error) {
 	m.ctrl.T.Helper()
@@ -2203,21 +2218,6 @@ func (m *MockStore) GetUserCount(arg0 context.Context) (int64, error) {
 func (mr *MockStoreMockRecorder) GetUserCount(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), arg0)
-}
-
-// GetUserGroupNames mocks base method.
-func (m *MockStore) GetUserGroupNames(arg0 context.Context, arg1 database.GetUserGroupNamesParams) ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserGroupNames", arg0, arg1)
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserGroupNames indicates an expected call of GetUserGroupNames.
-func (mr *MockStoreMockRecorder) GetUserGroupNames(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserGroupNames", reflect.TypeOf((*MockStore)(nil).GetUserGroupNames), arg0, arg1)
 }
 
 // GetUserLatencyInsights mocks base method.

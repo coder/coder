@@ -28,9 +28,9 @@ FROM
 WHERE
 	organization_id = $1;
 
--- name: GetUserGroupNames :many
+-- name: GetGroupsByOrganizationAndUserID :many
 SELECT
-    groups.name
+    groups.*
 FROM
     groups
 LEFT JOIN

@@ -1142,6 +1142,10 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 	return q.db.GetGroupMembers(ctx, id)
 }
 
+func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
+}
+
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
@@ -1831,13 +1835,6 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx)
-}
-
-func (q *querier) GetUserGroupNames(ctx context.Context, arg database.GetUserGroupNamesParams) ([]string, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceGroup.InOrg(arg.OrganizationID)); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserGroupNames(ctx, arg)
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
