@@ -171,7 +171,7 @@ disruptions. Additionally, multi-cloud deployment enables organizations to
 leverage the unique features and capabilities offered by each cloud provider,
 such as region availability and pricing models.
 
-<!-- TODO Architecture Diagram -->
+![Architecture Diagram](../images/architecture-multi-cloud.png)
 
 #### Components
 
@@ -249,7 +249,7 @@ Coder on Kubernetes.
     - Layer 4 load balancing, SSL enabled
   - _Cloud Load Balancing_ with HTTPS load balancer:
     - Layer 7 load balancing
-    - For Kubernetes deployment: annotate service with
+    - For Kubernetes deployment: annotate service (with ingress enabled) with
       `kubernetes.io/ingress.class: "gce"`, leverage the `NodePort` service
       type.
     - Note: HTTP load balancer rejects DERP upgrade, Coder will fallback to
