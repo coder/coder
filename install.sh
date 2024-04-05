@@ -118,16 +118,19 @@ echo_standalone_postinstall() {
 		return
 	fi
 
-	channel=mainline
+	channel=
 	advisory="To install our stable release (v${STABLE_VERSION}), use the --stable flag. "
-	if [ "${MAINLINE}" = 0 ]; then
-		channel=stable
+	if [ "${STABLE}" = 1 ]; then
+		channel="stable "
 		advisory=""
+	fi
+	if [ "${MAINLINE}" = 1 ]; then
+		channel="mainline "
 	fi
 
 	cath <<EOF
 
-Coder ${channel} release v${VERSION} installed. ${advisory}See our releases documentation or GitHub for more information on versioning.
+Coder ${channel}release v${VERSION} installed. ${advisory}See our releases documentation or GitHub for more information on versioning.
 
 The Coder binary has been placed in the following location:
 
@@ -246,6 +249,7 @@ EOF
 
 main() {
 	MAINLINE=1
+	STABLE=0
 	TERRAFORM_VERSION="1.6.6"
 
 	if [ "${TRACE-}" ]; then
@@ -298,17 +302,25 @@ main() {
 			;;
 		--version)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			shift
 			;;
 		--version=*)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			;;
 		# Support edge for backward compatibility.
 		--mainline | --edge)
+			VERSION=
 			MAINLINE=1
+			STABLE=0
 			;;
 		--stable)
+			VERSION=
 			MAINLINE=0
+			STABLE=1
 			;;
 		--rsh)
 			RSH="$(parse_arg "$@")"
@@ -390,12 +402,10 @@ main() {
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	STABLE_VERSION=$(echo_latest_stable_version)
-	if [ -z "${VERSION}" ]; then
-		if [ "${MAINLINE}" = 0 ]; then
-			VERSION=${STABLE_VERSION}
-		else
-			VERSION=$(echo_latest_mainline_version)
-		fi
+	if [ "${MAINLINE}" = 1 ]; then
+		VERSION=$(echo_latest_mainline_version)
+	elif [ "${STABLE}" = 1 ]; then
+		VERSION=${STABLE_VERSION}
 	fi
 
 	distro_name
@@ -412,9 +422,14 @@ main() {
 
 	# If the version is the same as the stable version, we're installing
 	# the stable version.
-	if [ "${MAINLINE}" != 0 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+	if [ "${MAINLINE}" = 1 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
 		echoh "The latest mainline version has been promoted to stable, selecting stable."
 		MAINLINE=0
+		STABLE=1
+	fi
+	# If the manually specified version is stable, mark it as such.
+	if [ "${MAINLINE}" = 0 ] && [ "${STABLE}" = 0 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+		STABLE=1
 	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
