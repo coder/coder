@@ -32,11 +32,14 @@ import (
 var tailnetTransport *http.Transport
 
 func init() {
-	var valid bool
-	tailnetTransport, valid = http.DefaultTransport.(*http.Transport)
+	tp, valid := http.DefaultTransport.(*http.Transport)
 	if !valid {
 		panic("dev error: default transport is the wrong type")
 	}
+	tailnetTransport = tp.Clone()
+	// We do not want to respect the proxy settings from the environment, since
+	// all network traffic happens over wireguard.
+	tailnetTransport.Proxy = nil
 }
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
