@@ -193,7 +193,11 @@ export const CreateUserForm: FC<
             type="password"
           />
         </Stack>
-        <FormFooter onCancel={onCancel} isLoading={isLoading} />
+        <FormFooter
+          submitLabel="Create user"
+          onCancel={onCancel}
+          isLoading={isLoading}
+        />
       </form>
     </FullPageForm>
   );

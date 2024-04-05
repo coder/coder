@@ -19,7 +19,7 @@ using Coder's [JFrog Xray Integration](github.com/coder/coder-xray).
 - A self-hosted JFrog Platform instance.
 - Kubernetes workspaces running on Coder.
 
-## Deploying the Coder Xray Integration
+## Deploying the Coder - JFrog Xray Integration
 
 1. Create a JFrog Platform
    [Access Token](https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens)
@@ -37,7 +37,7 @@ kubectl create secret generic coder-token --from-literal=coder-token='<token>'
 kubectl create secret generic jfrog-token --from-literal=user='<user>' --from-literal=token='<token>'
 ```
 
-4. Deploy the Coder Xray integration.
+4. Deploy the Coder - JFrog Xray integration.
 
 ```bash
 helm repo add coder-xray https://helm.coder.com/coder-xray
@@ -69,4 +69,4 @@ image = "<ARTIFACTORY_URL>/<REPO>/<IMAGE>:<TAG>"
 > use it in the `imagePullSecrets` field of the kubernetes pod. See this
 > [guide](./image-pull-secret.md) for more information.
 
-![Coder Xray Integration](../images/guides/xray-integration/example.png)
+![JFrog Xray Integration](../images/guides/xray-integration/example.png)

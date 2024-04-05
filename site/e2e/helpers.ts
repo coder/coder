@@ -570,7 +570,7 @@ const createTemplateVersionTar = async (
   );
 };
 
-const randomName = () => {
+export const randomName = () => {
   return randomUUID().slice(0, 8);
 };
 
@@ -608,7 +608,7 @@ export const createServer = async (
   return e;
 };
 
-const findSessionToken = async (page: Page): Promise<string> => {
+export const findSessionToken = async (page: Page): Promise<string> => {
   const cookies = await page.context().cookies();
   const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
   if (!sessionCookie) {

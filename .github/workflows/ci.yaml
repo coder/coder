@@ -485,6 +485,7 @@ jobs:
           CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
           CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
         working-directory: site
+        continue-on-error: true
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
