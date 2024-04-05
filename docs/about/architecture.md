@@ -268,3 +268,54 @@ Coder on Kubernetes.
   [Microsoft Entra ID Sign-On](https://learn.microsoft.com/en-us/entra/identity/app-proxy/)
 - For GCP:
   [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
+
+### Dev Container
+
+Note: _Dev containers_ are at early stage and considered experimental at the
+moment.
+
+This architecture enhances a Coder workspace with a
+[development container](https://containers.dev/) setup built using the
+[envbuilder](https://github.com/coder/envbuilder) project. Workspace users have
+the flexibility to extend generic, base developer environments with custom,
+project-oriented [features](https://containers.dev/features) without requiring
+platform administrators to push altered Docker images.
+
+Learn more about
+[Dev containers support](https://coder.com/docs/v2/latest/templates/devcontainers)
+in Coder.
+
+![Architecture Diagram](../images/architecture-devcontainers.png)
+
+#### Components
+
+The deployment model includes:
+
+- _Workspace_ built using Coder template with _envbuilder_ enabled to set up the
+  developer environment accordingly to the dev container spec.
+- _Container Registry_ for Docker images used by _envbuilder_, maintained by
+  Coder platform engineers or developer productivity engineers.
+
+Since this model is strictly focused on workspace nodes, it does not affect the
+setup of regional infrastructure. It can be deployed alongside other deployment
+models, in multiple regions, or across various cloud platforms.
+
+##### Workload resources
+
+**Workspace**
+
+- Docker and Kubernetes based templates are supported.
+- The `docker_container` resource uses `ghcr.io/coder/envbuilder` as the base
+  image.
+
+_Envbuilder_ checks out the base Docker image from the container registry and
+installs selected features as specified in the `devcontainer.json` on top.
+Eventually, it starts the container with the developer environment.
+
+##### Workload supporting resources
+
+**Container Registry (optional)**
+
+- Workspace nodes need access to the Container Registry to check out images. To
+  shorten the provisioning time, it is recommended to deploy registry mirrors in
+  the same region as the workspace nodes.

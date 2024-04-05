@@ -1,17 +1,17 @@
-# Devcontainers (alpha)
+# Dev Containers (alpha)
 
-[Devcontainers](https://containers.dev) are an open source specification for
-defining development environments.
+[Development containers](https://containers.dev) are an open source
+specification for defining development environments.
 
 [envbuilder](https://github.com/coder/envbuilder) is an open source project by
-Coder that runs devcontainers via Coder templates and your underlying
+Coder that runs dev containers via Coder templates and your underlying
 infrastructure. It can run on Docker or Kubernetes.
 
 There are several benefits to adding a devcontainer-compatible template to
 Coder:
 
-- Drop-in migration from Codespaces (or any existing repositories that use
-  devcontainers)
+- Drop-in migration from Codespaces (or any existing repositories that use dev
+  containers)
 - Easier to start projects from Coder. Just create a new workspace then pick a
   starter devcontainer.
 - Developer teams can "bring their own image." No need for platform teams to
@@ -47,7 +47,7 @@ information.
 
 ## Caching
 
-To improve build times, devcontainers can be cached. Refer to the
+To improve build times, dev containers can be cached. Refer to the
 [envbuilder documentation](https://github.com/coder/envbuilder/) for more
 information.
 
