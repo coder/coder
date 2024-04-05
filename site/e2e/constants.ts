@@ -33,4 +33,7 @@ export const gitAuth = {
   installationsPath: "/installations",
 };
 
+export const requireEnterpriseTests = Boolean(
+  process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
+);
 export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";

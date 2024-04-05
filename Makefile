@@ -382,9 +382,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
-BOLD := $(shell tput bold)
-GREEN := $(shell tput setaf 2)
-RESET := $(shell tput sgr0)
+BOLD := $(shell tput bold 2>/dev/null)
+GREEN := $(shell tput setaf 2 2>/dev/null)
+RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/eslint fmt/prettier fmt/terraform fmt/shfmt fmt/go
 .PHONY: fmt
