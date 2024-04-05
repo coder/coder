@@ -639,20 +639,21 @@ install_standalone() {
 	# fails we can ignore the error as the -w check will then swap us to sudo.
 	sh_c mkdir -p "$STANDALONE_INSTALL_PREFIX" 2>/dev/null || true
 
+	sh_c mkdir -p "$CACHE_DIR/tmp"
+	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
+		sh_c tar -C "$CACHE_DIR/tmp" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
+	else
+		sh_c unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
+	fi
+
+	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+
 	sh_c="sh_c"
 	if [ ! -w "$STANDALONE_INSTALL_PREFIX" ]; then
 		sh_c="sudo_sh_c"
 	fi
 
 	"$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
-	"$sh_c" mkdir -p "$CACHE_DIR/tmp"
-	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
-		"$sh_c" tar -C "$CACHE_DIR/tmp" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
-	else
-		"$sh_c" unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
-	fi
-
-	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
@@ -662,7 +663,9 @@ install_standalone() {
 
 	# Copy the binary to the correct location.
 	"$sh_c" cp "$CACHE_DIR/tmp/coder" "$STANDALONE_BINARY_LOCATION"
-	"$sh_c" rm -rv "$CACHE_DIR/tmp"
+
+	# Clean up the extracted files (note, not using sudo: $sh_c -> sh_c).
+	sh_c rm -rv "$CACHE_DIR/tmp"
 
 	echo_standalone_postinstall
 }
