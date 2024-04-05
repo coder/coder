@@ -1147,7 +1147,6 @@ export const patchGroup = async (
 export const addMember = async (groupId: string, userId: string) => {
   return patchGroup(groupId, {
     name: "",
-    display_name: "",
     add_users: [userId],
     remove_users: [],
   });
