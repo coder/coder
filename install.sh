@@ -645,10 +645,11 @@ install_standalone() {
 	fi
 
 	"$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
+	"$sh_c" mkdir -p "$CACHE_DIR/tmp"
 	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
-		"$sh_c" tar -C "$CACHE_DIR" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
+		"$sh_c" tar -C "$CACHE_DIR/tmp" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
 	else
-		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
+		"$sh_c" unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
 	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
@@ -660,7 +661,8 @@ install_standalone() {
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/tmp/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" rm -rv "$CACHE_DIR/tmp"
 
 	echo_standalone_postinstall
 }
