@@ -265,7 +265,7 @@ func Test_TokenMatchesRequest(t *testing.T) {
 					UsernameOrID:      "foo",
 					WorkspaceNameOrID: "bar",
 					AgentNameOrID:     "baz",
-					AppSlugOrPort:     "8080",
+					AppSlugOrPort:     "8080s",
 				},
 			},
 			want: true,
