@@ -313,7 +313,7 @@ environment.
 
 ##### Workload supporting resources
 
-**Container Registry**
+**Container Registry (optional)**
 
 - Workspace nodes need access to the Container Registry to check out images. To
   shorten the provisioning time, it is recommended to deploy regional replicas
