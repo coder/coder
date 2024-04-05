@@ -5904,6 +5904,7 @@ const docTemplate = `{
                 ],
                 "summary": "Submit workspace agent stats",
                 "operationId": "submit-workspace-agent-stats",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "Stats request",
