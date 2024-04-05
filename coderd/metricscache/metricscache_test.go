@@ -3,6 +3,7 @@ package metricscache_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -282,12 +283,23 @@ func TestCache_DeploymentStats(t *testing.T) {
 
 	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
 		ID:                 []uuid.UUID{uuid.New()},
-		AgentID:            []uuid.UUID{uuid.New()},
 		CreatedAt:          []time.Time{dbtime.Now()},
-		ConnectionCount:    []int64{1},
-		RxBytes:            []int64{1},
-		TxBytes:            []int64{1},
-		SessionCountVSCode: []int64{1},
+		WorkspaceID:        []uuid.UUID{uuid.New()},
+		UserID:             []uuid.UUID{uuid.New()},
+		TemplateID:         []uuid.UUID{uuid.New()},
+		AgentID:            []uuid.UUID{uuid.New()},
+		ConnectionsByProto: json.RawMessage(`[{}]`),
+
+		RxPackets:                   []int64{0},
+		RxBytes:                     []int64{1},
+		TxPackets:                   []int64{0},
+		TxBytes:                     []int64{1},
+		ConnectionCount:             []int64{1},
+		SessionCountVSCode:          []int64{1},
+		SessionCountJetBrains:       []int64{0},
+		SessionCountReconnectingPTY: []int64{0},
+		SessionCountSSH:             []int64{0},
+		ConnectionMedianLatencyMS:   []float64{10},
 	})
 	require.NoError(t, err)
 

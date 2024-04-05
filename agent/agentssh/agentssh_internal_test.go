@@ -5,6 +5,7 @@ package agentssh
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -26,6 +27,27 @@ echo "started"
 sleep 30
 echo "done"
 `
+
+func TestSomeSSHServer(t *testing.T) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	logger := slogtest.Make(t, nil)
+
+	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), &Config{})
+	require.NoError(t, err)
+	defer s.Close()
+	//// Required to not panic on new connection
+	//s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+	//s.ServiceBanner = atomic.NewPointer(&codersdk.ServiceBannerConfig{})
+	//s.AgentToken = func() string {
+	//	return "something"
+	//}
+
+	l, err := net.Listen("tcp", "localhost:1828")
+	require.NoError(t, err)
+	fmt.Println(s.Serve(l))
+}
 
 // Test_sessionStart_orphan tests running a command that takes a long time to
 // exit normally, and terminate the SSH session context early to verify that we
