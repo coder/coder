@@ -308,9 +308,9 @@ models, in multiple regions, or across various cloud platforms.
 - The `docker_container` resource uses `ghcr.io/coder/envbuilder` as the base
   image.
 
-_Envbuilder_ checks out the base Docker image from the container registry, and
-applies extra feature layers, and starts the container with the target
-environment.
+_Envbuilder_ checks out the base Docker image from the container registry and
+installs selected features as specified in the `devcontainer.json` on top.
+Eventually, it starts the container with the developer environment.
 
 ##### Workload supporting resources
 
