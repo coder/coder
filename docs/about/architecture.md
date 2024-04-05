@@ -269,20 +269,20 @@ Coder on Kubernetes.
 - For GCP:
   [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
 
-### Devcontainers
+### Dev Container
 
-Note: _Devcontainers_ are at early stage and considered experimental at the
+Note: _Dev containers_ are at early stage and considered experimental at the
 moment.
 
-This architecture enhances a Coder workspace with
-[Devcontainers](https://containers.dev/) setup built using
+This architecture enhances a Coder workspace with a
+[development container](https://containers.dev/) setup built using the
 [envbuilder](https://github.com/coder/envbuilder) project. Workspace users have
 the flexibility to extend generic, base developer environments with custom,
 project-oriented [features](https://containers.dev/features) without requiring
 platform administrators to push altered Docker images.
 
 Learn more about
-[Devcontainers support](https://coder.com/docs/v2/latest/templates/devcontainers)
+[Dev containers support](https://coder.com/docs/v2/latest/templates/devcontainers)
 in Coder.
 
 ![Architecture Diagram](../images/architecture-devcontainers.png)
@@ -292,7 +292,7 @@ in Coder.
 The deployment model includes:
 
 - _Workspace_ built using Coder template with _envbuilder_ enabled to set up the
-  developer environment accordingly to the spec.
+  developer environment accordingly to the dev container spec.
 - _Container Registry_ for Docker images used by _envbuilder_, maintained by
   Coder platform engineers or developer productivity engineers.
 
@@ -305,10 +305,11 @@ models, in multiple regions, or across various cloud platforms.
 **Workspace**
 
 - Docker and Kubernetes based templates are supported.
-- The `docker_container` resource uses `ghcr.io/coder/envbuilder` as base image.
+- The `docker_container` resource uses `ghcr.io/coder/envbuilder` as the base
+  image.
 
-The _envbuilder_ checks out the base Docker image from the container registry,
-and applies extra feature layers, and starts the container with target
+_Envbuilder_ checks out the base Docker image from the container registry, and
+applies extra feature layers, and starts the container with the target
 environment.
 
 ##### Workload supporting resources
@@ -316,5 +317,5 @@ environment.
 **Container Registry (optional)**
 
 - Workspace nodes need access to the Container Registry to check out images. To
-  shorten the provisioning time, it is recommended to deploy regional replicas
-  of the registry.
+  shorten the provisioning time, it is recommended to deploy registry mirrors in
+  the same region as the workspace nodes.
