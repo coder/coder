@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/v2/cryptorand"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -33,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
