@@ -105,6 +105,11 @@ const CreateWorkspacePage: FC = () => {
     userParametersQuery.data ? userParametersQuery.data : [],
   );
 
+  const hasAllRequiredExternalAuth = Boolean(
+    !isLoadingExternalAuth &&
+    externalAuth?.every((auth) => auth.optional || auth.authenticated),
+  );
+
   const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
     if (autoCreationStartedRef.current) {
@@ -143,14 +148,15 @@ const CreateWorkspacePage: FC = () => {
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
       {isLoadingFormData ||
-      isLoadingExternalAuth ||
-      autoCreateWorkspaceMutation.isLoading ? (
+        isLoadingExternalAuth ||
+        autoCreateWorkspaceMutation.isLoading ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
           mode={mode}
           defaultName={defaultName}
           defaultOwner={me}
+          hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
           autofillParameters={autofillParameters}
           error={createWorkspaceMutation.error}
           resetMutation={createWorkspaceMutation.reset}
@@ -198,10 +204,10 @@ const useExternalAuth = (versionId: string | undefined) => {
   const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery(
     versionId
       ? {
-          ...templateVersionExternalAuth(versionId),
-          refetchInterval:
-            externalAuthPollingState === "polling" ? 1000 : false,
-        }
+        ...templateVersionExternalAuth(versionId),
+        refetchInterval:
+          externalAuthPollingState === "polling" ? 1000 : false,
+      }
       : { enabled: false },
   );
 
