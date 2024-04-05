@@ -162,3 +162,109 @@ offer the fastest developer experience.
 - Session persistence (sticky sessions) can be disabled as _coderd_ instances
   are stateless.
 - WebSocket and long-lived connections must be supported.
+
+### Multi-cloud architecture
+
+By distributing Coder workspaces across different cloud providers, organizations
+can mitigate the risk of downtime caused by provider-specific outages or
+disruptions. Additionally, multi-cloud deployment enables organizations to
+leverage the unique features and capabilities offered by each cloud provider,
+such as region availability and pricing models.
+
+![Architecture Diagram](../images/architecture-multi-cloud.png)
+
+#### Components
+
+The deployment model comprises:
+
+- `coderd` instances deployed within a single region of the same cloud provider,
+  with replicas strategically distributed across availability zones.
+- Workspace provisioners deployed in each cloud, communicating with `coderd`
+  instances.
+- Workspace proxies running in the same locations as provisioners to optimize
+  user connections to workspaces for maximum speed.
+
+Due to the relatively large overhead of cross-regional communication, it is not
+advised to set up multi-cloud control planes. It is recommended to keep coderd
+replicas and the database within the same cloud-provider and region.
+
+Note: The _multi-cloud architecture_ follows the deployment principles outlined
+in the _multi-region architecture_. However, it adapts component selection based
+on the specific cloud provider. Developers can initiate workspaces based on the
+nearest region and technical specifications provided by the cloud providers.
+
+##### Workload resources
+
+**Workspace provisioner**
+
+- _Security recommendation_: Create a long, random pre-shared key (PSK) and add
+  it to the regional secret store, so that local _provisionerd_ can access it.
+  Remember to distribute it using safe, encrypted communication channel. The PSK
+  must also be added to the _coderd_ configuration.
+
+**Workspace proxy**
+
+- _Security recommendation_: Use `coder` CLI to create
+  [authentication tokens for every workspace proxy](../admin/workspace-proxies.md#requirements),
+  and keep them in regional secret stores. Remember to distribute them using
+  safe, encrypted communication channel.
+
+**Managed database**
+
+- For AWS: _Amazon RDS for PostgreSQL_
+- For Azure: _Azure Database for PostgreSQL - Flexible Server_
+- For GCP: _Cloud SQL for PostgreSQL_
+
+##### Workload supporting resources
+
+**Kubernetes platform (optional)**
+
+- For AWS: _Amazon Elastic Kubernetes Service_
+- For Azure: _Azure Kubernetes Service_
+- For GCP: _Google Kubernetes Engine_
+
+See how to deploy
+[Coder on Azure Kubernetes Service](https://github.com/ericpaulsen/coder-aks).
+
+Learn more about [security requirements](../install/kubernetes.md) for deploying
+Coder on Kubernetes.
+
+**Load balancer**
+
+- For AWS:
+  - _AWS Network Load Balancer_
+    - Level 4 load balancing
+    - For Kubernetes deployment: annotate service with
+      `service.beta.kubernetes.io/aws-load-balancer-type: "nlb"`, preserve the
+      client source IP with `externalTrafficPolicy: Local`
+  - _AWS Classic Load Balancer_
+    - Level 7 load balancing
+    - For Kubernetes deployment: set `sessionAffinity` to `None`
+- For Azure:
+  - _Azure Load Balancer_
+    - Level 7 load balancing
+  - Azure Application Gateway
+    - Deploy Azure Application Gateway when more advanced traffic routing
+      policies are needed for Kubernetes applications.
+    - Take advantage of features such as WebSocket support and TLS termination
+      provided by Azure Application Gateway, enhancing the capabilities of
+      Kubernetes deployments on Azure.
+- For GCP:
+  - _Cloud Load Balancing_ with SSL load balancer:
+    - Layer 4 load balancing, SSL enabled
+  - _Cloud Load Balancing_ with HTTPS load balancer:
+    - Layer 7 load balancing
+    - For Kubernetes deployment: annotate service (with ingress enabled) with
+      `kubernetes.io/ingress.class: "gce"`, leverage the `NodePort` service
+      type.
+    - Note: HTTP load balancer rejects DERP upgrade, Coder will fallback to
+      WebSockets
+
+**Single sign-on**
+
+- For AWS:
+  [AWS IAM Identity Center](https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html)
+- For Azure:
+  [Microsoft Entra ID Sign-On](https://learn.microsoft.com/en-us/entra/identity/app-proxy/)
+- For GCP:
+  [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
