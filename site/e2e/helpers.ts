@@ -60,7 +60,8 @@ export const createWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await expect(page).toHaveURL("/@admin/" + name);
+  // We can't use `toHaveURL` because that causes issues with searchParams
+  await expect(new URL(page.url()).pathname).toBe("/@admin/" + name);
 
   await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
     state: "visible",
