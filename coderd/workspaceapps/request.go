@@ -320,7 +320,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 
 		// If the app slug is a port number, then route to the port as an
-		// "anonymous app". We only support HTTP for port-based URLs.
+		// "anonymous app".
 		//
 		// This is only supported for subdomain-based applications.
 		appURL = fmt.Sprintf("%s://127.0.0.1:%d", protocol, portUint)
@@ -353,10 +353,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			}
 			// No port share found, so we keep default to owner.
 		} else {
-			if ps.Protocol == database.PortShareProtocolHttps {
-				// Apply HTTPS protocol if specified.
-				appURL = fmt.Sprintf("https://127.0.0.1:%d", portUint)
-			}
 			appSharingLevel = ps.ShareLevel
 		}
 	} else {
