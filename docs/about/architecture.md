@@ -268,3 +268,48 @@ Coder on Kubernetes.
   [Microsoft Entra ID Sign-On](https://learn.microsoft.com/en-us/entra/identity/app-proxy/)
 - For GCP:
   [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
+
+### Devcontainers
+
+Note: _Devcontainers_ are at early stage and considered to be experimental at
+the moment.
+
+This architecture enhances a Coder workspace with
+[Devcontainers](https://containers.dev/) setup built using
+[envbuilder](https://github.com/coder/envbuilder) project. Workspace users have
+flexibility to extend generic, base developer environments with custom,
+project-oriented [features](https://containers.dev/features) without involving
+platform administrators to push altered Docker images.
+
+Learn more about
+[Devcontainers support](https://coder.com/docs/v2/latest/templates/devcontainers)
+in Coder.
+
+<!-- TODO Architecture diagram -->
+
+#### Components
+
+The deployment model includes:
+
+- _Workspace_ built using Coder template with _envbuilder_ enabled to setup the
+  developer environment accordingly to the spec.
+- _Container Registry_ for Docker images used by _envbuilder_, maintained by
+  Coder platform engineers or developer productivity engineers.
+
+As this model is strictly oriented on the workspace nodes, it can be deployed
+alongside other deployment models, in multiple regions or cloud platforms.
+
+##### Workload resources
+
+**Workspace**
+
+TODO
+
+The _envbuilder_ checkouts the base Docker image from the container registry,
+and applies extra feature layers.
+
+##### Workload supporting resources
+
+**Container Registry**
+
+TODO
