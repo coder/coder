@@ -390,10 +390,12 @@ main() {
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	STABLE_VERSION=$(echo_latest_stable_version)
-	if [ "${MAINLINE}" = 0 ]; then
-		VERSION=${STABLE_VERSION}
-	else
-		VERSION=$(echo_latest_mainline_version)
+	if [ -z "${VERSION}" ]; then
+		if [ "${MAINLINE}" = 0 ]; then
+			VERSION=${STABLE_VERSION}
+		else
+			VERSION=$(echo_latest_mainline_version)
+		fi
 	fi
 
 	distro_name
