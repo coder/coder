@@ -96,6 +96,7 @@ message CoordinateResponse {
 		string reason = 4;
 	}
 	repeated PeerUpdate peer_updates = 1;
+	string error = 2;
 }
 
 service Tailnet {

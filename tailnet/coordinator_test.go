@@ -464,33 +464,15 @@ func TestCoordinator(t *testing.T) {
 		clientID := uuid.New()
 		agentID := uuid.New()
 
-		aReq, _ := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
 		_, _ = coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
-
-		nk, err := key.NewNode().Public().MarshalBinary()
-		require.NoError(t, err)
-		dk, err := key.NewDisco().Public().MarshalText()
-		require.NoError(t, err)
-		aReq <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-			Node: &proto.Node{
-				Id:    3,
-				Key:   nk,
-				Disco: string(dk),
-			},
-		}}
-
-		require.Eventually(t, func() bool {
-			return coordinator.Node(agentID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
 
 		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
 			Id: clientID[:],
 		}}}
 
-		// The agent node should disappear, indicating it was booted off.
-		require.Eventually(t, func() bool {
-			return coordinator.Node(agentID) == nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		rfhError := testutil.RequireRecvCtx(ctx, t, aRes)
+		require.NotEmpty(t, rfhError.Error)
 	})
 }
 

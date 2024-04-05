@@ -722,6 +722,13 @@ func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.Coordinate
 			// subsequently disconnect before the agent has sent back the RFH.
 			// Since this could potentially happen to a non-malicious agent, we
 			// don't want to kill its connection.
+			select {
+			case src.resps <- &proto.CoordinateResponse{
+				Error: fmt.Sprintf("you do not share a tunnel with %q", dstID.String()),
+			}:
+			default:
+				return ErrWouldBlock
+			}
 			continue
 		}
 

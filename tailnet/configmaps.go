@@ -443,8 +443,9 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lc.readyForHandshakeTimer.Stop()
 		}
 		if lc.node != nil {
-			dirty = dirty || !lc.node.KeepAlive
-			lc.node.KeepAlive = true
+			old := lc.node.KeepAlive
+			lc.node.KeepAlive = c.nodeKeepalive(lc, status, lc.node)
+			dirty = dirty || (old != lc.node.KeepAlive)
 		}
 		logger.Debug(context.Background(), "peer ready for handshake")
 		// only force a reconfig if the node populated
@@ -457,7 +458,6 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 		logger.Debug(context.Background(), "got peer ready for handshake for unknown peer")
 		lc = &peerLifecycle{
 			peerID:            id,
-			lost:              true,
 			readyForHandshake: true,
 		}
 		c.peers[id] = lc
@@ -631,10 +631,6 @@ func (*configMaps) nodeKeepalive(lc *peerLifecycle, status *ipnstate.Status, nod
 	// If the peer is a destination, we should only enable keepalives if we've
 	// received the READY_FOR_HANDSHAKE.
 	if lc != nil && lc.isDestination && lc.readyForHandshake {
-		return true
-	}
-	// If keepalives are already enabled on the node, keep them enabled.
-	if lc != nil && lc.node != nil && lc.node.KeepAlive {
 		return true
 	}
 
