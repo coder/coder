@@ -7,7 +7,6 @@ import capitalize from "lodash/capitalize";
 import path from "path";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
-import * as API from "api/api";
 import type {
   WorkspaceBuildParameter,
   UpdateTemplateMeta,
@@ -19,6 +18,7 @@ import {
   coderPort,
   enterpriseLicense,
   prometheusPort,
+  requireEnterpriseTests,
 } from "./constants";
 import {
   Agent,
@@ -34,6 +34,10 @@ import {
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
 export function requiresEnterpriseLicense() {
+  if (requireEnterpriseTests) {
+    return;
+  }
+
   test.skip(!enterpriseLicense);
 }
 
@@ -826,9 +830,3 @@ export async function openTerminalWindow(
 
   return terminal;
 }
-
-export const setupApiCalls = async (page: Page) => {
-  const token = await findSessionToken(page);
-  API.setSessionToken(token);
-  API.setHost(`http://127.0.0.1:${coderPort}`);
-};

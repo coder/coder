@@ -118,16 +118,19 @@ echo_standalone_postinstall() {
 		return
 	fi
 
-	channel=mainline
+	channel=
 	advisory="To install our stable release (v${STABLE_VERSION}), use the --stable flag. "
-	if [ "${MAINLINE}" = 0 ]; then
-		channel=stable
+	if [ "${STABLE}" = 1 ]; then
+		channel="stable "
 		advisory=""
+	fi
+	if [ "${MAINLINE}" = 1 ]; then
+		channel="mainline "
 	fi
 
 	cath <<EOF
 
-Coder ${channel} release v${VERSION} installed. ${advisory}See our releases documentation or GitHub for more information on versioning.
+Coder ${channel}release v${VERSION} installed. ${advisory}See our releases documentation or GitHub for more information on versioning.
 
 The Coder binary has been placed in the following location:
 
@@ -246,6 +249,7 @@ EOF
 
 main() {
 	MAINLINE=1
+	STABLE=0
 	TERRAFORM_VERSION="1.6.6"
 
 	if [ "${TRACE-}" ]; then
@@ -298,17 +302,25 @@ main() {
 			;;
 		--version)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			shift
 			;;
 		--version=*)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			;;
 		# Support edge for backward compatibility.
 		--mainline | --edge)
+			VERSION=
 			MAINLINE=1
+			STABLE=0
 			;;
 		--stable)
+			VERSION=
 			MAINLINE=0
+			STABLE=1
 			;;
 		--rsh)
 			RSH="$(parse_arg "$@")"
@@ -390,10 +402,10 @@ main() {
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	STABLE_VERSION=$(echo_latest_stable_version)
-	if [ "${MAINLINE}" = 0 ]; then
-		VERSION=${STABLE_VERSION}
-	else
+	if [ "${MAINLINE}" = 1 ]; then
 		VERSION=$(echo_latest_mainline_version)
+	elif [ "${STABLE}" = 1 ]; then
+		VERSION=${STABLE_VERSION}
 	fi
 
 	distro_name
@@ -410,9 +422,14 @@ main() {
 
 	# If the version is the same as the stable version, we're installing
 	# the stable version.
-	if [ "${MAINLINE}" != 0 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+	if [ "${MAINLINE}" = 1 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
 		echoh "The latest mainline version has been promoted to stable, selecting stable."
 		MAINLINE=0
+		STABLE=1
+	fi
+	# If the manually specified version is stable, mark it as such.
+	if [ "${MAINLINE}" = 0 ] && [ "${STABLE}" = 0 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+		STABLE=1
 	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
@@ -622,19 +639,21 @@ install_standalone() {
 	# fails we can ignore the error as the -w check will then swap us to sudo.
 	sh_c mkdir -p "$STANDALONE_INSTALL_PREFIX" 2>/dev/null || true
 
+	sh_c mkdir -p "$CACHE_DIR/tmp"
+	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
+		sh_c tar -C "$CACHE_DIR/tmp" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
+	else
+		sh_c unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
+	fi
+
+	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+
 	sh_c="sh_c"
 	if [ ! -w "$STANDALONE_INSTALL_PREFIX" ]; then
 		sh_c="sudo_sh_c"
 	fi
 
 	"$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
-	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
-		"$sh_c" tar -C "$CACHE_DIR" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
-	else
-		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
-	fi
-
-	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
@@ -643,7 +662,10 @@ install_standalone() {
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/tmp/coder" "$STANDALONE_BINARY_LOCATION"
+
+	# Clean up the extracted files (note, not using sudo: $sh_c -> sh_c).
+	sh_c rm -rv "$CACHE_DIR/tmp"
 
 	echo_standalone_postinstall
 }

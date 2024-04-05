@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
 import { storageState } from "./playwright.config";
@@ -18,7 +18,12 @@ test("setup deployment", async ({ page }) => {
   await page.getByTestId("button-select-template").isVisible();
 
   // Setup license
-  if (constants.enterpriseLicense) {
+  if (constants.requireEnterpriseTests || constants.enterpriseLicense) {
+    // Make sure that we have something that looks like a real license
+    expect(constants.enterpriseLicense).toBeTruthy();
+    expect(constants.enterpriseLicense.length).toBeGreaterThan(92); // the signature alone should be this long
+    expect(constants.enterpriseLicense.split(".").length).toBe(3); // otherwise it's invalid
+
     await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 
     await page.getByText("Add a license").click();

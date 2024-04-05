@@ -42,7 +42,7 @@ test("add and remove a group", async ({ page }) => {
 
   // Now remove the group
   await row.getByLabel("More options").click();
-  await page.getByText("Delete").click();
+  await page.getByText("Remove").click();
   await expect(page.getByText("Group removed successfully!")).toBeVisible();
   await expect(row).not.toBeVisible();
 });
