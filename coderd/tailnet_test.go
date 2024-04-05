@@ -68,6 +68,35 @@ func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
+//nolint:paralleltest // t.Setenv
+func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://169.254.169.254:12345")
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	a := agents[0]
+
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
+	require.NoError(t, err)
+
+	rp := serverTailnet.ReverseProxy(u, u, a.id)
+
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		u.String(),
+		nil,
+	).WithContext(ctx)
+
+	rp.ServeHTTP(rw, req)
+	res := rw.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+}
+
 func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 
