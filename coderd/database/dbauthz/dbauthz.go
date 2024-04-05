@@ -174,6 +174,7 @@ var (
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {rbac.ActionRead},
+					rbac.ResourceGroup.Type:        {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1139,6 +1140,10 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 		return nil, err
 	}
 	return q.db.GetGroupMembers(ctx, id)
+}
+
+func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {

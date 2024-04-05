@@ -1484,6 +1484,67 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 	return i, err
 }
 
+const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
+SELECT
+    groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
+FROM
+    groups
+	-- If the group is a user made group, then we need to check the group_members table.
+LEFT JOIN
+    group_members
+ON
+    group_members.group_id = groups.id AND
+    group_members.user_id = $1
+	-- If it is the "Everyone" group, then we need to check the organization_members table.
+LEFT JOIN
+    organization_members
+ON
+    organization_members.organization_id = groups.id AND
+    organization_members.user_id = $1
+WHERE
+    -- In either case, the group_id will only match an org or a group.
+    (group_members.user_id = $1 OR organization_members.user_id = $1)
+AND
+    -- Ensure the group or organization is the specified organization.
+    groups.organization_id = $2
+`
+
+type GetGroupsByOrganizationAndUserIDParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationAndUserID, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+			&i.QuotaAllowance,
+			&i.DisplayName,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
 	id, name, organization_id, avatar_url, quota_allowance, display_name, source

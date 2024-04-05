@@ -2250,6 +2250,30 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	return users, nil
 }
 
+func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var groupIds []uuid.UUID
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			groupIds = append(groupIds, member.GroupID)
+		}
+	}
+	groups := []database.Group{}
+	for _, group := range q.groups {
+		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
+			groups = append(groups, group)
+		}
+	}
+
+	return groups, nil
+}
+
 func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
