@@ -1489,11 +1489,13 @@ SELECT
     groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
 FROM
     groups
+	-- If the group is a user made group, then we need to check the group_members table.
 LEFT JOIN
     group_members
 ON
     group_members.group_id = groups.id AND
     group_members.user_id = $1
+	-- If it is the "Everyone" group, then we need to check the organization_members table.
 LEFT JOIN
     organization_members
 ON
