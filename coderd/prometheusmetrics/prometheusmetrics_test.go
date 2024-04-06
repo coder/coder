@@ -159,7 +159,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 				assert.NoError(t, err)
 				sum := 0
 				for _, m := range metrics {
-					if m.GetName() != "coderd_api_workspace_latest_build_total" {
+					if m.GetName() != "coderd_api_workspace_latest_build" {
 						continue
 					}
 
