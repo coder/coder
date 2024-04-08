@@ -269,7 +269,41 @@ Coder on Kubernetes.
 - For GCP:
   [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
 
-### Dev Container
+### Air-gapped architecture
+
+TODO
+
+<!-- TODO Architecture diagram -->
+
+#### Components
+
+TODO
+
+##### Workload resources
+
+**Workspace provisioner**
+
+TODO embedded terraform binaries TODO terraformrc pointing to registry
+
+**Workspace image**
+
+TODO External container
+
+##### Workload supporting resources
+
+**Container Registry (optional)**
+
+TODO external registry
+
+**Terraform Registry**
+
+TODO
+
+**Certificate Authority**
+
+TODO
+
+### Dev Containers
 
 Note: _Dev containers_ are at early stage and considered experimental at the
 moment.
