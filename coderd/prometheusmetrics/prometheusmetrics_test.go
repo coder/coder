@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
-
-	"github.com/coder/coder/v2/cryptorand"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
