@@ -290,20 +290,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		agentNameOrID         = r.AgentNameOrID
 		appURL                string
 		appSharingLevel       database.AppSharingLevel
-		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
-		protocol              = "http"
+		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
+		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
 	)
-	// If we fail to parse the port, see if it's a port with a trailing "s" for
-	// HTTPS.
-	if portUintErr != nil && strings.HasSuffix(r.AppSlugOrPort, "s") {
-		appSlugOrPort := strings.TrimRight(r.AppSlugOrPort, "s")
-		portUint, portUintErr = strconv.ParseUint(appSlugOrPort, 10, 16)
-		if portUintErr == nil {
+	if portUintErr == nil {
+		// If we fail to parse the port, see if it's a port with a trailing "s" for
+		// HTTPS.
+		protocol := "http"
+		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
 		}
-	}
 
-	if portUintErr == nil {
 		if r.AccessMethod != AccessMethodSubdomain {
 			// TODO(@deansheather): this should return a 400 instead of a 500.
 			return nil, xerrors.New("port-based URLs are only supported for subdomain-based applications")
