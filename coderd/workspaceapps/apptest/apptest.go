@@ -1765,9 +1765,11 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	require.NotNil(t, details.Workspace, "can't assert LastUsedAt on a nil workspace!")
 	before, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
-	// Wait for stats to fully flush.
-	details.FlushStats()
 	require.Eventually(t, func() bool {
+		// We may need to flush multiple times, since the stats from the app we are testing might be
+		// collected asynchronously from when we see the connection close, and thus, could race
+		// against being flushed.
+		details.FlushStats()
 		after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 		return assert.NoError(t, err) && after.LastUsedAt.After(before.LastUsedAt)
 	}, testutil.WaitShort, testutil.IntervalMedium)
