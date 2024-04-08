@@ -271,16 +271,16 @@ Coder on Kubernetes.
 
 ### Air-gapped architecture
 
-An air-gapped deployment model refers to the setup of Coder's development
+The air-gapped deployment model refers to the setup of Coder's development
 environment within a restricted network environment that lacks internet
 connectivity. This deployment model is often required for organizations with
 strict security policies or those operating in isolated environments, such as
 government agencies or certain enterprise setups.
 
-The key features of the air-gapped architecture:
+The key features of the air-gapped architecture include:
 
-- _Offline installation_: Deploy workspaces without relying on external Internet
-  connection.
+- _Offline installation_: Deploy workspaces without relying on an external
+  internet connection.
 - _Isolated package/plugin repositories_: Depend on local repositories for
   software installation, updates, and security patches.
 - _Secure data transfer_: Enable encrypted communication channels and robust
