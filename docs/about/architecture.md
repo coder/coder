@@ -288,7 +288,7 @@ The key features of the air-gapped architecture include:
 
 Learn more about [offline deployments](../install/offline.md) of Coder.
 
-<!-- TODO Architecture diagram -->
+![Architecture Diagram](../images/architecture-air-gapped.png)
 
 #### Components
 
