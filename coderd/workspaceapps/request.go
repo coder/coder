@@ -287,15 +287,14 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// whether the app is a slug or a port and whether there are multiple agents
 	// in the workspace or not.
 	var (
-		agentNameOrID         = r.AgentNameOrID
-		appURL                string
-		appSharingLevel       database.AppSharingLevel
+		agentNameOrID   = r.AgentNameOrID
+		appURL          string
+		appSharingLevel database.AppSharingLevel
+		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
 		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
 		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
 	)
 	if portUintErr == nil {
-		// If we fail to parse the port, see if it's a port with a trailing "s" for
-		// HTTPS.
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -350,6 +349,10 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			}
 			// No port share found, so we keep default to owner.
 		} else {
+			if ps.Protocol == database.PortShareProtocolHttps {
+				// Apply HTTPS protocol if specified.
+				appURL = fmt.Sprintf("https://127.0.0.1:%d", portUint)
+			}
 			appSharingLevel = ps.ShareLevel
 		}
 	} else {
