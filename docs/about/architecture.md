@@ -271,7 +271,22 @@ Coder on Kubernetes.
 
 ### Air-gapped architecture
 
-TODO
+An air-gapped deployment model refers to the setup of Coder's development
+environment within a restricted network environment that lacks internet
+connectivity. This deployment model is often required for organizations with
+strict security policies or those operating in isolated environments, such as
+government agencies or certain enterprise setups.
+
+The key features of the air-gapped architecture:
+
+- _Offline installation_: Deploy workspaces without relying on external Internet
+  connection.
+- _Isolated package/plugin repositories_: Depend on local repositories for
+  software installation, updates, and security patches.
+- _Secure data transfer_: Enable encrypted communication channels and robust
+  access controls to safeguard sensitive information.
+
+Learn more about [offline deployments](../install/offline.md) of Coder.
 
 <!-- TODO Architecture diagram -->
 
@@ -291,13 +306,15 @@ TODO External container
 
 ##### Workload supporting resources
 
-**Container Registry (optional)**
+**Container Registry**
 
 TODO external registry
 
 **Terraform Registry**
 
-TODO
+TODO These repositories store all necessary dependencies, ensuring that
+development environments can be provisioned and maintained without internet
+access.
 
 **Certificate Authority**
 
