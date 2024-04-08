@@ -9,8 +9,7 @@ export const portForwardURL = (
   const { location } = window;
   const suffix = https ? "s" : "";
 
-  const subdomain = `${port
-  }${suffix}--${agentName}--${workspaceName}--${username}`;
+  const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
   return `${location.protocol}//${host}`.replace("*", subdomain);
 };
 
@@ -54,7 +53,6 @@ export const openMaybePortForwardedURL = (
       portForwardURL(
         proxyHost,
         parseInt(url.port),
-
         agentName,
         workspaceName,
         username,
