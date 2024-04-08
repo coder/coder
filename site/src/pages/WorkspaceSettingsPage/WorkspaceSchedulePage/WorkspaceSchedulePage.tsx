@@ -101,7 +101,7 @@ export const WorkspaceSchedulePage: FC = () => {
           error={submitScheduleMutation.error}
           initialValues={{
             ...getAutostart(workspace),
-            ...getAutostop(workspace),
+            ...getAutostop(workspace, template),
           }}
           isLoading={submitScheduleMutation.isLoading}
           defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
@@ -117,7 +117,10 @@ export const WorkspaceSchedulePage: FC = () => {
                 getAutostart(workspace),
                 values,
               ),
-              autostopChanged: scheduleChanged(getAutostop(workspace), values),
+              autostopChanged: scheduleChanged(
+                getAutostop(workspace, template),
+                values,
+              ),
             };
 
             await submitScheduleMutation.mutateAsync(data);
@@ -151,8 +154,13 @@ export const WorkspaceSchedulePage: FC = () => {
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);
 
-const getAutostop = (workspace: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace.ttl_ms);
+const getAutostop = (
+  workspace: TypesGen.Workspace,
+  template: TypesGen.Template,
+) =>
+  template.allow_user_autostop
+    ? ttlMsToAutostop(workspace.ttl_ms)
+    : ttlMsToAutostop(template.default_ttl_ms);
 
 type SubmitScheduleData = {
   workspace: TypesGen.Workspace;
