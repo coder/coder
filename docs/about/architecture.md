@@ -292,7 +292,16 @@ Learn more about [offline deployments](../install/offline.md) of Coder.
 
 #### Components
 
-TODO
+The deployment model includes:
+
+- _Workspace provisioners_ with direct access to self-hosted package and plugin
+  repositories and restricted internet access.
+- _Mirror of Terraform Registry_ with multiple versions of Terraform plugins.
+- _Certificate Authority_ with all TLS certificates to build secure
+  communication channels.
+
+The model is compatible with various infrastructure models, enabling deployment
+across multiple regions and diverse cloud platforms.
 
 ##### Workload resources
 
@@ -310,7 +319,7 @@ TODO External container
 
 TODO external registry
 
-**Terraform Registry**
+**Mirror of Terraform Registry**
 
 TODO These repositories store all necessary dependencies, ensuring that
 development environments can be provisioned and maintained without internet
