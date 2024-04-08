@@ -320,6 +320,11 @@ across multiple regions and diverse cloud platforms.
 
 ##### Workload supporting resources
 
+**Self-hosted Database**
+
+- In the air-gapped deployment model, _Coderd_ instance is unable to download
+  Postgres binaries from the internet, so external database must be provided.
+
 **Container Registry**
 
 - Since the _Registry_ is isolated from the internet, platform engineers are
@@ -339,7 +344,8 @@ across multiple regions and diverse cloud platforms.
 
 **Certificate Authority**
 
-TODO
+- Manages and issues TLS certificates to facilitate secure communication
+  channels within the infrastructure.
 
 ### Dev Containers
 
