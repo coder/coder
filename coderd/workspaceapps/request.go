@@ -294,6 +294,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
 		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
 	)
+	//nolint:nestif
 	if portUintErr == nil {
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
