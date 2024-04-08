@@ -307,23 +307,35 @@ across multiple regions and diverse cloud platforms.
 
 **Workspace provisioner**
 
-TODO embedded terraform binaries TODO terraformrc pointing to registry
+- Includes Terraform binary in the container or system image.
+- Checks out Terraform plugins from self-hosted _Registry_ mirror.
+- Deploys workspace images stored in the self-hosted _Container Registry_.
 
-**Workspace image**
+**Coderd instance**
 
-TODO External container
+- Update checks are disabled.
+- Telemetry data is not collected.
+- Direct connections are not supported, workspace traffic is relayed through
+  control plane's DERP proxy.
 
 ##### Workload supporting resources
 
 **Container Registry**
 
-TODO external registry
+- Since the _Registry_ is isolated from the internet, platform engineers are
+  responsible for maintaining Workspace container images and conducting periodic
+  updates of base Docker images.
+- It is recommended to keep [Dev Containers](../templates/devcontainers.md) up
+  to date with the latest released
+  [Envbuilder](https://github.com/coder/envbuilder) runtime.
 
 **Mirror of Terraform Registry**
 
-TODO These repositories store all necessary dependencies, ensuring that
-development environments can be provisioned and maintained without internet
-access.
+- Stores all necessary Terraform plugin dependencies, ensuring successful
+  workspace provisioning and maintenance without internet access.
+- Platform engineers are responsible for periodically updating the mirrored
+  Terraform plugins, including
+  [terraform-provider-coder](https://github.com/coder/terraform-provider-coder).
 
 **Certificate Authority**
 
@@ -362,7 +374,7 @@ models, in multiple regions, or across various cloud platforms.
 
 ##### Workload resources
 
-**Workspace**
+**Coder workspace**
 
 - Docker and Kubernetes based templates are supported.
 - The `docker_container` resource uses `ghcr.io/coder/envbuilder` as the base
