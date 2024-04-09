@@ -1649,13 +1649,6 @@ func (m metricsStore) InsertWorkspaceAgentScripts(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	start := time.Now()
-	stat, err := m.s.InsertWorkspaceAgentStat(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStat").Observe(time.Since(start).Seconds())
-	return stat, err
-}
-
 func (m metricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceAgentStats(ctx, arg)
