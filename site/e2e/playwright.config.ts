@@ -4,7 +4,6 @@ import {
   coderMain,
   coderPort,
   coderdPProfPort,
-  enterpriseLicense,
   gitAuth,
 } from "./constants";
 
