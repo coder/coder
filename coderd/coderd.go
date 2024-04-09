@@ -541,7 +541,7 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
 	}
 	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
-		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, options.Logger.Named("stats-reporter"), workspaceapps.DefaultStatsDBReporterBatchSize)
 	}
 
 	api.workspaceAppServer = &workspaceapps.Server{

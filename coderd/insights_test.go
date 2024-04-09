@@ -735,7 +735,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspaceapps.NewStatsDBReporter(db, slogtest.Make(t, nil), workspaceapps.DefaultStatsDBReporterBatchSize)
 		//nolint:gocritic // This is a test.
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
@@ -1631,7 +1631,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspaceapps.NewStatsDBReporter(db,  slogtest.Make(t, nil),workspaceapps.DefaultStatsDBReporterBatchSize)
 		//nolint:gocritic // This is a test.
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")

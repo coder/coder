@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/agentapi"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -60,13 +61,15 @@ var _ StatsReporter = (*StatsDBReporter)(nil)
 // StatsDBReporter writes workspace app StatsReports to the database.
 type StatsDBReporter struct {
 	db        database.Store
+	logger    slog.Logger
 	batchSize int
 }
 
 // NewStatsDBReporter returns a new StatsDBReporter.
-func NewStatsDBReporter(db database.Store, batchSize int) *StatsDBReporter {
+func NewStatsDBReporter(db database.Store, logger slog.Logger, batchSize int) *StatsDBReporter {
 	return &StatsDBReporter{
 		db:        db,
+		logger:    logger,
 		batchSize: batchSize,
 	}
 }
@@ -137,6 +140,19 @@ func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error
 			LastUsedAt: dbtime.Now(), // This isn't 100% accurate, but it's good enough.
 		}); err != nil {
 			return err
+		}
+
+		// This is very inefficient to loop over all workspaces with activity.
+		// The 'ActivityBumpWorkspace' sql query is not built to be easily turned
+		// in a batch.
+		for _, id := range uniqueIDs {
+			// Passing in a zero time will default bump the workspace by 1hr.
+			// The correct behavior is to fetch the template settings, and pass
+			// in the calculated autostart time. But that requires an extra db
+			// call per workspace.
+			//
+			// This function will log any failures.
+			agentapi.ActivityBumpWorkspace(ctx, r.logger, r.db, id, time.Time{})
 		}
 
 		return nil

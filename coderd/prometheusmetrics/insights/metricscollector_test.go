@@ -109,7 +109,7 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err, "unable to post fake stats")
 
 	// Fake app usage
-	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+	reporter := workspaceapps.NewStatsDBReporter(db, slogtest.Make(t, nil), workspaceapps.DefaultStatsDBReporterBatchSize)
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
 	//nolint:gocritic // This is a test.
 	err = reporter.Report(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
