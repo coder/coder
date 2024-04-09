@@ -48,9 +48,6 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="observability" icon={InsertChartIcon}>
         Observability
       </SidebarNavItem>
-      <SidebarNavItem href="/health" icon={MonitorHeartOutlined}>
-        Health
-      </SidebarNavItem>
     </BaseSidebar>
   );
 };
