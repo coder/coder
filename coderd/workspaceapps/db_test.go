@@ -677,6 +677,11 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		// should parse as app and fail to find app "9090ss"
 		require.False(t, ok)
+		w := rw.Result()
+		_ = w.Body.Close()
+		b, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "404 - Application Not Found")
 	})
 
 	t.Run("SubdomainEndsInS", func(t *testing.T) {
