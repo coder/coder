@@ -109,6 +109,15 @@ WHERE
 			)
 		FROM
 			template_usage_stats
+	)
+	AND created_at < (
+		-- Delete at most in batches of 3 days (with a batch size of 3 days, we
+		-- can clear out the previous 6 months of data in ~60 iterations) whilst
+		-- keeping the DB load relatively low.
+		SELECT
+			COALESCE(MIN(created_at) + '3 days'::interval, NOW())
+		FROM
+			workspace_agent_stats
 	);
 
 -- name: GetDeploymentWorkspaceAgentStats :one

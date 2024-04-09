@@ -1526,6 +1526,15 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 					)
 				FROM
 					template_usage_stats
+			)
+			AND created_at < (
+				-- Delete at most in batches of 3 days (with a batch size of 3 days, we
+				-- can clear out the previous 6 months of data in ~60 iterations) whilst
+				-- keeping the DB load relatively low.
+				SELECT
+					COALESCE(MIN(created_at) + '3 days'::interval, NOW())
+				FROM
+					workspace_agent_stats
 			);
 	*/
 
@@ -1543,10 +1552,19 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	}
 
 	var validStats []database.WorkspaceAgentStat
+	var batchLimit time.Time
 	for _, stat := range q.workspaceAgentStats {
-		fmt.Println(stat.CreatedAt, limit)
-		if stat.CreatedAt.Before(limit) {
-			fmt.Println("delete")
+		if batchLimit.IsZero() || stat.CreatedAt.Before(batchLimit) {
+			batchLimit = stat.CreatedAt
+		}
+	}
+	if batchLimit.IsZero() {
+		batchLimit = time.Now()
+	} else {
+		batchLimit = batchLimit.AddDate(0, 0, 3)
+	}
+	for _, stat := range q.workspaceAgentStats {
+		if stat.CreatedAt.Before(limit) && stat.CreatedAt.Before(batchLimit) {
 			continue
 		}
 		validStats = append(validStats, stat)
