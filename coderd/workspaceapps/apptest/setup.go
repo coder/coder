@@ -91,6 +91,7 @@ type App struct {
 	// URL with an agent name.
 	AgentName     string
 	AppSlugOrPort string
+	HTTPS         bool
 
 	// Prefix should have ---.
 	Prefix string
@@ -116,6 +117,7 @@ type Details struct {
 		Authenticated App
 		Public        App
 		Port          App
+		PortHTTPS     App
 	}
 }
 
@@ -154,6 +156,7 @@ func (d *Details) SubdomainAppURL(app App) *url.URL {
 		AgentName:     app.AgentName,
 		WorkspaceName: app.WorkspaceName,
 		Username:      app.Username,
+		HTTPS:         app.HTTPS,
 	}
 	u := *d.PathAppBaseURL
 	u.Host = strings.Replace(d.Options.AppHost, "*", appHost.String(), 1)
@@ -246,6 +249,12 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		WorkspaceName: workspace.Name,
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)),
+	}
+	details.Apps.PortHTTPS = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
 	}
 
 	return details
