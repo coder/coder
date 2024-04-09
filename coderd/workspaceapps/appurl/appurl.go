@@ -58,7 +58,6 @@ type ApplicationURL struct {
 	AgentName     string
 	WorkspaceName string
 	Username      string
-	HTTPS         bool
 }
 
 // String returns the application URL hostname without scheme. You will likely
@@ -67,9 +66,6 @@ func (a ApplicationURL) String() string {
 	var appURL strings.Builder
 	_, _ = appURL.WriteString(a.Prefix)
 	_, _ = appURL.WriteString(a.AppSlugOrPort)
-	if a.HTTPS {
-		_, _ = appURL.WriteString("s")
-	}
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.AgentName)
 	_, _ = appURL.WriteString("--")

@@ -156,7 +156,6 @@ func (d *Details) SubdomainAppURL(app App) *url.URL {
 		AgentName:     app.AgentName,
 		WorkspaceName: app.WorkspaceName,
 		Username:      app.Username,
-		HTTPS:         app.HTTPS,
 	}
 	u := *d.PathAppBaseURL
 	u.Host = strings.Replace(d.Options.AppHost, "*", appHost.String(), 1)
