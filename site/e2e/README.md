@@ -20,3 +20,18 @@ pnpm playwright:test
 # Run a specific test (`-g` stands for grep. It accepts regex).
 pnpm playwright:test -g '<your test here>'
 ```
+
+
+# Using nix
+
+If this breaks, it is likely because the flake chromium version and playwright
+are no longer compatible. To fix this, update the flake to get the latest
+chromium version, and adjust the playwright version in the package.json.
+
+```shell
+# Optionally add '--command zsh' to choose your shell.
+nix develop
+cd site
+pnpm build
+pnpm playwright:test
+```
