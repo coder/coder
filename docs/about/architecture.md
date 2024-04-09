@@ -311,11 +311,11 @@ across multiple regions and diverse cloud platforms.
 - Checks out Terraform plugins from self-hosted _Registry_ mirror.
 - Deploys workspace images stored in the self-hosted _Container Registry_.
 
-**Coderd instance**
+**Coder server**
 
-- Update checks are disabled.
-- Telemetry data is not collected.
-- Direct connections are not supported, workspace traffic is relayed through
+- Update checks are disabled (`CODER_UPDATE_CHECK=false`).
+- Telemetry data is not collected (`CODER_TELEMETRY_ENABLE=false`).
+- Direct connections are not possible, workspace traffic is relayed through
   control plane's DERP proxy.
 
 ##### Workload supporting resources
