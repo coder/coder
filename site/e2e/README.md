@@ -35,3 +35,10 @@ cd site
 pnpm build
 pnpm playwright:test
 ```
+
+# Enterprise tests
+
+Enterprise tests require a license key to run.
+```shell
+export CODER_E2E_ENTERPRISE_LICENSE=<license key>
+```
