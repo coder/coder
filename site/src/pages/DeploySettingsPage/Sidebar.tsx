@@ -3,7 +3,6 @@ import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import LockRounded from "@mui/icons-material/LockOutlined";
-import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
 import Globe from "@mui/icons-material/PublicOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
