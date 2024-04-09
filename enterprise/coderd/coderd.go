@@ -630,7 +630,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 		var coordinator agpltailnet.Coordinator
-		if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
+		if enabled && api.DeploymentValues.InMemoryDatabase.Value() {
 			api.Logger.Warn(ctx, "high availability is enabled, but cannot be configured due to the database being set to in-memory")
 		}
 		if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
