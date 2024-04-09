@@ -16,7 +16,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import * as Yup from "yup";
 import { getAgentListeningPorts } from "api/api";
@@ -48,7 +48,7 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { portForwardURL } from "utils/portForward";
+import { getWorkspaceListeningPortsProtocol, portForwardURL, saveWorkspaceListeningPortsProtocol } from "utils/portForward";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -135,6 +135,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   portSharingControlsEnabled,
 }) => {
   const theme = useTheme();
+  const [listeningPortProtocol, setListeningPortProtocol]  = useState(getWorkspaceListeningPortsProtocol(workspaceID));
 
   const sharedPortsQuery = useQuery({
     ...workspacePortShares(workspaceID),
@@ -253,52 +254,68 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
               ? "No open ports were detected."
               : "The listening ports are exclusively accessible to you."}
           </HelpTooltipText>
-          <form
-            css={styles.newPortForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const port = Number(formData.get("portNumber"));
-              const url = portForwardURL(
-                host,
-                port,
-                agent.name,
-                workspaceName,
-                username,
-              );
-              window.open(url, "_blank");
-            }}
-          >
-            <input
-              aria-label="Port number"
-              name="portNumber"
-              type="number"
-              placeholder="Connect to port..."
-              min={9}
-              max={65535}
-              required
-              css={styles.newPortInput}
-            />
-            <Button
-              type="submit"
-              size="small"
-              variant="text"
-              css={{
-                paddingLeft: 12,
-                paddingRight: 12,
-                minWidth: 0,
+          <Stack direction="row" gap={1} alignItems="flex-end" justifyContent="flex-end">
+            <form
+              css={styles.newPortForm}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const port = Number(formData.get("portNumber"));
+                const url = portForwardURL(
+                  host,
+                  port,
+                  agent.name,
+                  workspaceName,
+                  username,
+                );
+                window.open(url, "_blank");
               }}
             >
-              <OpenInNewOutlined
-                css={{
-                  flexShrink: 0,
-                  width: 14,
-                  height: 14,
-                  color: theme.palette.text.primary,
-                }}
+              <input
+                aria-label="Port number"
+                name="portNumber"
+                type="number"
+                placeholder="Connect to port..."
+                min={9}
+                max={65535}
+                required
+                css={styles.newPortInput}
               />
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                size="small"
+                variant="text"
+                css={{
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                  minWidth: 0,
+                }}
+              >
+                <OpenInNewOutlined
+                  css={{
+                    flexShrink: 0,
+                    width: 14,
+                    height: 14,
+                    color: theme.palette.text.primary,
+                  }}
+                />
+              </Button>
+            </form>
+            <FormControl size="small" css={styles.protocolFormControl}>
+              <Select
+                css={styles.listeningPortProtocol}
+                value={listeningPortProtocol}
+                onChange={async (event) => {
+                  const selectedProtocol = event.target.value as "http" | "https";
+                  setListeningPortProtocol(selectedProtocol);
+                  saveWorkspaceListeningPortsProtocol(workspaceID, selectedProtocol);
+                }}
+              >
+                <MenuItem value="http">HTTP</MenuItem>
+                <MenuItem value="https">HTTPS</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
         </header>
         <div
           css={{
@@ -619,6 +636,22 @@ const styles = {
     "&:focus-within": {
       borderColor: theme.palette.primary.main,
     },
+    width: "100%",
+  }),
+
+  listeningPortProtocol: (theme) => ({
+    boxShadow: "none",
+    ".MuiOutlinedInput-notchedOutline": { border: 0 },
+    "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+    "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: "4px",
+    marginTop: 8,
+    minWidth: "100px",
   }),
 
   newPortInput: (theme) => ({

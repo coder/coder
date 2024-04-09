@@ -62,3 +62,11 @@ export const openMaybePortForwardedURL = (
     open(uri);
   }
 };
+
+export const saveWorkspaceListeningPortsProtocol = (workspaceID: string, protocol: "http" | "https") => {
+  localStorage.setItem(`listening-ports-protocol-workspace-${workspaceID}`, protocol);
+}
+
+export const getWorkspaceListeningPortsProtocol = (workspaceID: string) => {
+  return localStorage.getItem(`listening-ports-protocol-workspace-${workspaceID}`) || "http";
+}
