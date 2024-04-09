@@ -269,7 +269,85 @@ Coder on Kubernetes.
 - For GCP:
   [Google Cloud Identity Platform](https://cloud.google.com/architecture/identity/single-sign-on)
 
-### Dev Container
+### Air-gapped architecture
+
+The air-gapped deployment model refers to the setup of Coder's development
+environment within a restricted network environment that lacks internet
+connectivity. This deployment model is often required for organizations with
+strict security policies or those operating in isolated environments, such as
+government agencies or certain enterprise setups.
+
+The key features of the air-gapped architecture include:
+
+- _Offline installation_: Deploy workspaces without relying on an external
+  internet connection.
+- _Isolated package/plugin repositories_: Depend on local repositories for
+  software installation, updates, and security patches.
+- _Secure data transfer_: Enable encrypted communication channels and robust
+  access controls to safeguard sensitive information.
+
+Learn more about [offline deployments](../install/offline.md) of Coder.
+
+![Architecture Diagram](../images/architecture-air-gapped.png)
+
+#### Components
+
+The deployment model includes:
+
+- _Workspace provisioners_ with direct access to self-hosted package and plugin
+  repositories and restricted internet access.
+- _Mirror of Terraform Registry_ with multiple versions of Terraform plugins.
+- _Certificate Authority_ with all TLS certificates to build secure
+  communication channels.
+
+The model is compatible with various infrastructure models, enabling deployment
+across multiple regions and diverse cloud platforms.
+
+##### Workload resources
+
+**Workspace provisioner**
+
+- Includes Terraform binary in the container or system image.
+- Checks out Terraform plugins from self-hosted _Registry_ mirror.
+- Deploys workspace images stored in the self-hosted _Container Registry_.
+
+**Coder server**
+
+- Update checks are disabled (`CODER_UPDATE_CHECK=false`).
+- Telemetry data is not collected (`CODER_TELEMETRY_ENABLE=false`).
+- Direct connections are not possible, workspace traffic is relayed through
+  control plane's DERP proxy.
+
+##### Workload supporting resources
+
+**Self-hosted Database**
+
+- In the air-gapped deployment model, _Coderd_ instance is unable to download
+  Postgres binaries from the internet, so external database must be provided.
+
+**Container Registry**
+
+- Since the _Registry_ is isolated from the internet, platform engineers are
+  responsible for maintaining Workspace container images and conducting periodic
+  updates of base Docker images.
+- It is recommended to keep [Dev Containers](../templates/devcontainers.md) up
+  to date with the latest released
+  [Envbuilder](https://github.com/coder/envbuilder) runtime.
+
+**Mirror of Terraform Registry**
+
+- Stores all necessary Terraform plugin dependencies, ensuring successful
+  workspace provisioning and maintenance without internet access.
+- Platform engineers are responsible for periodically updating the mirrored
+  Terraform plugins, including
+  [terraform-provider-coder](https://github.com/coder/terraform-provider-coder).
+
+**Certificate Authority**
+
+- Manages and issues TLS certificates to facilitate secure communication
+  channels within the infrastructure.
+
+### Dev Containers
 
 Note: _Dev containers_ are at early stage and considered experimental at the
 moment.
@@ -302,7 +380,7 @@ models, in multiple regions, or across various cloud platforms.
 
 ##### Workload resources
 
-**Workspace**
+**Coder workspace**
 
 - Docker and Kubernetes based templates are supported.
 - The `docker_container` resource uses `ghcr.io/coder/envbuilder` as the base

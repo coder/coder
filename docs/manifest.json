@@ -230,9 +230,9 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
-          "title": "Devcontainers",
-          "description": "Use devcontainers in workspaces",
-          "path": "./templates/devcontainers.md",
+          "title": "Dev Containers",
+          "description": "Use Dev Containers in workspaces",
+          "path": "./templates/dev-containers.md",
           "state": "alpha"
         },
         {
