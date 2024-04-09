@@ -21,7 +21,6 @@ pnpm playwright:test
 pnpm playwright:test -g '<your test here>'
 ```
 
-
 # Using nix
 
 If this breaks, it is likely because the flake chromium version and playwright
@@ -40,6 +39,7 @@ pnpm playwright:test
 # Enterprise tests
 
 Enterprise tests require a license key to run.
+
 ```shell
 export CODER_E2E_ENTERPRISE_LICENSE=<license key>
 ```
