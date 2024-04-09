@@ -32,6 +32,7 @@ chromium version, and adjust the playwright version in the package.json.
 # Optionally add '--command zsh' to choose your shell.
 nix develop
 cd site
+pnpm install
 pnpm build
 pnpm playwright:test
 ```
