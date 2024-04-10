@@ -1,11 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import * as path from "path";
-import {
-  coderMain,
-  coderPort,
-  coderdPProfPort,
-  gitAuth,
-} from "./constants";
+import { coderMain, coderPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
