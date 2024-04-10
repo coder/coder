@@ -630,7 +630,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 		var coordinator agpltailnet.Coordinator
-		if enabled {
+		// If HA is enabled, but the database is in-memory, we can't actually
+		// run HA and the PG coordinator. So throw a log line, and continue to use
+		// the in memory AGPL coordinator.
+		if enabled && api.DeploymentValues.InMemoryDatabase.Value() {
+			api.Logger.Warn(ctx, "high availability is enabled, but cannot be configured due to the database being set to in-memory")
+		}
+		if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
 			haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
