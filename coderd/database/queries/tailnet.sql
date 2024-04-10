@@ -207,6 +207,12 @@ FROM tailnet_tunnels
 INNER JOIN tailnet_peers ON tailnet_tunnels.src_id = tailnet_peers.id
 WHERE tailnet_tunnels.dst_id = $1;
 
+-- name: PublishReadyForHandshake :exec
+SELECT pg_notify(
+	'tailnet_ready_for_handshake',
+	format('%s,%s', sqlc.arg('to')::text, sqlc.arg('from')::text)
+);
+
 -- For PG Coordinator HTMLDebug
 
 -- name: GetAllTailnetCoordinators :many

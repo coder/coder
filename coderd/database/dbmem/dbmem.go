@@ -6742,6 +6742,10 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (*FakeQuerier) PublishReadyForHandshake(context.Context, database.PublishReadyForHandshakeParams) error {
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
 	err := validateDatabaseType(templateID)
 	if err != nil {

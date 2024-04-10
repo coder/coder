@@ -1829,6 +1829,11 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionCreate).
 			Errors(dbmem.ErrUnimplemented)
 	}))
+	s.Run("PublishReadyForHandshake", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.PublishReadyForHandshakeParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, rbac.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
 }
 
 func (s *MethodTestSuite) TestDBCrypt() {

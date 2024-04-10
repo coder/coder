@@ -3617,6 +3617,20 @@ func (mr *MockStoreMockRecorder) Ping(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStore)(nil).Ping), arg0)
 }
 
+// PublishReadyForHandshake mocks base method.
+func (m *MockStore) PublishReadyForHandshake(arg0 context.Context, arg1 database.PublishReadyForHandshakeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublishReadyForHandshake", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PublishReadyForHandshake indicates an expected call of PublishReadyForHandshake.
+func (mr *MockStoreMockRecorder) PublishReadyForHandshake(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishReadyForHandshake", reflect.TypeOf((*MockStore)(nil).PublishReadyForHandshake), arg0, arg1)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()

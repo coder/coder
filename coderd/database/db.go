@@ -103,7 +103,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 				// Transaction succeeded.
 				return nil
 			}
-			if err != nil && !IsSerializedError(err) {
+			if !IsSerializedError(err) {
 				// We should only retry if the error is a serialization error.
 				return err
 			}

@@ -30,6 +30,7 @@ type connIO struct {
 	responses    chan<- *proto.CoordinateResponse
 	bindings     chan<- binding
 	tunnels      chan<- tunnel
+	rfhs         chan<- readyForHandshake
 	auth         agpl.CoordinateeAuth
 	mu           sync.Mutex
 	closed       bool
@@ -46,6 +47,7 @@ func newConnIO(coordContext context.Context,
 	logger slog.Logger,
 	bindings chan<- binding,
 	tunnels chan<- tunnel,
+	rfhs chan<- readyForHandshake,
 	requests <-chan *proto.CoordinateRequest,
 	responses chan<- *proto.CoordinateResponse,
 	id uuid.UUID,
@@ -64,6 +66,7 @@ func newConnIO(coordContext context.Context,
 		responses: responses,
 		bindings:  bindings,
 		tunnels:   tunnels,
+		rfhs:      rfhs,
 		auth:      auth,
 		name:      name,
 		start:     now,
@@ -189,6 +192,26 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 		c.logger.Debug(c.peerCtx, "graceful disconnect")
 		c.disconnected = true
 		return errDisconnect
+	}
+	if req.ReadyForHandshake != nil {
+		c.logger.Debug(c.peerCtx, "got ready for handshake ", slog.F("rfh", req.ReadyForHandshake))
+		for _, rfh := range req.ReadyForHandshake {
+			dst, err := uuid.FromBytes(rfh.Id)
+			if err != nil {
+				c.logger.Error(c.peerCtx, "unable to convert bytes to UUID", slog.Error(err))
+				// this shouldn't happen unless there is a client error.  Close the connection so the client
+				// doesn't just happily continue thinking everything is fine.
+				return err
+			}
+
+			if err := agpl.SendCtx(c.coordCtx, c.rfhs, readyForHandshake{hKey: hKey{
+				src: c.id,
+				dst: dst,
+			}}); err != nil {
+				c.logger.Debug(c.peerCtx, "failed to send ready for handshake", slog.Error(err))
+				return err
+			}
+		}
 	}
 	return nil
 }

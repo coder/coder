@@ -6262,6 +6262,23 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	return items, nil
 }
 
+const publishReadyForHandshake = `-- name: PublishReadyForHandshake :exec
+SELECT pg_notify(
+	'tailnet_ready_for_handshake',
+	format('%s,%s', $1::text, $2::text)
+)
+`
+
+type PublishReadyForHandshakeParams struct {
+	To   string `db:"to" json:"to"`
+	From string `db:"from" json:"from"`
+}
+
+func (q *sqlQuerier) PublishReadyForHandshake(ctx context.Context, arg PublishReadyForHandshakeParams) error {
+	_, err := q.db.ExecContext(ctx, publishReadyForHandshake, arg.To, arg.From)
+	return err
+}
+
 const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
 INSERT INTO
 	tailnet_agents (
