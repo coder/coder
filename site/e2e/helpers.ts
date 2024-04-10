@@ -31,6 +31,7 @@ import {
   Response,
   type RichParameter,
 } from "./provisionerGenerated";
+import { expectUrl } from "./expectUrl";
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
 export function requiresEnterpriseLicense() {
@@ -52,7 +53,9 @@ export const createWorkspace = async (
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL("/templates/" + templateName + "/workspace");
+  await expectUrl(page).toHavePathName(
+    "/templates/" + templateName + "/workspace",
+  );
 
   const name = randomName();
   await page.getByLabel("name").fill(name);
@@ -61,7 +64,7 @@ export const createWorkspace = async (
   await page.getByTestId("form-submit").click();
 
   // We can't use `toHaveURL` because that causes issues with searchParams
-  await expect(new URL(page.url()).pathname).toBe("/@admin/" + name);
+  await expectUrl(page.url())).toHavePathName("/@admin/" + name);
 
   await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
     state: "visible",
