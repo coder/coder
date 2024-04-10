@@ -91,7 +91,6 @@ type App struct {
 	// URL with an agent name.
 	AgentName     string
 	AppSlugOrPort string
-	HTTPS         bool
 
 	// Prefix should have ---.
 	Prefix string
