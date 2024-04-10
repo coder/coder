@@ -1,12 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import * as path from "path";
-import {
-  coderMain,
-  coderPort,
-  coderdPProfPort,
-  enterpriseLicense,
-  gitAuth,
-} from "./constants";
+import { coderMain, coderPort, coderdPProfPort, gitAuth } from "./constants";
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
@@ -54,8 +48,7 @@ export default defineConfig({
       "--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
       `--access-url=http://localhost:${coderPort}`,
       `--http-address=localhost:${coderPort}`,
-      // Adding an enterprise license causes issues with pgcoord when running with `--in-memory`.
-      !enterpriseLicense && "--in-memory",
+      "--in-memory",
       "--telemetry=false",
       "--dangerous-disable-rate-limits",
       "--provisioner-daemons 10",

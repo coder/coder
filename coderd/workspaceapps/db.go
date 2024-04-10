@@ -85,7 +85,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		DB:                          p.Database,
 		OAuth2Configs:               p.OAuth2Configs,
 		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: p.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		DisableSessionExpiryRefresh: p.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 		// Optional is true to allow for public apps. If the authorization check
 		// (later on) fails and the user is not authenticated, they will be
 		// redirected to the login page or app auth endpoint using code below.

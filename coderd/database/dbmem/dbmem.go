@@ -6481,37 +6481,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 	return scripts, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	if err := validateDatabaseType(p); err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	stat := database.WorkspaceAgentStat{
-		ID:                          p.ID,
-		CreatedAt:                   p.CreatedAt,
-		WorkspaceID:                 p.WorkspaceID,
-		AgentID:                     p.AgentID,
-		UserID:                      p.UserID,
-		ConnectionsByProto:          p.ConnectionsByProto,
-		ConnectionCount:             p.ConnectionCount,
-		RxPackets:                   p.RxPackets,
-		RxBytes:                     p.RxBytes,
-		TxPackets:                   p.TxPackets,
-		TxBytes:                     p.TxBytes,
-		TemplateID:                  p.TemplateID,
-		SessionCountVSCode:          p.SessionCountVSCode,
-		SessionCountJetBrains:       p.SessionCountJetBrains,
-		SessionCountReconnectingPTY: p.SessionCountReconnectingPTY,
-		SessionCountSSH:             p.SessionCountSSH,
-		ConnectionMedianLatencyMS:   p.ConnectionMedianLatencyMS,
-	}
-	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
-	return stat, nil
-}
-
 func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {

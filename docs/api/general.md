@@ -200,7 +200,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
-    "disable_session_expiry_refresh": true,
     "docs_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -252,8 +251,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "log_filter": ["string"],
       "stackdriver": "string"
     },
-    "max_session_expiry": 0,
-    "max_token_lifetime": 0,
     "metrics_cache_refresh_interval": 0,
     "oauth2": {
       "github": {
@@ -341,6 +338,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "redirect_to_access_url": true,
     "scim_api_key": "string",
     "secure_auth_cookie": true,
+    "session_lifetime": {
+      "default_duration": 0,
+      "disable_expiry_refresh": true,
+      "max_token_lifetime": 0
+    },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
     "strict_transport_security_options": ["string"],

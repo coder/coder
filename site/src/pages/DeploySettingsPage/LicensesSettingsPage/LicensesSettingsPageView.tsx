@@ -84,7 +84,7 @@ const LicensesSettingsPageView: FC<Props> = ({
       {isLoading && <Skeleton variant="rectangular" height={200} />}
 
       {!isLoading && licenses && licenses?.length > 0 && (
-        <Stack spacing={4}>
+        <Stack spacing={4} className="licenses">
           {licenses
             ?.sort(
               (a, b) =>

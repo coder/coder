@@ -116,6 +116,7 @@ type Details struct {
 		Authenticated App
 		Public        App
 		Port          App
+		PortHTTPS     App
 	}
 }
 
@@ -246,6 +247,12 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		WorkspaceName: workspace.Name,
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)),
+	}
+	details.Apps.PortHTTPS = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
 	}
 
 	return details

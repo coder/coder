@@ -1165,6 +1165,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			appDetails := setupProxyTest(t, &DeploymentOptions{
 				ServeHTTPS: true,
 			})
+			// using the fact that Apps.Port and Apps.PortHTTPS are the same port here
 			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
 			require.NoError(t, err)
 			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
@@ -1178,7 +1179,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			publicAppClient := appDetails.AppClient(t)
 			publicAppClient.SetSessionToken("")
 
-			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.PortHTTPS).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)

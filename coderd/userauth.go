@@ -252,7 +252,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		UserID:          user.ID,
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
-		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 	})
 	if err != nil {
 		logger.Error(ctx, "unable to create API key", slog.Error(err))
@@ -1612,7 +1612,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
 			UserID:          user.ID,
 			LoginType:       params.LoginType,
-			DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+			DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 			RemoteAddr:      r.RemoteAddr,
 		})
 		if err != nil {
