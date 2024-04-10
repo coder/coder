@@ -27,7 +27,8 @@ If this breaks, it is likely because the flake chromium version and playwright
 are no longer compatible. To fix this, update the flake to get the latest
 chromium version, and adjust the playwright version in the package.json.
 
-You can see the playwright version here: https://search.nixos.org/packages?channel=unstable&show=playwright-driver&from=0&size=50&sort=relevance&type=packages&query=playwright-driver
+You can see the playwright version here:
+https://search.nixos.org/packages?channel=unstable&show=playwright-driver&from=0&size=50&sort=relevance&type=packages&query=playwright-driver
 
 ```shell
 # Optionally add '--command zsh' to choose your shell.
