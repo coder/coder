@@ -88,7 +88,6 @@ type Options struct {
 	// falling back. This is useful for misbehaving proxies that prevent
 	// fallback due to odd behavior, like Azure App Proxy.
 	DERPForceWebSockets bool
-
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
@@ -309,6 +308,10 @@ type Conn struct {
 	listeners        map[listenKey]*listener
 
 	trafficStats *connstats.Statistics
+}
+
+func (c *Conn) SetTunnelDestination(id uuid.UUID) {
+	c.configMaps.setTunnelDestination(id)
 }
 
 func (c *Conn) GetBlockEndpoints() bool {

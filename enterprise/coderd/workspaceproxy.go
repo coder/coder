@@ -658,7 +658,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
 			}
-		} else if err != nil {
+		} else {
 			return xerrors.Errorf("get replica: %w", err)
 		}
 
