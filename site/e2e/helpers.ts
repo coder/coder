@@ -60,7 +60,9 @@ export const createWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  await expect(page).toHaveURL("/@admin/" + name);
+  // Workaround: OutdatedAgent lands at "http://localhost:3111/@admin/8d6225b7?resources=echo_dev"
+  // and this is also a correct location.
+  await page.waitForURL(new RegExp("/@admin/" + name));
 
   await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
     state: "visible",
