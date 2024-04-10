@@ -604,7 +604,7 @@ func (f *FakeIDP) CreateAuthCode(t testing.TB, state string) string {
 // something.
 // Essentially this is used to fake the Coderd side of the exchange.
 // The flow starts at the user hitting the OIDC login page.
-func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) (*http.Response, error) {
+func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) *http.Response {
 	t.Helper()
 	if f.serve {
 		panic("cannot use OIDCCallback with WithServing. This is only for the in memory usage")
@@ -625,7 +625,7 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 			_ = resp.Body.Close()
 		}
 	})
-	return resp, nil
+	return resp
 }
 
 // ProviderJSON is the .well-known/configuration JSON
