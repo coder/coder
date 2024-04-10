@@ -1,9 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { hasFirstUser } from "api/api";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
 import { storageState } from "./playwright.config";
 
 test("setup deployment", async ({ page }) => {
+  const exists = await hasFirstUser();
+  if (exists) {
+    // First user already exists, abort early. All tests execute this as a dependency,
+    // if you run multiple tests in the UI, this will fail unless we check this.
+    return;
+  }
+
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   // Setup first user
