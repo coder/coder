@@ -244,7 +244,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
             justifyContent="space-between"
             alignItems="start"
           >
-            <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+            <HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
             <HelpTooltipLink
               href={docs("/networking/port-forwarding#dashboard")}
             >
@@ -253,7 +253,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </Stack>
           <Stack direction="column" gap={1}>
             <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-              {"The listening ports are exclusively accessible to you."}
+              {"The listening ports are exclusively accessible to you. Selecting HTTP/S will change the protocol for all listening ports."}
             </HelpTooltipText>
             <Stack
               direction="row"
