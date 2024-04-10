@@ -53,7 +53,6 @@ export default defineConfig({
       "--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
       `--access-url=http://localhost:${coderPort}`,
       `--http-address=localhost:${coderPort}`,
-      // Adding an enterprise license causes issues with pgcoord when running with `--in-memory`.
       "--in-memory",
       "--telemetry=false",
       "--dangerous-disable-rate-limits",
