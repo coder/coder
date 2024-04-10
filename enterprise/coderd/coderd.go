@@ -148,7 +148,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DB:                            options.Database,
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
-		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
@@ -157,7 +157,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DB:                            options.Database,
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
-		DisableSessionExpiryRefresh:   options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 		Optional:                      true,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
