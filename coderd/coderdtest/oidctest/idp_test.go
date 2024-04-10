@@ -54,6 +54,7 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 		token = oauthToken
 	})
 
+	//nolint:bodyclose
 	resp := fake.OIDCCallback(t, expectedState, jwt.MapClaims{})
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
