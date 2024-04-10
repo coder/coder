@@ -14,20 +14,20 @@ while ($true) {
 		# executing shell to be named "sshd", otherwise it fails. See:
 		# https://github.com/microsoft/vscode-remote-release/issues/5699
 		$BINARY_URL="${ACCESS_URL}/bin/coder-windows-${ARCH}.exe"
-		Write-Output "Fetching coder agent from ${BINARY_URL}"
+		Write-Output "$(Get-Date) Fetching coder agent from ${BINARY_URL}"
 		Invoke-WebRequest -Uri "${BINARY_URL}" -OutFile $env:TEMP\sshd.exe
 		break
 	} catch {
-		Write-Output "error: unhandled exception fetching coder agent:"
+		Write-Output "$(Get-Date) error: unhandled exception fetching coder agent:"
 		Write-Output $_
-		Write-Output "trying again in 30 seconds..."
+		Write-Output "$(Get-Date) trying again in 30 seconds..."
 		Start-Sleep -Seconds 30
 	}
 }
 
 # Check if running in a Windows container
 if (-not (Get-Command 'Set-MpPreference' -ErrorAction SilentlyContinue)) {
-    Write-Output "Set-MpPreference not available, skipping..."
+    Write-Output "$(Get-Date) Set-MpPreference not available, skipping..."
 } else {
     Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
 }

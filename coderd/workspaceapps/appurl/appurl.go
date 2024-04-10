@@ -90,9 +90,10 @@ func (a ApplicationURL) Path() string {
 //
 // Subdomains should be in the form:
 //
-//		({PREFIX}---)?{PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+//		({PREFIX}---)?{PORT{s?}/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 //		e.g.
 //	     https://8080--main--dev--dean.hi.c8s.io
+//	     https://8080s--main--dev--dean.hi.c8s.io
 //	     https://app--main--dev--dean.hi.c8s.io
 //	     https://prefix---8080--main--dev--dean.hi.c8s.io
 //	     https://prefix---app--main--dev--dean.hi.c8s.io

@@ -393,6 +393,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                   agent.name,
                   workspaceName,
                   username,
+                  share.protocol === "https",
                 );
                 const label = share.port;
                 return (

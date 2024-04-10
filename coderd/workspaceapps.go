@@ -102,14 +102,14 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// the current session.
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.SessionDuration.Value() {
-		exp = dbtime.Now().Add(api.DeploymentValues.SessionDuration.Value())
-		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
+	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.Sessions.DefaultDuration.Value() {
+		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
-		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,
 		LifetimeSeconds: lifetimeSeconds,
 		Scope:           database.APIKeyScopeApplicationConnect,

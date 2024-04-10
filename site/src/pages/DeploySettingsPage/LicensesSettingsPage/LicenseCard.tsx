@@ -32,7 +32,12 @@ export const LicenseCard: FC<LicenseCardProps> = ({
     license.claims.features["user_limit"] || userLimitLimit;
 
   return (
-    <Paper key={license.id} elevation={2} css={styles.licenseCard}>
+    <Paper
+      key={license.id}
+      elevation={2}
+      css={styles.licenseCard}
+      className="license-card"
+    >
       <ConfirmDialog
         type="delete"
         hideCancel={false}
@@ -58,7 +63,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
         alignItems="center"
       >
         <span css={styles.licenseId}>#{license.id}</span>
-        <span css={styles.accountType}>
+        <span css={styles.accountType} className="account-type">
           {license.claims.trial ? "Trial" : "Enterprise"}
         </span>
         <Stack
@@ -72,7 +77,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
         >
           <Stack direction="column" spacing={0} alignItems="center">
             <span css={styles.secondaryMaincolor}>Users</span>
-            <span css={styles.userLimit}>
+            <span css={styles.userLimit} className="user-limit">
               {userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
             </span>
           </Stack>
@@ -92,7 +97,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
             ) : (
               <span css={styles.secondaryMaincolor}>Valid Until</span>
             )}
-            <span css={styles.licenseExpires}>
+            <span css={styles.licenseExpires} className="license-expires">
               {dayjs
                 .unix(license.claims.license_expires)
                 .format("MMMM D, YYYY")}
@@ -104,6 +109,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
               variant="contained"
               size="small"
               onClick={() => setLicenseIDMarkedForRemoval(license.id)}
+              className="remove-button"
             >
               Remove&hellip;
             </Button>

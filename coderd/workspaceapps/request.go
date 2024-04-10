@@ -350,10 +350,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 			}
 			// No port share found, so we keep default to owner.
 		} else {
-			if ps.Protocol == database.PortShareProtocolHttps {
-				// Apply HTTPS protocol if specified.
-				appURL = fmt.Sprintf("https://127.0.0.1:%d", portUint)
-			}
 			appSharingLevel = ps.ShareLevel
 		}
 	} else {
