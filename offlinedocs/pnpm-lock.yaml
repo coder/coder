@@ -9,10 +9,10 @@ dependencies:
     specifier: 2.8.0
     version: 2.8.0(@emotion/react@11.11.4)(@emotion/styled@11.11.5)(@types/react@18.2.17)(framer-motion@10.18.0)(react-dom@18.2.0)(react@18.2.0)
   '@emotion/react':
-    specifier: ^11.11.4
+    specifier: 11.11.4
     version: 11.11.4(@types/react@18.2.17)(react@18.2.0)
   '@emotion/styled':
-    specifier: ^11.11.5
+    specifier: 11.11.5
     version: 11.11.5(@emotion/react@11.11.4)(@types/react@18.2.17)(react@18.2.0)
   '@types/lodash':
     specifier: 4.14.196
@@ -21,7 +21,7 @@ dependencies:
     specifier: 6.0.0
     version: 6.0.0
   framer-motion:
-    specifier: ^10.18.0
+    specifier: 10.18.0
     version: 10.18.0(react-dom@18.2.0)(react@18.2.0)
   front-matter:
     specifier: 4.0.2
