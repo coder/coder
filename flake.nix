@@ -58,6 +58,7 @@
           pango
           pixman
           pkg-config
+          playwright-driver.browsers
           postgresql_13
           protobuf
           protoc-gen-go
@@ -86,7 +87,13 @@
       in
       {
         defaultPackage = formatter; # or replace it with your desired default package.
-        devShell = pkgs.mkShell { buildInputs = devShellPackages; };
+        devShell = pkgs.mkShell {
+        buildInputs = devShellPackages;
+        shellHook = ''
+          export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
+          export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
+        '';
+        };
         packages.all = allPackages;
       }
     );
