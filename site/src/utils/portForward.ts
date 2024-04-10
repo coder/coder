@@ -66,10 +66,20 @@ export const openMaybePortForwardedURL = (
   }
 };
 
-export const saveWorkspaceListeningPortsProtocol = (workspaceID: string, protocol: WorkspaceAgentPortShareProtocol) => {
-  localStorage.setItem(`listening-ports-protocol-workspace-${workspaceID}`, protocol);
-}
+export const saveWorkspaceListeningPortsProtocol = (
+  workspaceID: string,
+  protocol: WorkspaceAgentPortShareProtocol,
+) => {
+  localStorage.setItem(
+    `listening-ports-protocol-workspace-${workspaceID}`,
+    protocol,
+  );
+};
 
-export const getWorkspaceListeningPortsProtocol = (workspaceID: string): WorkspaceAgentPortShareProtocol => {
-  return (localStorage.getItem(`listening-ports-protocol-workspace-${workspaceID}`) || "http") as WorkspaceAgentPortShareProtocol;
-}
+export const getWorkspaceListeningPortsProtocol = (
+  workspaceID: string,
+): WorkspaceAgentPortShareProtocol => {
+  return (localStorage.getItem(
+    `listening-ports-protocol-workspace-${workspaceID}`,
+  ) || "http") as WorkspaceAgentPortShareProtocol;
+};

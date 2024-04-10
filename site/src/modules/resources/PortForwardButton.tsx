@@ -48,7 +48,11 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { getWorkspaceListeningPortsProtocol, portForwardURL, saveWorkspaceListeningPortsProtocol } from "utils/portForward";
+import {
+  getWorkspaceListeningPortsProtocol,
+  portForwardURL,
+  saveWorkspaceListeningPortsProtocol,
+} from "utils/portForward";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -135,7 +139,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   portSharingControlsEnabled,
 }) => {
   const theme = useTheme();
-  const [listeningPortProtocol, setListeningPortProtocol]  = useState(getWorkspaceListeningPortsProtocol(workspaceID));
+  const [listeningPortProtocol, setListeningPortProtocol] = useState(
+    getWorkspaceListeningPortsProtocol(workspaceID),
+  );
 
   const sharedPortsQuery = useQuery({
     ...workspacePortShares(workspaceID),
@@ -190,15 +196,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     (port) => port.agent_name === agent.name,
   );
   // we don't want to show listening ports if it's a shared port
-  const filteredListeningPorts = (listeningPorts ? listeningPorts : []).filter((port) => {
-    for (let i = 0; i < filteredSharedPorts.length; i++) {
-      if (filteredSharedPorts[i].port === port.port) {
-        return false;
+  const filteredListeningPorts = (listeningPorts ? listeningPorts : []).filter(
+    (port) => {
+      for (let i = 0; i < filteredSharedPorts.length; i++) {
+        if (filteredSharedPorts[i].port === port.port) {
+          return false;
+        }
       }
-    }
 
-    return true;
-  });
+      return true;
+    },
+  );
   // only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
   const canSharePorts =
     portSharingExperimentEnabled &&
@@ -225,7 +233,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           overflowY: "auto",
         }}
       >
-        <Stack direction="column"
+        <Stack
+          direction="column"
           css={{
             padding: 20,
           }}
@@ -258,9 +267,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                   css={styles.listeningPortProtocol}
                   value={listeningPortProtocol}
                   onChange={async (event) => {
-                    const selectedProtocol = event.target.value as "http" | "https";
+                    const selectedProtocol = event.target.value as
+                      | "http"
+                      | "https";
                     setListeningPortProtocol(selectedProtocol);
-                    saveWorkspaceListeningPortsProtocol(workspaceID, selectedProtocol);
+                    saveWorkspaceListeningPortsProtocol(
+                      workspaceID,
+                      selectedProtocol,
+                    );
                   }}
                 >
                   <MenuItem value="http">HTTP</MenuItem>
@@ -318,28 +332,28 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </Stack>
           {filteredListeningPorts.length === 0 && (
             <HelpTooltipText css={styles.noPortText}>
-                {"No open ports were detected."}
+              {"No open ports were detected."}
             </HelpTooltipText>
           )}
-            {filteredListeningPorts.map((port) => {
-              const url = portForwardURL(
-                host,
-                port.port,
-                agent.name,
-                workspaceName,
-                username,
-                listeningPortProtocol,
-              );
-              const label =
-                port.process_name !== "" ? port.process_name : port.port;
-              return (
-                <Stack
-                  key={port.port}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                >
-                  <Stack direction="row" gap={3}>
+          {filteredListeningPorts.map((port) => {
+            const url = portForwardURL(
+              host,
+              port.port,
+              agent.name,
+              workspaceName,
+              username,
+              listeningPortProtocol,
+            );
+            const label =
+              port.process_name !== "" ? port.process_name : port.port;
+            return (
+              <Stack
+                key={port.port}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Stack direction="row" gap={3}>
                   <Link
                     underline="none"
                     css={styles.portLink}
@@ -351,43 +365,42 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     {port.port}
                   </Link>
                   <Link
-                      underline="none"
-                      css={styles.portLink}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {label}
-                  </Link>
-                  </Stack>
-                  <Stack
-                    direction="row"
-                    gap={2}
-                    justifyContent="flex-end"
-                    alignItems="center"
+                    underline="none"
+                    css={styles.portLink}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-
-                    {canSharePorts && (
-                      <Button
-                        size="small"
-                        variant="text"
-                        onClick={async () => {
-                          await upsertSharedPortMutation.mutateAsync({
-                            agent_name: agent.name,
-                            port: port.port,
-                            protocol: listeningPortProtocol,
-                            share_level: "authenticated",
-                          });
-                          await sharedPortsQuery.refetch();
-                        }}
-                      >
-                        Share
-                      </Button>
-                    )}
-                  </Stack>
+                    {label}
+                  </Link>
                 </Stack>
-              );
-            })}
+                <Stack
+                  direction="row"
+                  gap={2}
+                  justifyContent="flex-end"
+                  alignItems="center"
+                >
+                  {canSharePorts && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={async () => {
+                        await upsertSharedPortMutation.mutateAsync({
+                          agent_name: agent.name,
+                          port: port.port,
+                          protocol: listeningPortProtocol,
+                          share_level: "authenticated",
+                        });
+                        await sharedPortsQuery.refetch();
+                      }}
+                    >
+                      Share
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
+            );
+          })}
         </Stack>
       </div>
       {portSharingExperimentEnabled && (
