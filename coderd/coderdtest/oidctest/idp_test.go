@@ -54,12 +54,11 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 		token = oauthToken
 	})
 
-	resp, err := fake.OIDCCallback(t, expectedState, jwt.MapClaims{})
-	require.NoError(t, err)
+	resp := fake.OIDCCallback(t, expectedState, jwt.MapClaims{})
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Test the user info
-	_, err = cfg.Provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
+	_, err := cfg.Provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 	require.NoError(t, err)
 
 	// Now test it can refresh

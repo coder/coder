@@ -486,9 +486,9 @@ func TestConstantQueryParams(t *testing.T) {
 
 	// Actually run an auth request. Although it says OIDC, the flow is the same
 	// for oauth2.
-	cli, resp := fake.OIDCCallback(t, state, jwt.MapClaims{})
+	resp := fake.OIDCCallback(t, state, jwt.MapClaims{})
 	require.True(t, callbackCalled)
-
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 type testConfig struct {
