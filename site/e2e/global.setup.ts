@@ -3,6 +3,7 @@ import { hasFirstUser } from "api/api";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 import { setupApiCalls } from "./api";
 import * as constants from "./constants";
+import { expectUrl } from "./expectUrl";
 import { storageState } from "./playwright.config";
 
 test("setup deployment", async ({ page }) => {
@@ -21,7 +22,7 @@ test("setup deployment", async ({ page }) => {
   await page.getByLabel(Language.passwordLabel).fill(constants.password);
   await page.getByTestId("create").click();
 
-  await expect(page).toHaveURL(/\/workspaces.*/);
+  await expectUrl(page).toHavePathName("/workspaces");
   await page.context().storageState({ path: storageState });
 
   await page.getByTestId("button-select-template").isVisible();
