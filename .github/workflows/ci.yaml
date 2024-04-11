@@ -486,7 +486,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: failed-test-videos${{ matrix.variant.enterprise && '-enterprise' }}
+          name: failed-test-videos${{ matrix.variant.enterprise && '-enterprise' || '-agpl' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
@@ -494,7 +494,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: debug-pprof-dumps${{ matrix.variant.enterprise && '-enterprise' }}
+          name: debug-pprof-dumps${{ matrix.variant.enterprise && '-enterprise' || '-agpl'  }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
