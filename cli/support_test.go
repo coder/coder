@@ -157,6 +157,7 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
+// nolint:revive // It's a control flag, but this is just a test.
 func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAgent bool, badValues []string) {
 	t.Helper()
 	r, err := zip.OpenReader(path)
