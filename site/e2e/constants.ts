@@ -37,3 +37,7 @@ export const requireEnterpriseTests = Boolean(
   process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
 );
 export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
+
+// Fake experiments to verify that site presents them as enabled.
+export const e2eFakeExperiment1 = "e2e-fake-experiment-1";
+export const e2eFakeExperiment2 = "e2e-fake-experiment-2";
