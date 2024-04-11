@@ -412,6 +412,68 @@ func TestCoordinator(t *testing.T) {
 		_ = testutil.RequireRecvCtx(ctx, t, clientErrChan)
 		_ = testutil.RequireRecvCtx(ctx, t, closeClientChan)
 	})
+
+	t.Run("AgentAck", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clientID := uuid.New()
+		agentID := uuid.New()
+
+		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		cReq, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+
+		{
+			nk, err := key.NewNode().Public().MarshalBinary()
+			require.NoError(t, err)
+			dk, err := key.NewDisco().Public().MarshalText()
+			require.NoError(t, err)
+			cReq <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
+				Node: &proto.Node{
+					Id:    3,
+					Key:   nk,
+					Disco: string(dk),
+				},
+			}}
+		}
+
+		cReq <- &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{
+			Id: agentID[:],
+		}}
+
+		testutil.RequireRecvCtx(ctx, t, aRes)
+
+		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
+			Id: clientID[:],
+		}}}
+		ack := testutil.RequireRecvCtx(ctx, t, cRes)
+		require.NotNil(t, ack.PeerUpdates)
+		require.Len(t, ack.PeerUpdates, 1)
+		require.Equal(t, proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE, ack.PeerUpdates[0].Kind)
+		require.Equal(t, agentID[:], ack.PeerUpdates[0].Id)
+	})
+
+	t.Run("AgentAck_NoPermission", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		clientID := uuid.New()
+		agentID := uuid.New()
+
+		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
+		_, _ = coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
+
+		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
+			Id: clientID[:],
+		}}}
+
+		rfhError := testutil.RequireRecvCtx(ctx, t, aRes)
+		require.NotEmpty(t, rfhError.Error)
+	})
 }
 
 // TestCoordinator_AgentUpdateWhileClientConnects tests for regression on
@@ -638,6 +700,76 @@ func TestRemoteCoordination(t *testing.T) {
 	}
 }
 
+func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clientID := uuid.UUID{1}
+	agentID := uuid.UUID{2}
+	mCoord := tailnettest.NewMockCoordinator(gomock.NewController(t))
+	fConn := &fakeCoordinatee{}
+
+	reqs := make(chan *proto.CoordinateRequest, 100)
+	resps := make(chan *proto.CoordinateResponse, 100)
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+		Times(1).Return(reqs, resps)
+
+	var coord tailnet.Coordinator = mCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	svc, err := tailnet.NewClientService(
+		logger.Named("svc"), &coordPtr,
+		time.Hour,
+		func() *tailcfg.DERPMap { panic("not implemented") },
+	)
+	require.NoError(t, err)
+	sC, cC := net.Pipe()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
+		serveErr <- err
+	}()
+
+	client, err := tailnet.NewDRPCClient(cC, logger)
+	require.NoError(t, err)
+	protocol, err := client.Coordinate(ctx)
+	require.NoError(t, err)
+
+	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, uuid.UUID{})
+	defer uut.Close()
+
+	nk, err := key.NewNode().Public().MarshalBinary()
+	require.NoError(t, err)
+	dk, err := key.NewDisco().Public().MarshalText()
+	require.NoError(t, err)
+	testutil.RequireSendCtx(ctx, t, resps, &proto.CoordinateResponse{
+		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
+			Id:   clientID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: &proto.Node{
+				Id:    3,
+				Key:   nk,
+				Disco: string(dk),
+			},
+		}},
+	})
+
+	rfh := testutil.RequireRecvCtx(ctx, t, reqs)
+	require.NotNil(t, rfh.ReadyForHandshake)
+	require.Len(t, rfh.ReadyForHandshake, 1)
+	require.Equal(t, clientID[:], rfh.ReadyForHandshake[0].Id)
+
+	require.NoError(t, uut.Close())
+
+	select {
+	case err := <-uut.Error():
+		require.ErrorContains(t, err, "stream terminated by sending close")
+	default:
+		// OK!
+	}
+}
+
 // coordinationTest tests that a coordination behaves correctly
 func coordinationTest(
 	ctx context.Context, t *testing.T,
@@ -698,6 +830,7 @@ type fakeCoordinatee struct {
 	callback             func(*tailnet.Node)
 	updates              [][]*proto.CoordinateResponse_PeerUpdate
 	setAllPeersLostCalls int
+	tunnelDestinations   map[uuid.UUID]struct{}
 }
 
 func (f *fakeCoordinatee) UpdatePeers(updates []*proto.CoordinateResponse_PeerUpdate) error {
@@ -711,6 +844,16 @@ func (f *fakeCoordinatee) SetAllPeersLost() {
 	f.Lock()
 	defer f.Unlock()
 	f.setAllPeersLostCalls++
+}
+
+func (f *fakeCoordinatee) SetTunnelDestination(id uuid.UUID) {
+	f.Lock()
+	defer f.Unlock()
+
+	if f.tunnelDestinations == nil {
+		f.tunnelDestinations = map[uuid.UUID]struct{}{}
+	}
+	f.tunnelDestinations[id] = struct{}{}
 }
 
 func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {

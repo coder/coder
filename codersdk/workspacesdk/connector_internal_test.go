@@ -102,6 +102,8 @@ func (*fakeTailnetConn) SetNodeCallback(func(*tailnet.Node)) {}
 
 func (*fakeTailnetConn) SetDERPMap(*tailcfg.DERPMap) {}
 
+func (*fakeTailnetConn) SetTunnelDestination(uuid.UUID) {}
+
 func newFakeTailnetConn() *fakeTailnetConn {
 	return &fakeTailnetConn{}
 }

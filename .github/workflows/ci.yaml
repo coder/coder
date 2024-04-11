@@ -432,6 +432,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - enterprise: false
+            name: test-e2e
+          - enterprise: true
+            name: test-e2e-enterprise
+    name: ${{ matrix.variant.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -444,39 +453,34 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
 
-      - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
-
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
-          unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
-          popd
-
-      - name: Build
-        run: |
-          make -B site/out/index.html
+      - run: pnpm build
+        working-directory: site
 
       - run: pnpm playwright:install
         working-directory: site
 
       # Run tests that don't require an enterprise license without an enterprise license
       - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ !matrix.variant.enterprise }}
         env:
           DEBUG: pw:api
         working-directory: site
+
+      # Run all of the tests with an enterprise license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ matrix.variant.enterprise }}
+        env:
+          DEBUG: pw:api
+          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
+          CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
+        working-directory: site
+        # Temporarily allow these to fail so that I can gather data about which
+        # tests are failing.
+        continue-on-error: true
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork

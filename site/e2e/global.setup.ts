@@ -30,6 +30,8 @@ test("setup deployment", async ({ page }) => {
     await page.getByRole("textbox").fill(constants.enterpriseLicense);
     await page.getByText("Upload License").click();
 
-    await page.getByText("You have successfully added a license").isVisible();
+    await expect(
+      page.getByText("You have successfully added a license"),
+    ).toBeVisible();
   }
 });

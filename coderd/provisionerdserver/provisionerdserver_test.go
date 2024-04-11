@@ -166,7 +166,11 @@ func TestAcquireJob(t *testing.T) {
 			// Set the max session token lifetime so we can assert we
 			// create an API key with an expiration within the bounds of the
 			// deployment config.
-			dv := &codersdk.DeploymentValues{MaxTokenLifetime: serpent.Duration(time.Hour)}
+			dv := &codersdk.DeploymentValues{
+				Sessions: codersdk.SessionLifetime{
+					MaximumTokenDuration: serpent.Duration(time.Hour),
+				},
+			}
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 				Id: "github",
 			}
@@ -319,8 +323,8 @@ func TestAcquireJob(t *testing.T) {
 			require.Len(t, toks, 2, "invalid api key")
 			key, err := db.GetAPIKeyByID(ctx, toks[0])
 			require.NoError(t, err)
-			require.Equal(t, int64(dv.MaxTokenLifetime.Value().Seconds()), key.LifetimeSeconds)
-			require.WithinDuration(t, time.Now().Add(dv.MaxTokenLifetime.Value()), key.ExpiresAt, time.Minute)
+			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{

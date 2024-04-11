@@ -3,9 +3,11 @@ package externalauth_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -417,6 +420,78 @@ func TestConvertYAML(t *testing.T) {
 	})
 }
 
+// TestConstantQueryParams verifies a constant query parameter can be set in the
+// "authenticate" url for external auth applications, and it will be carried forward
+// to actual auth requests.
+// This unit test was specifically created for Auth0 which can set an
+// audience query parameter in it's /authorize endpoint.
+func TestConstantQueryParams(t *testing.T) {
+	t.Parallel()
+	const constantQueryParamKey = "audience"
+	const constantQueryParamValue = "foobar"
+	constantQueryParam := fmt.Sprintf("%s=%s", constantQueryParamKey, constantQueryParamValue)
+	fake, config, _ := setupOauth2Test(t, testConfig{
+		FakeIDPOpts: []oidctest.FakeIDPOpt{
+			oidctest.WithMiddlewares(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+					if strings.Contains(request.URL.Path, "authorize") {
+						// Assert has the audience query param
+						assert.Equal(t, request.URL.Query().Get(constantQueryParamKey), constantQueryParamValue)
+					}
+					next.ServeHTTP(writer, request)
+				})
+			}),
+		},
+		CoderOIDCConfigOpts: []func(cfg *coderd.OIDCConfig){
+			func(cfg *coderd.OIDCConfig) {
+				// Include a constant query parameter.
+				authURL, err := url.Parse(cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL)
+				require.NoError(t, err)
+
+				authURL.RawQuery = url.Values{constantQueryParamKey: []string{constantQueryParamValue}}.Encode()
+				cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL = authURL.String()
+				require.Contains(t, cfg.OAuth2Config.(*oauth2.Config).Endpoint.AuthURL, constantQueryParam)
+			},
+		},
+	})
+
+	callbackCalled := false
+	fake.SetCoderdCallbackHandler(func(writer http.ResponseWriter, request *http.Request) {
+		// Just record the callback was hit, and the auth succeeded.
+		callbackCalled = true
+	})
+
+	// Verify the AuthURL endpoint contains the constant query parameter and is a valid URL.
+	// It should look something like:
+	//	http://127.0.0.1:<port>>/oauth2/authorize?
+	//		audience=foobar&
+	//		client_id=d<uuid>&
+	//		redirect_uri=<redirect>&
+	//		response_type=code&
+	//		scope=openid+email+profile&
+	//		state=state
+	const state = "state"
+	rawAuthURL := config.AuthCodeURL(state)
+	// Parsing the url is not perfect. It allows imperfections like the query
+	// params having 2 question marks '?a=foo?b=bar'.
+	// So use it to validate, then verify the raw url is as expected.
+	authURL, err := url.Parse(rawAuthURL)
+	require.NoError(t, err)
+	require.Equal(t, authURL.Query().Get(constantQueryParamKey), constantQueryParamValue)
+	// We are not using a real server, so it fakes https://coder.com
+	require.Equal(t, authURL.Scheme, "https")
+	// Validate the raw URL.
+	// Double check only 1 '?' exists. Url parsing allows multiple '?' in the query string.
+	require.Equal(t, strings.Count(rawAuthURL, "?"), 1)
+
+	// Actually run an auth request. Although it says OIDC, the flow is the same
+	// for oauth2.
+	//nolint:bodyclose
+	resp := fake.OIDCCallback(t, state, jwt.MapClaims{})
+	require.True(t, callbackCalled)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 type testConfig struct {
 	FakeIDPOpts         []oidctest.FakeIDPOpt
 	CoderOIDCConfigOpts []func(cfg *coderd.OIDCConfig)
@@ -432,6 +507,10 @@ type testConfig struct {
 // to test different scenarios.
 func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *externalauth.Config, database.ExternalAuthLink) {
 	t.Helper()
+
+	if settings.ExternalAuthOpt == nil {
+		settings.ExternalAuthOpt = func(_ *externalauth.Config) {}
+	}
 
 	const providerID = "test-idp"
 	fake := oidctest.NewFakeIDP(t,

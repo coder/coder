@@ -86,9 +86,11 @@ func runTailnetAPIConnector(
 func (tac *tailnetAPIConnector) manageGracefulTimeout() {
 	defer tac.cancelGracefulCtx()
 	<-tac.ctx.Done()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
 	select {
 	case <-tac.closed:
-	case <-time.After(time.Second):
+	case <-timer.C:
 	}
 }
 
