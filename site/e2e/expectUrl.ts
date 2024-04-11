@@ -10,7 +10,7 @@ export const expectUrl = expect.extend({
     let actual: string = new URL(page.url()).pathname;
     let pass: boolean;
     try {
-      expect
+      await expect
         .poll(() => (actual = new URL(page.url()).pathname), options)
         .toBe(expected);
       pass = true;
