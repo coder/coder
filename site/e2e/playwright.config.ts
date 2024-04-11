@@ -36,7 +36,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${coderPort}`,
     video: "retain-on-failure",
-    viewport: { width: 2048, height: 1600 },
+    viewport: { width: 2560, height: 1440 },
     ...(wsEndpoint
       ? {
           connectOptions: {
