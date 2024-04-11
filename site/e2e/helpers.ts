@@ -50,12 +50,10 @@ export const createWorkspace = async (
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
-  await page.goto("/templates/" + templateName + "/workspace", {
+  await page.goto(`/templates/${templateName}/workspace`, {
     waitUntil: "domcontentloaded",
   });
-  await expectUrl(page).toHavePathName(
-    "/templates/" + templateName + "/workspace",
-  );
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/workspace`);
 
   const name = randomName();
   await page.getByLabel("name").fill(name);
