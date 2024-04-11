@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { expectUrl } from "../expectUrl";
 import {
   createGroup,
   createTemplate,
   requiresEnterpriseLicense,
   updateTemplateSettings,
 } from "../helpers";
-import { expectUrl } from "../expectUrl";
 
 test("template update with new name redirects on successful submit", async ({
   page,
