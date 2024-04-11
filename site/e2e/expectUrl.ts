@@ -1,26 +1,29 @@
-import { expect, type Page, waitFor } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+
+type PollingOptions = { timeout?: number; intervals?: number[] };
 
 export const expectUrl = expect.extend({
-  async toHavePath(page: Page, pathname: string) {
-    let url;
-    let pass;
-
+  /**
+   * toHavePathName is an alternative to `toHaveURL` that won't fail if the URL contains query parameters.
+   */
+  async toHavePathName(page: Page, expected: string, options?: PollingOptions) {
+    let actual: string = new URL(page.url()).pathname;
+    let pass: boolean;
     try {
-      await waitFor(() => {
-        url = new URL(page.url());
-        expect(url.pathname).toBe(pathname);
-      });
+      expect
+        .poll(() => (actual = new URL(page.url()).pathname), options)
+        .toBe(expected);
       pass = true;
     } catch {
       pass = false;
     }
 
     return {
-      message: () => "foob",
+      name: "toHavePathName",
       pass,
-      name: "toHavePath",
-      expected: pathname,
-      actual: url.toString(),
+      actual,
+      expected,
+      message: () => "The page does not have the expected URL pathname.",
     };
   },
 });
