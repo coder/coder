@@ -388,7 +388,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 		desc := "Failed to proxy request to application: " + theErr.Error()
 		if strings.Contains(theErr.Error(), "tls:") {
-			desc = fmt.Sprintf("This error seems to be due to a protocol mistake, please try switching to %s. \n%s", switchProtoScheme, theErr.Error())
+			desc = fmt.Sprintf("This error seems to be due to a protocol mismatch, please try switching to %s. \n%s", switchProtoScheme, theErr.Error())
 		}
 
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
