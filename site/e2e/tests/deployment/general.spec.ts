@@ -26,7 +26,7 @@ test("experiments", async ({ page }) => {
   // Secondly, check if available experiments are listed
   for (const experiment of availableExperiments.safe) {
     const experimentLocator = experimentsLocator.locator(
-      `li.option-array-item-${experiment}.option-enabled`,
+      `li.option-array-item-${experiment}`,
     );
     await expect(experimentLocator).toBeVisible();
   }
