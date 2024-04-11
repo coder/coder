@@ -46,3 +46,11 @@ Enterprise tests require a license key to run.
 ```shell
 export CODER_E2E_ENTERPRISE_LICENSE=<license key>
 ```
+
+# Debugging tests
+
+To debug a test, it is more helpful to run it in `ui` mode.
+
+```
+pnpm playwright:test-ui
+```
