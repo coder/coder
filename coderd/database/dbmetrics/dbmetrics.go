@@ -1717,13 +1717,6 @@ func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspac
 	return r0, r1
 }
 
-func (m metricsStore) PublishReadyForHandshake(ctx context.Context, arg database.PublishReadyForHandshakeParams) error {
-	start := time.Now()
-	r0 := m.s.PublishReadyForHandshake(ctx, arg)
-	m.queryLatencies.WithLabelValues("PublishReadyForHandshake").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)

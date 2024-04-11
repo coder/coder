@@ -40,24 +40,24 @@ const (
 
 // pgCoord is a postgres-backed coordinator
 //
-//	                     ┌────────────┐
-//	        ┌────────────► handshaker ├────────┐
-//	        │            └────────────┘        │
-//		    │            ┌──────────┐          │
-//		    ├────────────► tunneler ├──────────┤
-//		    │            └──────────┘          │
-//		    │                                  │
-//		┌────────┐       ┌────────┐        ┌───▼───┐
-//		│ connIO ├───────► binder ├────────► store │
-//		└───▲────┘       │        │        │       │
-//		    │            └────────┘ ┌──────┤       │
-//		    │                       │      └───────┘
-//		    │                       │
-//		    │            ┌──────────▼┐     ┌────────┐
-//		    │            │           │     │        │
-//		    └────────────┤ querier   ◄─────┤ pubsub │
-//		                 │           │     │        │
-//		                 └───────────┘     └────────┘
+//	                 ┌────────────┐
+//	    ┌────────────► handshaker ├────────┐
+//	    │            └────────────┘        │
+//	    │            ┌──────────┐          │
+//	    ├────────────► tunneler ├──────────┤
+//	    │            └──────────┘          │
+//	    │                                  │
+//	┌────────┐       ┌────────┐        ┌───▼───┐
+//	│ connIO ├───────► binder ├────────► store │
+//	└───▲────┘       │        │        │       │
+//	    │            └────────┘ ┌──────┤       │
+//	    │                       │      └───────┘
+//	    │                       │
+//	    │            ┌──────────▼┐     ┌────────┐
+//	    │            │           │     │        │
+//	    └────────────┤ querier   ◄─────┤ pubsub │
+//	                 │           │     │        │
+//	                 └───────────┘     └────────┘
 //
 // each incoming connection (websocket) from a peer is wrapped in a connIO which handles reading & writing
 // from it.  Node updates from a connIO are sent to the binder, which writes them to the database.Store. Tunnel
@@ -153,7 +153,7 @@ func newPGCoordInternal(
 		closeConnections: ccCh,
 		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
 		tunnelerCh:       sCh,
-		handshaker:       newHandshaker(ctx, logger, id, store, rfhCh, fHB),
+		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
 		id:               id,
 		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB),
@@ -636,8 +636,6 @@ type mapper struct {
 
 	c *connIO
 
-	// latest is the most recent, unfiltered snapshot of the mappings we know about
-	latest []mapping
 	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
 	sent map[uuid.UUID]mapping
 
@@ -670,11 +668,11 @@ func (m *mapper) run() {
 			return
 		case mappings := <-m.mappings:
 			m.logger.Debug(m.ctx, "got new mappings")
-			m.latest = mappings
+			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			best = m.bestMappings(m.latest)
+			best = m.bestMappings(m.c.getLatestMapping())
 		}
 		update := m.bestToUpdate(best)
 		if update == nil {
@@ -1188,7 +1186,7 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 		return
 	}
 
-	_ = agpl.SendCtx(q.ctx, mpr.c.responses, &proto.CoordinateResponse{
+	_ = mpr.c.Enqueue(&proto.CoordinateResponse{
 		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
 			Id:   from[:],
 			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
@@ -1325,7 +1323,7 @@ type querierWorkKey struct {
 }
 
 type queueKey interface {
-	bKey | tKey | querierWorkKey | hKey
+	bKey | tKey | querierWorkKey
 }
 
 // workQ allows scheduling work based on a key.  Multiple enqueue requests for the same key are coalesced, and
