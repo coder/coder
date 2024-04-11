@@ -16,6 +16,7 @@
     "lint:types": "tsc -p .",
     "playwright:install": "playwright install --with-deps chromium",
     "playwright:test": "playwright test --config=e2e/playwright.config.ts",
+    "playwright:test-ui": "playwright test --config=e2e/playwright.config.ts --ui $([[ \"$CODER\" == \"true\" ]] && echo --ui-port=7500 --ui-host=0.0.0.0)",
     "gen:provisioner": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./e2e/ --ts_proto_opt=outputJsonMethods=false,outputEncodeMethods=encode-no-creation,outputClientImpl=false,nestJs=false,outputPartialMethods=false,fileSuffix=Generated,suffix=hey -I ../provisionersdk/proto ../provisionersdk/proto/provisioner.proto && pnpm exec prettier --ignore-path '/dev/null' --cache --write './e2e/provisionerGenerated.ts'",
     "storybook": "STORYBOOK=true storybook dev -p 6006",
     "storybook:build": "storybook build",

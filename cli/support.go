@@ -13,6 +13,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -114,31 +115,40 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				client.URL = u
 			}
 
+			var (
+				wsID  uuid.UUID
+				agtID uuid.UUID
+			)
+
 			if len(inv.Args) == 0 {
-				return xerrors.Errorf("must specify workspace name")
-			}
-			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
-			if err != nil {
-				return xerrors.Errorf("invalid workspace: %w", err)
-			}
-			cliLog.Debug(inv.Context(), "found workspace",
-				slog.F("workspace_name", ws.Name),
-				slog.F("workspace_id", ws.ID),
-			)
+				cliLog.Warn(inv.Context(), "no workspace specified")
+				_, _ = fmt.Fprintln(inv.Stderr, "Warning: no workspace specified. This will result in incomplete information.")
+			} else {
+				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				if err != nil {
+					return xerrors.Errorf("invalid workspace: %w", err)
+				}
+				cliLog.Debug(inv.Context(), "found workspace",
+					slog.F("workspace_name", ws.Name),
+					slog.F("workspace_id", ws.ID),
+				)
+				wsID = ws.ID
+				agentName := ""
+				if len(inv.Args) > 1 {
+					agentName = inv.Args[1]
+				}
 
-			agentName := ""
-			if len(inv.Args) > 1 {
-				agentName = inv.Args[1]
+				agt, found := findAgent(agentName, ws.LatestBuild.Resources)
+				if !found {
+					cliLog.Warn(inv.Context(), "could not find agent in workspace", slog.F("agent_name", agentName))
+				} else {
+					cliLog.Debug(inv.Context(), "found workspace agent",
+						slog.F("agent_name", agt.Name),
+						slog.F("agent_id", agt.ID),
+					)
+					agtID = agt.ID
+				}
 			}
-
-			agt, found := findAgent(agentName, ws.LatestBuild.Resources)
-			if !found {
-				return xerrors.Errorf("could not find agent named %q for workspace", agentName)
-			}
-			cliLog.Debug(inv.Context(), "found workspace agent",
-				slog.F("agent_name", agt.Name),
-				slog.F("agent_id", agt.ID),
-			)
 
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
@@ -165,8 +175,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
 				Log:         clientLog,
-				WorkspaceID: ws.ID,
-				AgentID:     agt.ID,
+				WorkspaceID: wsID,
+				AgentID:     agtID,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
