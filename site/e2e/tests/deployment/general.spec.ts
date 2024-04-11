@@ -21,7 +21,7 @@ test("experiments", async ({ page }) => {
   await page.mouse.wheel(0, 600);
 
   // eslint-disable-next-line no-console -- HTML for experiments
-  console.log(experimentsLocator.innerHTML())
+  console.log(experimentsLocator.innerHTML());
 
   // Firstly, check if available experiments are listed
   availableExperiments.safe.map(async (experiment) => {
