@@ -6,7 +6,7 @@ import { findSessionToken, randomName } from "./helpers";
 let currentOrgId: string;
 
 export const setupApiCalls = async (page: Page) => {
-  try{
+  try {
     const token = await findSessionToken(page);
     API.setSessionToken(token);
   } catch {
