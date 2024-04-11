@@ -16,6 +16,7 @@ test("experiments", async ({ page }) => {
     "div.options-table tr.option-experiments ul.option-array",
   );
   await expect(experimentsLocator).toBeVisible();
+  await experimentsLocator.focus()
 
   // Firstly, check if available experiments are listed
   availableExperiments.safe.map(async (experiment) => {
