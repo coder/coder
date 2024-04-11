@@ -913,6 +913,44 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.Equal(t, version2.ID, ws.LatestBuild.TemplateVersionID)
 	})
+
+	t.Run("TemplateDoesNotAllowUserAutostop", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateTTL := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
+			ctr.AllowUserAutostop = ptr.Ref(false)
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil // ensure that no default TTL is set
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// TTL should be set by the template
+		require.Equal(t, false, template.AllowUserAutostop)
+		require.Equal(t, templateTTL, template.DefaultTTLMillis)
+		require.Equal(t, templateTTL, *workspace.TTLMillis)
+
+		// Change the template's default TTL and refetch the workspace
+		templateTTL = 72 * time.Hour.Milliseconds()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		template = coderdtest.UpdateTemplateMeta(t, client, template.ID, codersdk.UpdateTemplateMeta{
+			DefaultTTLMillis: templateTTL,
+		})
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		// Ensure that the new value is reflected in the template and workspace
+		require.Equal(t, templateTTL, template.DefaultTTLMillis)
+		require.Equal(t, templateTTL, *workspace.TTLMillis)
+	})
 }
 
 // Blocked by autostart requirements
