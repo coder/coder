@@ -167,6 +167,12 @@ running). */}}
         {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
         .Error.Title }}
       </h1>
+      {{- if .Error.SwitchProtocolLink }}
+      <p>It looks like the error was due to a protocol mismatch. Do you want to try using {{ .Error.SwitchProtocolTarget }}?</p>
+      <div class="button-group">
+        <a href="{{ .Error.SwitchProtocolLink }}">Use {{ .Error.SwitchProtocolTarget }}</a>
+      </div>
+      {{ end }}
       {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
       else }}
       <p>{{ .Error.Description }}</p>
@@ -197,6 +203,9 @@ running). */}}
       <div class="button-group">
         {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>
+        {{ end }}
+        {{- if .Error.SwitchProtocolLink }}
+        <a href="{{ .Error.SwitchProtocolLink }}">Switch to {{ .Error.SwitchProtocolTarget }}</a>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>

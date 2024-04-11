@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,6 +26,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -351,13 +356,49 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	tgt.Host = net.JoinHostPort(tailnet.IPFromUUID(agentID).String(), port)
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
+		var (
+			switchProtoScheme codersdk.WorkspaceAgentPortShareProtocol
+			switchProtoLink   = ""
+		)
+		au, err := appurl.ParseSubdomainAppURL(tgt.String())
+		if err != nil {
+			site.RenderStaticErrorPage(w, r, site.ErrorPageData{
+				Status:       http.StatusBadGateway,
+				Title:        "Bad Gateway",
+				Description:  "Failed to proxy request to application: " + err.Error(),
+				RetryEnabled: true,
+				DashboardURL: dashboardURL.String(),
+			})
+			return
+		}
+		if strings.HasSuffix(au.AppSlugOrPort, "s") {
+			p := strings.TrimSuffix(au.AppSlugOrPort, "s")
+			_, err = strconv.ParseInt(p, 10, 64)
+			if err == nil {
+				au.AppSlugOrPort = p
+				switchProtoLink = au.String()
+				switchProtoScheme = codersdk.WorkspaceAgentPortShareProtocolHTTP
+			}
+		} else {
+			au.AppSlugOrPort += "s"
+			switchProtoLink = au.String()
+			switchProtoScheme = codersdk.WorkspaceAgentPortShareProtocolHTTPS
+		}
+
+		desc := "Failed to proxy request to application: " + theErr.Error()
+		if strings.Contains(theErr.Error(), "tls:") {
+			desc = fmt.Sprintf("This error seems to be due to a protocol mistake, please try switching to %s. \n%s", switchProtoScheme, theErr.Error())
+		}
+
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:       http.StatusBadGateway,
-			Title:        "Bad Gateway",
-			Description:  "Failed to proxy request to application: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: dashboardURL.String(),
+			Status:               http.StatusBadGateway,
+			Title:                "Bad Gateway",
+			Description:          desc,
+			RetryEnabled:         true,
+			DashboardURL:         dashboardURL.String(),
+			SwitchProtocolLink:   switchProtoLink,
+			SwitchProtocolTarget: switchProtoScheme,
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
