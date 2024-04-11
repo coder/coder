@@ -182,13 +182,11 @@ type DeploymentValues struct {
 	RateLimit                       RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     serpent.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                     serpent.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                serpent.Duration                     `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 	Swagger                         SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
 	Logging                         LoggingConfig                        `json:"logging,omitempty" typescript:",notnull"`
 	Dangerous                       DangerousConfig                      `json:"dangerous,omitempty" typescript:",notnull"`
 	DisablePathApps                 serpent.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 serpent.Duration                     `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     serpent.Bool                         `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
@@ -242,6 +240,33 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
+}
+
+// SessionLifetime refers to "sessions" authenticating into Coderd. Coder has
+// multiple different session types: api keys, tokens, workspace app tokens,
+// agent tokens, etc. This configuration struct should be used to group all
+// settings referring to any of these session lifetime controls.
+// TODO: These config options were created back when coder only had api keys.
+// Today, the config is ambigously used for all of them. For example:
+// - cli based api keys ignore all settings
+// - login uses the default lifetime, not the MaximumTokenDuration
+// - Tokens use the Default & MaximumTokenDuration
+// - ... etc ...
+// The rational behind each decision is undocumented. The naming behind these
+// config options is also confusing without any clear documentation.
+// 'CreateAPIKey' is used to make all sessions, and it's parameters are just
+// 'LifetimeSeconds' and 'DefaultLifetime'. Which does not directly correlate to
+// the config options here.
+type SessionLifetime struct {
+	// DisableExpiryRefresh will disable automatically refreshing api
+	// keys when they are used from the api. This means the api key lifetime at
+	// creation is the lifetime of the api key.
+	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
+
+	// DefaultDuration is for api keys, not tokens.
+	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
+
+	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1579,7 +1604,7 @@ when required by your organization's security policy.`,
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
 			Default:     ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
-			Value:       &c.MaxTokenLifetime,
+			Value:       &c.Sessions.MaximumTokenDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1773,7 +1798,7 @@ when required by your organization's security policy.`,
 			Flag:        "session-duration",
 			Env:         "CODER_SESSION_DURATION",
 			Default:     (24 * time.Hour).String(),
-			Value:       &c.SessionDuration,
+			Value:       &c.Sessions.DefaultDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
@@ -1784,7 +1809,7 @@ when required by your organization's security policy.`,
 			Flag:        "disable-session-expiry-refresh",
 			Env:         "CODER_DISABLE_SESSION_EXPIRY_REFRESH",
 
-			Value: &c.DisableSessionExpiryRefresh,
+			Value: &c.Sessions.DisableExpiryRefresh,
 			Group: &deploymentGroupNetworkingHTTP,
 			YAML:  "disableSessionExpiryRefresh",
 		},

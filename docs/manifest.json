@@ -55,6 +55,11 @@
           "title": "1-click install",
           "description": "Install Coder on a cloud provider with a single click",
           "path": "./install/1-click.md"
+        },
+        {
+          "title": "Releases",
+          "description": "Coder Release Channels and Cadence",
+          "path": "./install/releases.md"
         }
       ]
     },
@@ -230,9 +235,9 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
-          "title": "Devcontainers",
-          "description": "Use devcontainers in workspaces",
-          "path": "./templates/devcontainers.md",
+          "title": "Dev Containers",
+          "description": "Use Dev Containers in workspaces",
+          "path": "./templates/dev-containers.md",
           "state": "alpha"
         },
         {

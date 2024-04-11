@@ -2532,20 +2532,6 @@ func (q *querier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.
 	return q.db.InsertWorkspaceAgentScripts(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	// TODO: This is a workspace agent operation. Should users be able to query this?
-	// Not really sure what this is for.
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
-	if err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-	return q.db.InsertWorkspaceAgentStat(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err

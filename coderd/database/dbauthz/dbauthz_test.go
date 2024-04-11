@@ -1520,12 +1520,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			AutomaticUpdates: database.AutomaticUpdatesAlways,
 		}).Asserts(w, rbac.ActionUpdate)
 	}))
-	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		check.Args(database.InsertWorkspaceAgentStatParams{
-			WorkspaceID: ws.ID,
-		}).Asserts(ws, rbac.ActionUpdate)
-	}))
 	s.Run("UpdateWorkspaceAppHealthByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})

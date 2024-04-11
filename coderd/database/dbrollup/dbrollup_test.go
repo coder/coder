@@ -143,8 +143,8 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	anHourAgo := dbtime.Now().Add(-time.Hour).Truncate(time.Hour)
-	anHourAndSixMonthsAgo := anHourAgo.AddDate(0, -6, 0)
+	anHourAgo := dbtime.Now().Add(-time.Hour).Truncate(time.Hour).UTC()
+	anHourAndSixMonthsAgo := anHourAgo.AddDate(0, -6, 0).UTC()
 
 	var (
 		org   = dbgen.Organization(t, db, database.Organization{})
@@ -241,6 +241,12 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, stats, 1)
+
+	// I do not know a better way to do this. Our database runs in a *random*
+	// timezone. So the returned time is in a random timezone and fails on the
+	// equal even though they are the same time if converted back to the same timezone.
+	stats[0].EndTime = stats[0].EndTime.UTC()
+	stats[0].StartTime = stats[0].StartTime.UTC()
 
 	require.Equal(t, database.TemplateUsageStat{
 		TemplateID:          tpl.ID,

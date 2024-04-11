@@ -84,7 +84,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
-		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       dbtime.Now().Add(lifeTime),
 		Scope:           scope,
 		LifetimeSeconds: int64(lifeTime.Seconds()),
@@ -128,7 +128,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	lifeTime := time.Hour * 24 * 7
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
-		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
 		// All api generated keys will last 1 week. Browser login tokens have
@@ -354,7 +354,7 @@ func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.MaxTokenLifetime.Value(),
+			MaxTokenLifetime: values.Sessions.MaximumTokenDuration.Value(),
 		},
 	)
 }
@@ -364,10 +364,10 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.MaxTokenLifetime.Value() {
+	if lifetime > api.DeploymentValues.Sessions.MaximumTokenDuration.Value() {
 		return xerrors.Errorf(
 			"lifetime must be less than %v",
-			api.DeploymentValues.MaxTokenLifetime,
+			api.DeploymentValues.Sessions.MaximumTokenDuration,
 		)
 	}
 

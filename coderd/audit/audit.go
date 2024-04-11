@@ -21,7 +21,7 @@ type AdditionalFields struct {
 	BuildNumber    string               `json:"build_number"`
 	BuildReason    database.BuildReason `json:"build_reason"`
 	WorkspaceOwner string               `json:"workspace_owner"`
-	WorkspaceID    uuid.UUID            `json:"workpace_id"`
+	WorkspaceID    uuid.UUID            `json:"workspace_id"`
 }
 
 func NewNop() Auditor {

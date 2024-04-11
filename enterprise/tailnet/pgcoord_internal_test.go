@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
@@ -21,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -290,4 +293,52 @@ func TestGetDebug(t *testing.T) {
 	require.Equal(t, coordID, debug.Tunnels[0].CoordinatorID)
 	require.Equal(t, peerID, debug.Tunnels[0].SrcID)
 	require.Equal(t, dstID, debug.Tunnels[0].DstID)
+}
+
+// TestPGCoordinatorUnhealthy tests that when the coordinator fails to send heartbeats and is
+// unhealthy it disconnects any peers and does not send any extraneous database queries.
+func TestPGCoordinatorUnhealthy(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+
+	// after 3 failed heartbeats, the coordinator is unhealthy
+	mStore.EXPECT().
+		UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		MinTimes(3).
+		Return(database.TailnetCoordinator{}, xerrors.New("badness"))
+	mStore.EXPECT().
+		DeleteCoordinator(gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(nil)
+	// But, in particular we DO NOT want the coordinator to call DeleteTailnetPeer, as this is
+	// unnecessary and can spam the database. c.f. https://github.com/coder/coder/issues/12923
+
+	// these cleanup queries run, but we don't care for this test
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+
+	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return !coordinator.querier.isHealthy()
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	pID := uuid.UUID{5}
+	_, resps := coordinator.Coordinate(ctx, pID, "test", agpl.AgentCoordinateeAuth{ID: pID})
+	resp := testutil.RequireRecvCtx(ctx, t, resps)
+	require.Nil(t, resp, "channel should be closed")
+
+	// give the coordinator some time to process any pending work.  We are
+	// testing here that a database call is absent, so we don't want to race to
+	// shut down the test.
+	time.Sleep(testutil.IntervalMedium)
+	_ = coordinator.Close()
+	require.Eventually(t, ctrl.Satisfied, testutil.WaitShort, testutil.IntervalFast)
 }

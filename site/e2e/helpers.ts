@@ -20,6 +20,7 @@ import {
   prometheusPort,
   requireEnterpriseTests,
 } from "./constants";
+import { expectUrl } from "./expectUrl";
 import {
   Agent,
   type App,
@@ -31,7 +32,6 @@ import {
   Response,
   type RichParameter,
 } from "./provisionerGenerated";
-import { expectUrl } from "./expectUrl";
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
 export function requiresEnterpriseLicense() {
@@ -63,8 +63,7 @@ export const createWorkspace = async (
   await fillParameters(page, richParameters, buildParameters);
   await page.getByTestId("form-submit").click();
 
-  // We can't use `toHaveURL` because that causes issues with searchParams
-  await expectUrl(page.url())).toHavePathName("/@admin/" + name);
+  await expectUrl(page).toHavePathName("/@admin/" + name);
 
   await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
     state: "visible",
@@ -81,8 +80,8 @@ export const verifyParameters = async (
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL(
-    "/@admin/" + workspaceName + "/settings/parameters",
+  await expectUrl(page).toHavePathName(
+    `/@admin/${workspaceName}/settings/parameters`,
   );
 
   for (const buildParameter of expectedBuildParameters) {
@@ -143,7 +142,7 @@ export const createTemplate = async (
   });
 
   await page.goto("/templates/new", { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveURL("/templates/new");
+  await expectUrl(page).toHavePathName("/templates/new");
 
   await page.getByTestId("file-upload").setInputFiles({
     buffer: await createTemplateVersionTar(responses),
@@ -153,7 +152,7 @@ export const createTemplate = async (
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();
-  await expect(page).toHaveURL(`/templates/${name}/files`, {
+  await expectUrl(page).toHavePathName(`/templates/${name}/files`, {
     timeout: 30000,
   });
   return name;
@@ -163,7 +162,7 @@ export const createTemplate = async (
 // random name.
 export const createGroup = async (page: Page): Promise<string> => {
   await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveURL("/groups/create");
+  await expectUrl(page).toHavePathName("/groups/create");
 
   const name = randomName();
   await page.getByLabel("Name", { exact: true }).fill(name);
@@ -224,7 +223,7 @@ export const stopWorkspace = async (page: Page, workspaceName: string) => {
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL("/@admin/" + workspaceName);
+  await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
   await page.getByTestId("workspace-stop-button").click();
 
@@ -243,7 +242,7 @@ export const buildWorkspaceWithParameters = async (
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL("/@admin/" + workspaceName);
+  await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
   await page.getByTestId("build-parameters-button").click();
 
@@ -755,7 +754,7 @@ export const updateTemplateSettings = async (
   await page.goto(`/templates/${templateName}/settings`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL(`/templates/${templateName}/settings`);
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 
   for (const [key, value] of Object.entries(templateSettingValues)) {
     // Skip max_port_share_level for now since the frontend is not yet able to handle it
@@ -769,7 +768,7 @@ export const updateTemplateSettings = async (
   await page.getByTestId("form-submit").click();
 
   const name = templateSettingValues.name ?? templateName;
-  await expect(page).toHaveURL(`/templates/${name}`);
+  await expectUrl(page).toHavePathName(`/templates/${name}`);
 };
 
 export const updateWorkspace = async (
@@ -781,7 +780,7 @@ export const updateWorkspace = async (
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL("/@admin/" + workspaceName);
+  await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
 
   await page.getByTestId("workspace-update-button").click();
   await page.getByTestId("confirm-button").click();
@@ -803,8 +802,8 @@ export const updateWorkspaceParameters = async (
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL(
-    "/@admin/" + workspaceName + "/settings/parameters",
+  await expectUrl(page).toHavePathName(
+    `/@admin/${workspaceName}/settings/parameters`,
   );
 
   await fillParameters(page, richParameters, buildParameters);
@@ -829,7 +828,9 @@ export async function openTerminalWindow(
   // Specify that the shell should be `bash`, to prevent inheriting a shell that
   // isn't POSIX compatible, such as Fish.
   const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
-  await expect(terminal).toHaveURL(`/@admin/${workspaceName}.dev/terminal`);
+  await expectUrl(terminal).toHavePathName(
+    `/@admin/${workspaceName}.dev/terminal`,
+  );
   await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
 
   return terminal;
