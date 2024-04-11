@@ -5,6 +5,9 @@ import {
   requiresEnterpriseLicense,
   updateTemplateSettings,
 } from "../helpers";
+import { beforeCoderTest } from "../hooks";
+
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("template update with new name redirects on successful submit", async ({
   page,

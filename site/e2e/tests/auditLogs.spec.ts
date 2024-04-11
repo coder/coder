@@ -6,7 +6,7 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("inspecting and filtering audit logs", async ({ page }) => {
   requiresEnterpriseLicense();
