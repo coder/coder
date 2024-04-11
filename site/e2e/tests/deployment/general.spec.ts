@@ -1,10 +1,8 @@
 import { expect, test } from "@playwright/test";
 import * as API from "api/api";
 import { setupApiCalls } from "../../api";
-import { requiresEnterpriseLicense } from "../../helpers";
 
 test("experiments", async ({ page }) => {
-  requiresEnterpriseLicense();
   await setupApiCalls(page);
 
   // Load experiments from backend API
