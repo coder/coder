@@ -17,9 +17,6 @@ test("experiments", async ({ page }) => {
   );
   await expect(experimentsLocator).toBeVisible();
 
-  await experimentsLocator.focus();
-  await page.mouse.wheel(0, 600);
-
   // eslint-disable-next-line no-console -- HTML for experiments
   console.log(experimentsLocator.innerHTML());
 
