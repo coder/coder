@@ -4,6 +4,8 @@ import {
   coderMain,
   coderPort,
   coderdPProfPort,
+  e2eFakeExperiment1,
+  e2eFakeExperiment2,
   enterpriseLicense,
   gitAuth,
 } from "./constants";
@@ -67,6 +69,8 @@ export default defineConfig({
       .join(" "),
     env: {
       ...process.env,
+      // Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t
+      CGO_ENABLED: "0",
 
       // This is the test provider for git auth with devices!
       CODER_GITAUTH_0_ID: gitAuth.deviceProvider,
@@ -108,6 +112,7 @@ export default defineConfig({
         gitAuth.validatePath,
       ),
       CODER_PPROF_ADDRESS: "127.0.0.1:" + coderdPProfPort,
+      CODER_EXPERIMENTS: e2eFakeExperiment1 + "," + e2eFakeExperiment2,
     },
     reuseExistingServer: false,
   },
