@@ -7,7 +7,7 @@ import { storageState } from "./playwright.config";
 
 test("setup deployment", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await setupApiCalls(page, true);
+  await setupApiCalls(page);
   const exists = await hasFirstUser();
   if (exists) {
     // First user already exists, abort early. All tests execute this as a dependency,
