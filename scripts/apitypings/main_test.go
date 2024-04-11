@@ -7,6 +7,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,7 @@ func TestGeneration(t *testing.T) {
 			require.NoErrorf(t, err, "read file %s", golden)
 			expectedString := strings.TrimSpace(string(expected))
 			output = strings.TrimSpace(output)
+			fmt.Println(string(output))
 			require.Equal(t, expectedString, output, "matched output")
 		})
 	}

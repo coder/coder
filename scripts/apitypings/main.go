@@ -814,11 +814,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
 			genValue := ""
+
+			// Always wrap in parentheses for proper scoped types.
+			// Running prettier on this output will remove redundant parenthesis,
+			// so this makes our decision-making easier.
+			// The example that breaks without this is:
+			//	readonly readonly string[][]
 			if underlying.GenericValue != "" {
-				genValue = underlying.GenericValue + "[]"
+				genValue = "(readonly " + underlying.GenericValue + "[])"
 			}
 			return TypescriptType{
-				ValueType:     underlying.ValueType + "[]",
+				ValueType:     "(readonly " + underlying.ValueType + "[])",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,
