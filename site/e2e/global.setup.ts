@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
 import * as constants from "./constants";
 import { storageState } from "./playwright.config";
+import { expectUrl } from "./expectUrl";
 
 test("setup deployment", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -12,7 +13,7 @@ test("setup deployment", async ({ page }) => {
   await page.getByLabel(Language.passwordLabel).fill(constants.password);
   await page.getByTestId("create").click();
 
-  await expect(page).toHaveURL(/\/workspaces.*/);
+  await expectUrl(page).toHavePathName("/workspaces");
   await page.context().storageState({ path: storageState });
 
   await page.getByTestId("button-select-template").isVisible();
