@@ -18,8 +18,16 @@ test("experiments", async ({ page }) => {
   await expect(experimentsLocator).toBeVisible();
 
   // Firstly, check if all enabled experiments are listed
-  expect(experimentsLocator.locator(`li.option-array-item-${e2eFakeExperiment1}.option-enabled`)).toBeVisible;
-  expect(experimentsLocator.locator(`li.option-array-item-${e2eFakeExperiment2}.option-enabled`)).toBeVisible;
+  expect(
+    experimentsLocator.locator(
+      `li.option-array-item-${e2eFakeExperiment1}.option-enabled`,
+    ),
+  ).toBeVisible;
+  expect(
+    experimentsLocator.locator(
+      `li.option-array-item-${e2eFakeExperiment2}.option-enabled`,
+    ),
+  ).toBeVisible;
 
   // Secondly, check if available experiments are listed
   for (const experiment of availableExperiments.safe) {
