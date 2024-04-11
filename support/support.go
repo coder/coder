@@ -147,7 +147,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	return d
 }
 
-func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Network {
+func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Network {
 	var (
 		n  Network
 		eg errgroup.Group
@@ -496,7 +496,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
+		ni := NetworkInfo(ctx, d.Client, d.Log)
 		b.Network = ni
 		return nil
 	})
