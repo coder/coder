@@ -9,9 +9,9 @@ test("setup deployment", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await setupApiCalls(page);
   const exists = await hasFirstUser();
+  // First user already exists, abort early. All tests execute this as a dependency,
+  // if you run multiple tests in the UI, this will fail unless we check this.
   if (exists) {
-    // First user already exists, abort early. All tests execute this as a dependency,
-    // if you run multiple tests in the UI, this will fail unless we check this.
     return;
   }
 
