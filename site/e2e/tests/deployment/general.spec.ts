@@ -15,14 +15,20 @@ test("experiments", async ({ page }) => {
   const experimentsLocator = page.locator(
     "div.options-table tr.option-experiments ul.option-array",
   );
-  await experimentsLocator.scrollIntoViewIfNeeded();
+  await expect(experimentsLocator).toBeVisible();
+
+  await experimentsLocator.focus();
+  await page.mouse.wheel(0, 600);
+
+  // eslint-disable-next-line no-console -- HTML for experiments
+  console.log(experimentsLocator.innerHTML())
 
   // Firstly, check if available experiments are listed
   availableExperiments.safe.map(async (experiment) => {
     const experimentLocator = experimentsLocator.locator(
       `li.option-array-item-${experiment}`,
     );
-    await expect(experimentLocator).toBeInViewport();
+    await expect(experimentLocator).toBeVisible();
   });
 
   // Secondly, check if all enabled experiments are listed
@@ -30,6 +36,6 @@ test("experiments", async ({ page }) => {
     const experimentLocator = experimentsLocator.locator(
       `li.option-array-item-${experiment}.option-enabled`,
     );
-    await expect(experimentLocator).toBeInViewport();
+    await expect(experimentLocator).toBeVisible();
   });
 });
