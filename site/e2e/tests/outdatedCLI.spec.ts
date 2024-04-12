@@ -14,7 +14,7 @@ import { beforeCoderTest } from "../hooks";
 // we no longer support versions prior to single tailnet: https://github.com/coder/coder/commit/d7cbdbd9c64ad26821e6b35834c59ecf85dcd9d4
 const clientVersion = "v0.27.0";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("ssh with client " + clientVersion, async ({ page }) => {
   const token = randomUUID();
