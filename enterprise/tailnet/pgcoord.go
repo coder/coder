@@ -231,6 +231,17 @@ func (c *pgCoord) Coordinate(
 	logger := c.logger.With(slog.F("peer_id", id))
 	reqs := make(chan *proto.CoordinateRequest, agpl.RequestBufferSize)
 	resps := make(chan *proto.CoordinateResponse, agpl.ResponseBufferSize)
+	if !c.querier.isHealthy() {
+		// If the coordinator is unhealthy, we don't want to hook this Coordinate call up to the
+		// binder, as that can cause an unnecessary call to DeleteTailnetPeer when the connIO is
+		// closed.  Instead, we just close the response channel and bail out.
+		// c.f. https://github.com/coder/coder/issues/12923
+		c.logger.Info(ctx, "closed incoming coordinate call while unhealthy",
+			slog.F("peer_id", id),
+		)
+		close(resps)
+		return reqs, resps
+	}
 	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, reqs, resps, id, name, a)
 	err := agpl.SendCtx(c.ctx, c.newConnections, cIO)
 	if err != nil {
@@ -842,7 +853,12 @@ func (q *querier) newConn(c *connIO) {
 	defer q.mu.Unlock()
 	if !q.healthy {
 		err := c.Close()
-		q.logger.Info(q.ctx, "closed incoming connection while unhealthy",
+		// This can only happen during a narrow window where we were healthy
+		// when pgCoord checked before accepting the connection, but now are
+		// unhealthy now that we get around to processing it. Seeing a small
+		// number of these logs is not worrying, but a large number probably
+		// indicates something is amiss.
+		q.logger.Warn(q.ctx, "closed incoming connection while unhealthy",
 			slog.Error(err),
 			slog.F("peer_id", c.UniqueID()),
 		)
@@ -863,6 +879,12 @@ func (q *querier) newConn(c *connIO) {
 	q.workQ.enqueue(querierWorkKey{
 		mappingQuery: mk,
 	})
+}
+
+func (q *querier) isHealthy() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.healthy
 }
 
 func (q *querier) cleanupConn(c *connIO) {

@@ -2,12 +2,14 @@ package terraform
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/afero"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/terraform-provider-coder/provider"
@@ -186,6 +188,11 @@ func provisionEnv(
 	richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
 ) ([]string, error) {
 	env := safeEnviron()
+	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
+	if err != nil {
+		return nil, xerrors.Errorf("marshal owner groups: %w", err)
+	}
+
 	env = append(env,
 		"CODER_AGENT_URL="+metadata.GetCoderUrl(),
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(metadata.GetWorkspaceTransition().String()),
@@ -194,6 +201,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_EMAIL="+metadata.GetWorkspaceOwnerEmail(),
 		"CODER_WORKSPACE_OWNER_NAME="+metadata.GetWorkspaceOwnerName(),
 		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+metadata.GetWorkspaceOwnerOidcAccessToken(),
+		"CODER_WORKSPACE_OWNER_GROUPS="+string(ownerGroups),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),

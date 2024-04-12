@@ -2211,6 +2211,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5903,6 +5904,7 @@ const docTemplate = `{
                 ],
                 "summary": "Submit workspace agent stats",
                 "operationId": "submit-workspace-agent-stats",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "Stats request",
@@ -9045,6 +9047,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateWorkspaceRequest": {
+            "description": "CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.",
             "type": "object",
             "required": [
                 "name"
@@ -9293,9 +9296,6 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
-                "disable_session_expiry_refresh": {
-                    "type": "boolean"
-                },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
@@ -9332,12 +9332,6 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
-                },
-                "max_session_expiry": {
-                    "type": "integer"
-                },
-                "max_token_lifetime": {
-                    "type": "integer"
                 },
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
@@ -9389,6 +9383,9 @@ const docTemplate = `{
                 },
                 "secure_auth_cookie": {
                     "type": "boolean"
+                },
+                "session_lifetime": {
+                    "$ref": "#/definitions/codersdk.SessionLifetime"
                 },
                 "ssh_keygen_algorithm": {
                     "type": "string"
@@ -11078,6 +11075,22 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "vscode": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.SessionLifetime": {
+            "type": "object",
+            "properties": {
+                "default_duration": {
+                    "description": "DefaultDuration is for api keys, not tokens.",
+                    "type": "integer"
+                },
+                "disable_expiry_refresh": {
+                    "description": "DisableExpiryRefresh will disable automatically refreshing api\nkeys when they are used from the api. This means the api key lifetime at\ncreation is the lifetime of the api key.",
+                    "type": "boolean"
+                },
+                "max_token_lifetime": {
                     "type": "integer"
                 }
             }

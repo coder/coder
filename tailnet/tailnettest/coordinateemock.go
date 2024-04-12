@@ -14,6 +14,7 @@ import (
 
 	tailnet "github.com/coder/coder/v2/tailnet"
 	proto "github.com/coder/coder/v2/tailnet/proto"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -62,6 +63,18 @@ func (m *MockCoordinatee) SetNodeCallback(arg0 func(*tailnet.Node)) {
 func (mr *MockCoordinateeMockRecorder) SetNodeCallback(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNodeCallback", reflect.TypeOf((*MockCoordinatee)(nil).SetNodeCallback), arg0)
+}
+
+// SetTunnelDestination mocks base method.
+func (m *MockCoordinatee) SetTunnelDestination(arg0 uuid.UUID) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTunnelDestination", arg0)
+}
+
+// SetTunnelDestination indicates an expected call of SetTunnelDestination.
+func (mr *MockCoordinateeMockRecorder) SetTunnelDestination(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTunnelDestination", reflect.TypeOf((*MockCoordinatee)(nil).SetTunnelDestination), arg0)
 }
 
 // UpdatePeers mocks base method.

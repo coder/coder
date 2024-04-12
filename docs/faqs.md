@@ -4,8 +4,7 @@ Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
 come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
 
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How do I add an enterprise license?</summary>
+### How do I add an enterprise license?
 
 Visit https://coder.com/trial or contact
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
@@ -32,10 +31,7 @@ If the license is in a file:
 coder licenses add -f <path/filename>
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets</summary>
+### I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets
 
 The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
@@ -62,19 +58,13 @@ troubleshooting.
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How do I configure NGINX as the reverse proxy in front of Coder?</summary>
+### How do I configure NGINX as the reverse proxy in front of Coder?
 
 [This doc](https://github.com/coder/coder/tree/main/examples/web-server/nginx#configure-nginx)
 in our repo explains in detail how to configure NGINX with Coder so that our
 Tailscale Wireguard networking functions properly.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?</summary>
+### How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
 The visibility of Coder apps is configurable in the template. To change the
 default (shows all), add this block inside the
@@ -93,10 +83,7 @@ of a template and configure as needed:
 
 This example will hide all built-in coder_app icons except the web terminal.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I want to allow code-server to be accessible by other users in my deployment.</summary>
+### I want to allow code-server to be accessible by other users in my deployment.
 
 > It is **not** recommended to share a web IDE, but if required, the following
 > deployment environment variable settings are required.
@@ -126,10 +113,7 @@ resource "coder_app" "code-server" {
 }
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I installed Coder and created a workspace but the icons do not load.</summary>
+### I installed Coder and created a workspace but the icons do not load.
 
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
@@ -153,10 +137,7 @@ coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
 > Even `coder server` which creates a reverse proxy, will let you use
 > http://localhost to access Coder from a browser.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I updated a template, and an existing workspace based on that template fails to start.</summary>
+### I updated a template, and an existing workspace based on that template fails to start.
 
 When updating a template, be aware of potential issues with input variables. For
 example, if a template prompts users to choose options like a
@@ -176,10 +157,7 @@ potentially saving the workspace from a failed status.
 coder update --always-prompt <workspace name>
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I'm running coder on a VM with systemd but latest release installed isn't showing up.</summary>
+### I'm running coder on a VM with systemd but latest release installed isn't showing up.
 
 Take, for example, a Coder deployment on a VM with a 2 shared vCPU systemd
 service. In this scenario, it's necessary to reload the daemon and then restart
@@ -194,10 +172,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart coder.service
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I'm using the built-in Postgres database and forgot admin email I set up.</summary>
+### I'm using the built-in Postgres database and forgot admin email I set up.
 
 1. Run the `coder server` command below to retrieve the `psql` connection URL
    which includes the database user and password.
@@ -210,10 +185,7 @@ coder server postgres-builtin-url
 psql "postgres://coder@localhost:53737/coder?sslmode=disable&password=I2S...pTk"
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How to find out Coder's latest Terraform provider version?</summary>
+### How to find out Coder's latest Terraform provider version?
 
 [Coder is on the HashiCorp's Terraform registry](https://registry.terraform.io/providers/coder/coder/latest).
 Check this frequently to make sure you are on the latest version.
@@ -222,10 +194,7 @@ Sometimes, the version may change and `resource` configurations will either
 become deprecated or new ones will be added when you get warnings or errors
 creating and pushing templates.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How can I set up TLS for my deployment and not create a signed certificate?</summary>
+### How can I set up TLS for my deployment and not create a signed certificate?
 
 Caddy is an easy-to-configure reverse proxy that also automatically creates
 certificates from Let's Encrypt.
@@ -250,10 +219,7 @@ coder.example.com {
 }
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?</summary>
+### I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
 
 Caddy requires your DNS provider's credentials to create wildcard certificates.
 This involves building the Caddy binary
@@ -283,10 +249,7 @@ The updated Caddyfile configuration will look like this:
 }
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">Can I use local or remote Terraform Modules in Coder templates?</summary>
+### Can I use local or remote Terraform Modules in Coder templates?
 
 One way is to reference a Terraform module from a GitHub repo to avoid
 duplication and then just extend it or pass template-specific
@@ -328,10 +291,8 @@ References:
 - [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
 - [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
 - [Coder docs: Templates/Change Management](https://coder.com/docs/v2/latest/templates/change-management)
-</details>
 
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">Can I run Coder in an air-gapped or offline mode? (no Internet)?</summary>
+### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in air-gapped or offline mode.
 https://coder.com/docs/v2/latest/install/offline
@@ -345,10 +306,7 @@ defaults to Google's STUN servers, so you can either create your STUN server in
 your network or disable and force all traffic through the control plane's DERP
 proxy.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">Create a randomized computer_name for an Azure VM</summary>
+### Create a randomized computer_name for an Azure VM
 
 Azure VMs have a 15 character limit for the `computer_name` which can lead to
 duplicate name errors.
@@ -363,10 +321,7 @@ locals {
 }
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">Do you have example JetBrains Gateway templates?</summary>
+### Do you have example JetBrains Gateway templates?
 
 In August 2023, JetBrains certified the Coder plugin signifying enhanced
 stability and reliability.
@@ -387,10 +342,8 @@ open the IDE.
 
 - [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/pod-idea)
 - [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
-</details>
 
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?</summary>
+### What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
 Coder has an open-source project called
 [`code-marketplace`](https://github.com/coder/code-marketplace) which is a
@@ -416,10 +369,7 @@ https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">I want to run Docker for my workspaces but not install Docker Desktop.</summary>
+### I want to run Docker for my workspaces but not install Docker Desktop.
 
 [Colima](https://github.com/abiosoft/colima) is a Docker Desktop alternative.
 
@@ -454,10 +404,7 @@ Colima will show the path to the docker socket so we have a
 [community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
 that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How to make a `coder_app` optional?</summary>
+### How to make a `coder_app` optional?
 
 An example use case is the user should decide if they want a browser-based IDE
 like code-server when creating the workspace.
@@ -515,10 +462,7 @@ resource "coder_app" "code-server" {
 }
 ```
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?</summary>
+### Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
@@ -529,10 +473,7 @@ image or supported OS for the VS Code Server. For more information on OS
 prerequisites for Linux, please look at the VSCode docs.
 https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
 
-</details>
-
-<details style="margin-bottom: 28px;">
-  <summary style="font-size: larger; font-weight: bold;">How can I resolve disconnects when connected to Coder via JetBrains Gateway?</summary>
+### How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
 If your JetBrains IDE is disconnected for a long period of time due to a network
 change (for example turning off a VPN), you may find that the IDE will not
@@ -560,5 +501,3 @@ Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it
 re-authenticates to your Coder deployment so you must add the above config as a
 separate block and not add it to any existing ones.
-
-</details>

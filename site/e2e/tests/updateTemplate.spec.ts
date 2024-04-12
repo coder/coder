@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectUrl } from "../expectUrl";
 import {
   createGroup,
   createTemplate,
@@ -25,7 +26,7 @@ test("add and remove a group", async ({ page }) => {
   await page.goto(`/templates/${templateName}/settings/permissions`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL(
+  await expectUrl(page).toHavePathName(
     `/templates/${templateName}/settings/permissions`,
   );
 
@@ -37,9 +38,14 @@ test("add and remove a group", async ({ page }) => {
   // Select the group from the list and add it
   await page.getByText(groupName).click();
   await page.getByText("Add member").click();
-  await expect(
-    page.locator(".MuiTable-root").getByText(groupName),
-  ).toBeVisible();
+  const row = page.locator(".MuiTableRow-root", { hasText: groupName });
+  await expect(row).toBeVisible();
+
+  // Now remove the group
+  await row.getByLabel("More options").click();
+  await page.getByText("Remove").click();
+  await expect(page.getByText("Group removed successfully!")).toBeVisible();
+  await expect(row).not.toBeVisible();
 });
 
 test("require latest version", async ({ page }) => {
@@ -50,7 +56,7 @@ test("require latest version", async ({ page }) => {
   await page.goto(`/templates/${templateName}/settings`, {
     waitUntil: "domcontentloaded",
   });
-  await expect(page).toHaveURL(`/templates/${templateName}/settings`);
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
   let checkbox = await page.waitForSelector("#require_active_version");
   await checkbox.click();
   await page.getByTestId("form-submit").click();

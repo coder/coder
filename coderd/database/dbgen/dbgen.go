@@ -707,27 +707,49 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
-	scheme, err := db.InsertWorkspaceAgentStat(genCtx, database.InsertWorkspaceAgentStatParams{
-		ID:                          takeFirst(orig.ID, uuid.New()),
-		CreatedAt:                   takeFirst(orig.CreatedAt, dbtime.Now()),
-		UserID:                      takeFirst(orig.UserID, uuid.New()),
-		TemplateID:                  takeFirst(orig.TemplateID, uuid.New()),
-		WorkspaceID:                 takeFirst(orig.WorkspaceID, uuid.New()),
-		AgentID:                     takeFirst(orig.AgentID, uuid.New()),
-		ConnectionsByProto:          orig.ConnectionsByProto,
-		ConnectionCount:             takeFirst(orig.ConnectionCount, 0),
-		RxPackets:                   takeFirst(orig.RxPackets, 0),
-		RxBytes:                     takeFirst(orig.RxBytes, 0),
-		TxPackets:                   takeFirst(orig.TxPackets, 0),
-		TxBytes:                     takeFirst(orig.TxBytes, 0),
-		SessionCountVSCode:          takeFirst(orig.SessionCountVSCode, 0),
-		SessionCountJetBrains:       takeFirst(orig.SessionCountJetBrains, 0),
-		SessionCountReconnectingPTY: takeFirst(orig.SessionCountReconnectingPTY, 0),
-		SessionCountSSH:             takeFirst(orig.SessionCountSSH, 0),
-		ConnectionMedianLatencyMS:   takeFirst(orig.ConnectionMedianLatencyMS, 0),
-	})
+	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
+
+	params := database.InsertWorkspaceAgentStatsParams{
+		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		UserID:                      []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
+		TemplateID:                  []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
+		WorkspaceID:                 []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
+		AgentID:                     []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
+		ConnectionsByProto:          jsonProto,
+		ConnectionCount:             []int64{takeFirst(orig.ConnectionCount, 0)},
+		RxPackets:                   []int64{takeFirst(orig.RxPackets, 0)},
+		RxBytes:                     []int64{takeFirst(orig.RxBytes, 0)},
+		TxPackets:                   []int64{takeFirst(orig.TxPackets, 0)},
+		TxBytes:                     []int64{takeFirst(orig.TxBytes, 0)},
+		SessionCountVSCode:          []int64{takeFirst(orig.SessionCountVSCode, 0)},
+		SessionCountJetBrains:       []int64{takeFirst(orig.SessionCountJetBrains, 0)},
+		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
+		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
+		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+	}
+	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
-	return scheme
+
+	return database.WorkspaceAgentStat{
+		ID:                          params.ID[0],
+		CreatedAt:                   params.CreatedAt[0],
+		UserID:                      params.UserID[0],
+		AgentID:                     params.AgentID[0],
+		WorkspaceID:                 params.WorkspaceID[0],
+		TemplateID:                  params.TemplateID[0],
+		ConnectionsByProto:          orig.ConnectionsByProto,
+		ConnectionCount:             params.ConnectionCount[0],
+		RxPackets:                   params.RxPackets[0],
+		RxBytes:                     params.RxBytes[0],
+		TxPackets:                   params.TxPackets[0],
+		TxBytes:                     params.TxBytes[0],
+		ConnectionMedianLatencyMS:   params.ConnectionMedianLatencyMS[0],
+		SessionCountVSCode:          params.SessionCountVSCode[0],
+		SessionCountJetBrains:       params.SessionCountJetBrains[0],
+		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
+		SessionCountSSH:             params.SessionCountSSH[0],
+	}
 }
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {

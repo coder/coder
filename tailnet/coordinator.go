@@ -99,6 +99,9 @@ type Coordinatee interface {
 	UpdatePeers([]*proto.CoordinateResponse_PeerUpdate) error
 	SetAllPeersLost()
 	SetNodeCallback(func(*Node))
+	// SetTunnelDestination indicates to tailnet that the peer id is a
+	// destination.
+	SetTunnelDestination(id uuid.UUID)
 }
 
 type Coordination interface {
@@ -111,6 +114,7 @@ type remoteCoordination struct {
 	closed       bool
 	errChan      chan error
 	coordinatee  Coordinatee
+	tgt          uuid.UUID
 	logger       slog.Logger
 	protocol     proto.DRPCTailnet_CoordinateClient
 	respLoopDone chan struct{}
@@ -161,10 +165,36 @@ func (c *remoteCoordination) respLoop() {
 			c.sendErr(xerrors.Errorf("read: %w", err))
 			return
 		}
+
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			c.sendErr(xerrors.Errorf("update peers: %w", err))
 			return
+		}
+
+		// Only send acks from peers without a target.
+		if c.tgt == uuid.Nil {
+			// Send an ack back for all received peers. This could
+			// potentially be smarter to only send an ACK once per client,
+			// but there's nothing currently stopping clients from reusing
+			// IDs.
+			rfh := []*proto.CoordinateRequest_ReadyForHandshake{}
+			for _, peer := range resp.GetPeerUpdates() {
+				if peer.Kind != proto.CoordinateResponse_PeerUpdate_NODE {
+					continue
+				}
+
+				rfh = append(rfh, &proto.CoordinateRequest_ReadyForHandshake{Id: peer.Id})
+			}
+			if len(rfh) > 0 {
+				err := c.protocol.Send(&proto.CoordinateRequest{
+					ReadyForHandshake: rfh,
+				})
+				if err != nil {
+					c.sendErr(xerrors.Errorf("send: %w", err))
+					return
+				}
+			}
 		}
 	}
 }
@@ -179,11 +209,14 @@ func NewRemoteCoordination(logger slog.Logger,
 	c := &remoteCoordination{
 		errChan:      make(chan error, 1),
 		coordinatee:  coordinatee,
+		tgt:          tunnelTarget,
 		logger:       logger,
 		protocol:     protocol,
 		respLoopDone: make(chan struct{}),
 	}
 	if tunnelTarget != uuid.Nil {
+		// TODO: reenable in upstack PR
+		// c.coordinatee.SetTunnelDestination(tunnelTarget)
 		c.Lock()
 		err := c.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tunnelTarget[:]}})
 		c.Unlock()
@@ -325,6 +358,13 @@ func (c *inMemoryCoordination) respLoop() {
 			}
 		}
 	}
+}
+
+func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
+	// This is only used for tests, so just return a closed channel.
+	ch := make(chan struct{})
+	close(ch)
+	return ch
 }
 
 func (c *inMemoryCoordination) Close() error {
@@ -657,6 +697,54 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 	}
 	if req.Disconnect != nil {
 		c.removePeerLocked(p.id, proto.CoordinateResponse_PeerUpdate_DISCONNECTED, "graceful disconnect")
+	}
+	if rfhs := req.ReadyForHandshake; rfhs != nil {
+		err := c.handleReadyForHandshakeLocked(pr, rfhs)
+		if err != nil {
+			return xerrors.Errorf("handle ack: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *core) handleReadyForHandshakeLocked(src *peer, rfhs []*proto.CoordinateRequest_ReadyForHandshake) error {
+	for _, rfh := range rfhs {
+		dstID, err := uuid.FromBytes(rfh.Id)
+		if err != nil {
+			// this shouldn't happen unless there is a client error.  Close the connection so the client
+			// doesn't just happily continue thinking everything is fine.
+			return xerrors.Errorf("unable to convert bytes to UUID: %w", err)
+		}
+
+		if !c.tunnels.tunnelExists(src.id, dstID) {
+			// We intentionally do not return an error here, since it's
+			// inherently racy. It's possible for a source to connect, then
+			// subsequently disconnect before the agent has sent back the RFH.
+			// Since this could potentially happen to a non-malicious agent, we
+			// don't want to kill its connection.
+			select {
+			case src.resps <- &proto.CoordinateResponse{
+				Error: fmt.Sprintf("you do not share a tunnel with %q", dstID.String()),
+			}:
+			default:
+				return ErrWouldBlock
+			}
+			continue
+		}
+
+		dst, ok := c.peers[dstID]
+		if ok {
+			select {
+			case dst.resps <- &proto.CoordinateResponse{
+				PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
+					Id:   src.id[:],
+					Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+				}},
+			}:
+			default:
+				return ErrWouldBlock
+			}
+		}
 	}
 	return nil
 }

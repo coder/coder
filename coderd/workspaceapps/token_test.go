@@ -222,6 +222,54 @@ func Test_TokenMatchesRequest(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "PortPortocolHTTP",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "yolo--",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "8080",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					Prefix:            "yolo--",
+					BasePath:          "/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "8080",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "PortPortocolHTTPS",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "yolo--",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "8080s",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					Prefix:            "yolo--",
+					BasePath:          "/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "8080s",
+				},
+			},
+			want: true,
+		},
 	}
 
 	for _, c := range cases {

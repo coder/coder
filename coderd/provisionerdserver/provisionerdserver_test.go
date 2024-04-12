@@ -166,7 +166,11 @@ func TestAcquireJob(t *testing.T) {
 			// Set the max session token lifetime so we can assert we
 			// create an API key with an expiration within the bounds of the
 			// deployment config.
-			dv := &codersdk.DeploymentValues{MaxTokenLifetime: serpent.Duration(time.Hour)}
+			dv := &codersdk.DeploymentValues{
+				Sessions: codersdk.SessionLifetime{
+					MaximumTokenDuration: serpent.Duration(time.Hour),
+				},
+			}
 			gitAuthProvider := &sdkproto.ExternalAuthProviderResource{
 				Id: "github",
 			}
@@ -182,6 +186,15 @@ func TestAcquireJob(t *testing.T) {
 			defer cancel()
 
 			user := dbgen.User(t, db, database.User{})
+			group1 := dbgen.Group(t, db, database.Group{
+				Name:           "group1",
+				OrganizationID: pd.OrganizationID,
+			})
+			err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+				UserID:  user.ID,
+				GroupID: group1.ID,
+			})
+			require.NoError(t, err)
 			link := dbgen.UserLink(t, db, database.UserLink{
 				LoginType:        database.LoginTypeOIDC,
 				UserID:           user.ID,
@@ -310,8 +323,8 @@ func TestAcquireJob(t *testing.T) {
 			require.Len(t, toks, 2, "invalid api key")
 			key, err := db.GetAPIKeyByID(ctx, toks[0])
 			require.NoError(t, err)
-			require.Equal(t, int64(dv.MaxTokenLifetime.Value().Seconds()), key.LifetimeSeconds)
-			require.WithinDuration(t, time.Now().Add(dv.MaxTokenLifetime.Value()), key.ExpiresAt, time.Minute)
+			require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
+			require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 			want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
@@ -340,6 +353,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerEmail:           user.Email,
 						WorkspaceOwnerName:            user.Name,
 						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
+						WorkspaceOwnerGroups:          []string{group1.Name},
 						WorkspaceId:                   workspace.ID.String(),
 						WorkspaceOwnerId:              user.ID.String(),
 						TemplateId:                    template.ID.String(),

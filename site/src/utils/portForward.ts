@@ -4,12 +4,12 @@ export const portForwardURL = (
   agentName: string,
   workspaceName: string,
   username: string,
+  https = false,
 ): string => {
   const { location } = window;
+  const suffix = https ? "s" : "";
 
-  const subdomain = `${
-    isNaN(port) ? 3000 : port
-  }--${agentName}--${workspaceName}--${username}`;
+  const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
   return `${location.protocol}//${host}`.replace("*", subdomain);
 };
 

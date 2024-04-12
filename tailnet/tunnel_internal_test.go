@@ -43,3 +43,18 @@ func TestTunnelStore_RemoveAll(t *testing.T) {
 	require.Len(t, uut.findTunnelPeers(p2), 0)
 	require.Len(t, uut.findTunnelPeers(p3), 0)
 }
+
+func TestTunnelStore_TunnelExists(t *testing.T) {
+	t.Parallel()
+	p1 := uuid.UUID{1}
+	p2 := uuid.UUID{2}
+	uut := newTunnelStore()
+	require.False(t, uut.tunnelExists(p1, p2))
+	require.False(t, uut.tunnelExists(p2, p1))
+	uut.add(p1, p2)
+	require.True(t, uut.tunnelExists(p1, p2))
+	require.True(t, uut.tunnelExists(p2, p1))
+	uut.remove(p1, p2)
+	require.False(t, uut.tunnelExists(p1, p2))
+	require.False(t, uut.tunnelExists(p2, p1))
+}

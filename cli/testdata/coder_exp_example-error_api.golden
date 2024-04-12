@@ -1,3 +1,5 @@
 Encountered an error running "coder exp example-error api", see "coder exp example-error api --help" for more information
 error: Top level sdk error message.
-Have you tried turning it off and on again?
+1 validation error(s) found
+	 region : magic dust is not available in your region
+Suggestion: Have you tried turning it off and on again?

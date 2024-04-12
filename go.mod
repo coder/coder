@@ -2,6 +2,15 @@ module github.com/coder/coder/v2
 
 go 1.21.4
 
+// Required until a v3 of chroma is created to lazily initialize all XML files.
+// None of our dependencies seem to use the registries anyways, so this
+// should be fine...
+// See: https://github.com/kylecarbs/chroma/commit/9e036e0631f38ef60de5ee8eec7a42e9cb7da423
+replace github.com/alecthomas/chroma/v2 => github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3
+
+// Required until https://github.com/go-playground/validator/pull/1246 is merged.
+replace github.com/go-playground/validator/v10 => github.com/kylecarbs/validator/v10 v10.0.0-20240401214733-cebbc77c0ece
+
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
@@ -33,7 +42,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240312053019-86ba201e56df
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240401202854-d329bbdb530d
 
 // Fixes a race-condition in coder/wgtunnel.
 // Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
@@ -84,7 +93,7 @@ require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/smithy-go v1.20.1
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816
-	github.com/bramvdbogaerde/go-scp v1.3.0
+	github.com/bramvdbogaerde/go-scp v1.4.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -92,18 +101,17 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20230802225258-3cf4e6d46a89
 	github.com/chromedp/chromedp v0.9.2
 	github.com/cli/safeexec v1.0.1
-	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/retry v1.5.1
-	github.com/coder/terraform-provider-coder v0.19.0
+	github.com/coder/terraform-provider-coder v0.20.1
 	github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a
 	github.com/coreos/go-oidc/v3 v3.10.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.21
 	github.com/dave/dst v0.27.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/elastic/go-sysinfo v1.13.1
+	github.com/elastic/go-sysinfo v1.14.0
 	github.com/fatih/color v1.16.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
@@ -180,20 +188,20 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.21.0
+	golang.org/x/crypto v0.22.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
-	golang.org/x/mod v0.16.0
-	golang.org/x/net v0.22.0
-	golang.org/x/oauth2 v0.18.0
-	golang.org/x/sync v0.6.0
-	golang.org/x/sys v0.18.0
-	golang.org/x/term v0.18.0
+	golang.org/x/mod v0.17.0
+	golang.org/x/net v0.24.0
+	golang.org/x/oauth2 v0.19.0
+	golang.org/x/sync v0.7.0
+	golang.org/x/sys v0.19.0
+	golang.org/x/term v0.19.0
 	golang.org/x/text v0.14.0
-	golang.org/x/tools v0.19.0
+	golang.org/x/tools v0.20.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
 	google.golang.org/api v0.172.0
-	google.golang.org/grpc v1.62.1
+	google.golang.org/grpc v1.63.0
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -224,7 +232,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.23.4 // indirect
+	cloud.google.com/go/compute v1.24.0 // indirect
 	cloud.google.com/go/logging v1.9.0 // indirect
 	cloud.google.com/go/longrunning v0.5.5 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
@@ -307,7 +315,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -319,7 +327,6 @@ require (
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.0 // indirect
-	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320 // indirect
@@ -336,11 +343,9 @@ require (
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20231206064809-8c70d406f6d2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.1.1-0.20230202152459-5c7d0dd6ab86 // indirect
 	github.com/jsimonetti/rtnetlink v1.3.5 // indirect
-	github.com/juju/errors v1.0.0 // indirect
 	github.com/kortschak/wol v0.0.0-20200729010619-da482cc4850a // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -397,7 +402,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a // indirect
-	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
@@ -423,8 +427,8 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240205150955-31a09d347014 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240205150955-31a09d347014 // indirect
+	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect

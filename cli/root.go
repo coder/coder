@@ -1084,10 +1084,23 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 		_, _ = str.WriteString("\n")
 	}
 
+	// The main error message
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
+
+	// Validation errors.
+	if len(err.Validations) > 0 {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), fmt.Sprintf("%d validation error(s) found", len(err.Validations))))
+		for _, e := range err.Validations {
+			_, _ = str.WriteString("\n\t")
+			_, _ = str.WriteString(pretty.Sprint(cliui.DefaultStyles.Field, e.Field))
+			_, _ = str.WriteString(pretty.Sprintf(cliui.DefaultStyles.Warn, ": %s", e.Detail))
+		}
+	}
+
 	if err.Helper != "" {
 		_, _ = str.WriteString("\n")
-		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Helper))
+		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", err.Helper))
 	}
 	// By default we do not show the Detail with the helper.
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {

@@ -123,6 +123,7 @@ type sqlcQuerier interface {
 	// If the group is a user made group, then we need to check the group_members table.
 	// If it is the "Everyone" group, then we need to check the organization_members table.
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
@@ -335,7 +336,6 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentLogs(ctx context.Context, arg InsertWorkspaceAgentLogsParams) ([]WorkspaceAgentLog, error)
 	InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error
 	InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error)
-	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error

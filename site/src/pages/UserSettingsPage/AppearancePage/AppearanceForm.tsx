@@ -57,7 +57,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
         />
         <ThemePreviewButton
           displayName="Light"
-          preview
           active={currentTheme === "light"}
           theme={themes.light}
           onSelect={() => onChangeTheme("light")}

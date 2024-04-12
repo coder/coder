@@ -13,6 +13,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/netcheck"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 
 	"github.com/google/uuid"
 
@@ -46,9 +49,16 @@ type Deployment struct {
 }
 
 type Network struct {
-	CoordinatorDebug string                            `json:"coordinator_debug"`
-	TailnetDebug     string                            `json:"tailnet_debug"`
-	Netcheck         *workspacesdk.AgentConnectionInfo `json:"netcheck"`
+	ConnectionInfo   workspacesdk.AgentConnectionInfo
+	CoordinatorDebug string             `json:"coordinator_debug"`
+	Netcheck         *derphealth.Report `json:"netcheck"`
+	TailnetDebug     string             `json:"tailnet_debug"`
+}
+
+type Netcheck struct {
+	Report *netcheck.Report `json:"report"`
+	Error  string           `json:"error"`
+	Logs   []string         `json:"logs"`
 }
 
 type Workspace struct {
@@ -62,6 +72,7 @@ type Workspace struct {
 
 type Agent struct {
 	Agent               *codersdk.WorkspaceAgent                       `json:"agent"`
+	ConnectionInfo      *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
 	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs                []byte                                         `json:"logs"`
 	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
@@ -136,7 +147,7 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	return d
 }
 
-func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Network {
+func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Network {
 	var (
 		n  Network
 		eg errgroup.Group
@@ -171,15 +182,18 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, 
 	})
 
 	eg.Go(func() error {
-		if agentID == uuid.Nil {
-			log.Warn(ctx, "agent id required for agent connection info")
+		// Need connection info to get DERP map for netcheck
+		connInfo, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
+		if err != nil {
+			log.Warn(ctx, "unable to fetch generic agent connection info")
 			return nil
 		}
-		connInfo, err := workspacesdk.New(client).AgentConnectionInfo(ctx, agentID)
-		if err != nil {
-			return xerrors.Errorf("fetch agent conn info: %w", err)
-		}
-		n.Netcheck = &connInfo
+		n.ConnectionInfo = connInfo
+		var rpt derphealth.Report
+		rpt.Run(ctx, &derphealth.ReportOptions{
+			DERPMap: connInfo.DERPMap,
+		})
+		n.Netcheck = &rpt
 		return nil
 	})
 
@@ -482,7 +496,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ni := NetworkInfo(ctx, d.Client, d.Log, d.AgentID)
+		ni := NetworkInfo(ctx, d.Client, d.Log)
 		b.Network = ni
 		return nil
 	})

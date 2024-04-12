@@ -174,6 +174,7 @@ var (
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {rbac.ActionRead},
+					rbac.ResourceGroup.Type:        {rbac.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -1139,6 +1140,10 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 		return nil, err
 	}
 	return q.db.GetGroupMembers(ctx, id)
+}
+
+func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
@@ -2525,20 +2530,6 @@ func (q *querier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.
 		return []database.WorkspaceAgentScript{}, err
 	}
 	return q.db.InsertWorkspaceAgentScripts(ctx, arg)
-}
-
-func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	// TODO: This is a workspace agent operation. Should users be able to query this?
-	// Not really sure what this is for.
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
-	if err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {

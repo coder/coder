@@ -1165,6 +1165,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			appDetails := setupProxyTest(t, &DeploymentOptions{
 				ServeHTTPS: true,
 			})
+			// using the fact that Apps.Port and Apps.PortHTTPS are the same port here
 			port, err := strconv.ParseInt(appDetails.Apps.Port.AppSlugOrPort, 10, 32)
 			require.NoError(t, err)
 			_, err = appDetails.SDKClient.UpsertWorkspaceAgentPortShare(ctx, appDetails.Workspace.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
@@ -1178,7 +1179,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			publicAppClient := appDetails.AppClient(t)
 			publicAppClient.SetSessionToken("")
 
-			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.Port).String(), nil)
+			resp, err := requestWithRetries(ctx, t, publicAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.PortHTTPS).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1765,9 +1766,11 @@ func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details) {
 	require.NotNil(t, details.Workspace, "can't assert LastUsedAt on a nil workspace!")
 	before, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
-	// Wait for stats to fully flush.
-	details.FlushStats()
 	require.Eventually(t, func() bool {
+		// We may need to flush multiple times, since the stats from the app we are testing might be
+		// collected asynchronously from when we see the connection close, and thus, could race
+		// against being flushed.
+		details.FlushStats()
 		after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 		return assert.NoError(t, err) && after.LastUsedAt.After(before.LastUsedAt)
 	}, testutil.WaitShort, testutil.IntervalMedium)
