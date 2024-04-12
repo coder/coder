@@ -130,8 +130,8 @@ func TestDERP(t *testing.T) {
 		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.True(t, report.Dismissed)
 		if assert.Len(t, report.Warnings, 2) {
-			assert.Contains(t, report.Warnings[0].Code, health.CodeSTUNNoNodes)
-			assert.Contains(t, report.Warnings[1].Code, health.CodeDERPOneNodeUnhealthy)
+			assert.Contains(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
+			assert.Contains(t, report.Warnings[1].Code, health.CodeSTUNNoNodes)
 		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
@@ -141,7 +141,7 @@ func TestDERP(t *testing.T) {
 			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
 			assert.False(t, region.NodeReports[1].Healthy)
 			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
-			assert.Len(t, region.Warnings, 2)
+			assert.Len(t, region.Warnings, 1)
 		}
 	})
 
@@ -172,7 +172,7 @@ func TestDERP(t *testing.T) {
 							ForceHTTP:        true,
 						}, {
 							Name:             "badstun",
-							RegionID:         1000,
+							RegionID:         999,
 							HostName:         derpURL.Host,
 							STUNPort:         19302,
 							STUNOnly:         true,
@@ -189,7 +189,8 @@ func TestDERP(t *testing.T) {
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
 		if assert.Len(t, report.Warnings, 2) {
-			assert.Contains(t, report.Warnings[0].Code, health.CodeSTUNNoNodes)
+			assert.EqualValues(t, report.Warnings[1].Code, health.CodeSTUNNoNodes)
+			assert.EqualValues(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
 		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
@@ -199,7 +200,7 @@ func TestDERP(t *testing.T) {
 			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
 			assert.False(t, region.NodeReports[1].Healthy)
 			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
-			assert.Len(t, region.Warnings, 2)
+			assert.Len(t, region.Warnings, 1)
 		}
 	})
 
@@ -366,7 +367,63 @@ func TestDERP(t *testing.T) {
 		}
 	})
 
-	t.Run("STUNOnly/Error", func(t *testing.T) {
+	t.Run("STUNOnly/OneBadOneGood", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = context.Background()
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "badstun",
+							RegionID:         999,
+							HostName:         "badstun.example.com",
+							STUNPort:         19302,
+							STUNOnly:         true,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}, {
+							Name:             "goodstun",
+							RegionID:         999,
+							HostName:         "stun.l.google.com",
+							STUNPort:         19302,
+							STUNOnly:         true,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				},
+				},
+			}
+		)
+
+		report.Run(ctx, opts)
+		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		if assert.Len(t, report.Warnings, 1) {
+			assert.Equal(t, health.CodeDERPOneNodeUnhealthy, report.Warnings[0].Code)
+		}
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityWarning, region.Severity)
+			// badstun
+			assert.False(t, region.NodeReports[0].Healthy)
+			assert.True(t, region.NodeReports[0].STUN.Enabled)
+			assert.False(t, region.NodeReports[0].STUN.CanSTUN)
+			assert.NotNil(t, region.NodeReports[0].STUN.Error)
+			// goodstun
+			assert.True(t, region.NodeReports[1].Healthy)
+			assert.True(t, region.NodeReports[1].STUN.Enabled)
+			assert.True(t, region.NodeReports[1].STUN.CanSTUN)
+			assert.Nil(t, region.NodeReports[1].STUN.Error)
+		}
+	})
+
+	t.Run("STUNOnly/NoStun", func(t *testing.T) {
 		t.Parallel()
 
 		var (

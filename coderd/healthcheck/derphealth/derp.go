@@ -115,6 +115,20 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 
 	wg.Wait()
 
+	// Count the number of STUN-capable nodes.
+	var stunCapableNodes int
+	for _, region := range r.Regions {
+		for _, node := range region.NodeReports {
+			if node.STUN.CanSTUN {
+				stunCapableNodes++
+			}
+		}
+	}
+	if stunCapableNodes == 0 {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
+	}
+
 	// Review region reports and select the highest severity.
 	for _, regionReport := range r.Regions {
 		if regionReport.Severity.Value() > r.Severity.Value() {
@@ -131,8 +145,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 
 	wg := &sync.WaitGroup{}
 	var (
-		unhealthyNodes   int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
-		stunCapableNodes int
+		unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 	)
 
 	wg.Add(len(r.Region.Nodes))
@@ -163,9 +176,6 @@ func (r *RegionReport) Run(ctx context.Context) {
 			if nodeReport.Severity != health.SeverityOK {
 				unhealthyNodes++
 			}
-			if nodeReport.STUN.Enabled && nodeReport.STUN.CanSTUN {
-				stunCapableNodes++
-			}
 
 			r.Warnings = append(r.Warnings, nodeReport.Warnings...)
 			r.mu.Unlock()
@@ -183,11 +193,6 @@ func (r *RegionReport) Run(ctx context.Context) {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref(missingNodeReport)
 		return
-	}
-
-	if stunCapableNodes == 0 {
-		r.Severity = health.SeverityWarning
-		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
 	}
 
 	if len(r.Region.Nodes) == 1 {
