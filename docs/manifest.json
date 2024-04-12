@@ -1076,6 +1076,11 @@
       "icon_path": "./images/icons/notes.svg",
       "children": [
         {
+          "title": "Generate a Support Bundle",
+          "description": "Generate and upload a Support Bundle to Coder Support",
+          "path": "./guides/support-bundle.md"
+        },
+        {
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
