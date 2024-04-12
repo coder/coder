@@ -32,6 +32,8 @@ const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
+	noSTUN                   = "No nodes are capable of STUN, direct connections may not be possible."
+	stunMapVaryDest          = "STUN detected variable mapping by destination IP, you may be behind a hard NAT."
 )
 
 type ReportOptions struct {
@@ -107,6 +109,9 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
+	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+	}
 
 	wg.Wait()
 
@@ -125,7 +130,10 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
-	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
+	var (
+		unhealthyNodes   int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
+		stunCapableNodes int
+	)
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {
@@ -155,6 +163,9 @@ func (r *RegionReport) Run(ctx context.Context) {
 			if nodeReport.Severity != health.SeverityOK {
 				unhealthyNodes++
 			}
+			if nodeReport.STUN.Enabled && nodeReport.STUN.CanSTUN {
+				stunCapableNodes++
+			}
 
 			r.Warnings = append(r.Warnings, nodeReport.Warnings...)
 			r.mu.Unlock()
@@ -172,6 +183,11 @@ func (r *RegionReport) Run(ctx context.Context) {
 		r.Severity = health.SeverityError
 		r.Error = ptr.Ref(missingNodeReport)
 		return
+	}
+
+	if stunCapableNodes == 0 {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
 	}
 
 	if len(r.Region.Nodes) == 1 {

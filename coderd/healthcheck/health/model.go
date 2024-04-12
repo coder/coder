@@ -36,6 +36,8 @@ const (
 
 	CodeDERPNodeUsesWebsocket Code = `EDERP01`
 	CodeDERPOneNodeUnhealthy  Code = `EDERP02`
+	CodeSTUNNoNodes                = `ESTUN01`
+	CodeSTUNMapVaryDest            = `ESTUN02`
 
 	CodeProvisionerDaemonsNoProvisionerDaemons     Code = `EPD01`
 	CodeProvisionerDaemonVersionMismatch           Code = `EPD02`
