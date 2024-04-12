@@ -1649,6 +1649,11 @@ func convertWorkspace(
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	// If the template doesn't allow a workspace-configured value, then report the
+	// template value instead.
+	if !template.AllowUserAutostop {
+		ttlMillis = convertWorkspaceTTLMillis(sql.NullInt64{Valid: true, Int64: template.DefaultTTL})
+	}
 
 	// Only show favorite status if you own the workspace.
 	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite

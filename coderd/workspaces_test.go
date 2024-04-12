@@ -761,8 +761,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// TTL should be set by the template
-		require.Equal(t, template.DefaultTTLMillis, templateTTL)
-		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
+		require.Equal(t, templateTTL, template.DefaultTTLMillis)
+		require.Equal(t, templateTTL, *workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {
@@ -789,7 +789,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
-			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, "ttl_ms", apiErr.Validations[0].Field)
 			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
 	})

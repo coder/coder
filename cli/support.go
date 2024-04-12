@@ -13,6 +13,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -114,31 +115,40 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				client.URL = u
 			}
 
+			var (
+				wsID  uuid.UUID
+				agtID uuid.UUID
+			)
+
 			if len(inv.Args) == 0 {
-				return xerrors.Errorf("must specify workspace name")
-			}
-			ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
-			if err != nil {
-				return xerrors.Errorf("invalid workspace: %w", err)
-			}
-			cliLog.Debug(inv.Context(), "found workspace",
-				slog.F("workspace_name", ws.Name),
-				slog.F("workspace_id", ws.ID),
-			)
+				cliLog.Warn(inv.Context(), "no workspace specified")
+				_, _ = fmt.Fprintln(inv.Stderr, "Warning: no workspace specified. This will result in incomplete information.")
+			} else {
+				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				if err != nil {
+					return xerrors.Errorf("invalid workspace: %w", err)
+				}
+				cliLog.Debug(inv.Context(), "found workspace",
+					slog.F("workspace_name", ws.Name),
+					slog.F("workspace_id", ws.ID),
+				)
+				wsID = ws.ID
+				agentName := ""
+				if len(inv.Args) > 1 {
+					agentName = inv.Args[1]
+				}
 
-			agentName := ""
-			if len(inv.Args) > 1 {
-				agentName = inv.Args[1]
+				agt, found := findAgent(agentName, ws.LatestBuild.Resources)
+				if !found {
+					cliLog.Warn(inv.Context(), "could not find agent in workspace", slog.F("agent_name", agentName))
+				} else {
+					cliLog.Debug(inv.Context(), "found workspace agent",
+						slog.F("agent_name", agt.Name),
+						slog.F("agent_id", agt.ID),
+					)
+					agtID = agt.ID
+				}
 			}
-
-			agt, found := findAgent(agentName, ws.LatestBuild.Resources)
-			if !found {
-				return xerrors.Errorf("could not find agent named %q for workspace", agentName)
-			}
-			cliLog.Debug(inv.Context(), "found workspace agent",
-				slog.F("agent_name", agt.Name),
-				slog.F("agent_id", agt.ID),
-			)
 
 			if outputPath == "" {
 				cwd, err := filepath.Abs(".")
@@ -165,8 +175,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
 				Log:         clientLog,
-				WorkspaceID: ws.ID,
-				AgentID:     agt.ID,
+				WorkspaceID: wsID,
+				AgentID:     agtID,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -222,20 +232,21 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	// We JSON-encode the following:
 	for k, v := range map[string]any{
-		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
-		"deployment/config.json":          src.Deployment.Config,
-		"deployment/experiments.json":     src.Deployment.Experiments,
-		"deployment/health.json":          src.Deployment.HealthReport,
-		"network/netcheck.json":           src.Network.Netcheck,
-		"workspace/workspace.json":        src.Workspace.Workspace,
 		"agent/agent.json":                src.Agent.Agent,
 		"agent/listening_ports.json":      src.Agent.ListeningPorts,
 		"agent/manifest.json":             src.Agent.Manifest,
 		"agent/peer_diagnostics.json":     src.Agent.PeerDiagnostics,
 		"agent/ping_result.json":          src.Agent.PingResult,
+		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
+		"deployment/config.json":          src.Deployment.Config,
+		"deployment/experiments.json":     src.Deployment.Experiments,
+		"deployment/health.json":          src.Deployment.HealthReport,
+		"network/connection_info.json":    src.Network.ConnectionInfo,
+		"network/netcheck.json":           src.Network.Netcheck,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
+		"workspace/workspace.json":        src.Workspace.Workspace,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
@@ -255,17 +266,17 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 
 	// The below we just write as we have them:
 	for k, v := range map[string]string{
-		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":     src.Network.TailnetDebug,
-		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"agent/logs.txt":                 string(src.Agent.Logs),
 		"agent/agent_magicsock.html":     string(src.Agent.AgentMagicsockHTML),
 		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
 		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
 		"agent/prometheus.txt":           string(src.Agent.Prometheus),
-		"workspace/template_file.zip":    string(templateVersionBytes),
-		"logs.txt":                       strings.Join(src.Logs, "\n"),
 		"cli_logs.txt":                   string(src.CLILogs),
+		"logs.txt":                       strings.Join(src.Logs, "\n"),
+		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
+		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
+		"workspace/template_file.zip":    string(templateVersionBytes),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
