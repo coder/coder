@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/support"
@@ -243,5 +245,44 @@ func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {
 
 	if assert.NotNil(t, v, msg+" but was nil") {
 		assert.NotEmpty(t, v, msg+" but was empty")
+	}
+}
+
+func Test_Summarize(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		in       support.Bundle
+		expected []string
+	}{
+		{
+			name:     "empty",
+			in:       support.Bundle{},
+			expected: []string{"Netcheck missing from bundle!"},
+		},
+		{
+			name: "network health report",
+			in: support.Bundle{
+				Network: support.Network{
+					Netcheck: &derphealth.Report{
+						Warnings: []health.Message{
+							{Code: "TEST", Message: "test"},
+						},
+					},
+				},
+			},
+			expected: []string{"TEST: test"},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			actual := support.Summarize(&tt.in)
+			if len(tt.expected) == 0 {
+				assert.Empty(t, actual)
+			} else {
+				for _, exp := range tt.expected {
+					assert.Contains(t, actual, exp)
+				}
+			}
+		})
 	}
 }
