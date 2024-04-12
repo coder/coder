@@ -14,7 +14,7 @@ import {
   BatchUpdateConfirmation,
   type Update,
 } from "./BatchUpdateConfirmation";
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 
 const workspaces = [
   { ...MockRunningOutdatedWorkspace, id: "1" },
