@@ -4,7 +4,7 @@ import { TimelineDateRow } from "components/Timeline/TimelineDateRow";
 type GetDateFn<TData> = (data: TData) => Date;
 
 const groupByDate = <TData,>(
-  items: TData[],
+  items: readonly TData[],
   getDate: GetDateFn<TData>,
 ): Record<string, TData[]> => {
   const itemsByDate: Record<string, TData[]> = {};
@@ -23,7 +23,7 @@ const groupByDate = <TData,>(
 };
 
 export interface TimelineProps<TData> {
-  items: TData[];
+  items: readonly TData[];
   getDate: GetDateFn<TData>;
   row: (item: TData) => JSX.Element;
 }

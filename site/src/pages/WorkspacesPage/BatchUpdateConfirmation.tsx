@@ -18,7 +18,7 @@ import { Stack } from "components/Stack/Stack";
 dayjs.extend(relativeTime);
 
 type BatchUpdateConfirmationProps = {
-  checkedWorkspaces: Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   open: boolean;
   isLoading: boolean;
   onClose: () => void;
@@ -27,7 +27,7 @@ type BatchUpdateConfirmationProps = {
 
 export interface Update extends TemplateVersion {
   template_display_name: string;
-  affected_workspaces: Workspace[];
+  affected_workspaces: readonly Workspace[];
 }
 
 export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
@@ -401,7 +401,7 @@ const TemplateVersionMessages: FC<TemplateVersionMessagesProps> = ({
 };
 
 interface UsedByProps {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
 }
 
 const UsedBy: FC<UsedByProps> = ({ workspaces }) => {

@@ -18,7 +18,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   const { onSuccess } = options;
 
   const startAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(
         workspaces.map((w) =>
           startWorkspace(w.id, w.latest_build.template_version_id),
@@ -32,7 +32,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const stopAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(workspaces.map((w) => stopWorkspace(w.id)));
     },
     onSuccess,
@@ -42,7 +42,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const deleteAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(workspaces.map((w) => deleteWorkspace(w.id)));
     },
     onSuccess,
@@ -52,7 +52,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const updateAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(
         workspaces
           .filter((w) => w.outdated && !w.dormant_at)
@@ -66,7 +66,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const favoriteAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(
         workspaces
           .filter((w) => !w.favorite)
@@ -80,7 +80,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
   });
 
   const unfavoriteAllMutation = useMutation({
-    mutationFn: (workspaces: Workspace[]) => {
+    mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(
         workspaces
           .filter((w) => w.favorite)

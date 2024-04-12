@@ -27,8 +27,8 @@ const styles = {
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface LicenseBannerViewProps {
-  errors: string[];
-  warnings: string[];
+  errors: readonly string[];
+  warnings: readonly string[];
 }
 
 export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
