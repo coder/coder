@@ -28,21 +28,6 @@ A brief overview of all files contained in the bundle is provided below:
 
 | Filename                          | Description                                                                                      |
 | --------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `cli_logs.txt`                    | Logs from running the `coder support bundle` command.                                            |
-| `logs.txt`                        | Logs from the `codersdk.Client` used to generate the bundle.                                     |
-| `deployment/buildinfo.json`       | Coder version and build information.                                                             |
-| `deployment/config.json`          | Deployment [configuration](../api/general.md#get-deployment-config), with secret values removed. |
-| `deployment/experiments.json`     | Any [experiments](../cli/server.md#experiments) currently enabled for the deployment.            |
-| `deployment/health.json`          | A snapshot of the [health status](../admin/healthcheck.md) of the deployment.                    |
-| `network/coordinator_debug.html`  | Peers currently connected to each Coder instance and the tunnels established between peers.      |
-| `network/netcheck.json`           | DERP regions available, their connection status, and capabilities (STUN, DERP, etc.).            |
-| `network/tailnet_debug.html`      | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels.                        |
-| `workspace/build_logs.txt`        | Build logs of the selected workspace.                                                            |
-| `workspace/workspace.json`        | Details of the selected workspace.                                                               |
-| `workspace/parameters.json`       | Build parameters of the selected workspace.                                                      |
-| `workspace/template.json`         | The template currently in use by the selected workspace.                                         |
-| `workspace/template_file.zip`     | The source code of the template currently in use by the selected workspace.                      |
-| `workspace/template_version.json` | The template version currently in use by the selected workspace.                                 |
 | `agent/agent.json`                | The agent used to connect to the workspace with environment variables stripped.                  |
 | `agent/agent_magicsock.html`      | The contents of the HTTP debug endpoint of the agent's Tailscale connection.                     |
 | `agent/client_magicsock.html`     | The contents of the HTTP debug endpoint of the client's Tailscale connection.                    |
@@ -51,6 +36,22 @@ A brief overview of all files contained in the bundle is provided below:
 | `agent/manifest.json`             | The manifest of the selected agent with environment variables stripped.                          |
 | `agent/startup_logs.txt`          | Startup logs of the workspace agent.                                                             |
 | `agent/prometheus.txt`            | The contents of the agent's Prometheus endpoint.                                                 |
+| `deployment/buildinfo.json`       | Coder version and build information.                                                             |
+| `deployment/config.json`          | Deployment [configuration](../api/general.md#get-deployment-config), with secret values removed. |
+| `deployment/experiments.json`     | Any [experiments](../cli/server.md#experiments) currently enabled for the deployment.            |
+| `deployment/health.json`          | A snapshot of the [health status](../admin/healthcheck.md) of the deployment.                    |
+| `cli_logs.txt`                    | Logs from running the `coder support bundle` command.                                            |
+| `logs.txt`                        | Logs from the `codersdk.Client` used to generate the bundle.                                     |
+| `network/connection_info.json`    | Information used by workspace agents used to connect to Coder (DERP map etc.)                    |
+| `network/coordinator_debug.html`  | Peers currently connected to each Coder instance and the tunnels established between peers.      |
+| `network/netcheck.json`           | Results of running `coder netcheck` locally.                                                     |
+| `network/tailnet_debug.html`      | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels.                        |
+| `workspace/build_logs.txt`        | Build logs of the selected workspace.                                                            |
+| `workspace/workspace.json`        | Details of the selected workspace.                                                               |
+| `workspace/parameters.json`       | Build parameters of the selected workspace.                                                      |
+| `workspace/template.json`         | The template currently in use by the selected workspace.                                         |
+| `workspace/template_file.zip`     | The source code of the template currently in use by the selected workspace.                      |
+| `workspace/template_version.json` | The template version currently in use by the selected workspace.                                 |
 
 ## How do I generate a Support Bundle?
 
