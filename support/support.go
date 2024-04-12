@@ -560,19 +560,19 @@ func Summarize(b *Bundle) (msgs []string) {
 		if b.Deployment.HealthReport.ProvisionerDaemons.Error != nil {
 			msgs = append(msgs, "Deployment health: "+*b.Deployment.HealthReport.ProvisionerDaemons.Error)
 		}
-		for _, warn := range *&b.Deployment.HealthReport.ProvisionerDaemons.Warnings {
+		for _, warn := range b.Deployment.HealthReport.ProvisionerDaemons.Warnings {
 			msgs = append(msgs, "Deployment health: "+warn.String())
 		}
 		if b.Deployment.HealthReport.Websocket.Error != nil {
 			msgs = append(msgs, "Deployment health: "+*b.Deployment.HealthReport.Websocket.Error)
 		}
-		for _, warn := range *&b.Deployment.HealthReport.Websocket.Warnings {
+		for _, warn := range b.Deployment.HealthReport.Websocket.Warnings {
 			msgs = append(msgs, "Deployment health: "+warn)
 		}
 		if b.Deployment.HealthReport.WorkspaceProxy.Error != nil {
 			msgs = append(msgs, "Deployment health: "+*b.Deployment.HealthReport.WorkspaceProxy.Error)
 		}
-		for _, warn := range *&b.Deployment.HealthReport.WorkspaceProxy.Warnings {
+		for _, warn := range b.Deployment.HealthReport.WorkspaceProxy.Warnings {
 			msgs = append(msgs, "Deployment health: "+warn.String())
 		}
 	}

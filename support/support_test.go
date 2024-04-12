@@ -249,6 +249,7 @@ func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {
 }
 
 func Test_Summarize(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name     string
 		in       support.Bundle
@@ -275,6 +276,7 @@ func Test_Summarize(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			actual := support.Summarize(&tt.in)
 			if len(tt.expected) == 0 {
 				assert.Empty(t, actual)
