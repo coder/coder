@@ -30,7 +30,7 @@ export interface NavbarViewProps {
   logo_url?: string;
   user?: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
-  supportLinks?: TypesGen.LinkConfig[];
+  supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
   canViewAuditLog: boolean;
   canViewDeployment: boolean;
@@ -342,57 +342,58 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
         <Divider css={{ borderColor: theme.palette.divider }} />
 
-        {proxyContextValue.proxies
-          ?.sort((a, b) => {
-            const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
-            const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity;
-            return latencyA - latencyB;
-          })
-          .map((proxy) => (
-            <MenuItem
-              key={proxy.id}
-              selected={proxy.id === selectedProxy?.id}
-              css={{ fontSize: 14 }}
-              onClick={() => {
-                if (!proxy.healthy) {
-                  displayError("Please select a healthy workspace proxy.");
-                  closeMenu();
-                  return;
-                }
+        {proxyContextValue.proxies &&
+          [...proxyContextValue.proxies]
+            .sort((a, b) => {
+              const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
+              const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity;
+              return latencyA - latencyB;
+            })
+            .map((proxy) => (
+              <MenuItem
+                key={proxy.id}
+                selected={proxy.id === selectedProxy?.id}
+                css={{ fontSize: 14 }}
+                onClick={() => {
+                  if (!proxy.healthy) {
+                    displayError("Please select a healthy workspace proxy.");
+                    closeMenu();
+                    return;
+                  }
 
-                proxyContextValue.setProxy(proxy);
-                closeMenu();
-              }}
-            >
-              <div
-                css={{
-                  display: "flex",
-                  gap: 24,
-                  alignItems: "center",
-                  width: "100%",
+                  proxyContextValue.setProxy(proxy);
+                  closeMenu();
                 }}
               >
-                <div css={{ width: 14, height: 14, lineHeight: 0 }}>
-                  <img
-                    src={proxy.icon_url}
-                    alt=""
-                    css={{
-                      objectFit: "contain",
-                      width: "100%",
-                      height: "100%",
-                    }}
+                <div
+                  css={{
+                    display: "flex",
+                    gap: 24,
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <div css={{ width: 14, height: 14, lineHeight: 0 }}>
+                    <img
+                      src={proxy.icon_url}
+                      alt=""
+                      css={{
+                        objectFit: "contain",
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    />
+                  </div>
+
+                  {proxy.display_name}
+
+                  <Latency
+                    latency={latencies?.[proxy.id]?.latencyMS}
+                    isLoading={proxyLatencyLoading(proxy)}
                   />
                 </div>
-
-                {proxy.display_name}
-
-                <Latency
-                  latency={latencies?.[proxy.id]?.latencyMS}
-                  isLoading={proxyLatencyLoading(proxy)}
-                />
-              </div>
-            </MenuItem>
-          ))}
+              </MenuItem>
+            ))}
 
         <Divider css={{ borderColor: theme.palette.divider }} />
 
