@@ -71,8 +71,8 @@ A brief overview of all files contained in the bundle is provided below:
    prompt. The support bundle will be generated in the current directory with
    the filename `coder-support-$TIMESTAMP.zip`.
 
-   > Note that generating a support bundle currently requires a running
-   > workspace to function.
+   > While support bundles can be generated without a running workspace, it is
+   > recommended to specify one to maximize troubleshooting information.
 
 5. (Recommended) Extract the support bundle and review its contents, redacting
    any information you deem necessary.
