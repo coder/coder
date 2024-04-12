@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -261,7 +262,7 @@ func Test_Summarize(t *testing.T) {
 			expected: []string{"Netcheck missing from bundle!"},
 		},
 		{
-			name: "network health report",
+			name: "warnings",
 			in: support.Bundle{
 				Network: support.Network{
 					Netcheck: &derphealth.Report{
@@ -270,8 +271,41 @@ func Test_Summarize(t *testing.T) {
 						},
 					},
 				},
+				Deployment: support.Deployment{
+					HealthReport: &healthsdk.HealthcheckReport{
+						AccessURL: healthsdk.AccessURLReport{
+							Warnings: []health.Message{
+								{Code: "TEST", Message: "test"},
+							},
+						},
+					},
+				},
 			},
-			expected: []string{"TEST: test"},
+			expected: []string{
+				"Client netcheck: TEST: test",
+				"Deployment health: TEST: test",
+			},
+		},
+		{
+			name: "errors",
+			in: support.Bundle{
+				Network: support.Network{
+					Netcheck: &derphealth.Report{
+						Error: ptr.Ref("yikes"),
+					},
+				},
+				Deployment: support.Deployment{
+					HealthReport: &healthsdk.HealthcheckReport{
+						AccessURL: healthsdk.AccessURLReport{
+							Error: ptr.Ref("zoinks"),
+						},
+					},
+				},
+			},
+			expected: []string{
+				"Client netcheck: yikes",
+				"Deployment health: zoinks",
+			},
 		},
 	} {
 		tt := tt
