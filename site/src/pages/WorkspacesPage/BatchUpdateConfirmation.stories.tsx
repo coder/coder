@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useQueryClient } from "react-query";
+import type { Workspace } from "api/typesGenerated";
 import { chromatic } from "testHelpers/chromatic";
 import {
   MockWorkspace,
@@ -14,7 +15,6 @@ import {
   BatchUpdateConfirmation,
   type Update,
 } from "./BatchUpdateConfirmation";
-import type { Workspace } from "api/typesGenerated";
 
 const workspaces = [
   { ...MockRunningOutdatedWorkspace, id: "1" },

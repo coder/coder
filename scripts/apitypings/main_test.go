@@ -42,7 +42,7 @@ func TestGeneration(t *testing.T) {
 			expectedString := strings.TrimSpace(string(expected))
 			output = strings.TrimSpace(output)
 			if *updateGoldenFiles {
-				err := os.WriteFile(golden, []byte(output), 0644)
+				err := os.WriteFile(golden, []byte(output), 0o644)
 				require.NoError(t, err, "write golden file")
 			} else {
 				require.Equal(t, expectedString, output, "matched output")
