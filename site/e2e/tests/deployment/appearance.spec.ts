@@ -1,4 +1,5 @@
 import { chromium, expect, test } from "@playwright/test";
+import { expectUrl } from "../../expectUrl";
 import { randomName, requiresEnterpriseLicense } from "../../helpers";
 
 test("set application name", async ({ page }) => {
@@ -22,9 +23,9 @@ test("set application name", async ({ page }) => {
   const incognitoPage = await incognitoContext.newPage();
   await incognitoPage.goto("/", { waitUntil: "domcontentloaded" });
 
-  // Verify banner
-  const banner = incognitoPage.locator("h1", { hasText: applicationName });
-  await expect(banner).toBeVisible();
+  // Verify the application name
+  const name = incognitoPage.locator("h1", { hasText: applicationName });
+  await expect(name).toBeVisible();
 
   // Shut down browser
   await incognitoPage.close();
@@ -57,4 +58,25 @@ test("set application logo", async ({ page }) => {
   // Shut down browser
   await incognitoPage.close();
   await browser.close();
+});
+
+test("set service banner", async ({ page }) => {
+  requiresEnterpriseLicense();
+
+  await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
+
+  const message = "Mary has a little lamb.";
+
+  // Fill out the form
+  const form = page.locator("form", { hasText: "Service Banner" });
+  await form.getByLabel("Enabled", { exact: true }).check();
+  await form.getByLabel("Message", { exact: true }).fill(message);
+  await form.getByRole("button", { name: "Submit" }).click();
+
+  // Verify service banner
+  await page.goto("/workspaces", { waitUntil: "domcontentloaded" });
+  await expectUrl(page).toHavePathName("/workspaces");
+
+  const bar = page.locator("div.service-banner", { hasText: message });
+  await expect(bar).toBeVisible();
 });
