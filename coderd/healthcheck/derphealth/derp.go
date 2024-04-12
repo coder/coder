@@ -144,9 +144,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
-	var (
-		unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
-	)
+	var unhealthyNodes int // atomic.Int64 is not mandatory as we depend on RegionReport mutex.
 
 	wg.Add(len(r.Region.Nodes))
 	for _, node := range r.Region.Nodes {

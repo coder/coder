@@ -374,29 +374,30 @@ func TestDERP(t *testing.T) {
 			ctx    = context.Background()
 			report = derphealth.Report{}
 			opts   = &derphealth.ReportOptions{
-				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
-					1: {
-						EmbeddedRelay: true,
-						RegionID:      999,
-						Nodes: []*tailcfg.DERPNode{{
-							Name:             "badstun",
-							RegionID:         999,
-							HostName:         "badstun.example.com",
-							STUNPort:         19302,
-							STUNOnly:         true,
-							InsecureForTests: true,
-							ForceHTTP:        true,
-						}, {
-							Name:             "goodstun",
-							RegionID:         999,
-							HostName:         "stun.l.google.com",
-							STUNPort:         19302,
-							STUNOnly:         true,
-							InsecureForTests: true,
-							ForceHTTP:        true,
-						}},
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {
+							EmbeddedRelay: true,
+							RegionID:      999,
+							Nodes: []*tailcfg.DERPNode{{
+								Name:             "badstun",
+								RegionID:         999,
+								HostName:         "badstun.example.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}, {
+								Name:             "goodstun",
+								RegionID:         999,
+								HostName:         "stun.l.google.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}},
+						},
 					},
-				},
 				},
 			}
 		)
@@ -430,21 +431,22 @@ func TestDERP(t *testing.T) {
 			ctx    = context.Background()
 			report = derphealth.Report{}
 			opts   = &derphealth.ReportOptions{
-				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
-					1: {
-						EmbeddedRelay: true,
-						RegionID:      999,
-						Nodes: []*tailcfg.DERPNode{{
-							Name:             "badstun",
-							RegionID:         999,
-							HostName:         "badstun.example.com",
-							STUNPort:         19302,
-							STUNOnly:         true,
-							InsecureForTests: true,
-							ForceHTTP:        true,
-						}},
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {
+							EmbeddedRelay: true,
+							RegionID:      999,
+							Nodes: []*tailcfg.DERPNode{{
+								Name:             "badstun",
+								RegionID:         999,
+								HostName:         "badstun.example.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}},
+						},
 					},
-				},
 				},
 			}
 		)
