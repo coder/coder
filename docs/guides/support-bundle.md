@@ -36,11 +36,11 @@ A brief overview of all files contained in the bundle is provided below:
 | `agent/manifest.json`             | The manifest of the selected agent with environment variables stripped.                          |
 | `agent/startup_logs.txt`          | Startup logs of the workspace agent.                                                             |
 | `agent/prometheus.txt`            | The contents of the agent's Prometheus endpoint.                                                 |
+| `cli_logs.txt`                    | Logs from running the `coder support bundle` command.                                            |
 | `deployment/buildinfo.json`       | Coder version and build information.                                                             |
 | `deployment/config.json`          | Deployment [configuration](../api/general.md#get-deployment-config), with secret values removed. |
 | `deployment/experiments.json`     | Any [experiments](../cli/server.md#experiments) currently enabled for the deployment.            |
 | `deployment/health.json`          | A snapshot of the [health status](../admin/healthcheck.md) of the deployment.                    |
-| `cli_logs.txt`                    | Logs from running the `coder support bundle` command.                                            |
 | `logs.txt`                        | Logs from the `codersdk.Client` used to generate the bundle.                                     |
 | `network/connection_info.json`    | Information used by workspace agents used to connect to Coder (DERP map etc.)                    |
 | `network/coordinator_debug.html`  | Peers currently connected to each Coder instance and the tunnels established between peers.      |
