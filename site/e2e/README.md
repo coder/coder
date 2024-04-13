@@ -12,6 +12,8 @@ cd site
 # Build the frontend assets. If you are actively changing
 # the site to debug an issue, add `--watch`.
 pnpm build
+# Alternatively, build with debug info and source maps:
+NODE_ENV=development pnpm vite build --mode=development
 # Install the browsers to `~/.cache/ms-playwright`.
 pnpm playwright:install
 # Run E2E tests. You can see the configuration of the server

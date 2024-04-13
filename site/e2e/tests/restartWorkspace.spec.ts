@@ -10,7 +10,7 @@ import { beforeCoderTest } from "../hooks";
 import { firstBuildOption, secondBuildOption } from "../parameters";
 import type { RichParameter } from "../provisionerGenerated";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("restart workspace with ephemeral parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];

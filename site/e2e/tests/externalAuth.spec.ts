@@ -5,7 +5,7 @@ import { gitAuth } from "../constants";
 import { Awaiter, createServer } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 // Ensures that a Git auth provider with the device flow functions and completes!
 test("external auth device", async ({ page }) => {

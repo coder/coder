@@ -27,7 +27,7 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
   }
 
   return (
-    <TableContainer>
+    <TableContainer className="options-table">
       <Table
         css={css`
           & td {
@@ -57,7 +57,7 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
               return null;
             }
             return (
-              <TableRow key={option.flag}>
+              <TableRow key={option.flag} className={"option-" + option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
                   <OptionDescription>{option.description}</OptionDescription>

@@ -232,20 +232,21 @@ func findAgent(agentName string, haystack []codersdk.WorkspaceResource) (*coders
 func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	// We JSON-encode the following:
 	for k, v := range map[string]any{
-		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
-		"deployment/config.json":          src.Deployment.Config,
-		"deployment/experiments.json":     src.Deployment.Experiments,
-		"deployment/health.json":          src.Deployment.HealthReport,
-		"network/netcheck.json":           src.Network.Netcheck,
-		"workspace/workspace.json":        src.Workspace.Workspace,
 		"agent/agent.json":                src.Agent.Agent,
 		"agent/listening_ports.json":      src.Agent.ListeningPorts,
 		"agent/manifest.json":             src.Agent.Manifest,
 		"agent/peer_diagnostics.json":     src.Agent.PeerDiagnostics,
 		"agent/ping_result.json":          src.Agent.PingResult,
+		"deployment/buildinfo.json":       src.Deployment.BuildInfo,
+		"deployment/config.json":          src.Deployment.Config,
+		"deployment/experiments.json":     src.Deployment.Experiments,
+		"deployment/health.json":          src.Deployment.HealthReport,
+		"network/connection_info.json":    src.Network.ConnectionInfo,
+		"network/netcheck.json":           src.Network.Netcheck,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
+		"workspace/workspace.json":        src.Workspace.Workspace,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {
@@ -265,17 +266,17 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 
 	// The below we just write as we have them:
 	for k, v := range map[string]string{
-		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
-		"network/tailnet_debug.html":     src.Network.TailnetDebug,
-		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
 		"agent/logs.txt":                 string(src.Agent.Logs),
 		"agent/agent_magicsock.html":     string(src.Agent.AgentMagicsockHTML),
 		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
 		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
 		"agent/prometheus.txt":           string(src.Agent.Prometheus),
-		"workspace/template_file.zip":    string(templateVersionBytes),
-		"logs.txt":                       strings.Join(src.Logs, "\n"),
 		"cli_logs.txt":                   string(src.CLILogs),
+		"logs.txt":                       strings.Join(src.Logs, "\n"),
+		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
+		"network/tailnet_debug.html":     src.Network.TailnetDebug,
+		"workspace/build_logs.txt":       humanizeBuildLogs(src.Workspace.BuildLogs),
+		"workspace/template_file.zip":    string(templateVersionBytes),
 	} {
 		f, err := dest.Create(k)
 		if err != nil {

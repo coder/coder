@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -182,6 +183,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v healthsdk.HealthcheckReport
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "health report should not be empty")
+		case "network/connection_info.json":
+			var v workspacesdk.AgentConnectionInfo
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "agent connection info should not be empty")
 		case "network/coordinator_debug.html":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "coordinator debug should not be empty")
@@ -189,13 +194,9 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "tailnet debug should not be empty")
 		case "network/netcheck.json":
-			var v workspacesdk.AgentConnectionInfo
+			var v derphealth.Report
 			decodeJSONFromZip(t, f, &v)
-			if !wantAgent || !wantWorkspace {
-				require.Empty(t, v, "expected connection info to be empty")
-				continue
-			}
-			require.NotEmpty(t, v, "connection info should not be empty")
+			require.NotEmpty(t, v, "netcheck should not be empty")
 		case "workspace/workspace.json":
 			var v codersdk.Workspace
 			decodeJSONFromZip(t, f, &v)

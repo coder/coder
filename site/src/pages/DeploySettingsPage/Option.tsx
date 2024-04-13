@@ -51,7 +51,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (typeof value === "object" && !Array.isArray(value)) {
     return (
-      <ul css={{ listStyle: "none" }}>
+      <ul css={{ listStyle: "none" }} className="option-array">
         {Object.entries(value)
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([option, isEnabled]) => (
@@ -64,6 +64,9 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                   color: theme.palette.text.disabled,
                 },
               ]}
+              className={`option-array-item-${option} ${
+                isEnabled ? "option-enabled" : "option-disabled"
+              }`}
             >
               <div
                 css={{
