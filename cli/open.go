@@ -64,7 +64,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			// need to wait for the agent to start.
 			workspaceQuery := inv.Args[0]
 			autostart := true
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, codersdk.Me, workspaceQuery)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, workspaceQuery)
 			if err != nil {
 				return xerrors.Errorf("get workspace and agent: %w", err)
 			}
