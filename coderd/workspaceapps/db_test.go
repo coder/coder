@@ -40,6 +40,7 @@ func Test_ResolveRequest(t *testing.T) {
 		// Users can access unhealthy and initializing apps (as of 2024-02).
 		appNameUnhealthy    = "app-unhealthy"
 		appNameInitializing = "app-initializing"
+		appNameEndsInS      = "app-ends-in-s"
 
 		// This agent will never connect, so it will never become "connected".
 		// Users cannot access unhealthy agents.
@@ -165,6 +166,12 @@ func Test_ResolveRequest(t *testing.T) {
 											Interval:  30,
 											Threshold: 1000,
 										},
+									},
+									{
+										Slug:         appNameEndsInS,
+										DisplayName:  appNameEndsInS,
+										SharingLevel: proto.AppSharingLevel_OWNER,
+										Url:          appURL,
 									},
 								},
 							},
@@ -642,6 +649,67 @@ func Test_ResolveRequest(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
 		require.Equal(t, "http://127.0.0.1:9090", token.AppURL)
+	})
+
+	t.Run("PortSubdomainHTTPSS", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodSubdomain,
+			BasePath:          "/",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     "9090ss",
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		_, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		// should parse as app and fail to find app "9090ss"
+		require.False(t, ok)
+		w := rw.Result()
+		_ = w.Body.Close()
+		b, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "404 - Application Not Found")
+	})
+
+	t.Run("SubdomainEndsInS", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodSubdomain,
+			BasePath:          "/",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNameEndsInS,
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.True(t, ok)
+		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
 	})
 
 	t.Run("Terminal", func(t *testing.T) {

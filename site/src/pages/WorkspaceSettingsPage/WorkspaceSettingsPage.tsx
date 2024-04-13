@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -8,7 +9,7 @@ import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
-const WorkspaceSettingsPage = () => {
+const WorkspaceSettingsPage: FC = () => {
   const params = useParams() as {
     workspace: string;
     username: string;

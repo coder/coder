@@ -427,13 +427,11 @@ export interface DeploymentValues {
   readonly rate_limit?: RateLimitConfig;
   readonly experiments?: string[];
   readonly update_check?: boolean;
-  readonly max_token_lifetime?: number;
   readonly swagger?: SwaggerConfig;
   readonly logging?: LoggingConfig;
   readonly dangerous?: DangerousConfig;
   readonly disable_path_apps?: boolean;
-  readonly max_session_expiry?: number;
-  readonly disable_session_expiry_refresh?: boolean;
+  readonly session_lifetime?: SessionLifetime;
   readonly disable_password_auth?: boolean;
   readonly support?: SupportConfig;
   readonly external_auth?: ExternalAuthConfig[];
@@ -996,6 +994,13 @@ export interface SessionCountDeploymentStats {
   readonly ssh: number;
   readonly jetbrains: number;
   readonly reconnecting_pty: number;
+}
+
+// From codersdk/deployment.go
+export interface SessionLifetime {
+  readonly disable_expiry_refresh?: boolean;
+  readonly default_duration: number;
+  readonly max_token_lifetime?: number;
 }
 
 // From codersdk/deployment.go

@@ -404,6 +404,16 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 					break
 				}
 			}
+
+			if pj, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID); err == nil {
+				wr.LatestBuildStatus = pj.JobStatus
+			}
+
+			wr.LatestBuildTransition = build.Transition
+		}
+
+		if u, err := q.getUserByIDNoLock(w.OwnerID); err == nil {
+			wr.Username = u.Username
 		}
 
 		rows = append(rows, wr)
@@ -2238,6 +2248,30 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	}
 
 	return users, nil
+}
+
+func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var groupIds []uuid.UUID
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			groupIds = append(groupIds, member.GroupID)
+		}
+	}
+	groups := []database.Group{}
+	for _, group := range q.groups {
+		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
+			groups = append(groups, group)
+		}
+	}
+
+	return groups, nil
 }
 
 func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
@@ -6445,37 +6479,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 	}
 	q.workspaceAgentScripts = append(q.workspaceAgentScripts, scripts...)
 	return scripts, nil
-}
-
-func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	if err := validateDatabaseType(p); err != nil {
-		return database.WorkspaceAgentStat{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	stat := database.WorkspaceAgentStat{
-		ID:                          p.ID,
-		CreatedAt:                   p.CreatedAt,
-		WorkspaceID:                 p.WorkspaceID,
-		AgentID:                     p.AgentID,
-		UserID:                      p.UserID,
-		ConnectionsByProto:          p.ConnectionsByProto,
-		ConnectionCount:             p.ConnectionCount,
-		RxPackets:                   p.RxPackets,
-		RxBytes:                     p.RxBytes,
-		TxPackets:                   p.TxPackets,
-		TxBytes:                     p.TxBytes,
-		TemplateID:                  p.TemplateID,
-		SessionCountVSCode:          p.SessionCountVSCode,
-		SessionCountJetBrains:       p.SessionCountJetBrains,
-		SessionCountReconnectingPTY: p.SessionCountReconnectingPTY,
-		SessionCountSSH:             p.SessionCountSSH,
-		ConnectionMedianLatencyMS:   p.ConnectionMedianLatencyMS,
-	}
-	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
-	return stat, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.InsertWorkspaceAgentStatsParams) error {

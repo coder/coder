@@ -283,6 +283,9 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			if v, ok := os.LookupEnv(agent.EnvProcPrioMgmt); ok {
 				environmentVariables[agent.EnvProcPrioMgmt] = v
 			}
+			if v, ok := os.LookupEnv(agent.EnvProcOOMScore); ok {
+				environmentVariables[agent.EnvProcOOMScore] = v
+			}
 
 			agnt := agent.New(agent.Options{
 				Client:            client,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
 	"runtime/pprof"
 	"sync"
@@ -156,7 +157,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx = tailnet.WithStreamID(ctx, streamID)
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, yamux.ErrSessionShutdown) && !xerrors.Is(err, io.EOF) {
 		logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return

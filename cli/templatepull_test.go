@@ -3,7 +3,6 @@ package cli_test
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codeclysm/extract/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -310,9 +309,7 @@ func TestTemplatePull_ToDir(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 			coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, updatedVersion.ID)
 
-			ctx := context.Background()
-
-			err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+			err = provisionersdk.Untar(expectedDest, bytes.NewReader(expected))
 			require.NoError(t, err)
 
 			ents, _ := os.ReadDir(actualDest)
@@ -387,9 +384,7 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-
-	err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+	err = provisionersdk.Untar(expectedDest, bytes.NewReader(expected))
 	require.NoError(t, err)
 
 	inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)

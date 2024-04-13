@@ -28,6 +28,31 @@ FROM
 WHERE
 	organization_id = $1;
 
+-- name: GetGroupsByOrganizationAndUserID :many
+SELECT
+    groups.*
+FROM
+    groups
+	-- If the group is a user made group, then we need to check the group_members table.
+LEFT JOIN
+    group_members
+ON
+    group_members.group_id = groups.id AND
+    group_members.user_id = @user_id
+	-- If it is the "Everyone" group, then we need to check the organization_members table.
+LEFT JOIN
+    organization_members
+ON
+    organization_members.organization_id = groups.id AND
+    organization_members.user_id = @user_id
+WHERE
+    -- In either case, the group_id will only match an org or a group.
+    (group_members.user_id = @user_id OR organization_members.user_id = @user_id)
+AND
+    -- Ensure the group or organization is the specified organization.
+    groups.organization_id = @organization_id;
+
+
 -- name: InsertGroup :one
 INSERT INTO groups (
 	id,

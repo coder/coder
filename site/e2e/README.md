@@ -12,6 +12,8 @@ cd site
 # Build the frontend assets. If you are actively changing
 # the site to debug an issue, add `--watch`.
 pnpm build
+# Alternatively, build with debug info and source maps:
+NODE_ENV=development pnpm vite build --mode=development
 # Install the browsers to `~/.cache/ms-playwright`.
 pnpm playwright:install
 # Run E2E tests. You can see the configuration of the server
@@ -19,4 +21,38 @@ pnpm playwright:install
 pnpm playwright:test
 # Run a specific test (`-g` stands for grep. It accepts regex).
 pnpm playwright:test -g '<your test here>'
+```
+
+# Using nix
+
+If this breaks, it is likely because the flake chromium version and playwright
+are no longer compatible. To fix this, update the flake to get the latest
+chromium version, and adjust the playwright version in the package.json.
+
+You can see the playwright version here:
+https://search.nixos.org/packages?channel=unstable&show=playwright-driver&from=0&size=50&sort=relevance&type=packages&query=playwright-driver
+
+```shell
+# Optionally add '--command zsh' to choose your shell.
+nix develop
+cd site
+pnpm install
+pnpm build
+pnpm playwright:test
+```
+
+# Enterprise tests
+
+Enterprise tests require a license key to run.
+
+```shell
+export CODER_E2E_ENTERPRISE_LICENSE=<license key>
+```
+
+# Debugging tests
+
+To debug a test, it is more helpful to run it in `ui` mode.
+
+```
+pnpm playwright:test-ui
 ```

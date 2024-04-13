@@ -1,7 +1,6 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import PersonAdd from "@mui/icons-material/PersonAddOutlined";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import { type FC, Suspense } from "react";
 import {
   Link as RouterLink,
@@ -43,9 +42,13 @@ export const UsersLayout: FC = () => {
                 </Button>
               )}
               {canCreateGroup && isTemplateRBACEnabled && (
-                <Link component={RouterLink} to="/groups/create">
-                  <Button startIcon={<GroupAdd />}>Create group</Button>
-                </Link>
+                <Button
+                  component={RouterLink}
+                  startIcon={<GroupAdd />}
+                  to="/groups/create"
+                >
+                  Create group
+                </Button>
               )}
             </>
           }

@@ -42,7 +42,7 @@ const validationSchema = Yup.object({
     }),
 });
 
-interface ProvisionerTagsPopoverProps {
+export interface ProvisionerTagsPopoverProps {
   tags: Record<string, string>;
   onSubmit: (values: typeof initialValues) => void;
   onDelete: (key: string) => void;
@@ -54,7 +54,6 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
   onDelete,
 }) => {
   const theme = useTheme();
-
   const form = useFormik({
     initialValues,
     validationSchema,

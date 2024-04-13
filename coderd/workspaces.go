@@ -332,6 +332,10 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // Create a new workspace for the currently authenticated user.
 //
 // @Summary Create user workspace by organization
+// @Description Create a new workspace using a template. The request must
+// @Description specify either the Template ID or the Template Version ID,
+// @Description not both. If the Template ID is specified, the active version
+// @Description of the template will be used.
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Accept json
@@ -1645,6 +1649,11 @@ func convertWorkspace(
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	// If the template doesn't allow a workspace-configured value, then report the
+	// template value instead.
+	if !template.AllowUserAutostop {
+		ttlMillis = convertWorkspaceTTLMillis(sql.NullInt64{Valid: true, Int64: template.DefaultTTL})
+	}
 
 	// Only show favorite status if you own the workspace.
 	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite

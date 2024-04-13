@@ -52,6 +52,10 @@ func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 		}
 	}
 
+	if rfh := req.GetReadyForHandshake(); rfh != nil {
+		return xerrors.Errorf("clients may not send ready_for_handshake")
+	}
+
 	return nil
 }
 
@@ -145,6 +149,12 @@ func (s *tunnelStore) findTunnelPeers(id uuid.UUID) []uuid.UUID {
 		out = append(out, id)
 	}
 	return out
+}
+
+func (s *tunnelStore) tunnelExists(src, dst uuid.UUID) bool {
+	_, srcOK := s.bySrc[src][dst]
+	_, dstOK := s.byDst[src][dst]
+	return srcOK || dstOK
 }
 
 func (s *tunnelStore) htmlDebug() []HTMLTunnel {

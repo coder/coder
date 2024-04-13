@@ -1,6 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Language as FooterLanguage } from "components/FormFooter/FormFooter";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
@@ -35,9 +34,9 @@ const fillForm = async ({
   await userEvent.type(emailField, email);
   await userEvent.type(loginTypeField, "password");
   await userEvent.type(passwordField as HTMLElement, password);
-  const submitButton = await screen.findByText(
-    FooterLanguage.defaultSubmitLabel,
-  );
+  const submitButton = screen.getByRole("button", {
+    name: "Create user",
+  });
   fireEvent.click(submitButton);
 };
 

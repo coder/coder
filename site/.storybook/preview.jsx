@@ -5,7 +5,7 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import { withRouter } from "storybook-addon-react-router-v6";
+import { withRouter } from "storybook-addon-remix-react-router";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
@@ -14,6 +14,15 @@ import "theme/globalFonts";
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 export const decorators = [
+  withRouter,
+  withQuery,
+  (Story) => {
+    return (
+      <HelmetProvider>
+        <Story />
+      </HelmetProvider>
+    );
+  },
   (Story, context) => {
     const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
     const { themeOverride } = DecoratorHelpers.useThemeParameters();
@@ -30,15 +39,6 @@ export const decorators = [
       </StyledEngineProvider>
     );
   },
-  withRouter,
-  (Story) => {
-    return (
-      <HelmetProvider>
-        <Story />
-      </HelmetProvider>
-    );
-  },
-  withQuery,
 ];
 
 export const parameters = {
@@ -48,9 +48,6 @@ export const parameters = {
       order: ["design", "pages", "modules", "components"],
       locales: "en-US",
     },
-  },
-  actions: {
-    argTypesRegex: "^(on|handler)[A-Z].*",
   },
   controls: {
     expanded: true,

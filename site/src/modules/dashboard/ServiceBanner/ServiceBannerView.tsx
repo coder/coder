@@ -16,7 +16,7 @@ export const ServiceBannerView: FC<ServiceBannerViewProps> = ({
   isPreview,
 }) => {
   return (
-    <div css={[styles.banner, { backgroundColor }]}>
+    <div css={[styles.banner, { backgroundColor }]} className="service-banner">
       {isPreview && <Pill type="info">Preview</Pill>}
       <div
         css={[

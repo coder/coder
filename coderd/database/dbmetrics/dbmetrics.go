@@ -559,6 +559,13 @@ func (m metricsStore) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([
 	return users, err
 }
 
+func (m metricsStore) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupsByOrganizationAndUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationAndUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	start := time.Now()
 	groups, err := m.s.GetGroupsByOrganizationID(ctx, organizationID)
@@ -1640,13 +1647,6 @@ func (m metricsStore) InsertWorkspaceAgentScripts(ctx context.Context, arg datab
 	r0, r1 := m.s.InsertWorkspaceAgentScripts(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentScripts").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	start := time.Now()
-	stat, err := m.s.InsertWorkspaceAgentStat(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStat").Observe(time.Since(start).Seconds())
-	return stat, err
 }
 
 func (m metricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {

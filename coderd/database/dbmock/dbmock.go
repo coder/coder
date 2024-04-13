@@ -1095,6 +1095,21 @@ func (mr *MockStoreMockRecorder) GetGroupMembers(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembers", reflect.TypeOf((*MockStore)(nil).GetGroupMembers), arg0, arg1)
 }
 
+// GetGroupsByOrganizationAndUserID mocks base method.
+func (m *MockStore) GetGroupsByOrganizationAndUserID(arg0 context.Context, arg1 database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupsByOrganizationAndUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.Group)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupsByOrganizationAndUserID indicates an expected call of GetGroupsByOrganizationAndUserID.
+func (mr *MockStoreMockRecorder) GetGroupsByOrganizationAndUserID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationAndUserID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationAndUserID), arg0, arg1)
+}
+
 // GetGroupsByOrganizationID mocks base method.
 func (m *MockStore) GetGroupsByOrganizationID(arg0 context.Context, arg1 uuid.UUID) ([]database.Group, error) {
 	m.ctrl.T.Helper()
@@ -3454,21 +3469,6 @@ func (m *MockStore) InsertWorkspaceAgentScripts(arg0 context.Context, arg1 datab
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentScripts(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentScripts", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentScripts), arg0, arg1)
-}
-
-// InsertWorkspaceAgentStat mocks base method.
-func (m *MockStore) InsertWorkspaceAgentStat(arg0 context.Context, arg1 database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertWorkspaceAgentStat", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceAgentStat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertWorkspaceAgentStat indicates an expected call of InsertWorkspaceAgentStat.
-func (mr *MockStoreMockRecorder) InsertWorkspaceAgentStat(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentStat", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentStat), arg0, arg1)
 }
 
 // InsertWorkspaceAgentStats mocks base method.

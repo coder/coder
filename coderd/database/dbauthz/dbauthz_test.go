@@ -314,6 +314,14 @@ func (s *MethodTestSuite) TestGroup() {
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
 		check.Args(g.ID).Asserts(g, rbac.ActionRead)
 	}))
+	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g.ID})
+		check.Args(database.GetGroupsByOrganizationAndUserIDParams{
+			OrganizationID: g.OrganizationID,
+			UserID:         gm.UserID,
+		}).Asserts(g, rbac.ActionRead)
+	}))
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(o.ID).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate)
@@ -1511,12 +1519,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:               w.ID,
 			AutomaticUpdates: database.AutomaticUpdatesAlways,
 		}).Asserts(w, rbac.ActionUpdate)
-	}))
-	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		check.Args(database.InsertWorkspaceAgentStatParams{
-			WorkspaceID: ws.ID,
-		}).Asserts(ws, rbac.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspaceAppHealthByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})

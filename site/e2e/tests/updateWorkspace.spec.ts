@@ -18,7 +18,7 @@ import {
 } from "../parameters";
 import type { RichParameter } from "../provisionerGenerated";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("update workspace, new optional, immutable parameter added", async ({
   page,
