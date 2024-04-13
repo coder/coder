@@ -17,7 +17,6 @@ extends:
   - plugin:react/recommended
   - plugin:jsx-a11y/strict
   - plugin:compat/recommended
-  - prettier
 parser: "@typescript-eslint/parser"
 parserOptions:
   ecmaVersion: 2018

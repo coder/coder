@@ -3,11 +3,11 @@
   "name": "coder",
   "version": "0.0.0",
   "scripts": {
-    "format": "prettier --cache --write",
+    "format": "biome format --write .",
     "storybook": "pnpm run -C site/ storybook"
   },
   "devDependencies": {
-    "prettier": "3.0.0"
+    "@biomejs/biome": "^1.6.4"
   },
   "dependencies": {
     "exec": "^0.2.1"

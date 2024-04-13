@@ -28,91 +28,90 @@ export type UpdateBuildParametersDialogProps = DialogProps & {
   missedParameters: TemplateVersionParameter[];
 };
 
-export const UpdateBuildParametersDialog: FC<
-  UpdateBuildParametersDialogProps
-> = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const form = useFormik({
-    initialValues: {
-      rich_parameter_values: getInitialRichParameterValues(missedParameters),
-    },
-    validationSchema: Yup.object({
-      rich_parameter_values:
-        useValidationSchemaForRichParameters(missedParameters),
-    }),
-    onSubmit: (values) => {
-      onUpdate(values.rich_parameter_values);
-    },
-    enableReinitialize: true,
-  });
-  const getFieldHelpers = getFormHelpers(form);
+export const UpdateBuildParametersDialog: FC<UpdateBuildParametersDialogProps> =
+  ({ missedParameters, onUpdate, ...dialogProps }) => {
+    const form = useFormik({
+      initialValues: {
+        rich_parameter_values: getInitialRichParameterValues(missedParameters),
+      },
+      validationSchema: Yup.object({
+        rich_parameter_values:
+          useValidationSchemaForRichParameters(missedParameters),
+      }),
+      onSubmit: (values) => {
+        onUpdate(values.rich_parameter_values);
+      },
+      enableReinitialize: true,
+    });
+    const getFieldHelpers = getFormHelpers(form);
 
-  return (
-    <Dialog
-      {...dialogProps}
-      scroll="body"
-      aria-labelledby="update-build-parameters-title"
-      maxWidth="xs"
-      data-testid="dialog"
-    >
-      <DialogTitle
-        id="update-build-parameters-title"
-        classes={{ root: classNames.root }}
+    return (
+      <Dialog
+        {...dialogProps}
+        scroll="body"
+        aria-labelledby="update-build-parameters-title"
+        maxWidth="xs"
+        data-testid="dialog"
       >
-        Workspace parameters
-      </DialogTitle>
-      <DialogContent css={styles.content}>
-        <DialogContentText css={{ margin: 0 }}>
-          This template has new parameters that must be configured to complete
-          the update
-        </DialogContentText>
-        <VerticalForm
-          css={styles.form}
-          onSubmit={form.handleSubmit}
-          id="updateParameters"
+        <DialogTitle
+          id="update-build-parameters-title"
+          classes={{ root: classNames.root }}
         >
-          {missedParameters && (
-            <FormFields>
-              {missedParameters.map((parameter, index) => {
-                return (
-                  <RichParameterInput
-                    {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    )}
-                    key={parameter.name}
-                    parameter={parameter}
-                    onChange={async (value) => {
-                      await form.setFieldValue(
-                        "rich_parameter_values." + index,
-                        {
-                          name: parameter.name,
-                          value: value,
-                        },
-                      );
-                    }}
-                  />
-                );
-              })}
-            </FormFields>
-          )}
-        </VerticalForm>
-      </DialogContent>
-      <DialogActions disableSpacing css={styles.dialogActions}>
-        <Button fullWidth type="button" onClick={dialogProps.onClose}>
-          Cancel
-        </Button>
-        <Button
-          color="primary"
-          fullWidth
-          type="submit"
-          form="updateParameters"
-          data-testid="form-submit"
-        >
-          Update
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
+          Workspace parameters
+        </DialogTitle>
+        <DialogContent css={styles.content}>
+          <DialogContentText css={{ margin: 0 }}>
+            This template has new parameters that must be configured to complete
+            the update
+          </DialogContentText>
+          <VerticalForm
+            css={styles.form}
+            onSubmit={form.handleSubmit}
+            id="updateParameters"
+          >
+            {missedParameters && (
+              <FormFields>
+                {missedParameters.map((parameter, index) => {
+                  return (
+                    <RichParameterInput
+                      {...getFieldHelpers(
+                        "rich_parameter_values[" + index + "].value",
+                      )}
+                      key={parameter.name}
+                      parameter={parameter}
+                      onChange={async (value) => {
+                        await form.setFieldValue(
+                          "rich_parameter_values." + index,
+                          {
+                            name: parameter.name,
+                            value: value,
+                          },
+                        );
+                      }}
+                    />
+                  );
+                })}
+              </FormFields>
+            )}
+          </VerticalForm>
+        </DialogContent>
+        <DialogActions disableSpacing css={styles.dialogActions}>
+          <Button fullWidth type="button" onClick={dialogProps.onClose}>
+            Cancel
+          </Button>
+          <Button
+            color="primary"
+            fullWidth
+            type="submit"
+            form="updateParameters"
+            data-testid="form-submit"
+          >
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  };
 
 const classNames = {
   root: css`

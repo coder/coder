@@ -119,9 +119,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
               css={styles.link}
             >
               <OpenInNewIcon fontSize="small" />
-              {externalAuth.installations.length > 0
-                ? "Configure"
-                : "Install"}{" "}
+              {externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
               the {externalAuth.display_name} App
             </Link>
           )}

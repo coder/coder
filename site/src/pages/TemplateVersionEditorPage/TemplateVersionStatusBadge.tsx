@@ -11,21 +11,20 @@ interface TemplateVersionStatusBadgeProps {
   version: TemplateVersion;
 }
 
-export const TemplateVersionStatusBadge: FC<
-  TemplateVersionStatusBadgeProps
-> = ({ version }) => {
-  const { text, icon, type } = getStatus(version);
-  return (
-    <Pill
-      icon={icon}
-      type={type}
-      title={`Build status is ${text}`}
-      role="status"
-    >
-      {text}
-    </Pill>
-  );
-};
+export const TemplateVersionStatusBadge: FC<TemplateVersionStatusBadgeProps> =
+  ({ version }) => {
+    const { text, icon, type } = getStatus(version);
+    return (
+      <Pill
+        icon={icon}
+        type={type}
+        title={`Build status is ${text}`}
+        role="status"
+      >
+        {text}
+      </Pill>
+    );
+  };
 
 export const getStatus = (
   version: TemplateVersion,

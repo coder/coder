@@ -284,7 +284,7 @@ RUN yarn global add --prefix=/usr/local \
 	vercel \
 	typescript \
 	typescript-language-server \
-	prettier && \
+	@biomejs/biome && \
 	yarn cache clean
 
 # We use yq during "make deploy" to manually substitute out fields in

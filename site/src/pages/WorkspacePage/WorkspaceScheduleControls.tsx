@@ -36,34 +36,33 @@ export interface WorkspaceScheduleContainerProps {
   onClickIcon?: () => void;
 }
 
-export const WorkspaceScheduleContainer: FC<
-  WorkspaceScheduleContainerProps
-> = ({ children, onClickIcon }) => {
-  const icon = (
-    <TopbarIcon>
-      <ScheduleOutlined aria-label="Schedule" />
-    </TopbarIcon>
-  );
+export const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> =
+  ({ children, onClickIcon }) => {
+    const icon = (
+      <TopbarIcon>
+        <ScheduleOutlined aria-label="Schedule" />
+      </TopbarIcon>
+    );
 
-  return (
-    <TopbarData>
-      <Tooltip title="Schedule">
-        {onClickIcon ? (
-          <button
-            data-testid="schedule-icon-button"
-            onClick={onClickIcon}
-            css={styles.scheduleIconButton}
-          >
-            {icon}
-          </button>
-        ) : (
-          icon
-        )}
-      </Tooltip>
-      {children}
-    </TopbarData>
-  );
-};
+    return (
+      <TopbarData>
+        <Tooltip title="Schedule">
+          {onClickIcon ? (
+            <button
+              data-testid="schedule-icon-button"
+              onClick={onClickIcon}
+              css={styles.scheduleIconButton}
+            >
+              {icon}
+            </button>
+          ) : (
+            icon
+          )}
+        </Tooltip>
+        {children}
+      </TopbarData>
+    );
+  };
 
 interface WorkspaceScheduleControlsProps {
   workspace: Workspace;

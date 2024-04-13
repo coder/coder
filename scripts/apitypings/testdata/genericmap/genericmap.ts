@@ -1,18 +1,18 @@
 // From codersdk/genericmap.go
 export interface Buzz {
-  readonly foo: Foo
-  readonly bazz: string
+  readonly foo: Foo;
+  readonly bazz: string;
 }
 
 // From codersdk/genericmap.go
 export interface Foo {
-  readonly bar: string
+  readonly bar: string;
 }
 
 // From codersdk/genericmap.go
 export interface FooBuzz<R extends Custom> {
-  readonly something: R[]
+  readonly something: R[];
 }
 
 // From codersdk/genericmap.go
-export type Custom = Foo | Buzz
+export type Custom = Foo | Buzz;

@@ -65,7 +65,9 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
           </TableHead>
           <TableBody>
             {isLoading && <TableLoader />}
-            {apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)}
+            {apps?.map((app) => (
+              <OAuth2AppRow key={app.id} app={app} />
+            ))}
             {apps?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={999}>

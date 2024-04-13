@@ -3,7 +3,7 @@
     "github.vscode-codeql",
     "golang.go",
     "hashicorp.terraform",
-    "esbenp.prettier-vscode",
+    "biomejs.biome",
     "foxundermoon.shell-format",
     "emeraldwalk.runonsave",
     "zxh404.vscode-proto3",

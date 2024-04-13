@@ -31,8 +31,8 @@ export const FileUpload: FC<FileUploadProps> = ({
 }) => {
   const fileDrop = useFileDrop(onUpload, extensions);
   const inputRef = useRef<HTMLInputElement>(null);
-  const clickable = useClickable<HTMLDivElement>(
-    () => inputRef.current?.click(),
+  const clickable = useClickable<HTMLDivElement>(() =>
+    inputRef.current?.click(),
   );
 
   if (!isUploading && file) {

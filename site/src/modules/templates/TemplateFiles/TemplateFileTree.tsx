@@ -116,9 +116,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
-            color: ${isHiddenFile
-              ? theme.palette.text.disabled
-              : theme.palette.text.secondary};
+            color: ${
+              isHiddenFile
+                ? theme.palette.text.disabled
+                : theme.palette.text.secondary
+            };
             height: 32px;
 
             & svg {

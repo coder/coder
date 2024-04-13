@@ -100,68 +100,67 @@ export type WorkspaceParametersPageViewProps = {
   onCancel: () => void;
 };
 
-export const WorkspaceParametersPageView: FC<
-  WorkspaceParametersPageViewProps
-> = ({
-  workspace,
-  canChangeVersions,
-  data,
-  submitError,
-  onSubmit,
-  isSubmitting,
-  onCancel,
-}) => {
-  return (
-    <>
-      <PageHeader css={{ paddingTop: 0 }}>
-        <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
-      </PageHeader>
+export const WorkspaceParametersPageView: FC<WorkspaceParametersPageViewProps> =
+  ({
+    workspace,
+    canChangeVersions,
+    data,
+    submitError,
+    onSubmit,
+    isSubmitting,
+    onCancel,
+  }) => {
+    return (
+      <>
+        <PageHeader css={{ paddingTop: 0 }}>
+          <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
+        </PageHeader>
 
-      {submitError && !isApiValidationError(submitError) && (
-        <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
-      )}
+        {submitError && !isApiValidationError(submitError) && (
+          <ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+        )}
 
-      {data ? (
-        data.templateVersionRichParameters.length > 0 ? (
-          <WorkspaceParametersForm
-            workspace={workspace}
-            canChangeVersions={canChangeVersions}
-            autofillParams={data.buildParameters.map((p) => ({
-              ...p,
-              source: "active_build",
-            }))}
-            templateVersionRichParameters={data.templateVersionRichParameters}
-            error={submitError}
-            isSubmitting={isSubmitting}
-            onSubmit={onSubmit}
-            onCancel={onCancel}
-          />
+        {data ? (
+          data.templateVersionRichParameters.length > 0 ? (
+            <WorkspaceParametersForm
+              workspace={workspace}
+              canChangeVersions={canChangeVersions}
+              autofillParams={data.buildParameters.map((p) => ({
+                ...p,
+                source: "active_build",
+              }))}
+              templateVersionRichParameters={data.templateVersionRichParameters}
+              error={submitError}
+              isSubmitting={isSubmitting}
+              onSubmit={onSubmit}
+              onCancel={onCancel}
+            />
+          ) : (
+            <EmptyState
+              message="This workspace has no parameters"
+              cta={
+                <Button
+                  component="a"
+                  href={docs("/templates/parameters")}
+                  startIcon={<OpenInNewOutlined />}
+                  variant="contained"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Learn more about parameters
+                </Button>
+              }
+              css={(theme) => ({
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 8,
+              })}
+            />
+          )
         ) : (
-          <EmptyState
-            message="This workspace has no parameters"
-            cta={
-              <Button
-                component="a"
-                href={docs("/templates/parameters")}
-                startIcon={<OpenInNewOutlined />}
-                variant="contained"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Learn more about parameters
-              </Button>
-            }
-            css={(theme) => ({
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 8,
-            })}
-          />
-        )
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
-};
+          <Loader />
+        )}
+      </>
+    );
+  };
 
 export default WorkspaceParametersPage;

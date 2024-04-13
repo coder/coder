@@ -77,7 +77,8 @@ const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
 const classNames = {
   content:
     (variant: EnterpriseSnackbarVariant): ClassName =>
-    (css, theme) => css`
+    (css, theme) =>
+      css`
       border: 1px solid ${theme.palette.divider};
       border-left: 4px solid ${variantColor(variant, theme)};
       border-radius: 8px;
