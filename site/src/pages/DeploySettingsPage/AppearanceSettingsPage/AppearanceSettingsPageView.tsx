@@ -105,6 +105,9 @@ export const AppearanceSettingsPageView: FC<
           fullWidth
           placeholder='Leave empty to display "Coder".'
           disabled={!isEntitled}
+          inputProps={{
+            "aria-label": "Application name",
+          }}
         />
       </Fieldset>
 
@@ -149,6 +152,9 @@ export const AppearanceSettingsPageView: FC<
                 />
               </InputAdornment>
             ),
+          }}
+          inputProps={{
+            "aria-label": "Logo URL",
           }}
         />
       </Fieldset>
@@ -208,6 +214,7 @@ export const AppearanceSettingsPageView: FC<
                     );
                     await serviceBannerForm.setFieldValue("enabled", newState);
                   }}
+                  data-testid="switch-service-banner"
                 />
               }
               label="Enabled"
@@ -221,6 +228,9 @@ export const AppearanceSettingsPageView: FC<
                 fullWidth
                 label="Message"
                 multiline
+                inputProps={{
+                  "aria-label": "Message",
+                }}
               />
             </Stack>
 
