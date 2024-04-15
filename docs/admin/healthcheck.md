@@ -172,11 +172,11 @@ curl -v "https://coder.company.com/derp"
 
 ### ESTUN01
 
-_No STUN nodes available._
+_No STUN servers available._
 
-**Problem:** This is shown if no STUN-capable nodes are available. Coder will
-use STUN to establish [direct connections](../networking/stun.md). Without at
-least one working STUN server, direct connections may not be possible.
+**Problem:** This is shown if no STUN servers are available. Coder will use STUN
+to establish [direct connections](../networking/stun.md). Without at least one
+working STUN server, direct connections may not be possible.
 
 **Solution:** Ensure that the
 [configured STUN severs](../cli/server.md#derp-server-stun-addresses) are
@@ -185,7 +185,7 @@ port.
 
 ### ESTUN02
 
-_Mapping varies based on destination IP. You may be behind a hard NAT._
+_STUN returned different addresses; you may be behind a hard NAT._
 
 **Problem:** This is a warning shown when multiple attempts to determine our
 public IP address/port via STUN resulted in different `ip:port` combinations.

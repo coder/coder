@@ -32,8 +32,8 @@ const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
-	noSTUN                   = "No nodes are capable of STUN, direct connections may not be possible."
-	stunMapVaryDest          = "STUN detected variable mapping by destination IP, you may be behind a hard NAT."
+	noSTUN                   = "No STUN servers are available."
+	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
 )
 
 type ReportOptions struct {
