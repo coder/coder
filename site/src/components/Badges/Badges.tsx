@@ -41,7 +41,11 @@ const styles = {
 } satisfies Record<string, Interpolation<Theme>>;
 
 export const EnabledBadge: FC = () => {
-  return <span css={[styles.badge, styles.enabledBadge]}>Enabled</span>;
+  return (
+    <span css={[styles.badge, styles.enabledBadge]} className="option-enabled">
+      Enabled
+    </span>
+  );
 };
 
 export const EntitledBadge: FC = () => {
@@ -95,6 +99,7 @@ export const DisabledBadge: FC = forwardRef<
           color: theme.experimental.l1.text,
         }),
       ]}
+      className="option-disabled"
     >
       Disabled
     </span>
