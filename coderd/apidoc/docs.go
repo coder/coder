@@ -809,6 +809,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/experiments/detail": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get experiments' details",
+                "operationId": "get-experiments-details",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ExperimentDetail"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/external-auth": {
             "get": {
                 "security": [
@@ -9519,6 +9547,20 @@ const docTemplate = `{
                 "ExperimentSharedPorts",
                 "ExperimentAutoFillParameters"
             ]
+        },
+        "codersdk.ExperimentDetail": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "invalid": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "$ref": "#/definitions/codersdk.Experiment"
+                }
+            }
         },
         "codersdk.ExternalAuth": {
             "type": "object",

@@ -2662,6 +2662,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `shared-ports`         |
 | `auto-fill-parameters` |
 
+## codersdk.ExperimentDetail
+
+```json
+{
+  "enabled": true,
+  "invalid": true,
+  "name": "example"
+}
+```
+
+### Properties
+
+| Name      | Type                                       | Required | Restrictions | Description |
+| --------- | ------------------------------------------ | -------- | ------------ | ----------- |
+| `enabled` | boolean                                    | false    |              |             |
+| `invalid` | boolean                                    | false    |              |             |
+| `name`    | [codersdk.Experiment](#codersdkexperiment) | false    |              |             |
+
 ## codersdk.ExternalAuth
 
 ```json
