@@ -624,6 +624,7 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 	return WorkspaceResource{
 		ID:           resource.ID,
 		JobID:        resource.JobID,
+		CreatedAt:    resource.CreatedAt,
 		Transition:   resource.Transition,
 		Type:         resource.Type,
 		InstanceType: resource.InstanceType.String,
@@ -833,6 +834,7 @@ type User struct {
 
 type WorkspaceResource struct {
 	ID           uuid.UUID                    `json:"id"`
+	CreatedAt    time.Time                    `json:"created_at"`
 	JobID        uuid.UUID                    `json:"job_id"`
 	Transition   database.WorkspaceTransition `json:"transition"`
 	Type         string                       `json:"type"`
