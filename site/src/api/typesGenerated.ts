@@ -469,7 +469,7 @@ export interface ExperimentDetail {
 }
 
 // From codersdk/deployment.go
-export type Experiments = Experiment[];
+export type Experiments = readonly Experiment[];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
