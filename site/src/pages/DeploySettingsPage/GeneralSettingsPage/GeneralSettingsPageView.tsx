@@ -1,9 +1,10 @@
+import AlertTitle from "@mui/material/AlertTitle";
 import type { FC } from "react";
 import type {
   SerpentOption,
   DAUsResponse,
   Entitlements,
-  Experiments,
+  ExperimentDetail,
 } from "api/typesGenerated";
 import {
   ActiveUserChart,
@@ -13,6 +14,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import { Alert } from "../../../components/Alert/Alert";
 import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
@@ -22,7 +24,7 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  safeExperiments: Experiments | undefined;
+  experiments?: ExperimentDetail[];
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
@@ -30,8 +32,21 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
-  safeExperiments,
+  experiments,
 }) => {
+  const safe: string[] = [];
+  const invalid: string[] = [];
+
+  if (experiments) {
+    experiments?.forEach(function (value) {
+      if (value.invalid) {
+        invalid.push(value.name);
+      } else {
+        safe.push(value.name);
+      }
+    });
+  }
+
   return (
     <>
       <Header
@@ -58,6 +73,20 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
             </ChartSection>
           </div>
         )}
+        {invalid.length > 0 && (
+          <Alert severity="warning">
+            <AlertTitle>Invalid experiments in use:</AlertTitle>
+            <ul>
+              {invalid.map((it) => (
+                <li key={it}>
+                  <pre>{it}</pre>
+                </li>
+              ))}
+            </ul>
+            It is recommended that you remove these experiments from your
+            configuration as they have no effect.
+          </Alert>
+        )}
         <OptionsTable
           options={useDeploymentOptions(
             deploymentOptions,
@@ -65,7 +94,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
             "Wildcard Access URL",
             "Experiments",
           )}
-          additionalValues={safeExperiments}
+          additionalValues={safe}
         />
       </Stack>
     </>

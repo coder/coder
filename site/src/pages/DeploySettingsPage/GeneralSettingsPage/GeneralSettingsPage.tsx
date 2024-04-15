@@ -3,7 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
-import { availableExperiments } from "api/queries/experiments";
+import { experimentsDetail } from "api/queries/experiments";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
@@ -12,7 +12,7 @@ const GeneralSettingsPage: FC = () => {
   const { deploymentValues } = useDeploySettings();
   const deploymentDAUsQuery = useQuery(deploymentDAUs());
   const entitlementsQuery = useQuery(entitlements());
-  const experimentsQuery = useQuery(availableExperiments());
+  const experimentsQuery = useQuery(experimentsDetail());
 
   return (
     <>
@@ -24,7 +24,7 @@ const GeneralSettingsPage: FC = () => {
         deploymentDAUs={deploymentDAUsQuery.data}
         deploymentDAUsError={deploymentDAUsQuery.error}
         entitlements={entitlementsQuery.data}
-        safeExperiments={experimentsQuery.data?.safe ?? []}
+        experiments={experimentsQuery.data}
       />
     </>
   );
