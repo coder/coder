@@ -32,6 +32,8 @@ const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
+	noSTUN                   = "No STUN servers are available."
+	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
 )
 
 type ReportOptions struct {
@@ -107,8 +109,29 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
+	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+	}
 
 	wg.Wait()
+
+	// Count the number of STUN-capable nodes.
+	var stunCapableNodes int
+	var stunTotalNodes int
+	for _, region := range r.Regions {
+		for _, node := range region.NodeReports {
+			if node.STUN.Enabled {
+				stunTotalNodes++
+			}
+			if node.STUN.CanSTUN {
+				stunCapableNodes++
+			}
+		}
+	}
+	if stunCapableNodes == 0 && stunTotalNodes > 0 {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
+	}
 
 	// Review region reports and select the highest severity.
 	for _, regionReport := range r.Regions {

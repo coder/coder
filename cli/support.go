@@ -101,7 +101,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
-				_, _ = fmt.Fprintln(inv.Stderr, "Running inside Coder workspace; this can affect results!")
+				cliui.Warn(inv.Stderr, "Running inside Coder workspace; this can affect results!")
 				cliLog.Debug(inv.Context(), "running inside coder workspace")
 			}
 
@@ -122,7 +122,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 
 			if len(inv.Args) == 0 {
 				cliLog.Warn(inv.Context(), "no workspace specified")
-				_, _ = fmt.Fprintln(inv.Stderr, "Warning: no workspace specified. This will result in incomplete information.")
+				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
 				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 				if err != nil {
@@ -191,6 +191,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				return xerrors.Errorf("write support bundle to %s: %w", outputPath, err)
 			}
 			_, _ = fmt.Fprintln(inv.Stderr, "Wrote support bundle to "+outputPath)
+
 			return nil
 		},
 	}
