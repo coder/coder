@@ -133,8 +133,10 @@ func (r *RegionReport) Run(ctx context.Context) {
 			node       = node
 			nodeReport = NodeReport{
 				DERPNodeReport: healthsdk.DERPNodeReport{
-					Node:    node,
-					Healthy: true,
+					BaseReport: healthsdk.BaseReport{
+						Healthy: true,
+					},
+					Node: node,
 				},
 			}
 		)
