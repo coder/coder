@@ -11,18 +11,22 @@ test("enabled security settings", async ({ page }) => {
   const config = await API.getDeploymentConfig();
 
   // Check flags
-  await expectConfigOption(page, config, "ssh-keygen-algorithm")
-  await expectConfigOption(page, config, "secure-auth-cookie")
-  await expectConfigOption(page, config, "disable-owner-workspace-access")
+  await expectConfigOption(page, config, "ssh-keygen-algorithm");
+  await expectConfigOption(page, config, "secure-auth-cookie");
+  await expectConfigOption(page, config, "disable-owner-workspace-access");
 
-  await expectConfigOption(page, config, "tls-redirect-http-to-https")
-  await expectConfigOption(page, config, "strict-transport-security")
-  await expectConfigOption(page, config, "tls-address")
-  await expectConfigOption(page, config, "tls-allow-insecure-ciphers")
+  await expectConfigOption(page, config, "tls-redirect-http-to-https");
+  await expectConfigOption(page, config, "strict-transport-security");
+  await expectConfigOption(page, config, "tls-address");
+  await expectConfigOption(page, config, "tls-allow-insecure-ciphers");
 });
 
-const expectConfigOption = async(page :Page, config: API.DeploymentConfig, flag: string) => {
-  let value = config.options.find(option => option.flag === flag)?.value;
+const expectConfigOption = async (
+  page: Page,
+  config: API.DeploymentConfig,
+  flag: string,
+) => {
+  let value = config.options.find((option) => option.flag === flag)?.value;
   if (value === undefined) {
     throw new Error(`Option with env ${flag} has undefined value.`);
   }
@@ -44,6 +48,8 @@ const expectConfigOption = async(page :Page, config: API.DeploymentConfig, flag:
     type = "option-value-json";
   }
 
-  const configOption = page.locator(`div.options-table .option-${flag} .${type}`);
+  const configOption = page.locator(
+    `div.options-table .option-${flag} .${type}`,
+  );
   await expect(configOption).toHaveText(String(value));
-}
+};
