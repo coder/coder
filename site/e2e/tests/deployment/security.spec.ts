@@ -5,23 +5,30 @@ import { setupApiCalls } from "../../api";
 test("enabled security settings", async ({ page }) => {
   await setupApiCalls(page);
 
-  await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
-
-  // Load deployment settings
   const config = await API.getDeploymentConfig();
 
-  // Check flags
-  await expectConfigOption(page, config, "ssh-keygen-algorithm");
-  await expectConfigOption(page, config, "secure-auth-cookie");
-  await expectConfigOption(page, config, "disable-owner-workspace-access");
+  await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
 
-  await expectConfigOption(page, config, "tls-redirect-http-to-https");
-  await expectConfigOption(page, config, "strict-transport-security");
-  await expectConfigOption(page, config, "tls-address");
-  await expectConfigOption(page, config, "tls-allow-insecure-ciphers");
+  const flags = [
+    "ssh-keygen-algorithm",
+    "secure-auth-cookie",
+    "disable-owner-workspace-access",
+
+    "tls-redirect-http-to-https",
+    "strict-transport-security",
+    "tls-address",
+    "tls-allow-insecure-ciphers",
+    "tls-client-auth",
+    "tls-enable",
+    "tls-min-version",
+  ];
+
+  for (const flag of flags) {
+    await verifyConfigFlag(page, config, flag);
+  }
 });
 
-const expectConfigOption = async (
+const verifyConfigFlag = async (
   page: Page,
   config: API.DeploymentConfig,
   flag: string,
@@ -31,9 +38,11 @@ const expectConfigOption = async (
     throw new Error(`Option with env ${flag} has undefined value.`);
   }
 
+  // Map option type to test class name.
   let type = "",
     value = opt.value;
   if (typeof value === "boolean") {
+    // Boolean options map to string (Enabled/Disabled).
     type = value ? "option-enabled" : "option-disabled";
     value = value ? "Enabled" : "Disabled";
   } else if (typeof value === "number") {
@@ -52,7 +61,7 @@ const expectConfigOption = async (
   // Special cases
   if (opt.flag === "strict-transport-security" && opt.value === 0) {
     type = "option-value-string";
-    value = "Disabled";
+    value = "Disabled"; // Display "Disabled" instead of zero seconds.
   }
 
   const configOption = page.locator(
