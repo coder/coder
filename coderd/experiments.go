@@ -32,3 +32,15 @@ func handleExperimentsSafe(rw http.ResponseWriter, r *http.Request) {
 		Safe: codersdk.ExperimentsAll,
 	})
 }
+
+// @Summary Get experiments' details
+// @ID get-experiments-details
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {array} codersdk.ExperimentDetail
+// @Router /experiments/detail [get]
+func (api *API) handleExperimentsDetail(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExperimentDetails(api.Experiments))
+}
