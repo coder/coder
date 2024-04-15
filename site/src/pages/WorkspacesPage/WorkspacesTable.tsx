@@ -30,12 +30,12 @@ import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 export interface WorkspacesTableProps {
-  workspaces?: Workspace[];
-  checkedWorkspaces: Workspace[];
+  workspaces?: readonly Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   error?: unknown;
   isUsingFilter: boolean;
   onUpdateWorkspace: (workspace: Workspace) => void;
-  onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
   canCheckWorkspaces: boolean;
   templates?: Template[];
   canCreateTemplate: boolean;

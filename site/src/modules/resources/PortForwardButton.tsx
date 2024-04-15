@@ -116,7 +116,7 @@ const getValidationSchema = (): Yup.AnyObjectSchema =>
   });
 
 interface PortForwardPopoverViewProps extends PortForwardButtonProps {
-  listeningPorts?: WorkspaceAgentListeningPort[];
+  listeningPorts?: readonly WorkspaceAgentListeningPort[];
   portSharingExperimentEnabled: boolean;
   portSharingControlsEnabled: boolean;
 }

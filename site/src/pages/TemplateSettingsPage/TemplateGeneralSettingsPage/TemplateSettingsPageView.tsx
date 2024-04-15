@@ -13,6 +13,7 @@ export interface TemplateSettingsPageViewProps {
     typeof TemplateSettingsForm
   >["initialTouched"];
   accessControlEnabled: boolean;
+  advancedSchedulingEnabled: boolean;
   sharedPortsExperimentEnabled: boolean;
   sharedPortControlsEnabled: boolean;
 }
@@ -25,6 +26,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   submitError,
   initialTouched,
   accessControlEnabled,
+  advancedSchedulingEnabled,
   sharedPortsExperimentEnabled,
   sharedPortControlsEnabled,
 }) => {
@@ -42,6 +44,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
         onCancel={onCancel}
         error={submitError}
         accessControlEnabled={accessControlEnabled}
+        advancedSchedulingEnabled={advancedSchedulingEnabled}
         portSharingExperimentEnabled={sharedPortsExperimentEnabled}
         portSharingControlsEnabled={sharedPortControlsEnabled}
       />

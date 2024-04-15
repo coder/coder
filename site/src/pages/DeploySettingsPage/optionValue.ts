@@ -4,7 +4,7 @@ import type { SerpentOption } from "api/typesGenerated";
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
   option: SerpentOption,
-  additionalValues?: string[],
+  additionalValues?: readonly string[],
 ) {
   // If option annotations are present, use them to format the value.
   if (option.annotations) {

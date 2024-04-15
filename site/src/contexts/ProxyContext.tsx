@@ -41,7 +41,7 @@ export interface ProxyContextValue {
   // WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
   //  more information about the proxy and the status. More information includes the error message if
   //  the proxy is unhealthy.
-  proxies?: Region[] | WorkspaceProxy[];
+  proxies?: readonly Region[] | readonly WorkspaceProxy[];
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean;
   isLoading: boolean;
@@ -117,7 +117,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   });
 
   const { permissions } = useAuthenticated();
-  const query = async (): Promise<Region[]> => {
+  const query = async (): Promise<readonly Region[]> => {
     const endpoint = permissions.editWorkspaceProxies
       ? getWorkspaceProxies
       : getWorkspaceProxyRegions;
@@ -218,7 +218,7 @@ export const useProxy = (): ProxyContextValue => {
  *                  If not, `primary` is always the best default.
  */
 export const getPreferredProxy = (
-  proxies: Region[],
+  proxies: readonly Region[],
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
   autoSelectBasedOnLatency = true,
@@ -245,7 +245,7 @@ export const getPreferredProxy = (
 };
 
 const selectByLatency = (
-  proxies: Region[],
+  proxies: readonly Region[],
   latencies?: Record<string, ProxyLatencyReport>,
 ): Region | undefined => {
   if (!latencies) {

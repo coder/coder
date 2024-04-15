@@ -36,7 +36,7 @@ import { UserRoleCell } from "./UserRoleCell";
 dayjs.extend(relativeTime);
 
 interface UsersTableBodyProps {
-  users: TypesGen.User[] | undefined;
+  users: readonly TypesGen.User[] | undefined;
   groupsByUserId: GroupsByUserId | undefined;
   authMethods?: TypesGen.AuthMethods;
   roles?: TypesGen.AssignableRoles[];
