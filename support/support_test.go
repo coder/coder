@@ -23,11 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
 )
