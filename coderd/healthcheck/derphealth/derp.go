@@ -117,14 +117,18 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 
 	// Count the number of STUN-capable nodes.
 	var stunCapableNodes int
+	var stunTotalNodes int
 	for _, region := range r.Regions {
 		for _, node := range region.NodeReports {
+			if node.STUN.Enabled {
+				stunTotalNodes++
+			}
 			if node.STUN.CanSTUN {
 				stunCapableNodes++
 			}
 		}
 	}
-	if stunCapableNodes == 0 {
+	if stunCapableNodes == 0 && stunTotalNodes > 0 {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
 	}
