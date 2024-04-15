@@ -157,7 +157,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -551,10 +551,12 @@ startWatchLoop:
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
-		workspace      codersdk.Workspace
-		workspaceParts = strings.Split(in, ".")
+		workspace codersdk.Workspace
+		// The input will be `owner/name.agent`
+		// The agent is optional.
+		workspaceParts = strings.Split(input, ".")
 		err            error
 	)
 

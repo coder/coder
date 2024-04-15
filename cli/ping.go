@@ -42,7 +42,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			_, workspaceAgent, err := getWorkspaceAndAgent(
 				ctx, inv, client,
 				false, // Do not autostart for a ping.
-				codersdk.Me, workspaceName,
+				workspaceName,
 			)
 			if err != nil {
 				return err
