@@ -7411,6 +7411,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
+      "dismissed": true,
       "error": "string",
       "healthy": true,
       "node_reports": [
@@ -7418,6 +7419,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "can_exchange_messages": true,
           "client_errs": [["string"]],
           "client_logs": [["string"]],
+          "dismissed": true,
           "error": "string",
           "healthy": true,
           "node": {
@@ -7489,6 +7491,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ]
     },
     "property2": {
+      "dismissed": true,
       "error": "string",
       "healthy": true,
       "node_reports": [
@@ -7496,6 +7499,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "can_exchange_messages": true,
           "client_errs": [["string"]],
           "client_logs": [["string"]],
+          "dismissed": true,
           "error": "string",
           "healthy": true,
           "node": {
@@ -7607,6 +7611,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "can_exchange_messages": true,
   "client_errs": [["string"]],
   "client_logs": [["string"]],
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "node": {
@@ -7653,6 +7658,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `can_exchange_messages` | boolean                                          | false    |              |                                                                                             |
 | `client_errs`           | array of array                                   | false    |              |                                                                                             |
 | `client_logs`           | array of array                                   | false    |              |                                                                                             |
+| `dismissed`             | boolean                                          | false    |              |                                                                                             |
 | `error`                 | string                                           | false    |              |                                                                                             |
 | `healthy`               | boolean                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |                                                                                             |
@@ -7676,6 +7682,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "dismissed": true,
   "error": "string",
   "healthy": true,
   "node_reports": [
@@ -7683,6 +7690,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "can_exchange_messages": true,
       "client_errs": [["string"]],
       "client_logs": [["string"]],
+      "dismissed": true,
       "error": "string",
       "healthy": true,
       "node": {
@@ -7759,6 +7767,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type                                                          | Required | Restrictions | Description                                                                                 |
 | -------------- | ------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`    | boolean                                                       | false    |              |                                                                                             |
 | `error`        | string                                                        | false    |              |                                                                                             |
 | `healthy`      | boolean                                                       | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
 | `node_reports` | array of [healthsdk.DERPNodeReport](#healthsdkderpnodereport) | false    |              |                                                                                             |
@@ -7925,6 +7934,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "dismissed": true,
         "error": "string",
         "healthy": true,
         "node_reports": [
@@ -7932,6 +7942,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "can_exchange_messages": true,
             "client_errs": [["string"]],
             "client_logs": [["string"]],
+            "dismissed": true,
             "error": "string",
             "healthy": true,
             "node": {
@@ -8003,6 +8014,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         ]
       },
       "property2": {
+        "dismissed": true,
         "error": "string",
         "healthy": true,
         "node_reports": [
@@ -8010,6 +8022,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "can_exchange_messages": true,
             "client_errs": [["string"]],
             "client_logs": [["string"]],
+            "dismissed": true,
             "error": "string",
             "healthy": true,
             "node": {
@@ -8094,6 +8107,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "provisioner_daemons": {
     "dismissed": true,
     "error": "string",
+    "healthy": true,
     "items": [
       {
         "provisioner_daemon": {
@@ -8134,7 +8148,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error": "string",
     "healthy": true,
     "severity": "ok",
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "workspace_proxy": {
     "dismissed": true,
@@ -8208,6 +8227,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "dismissed": true,
   "error": "string",
+  "healthy": true,
   "items": [
     {
       "provisioner_daemon": {
@@ -8243,13 +8263,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name        | Type                                                                                      | Required | Restrictions | Description |
-| ----------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `dismissed` | boolean                                                                                   | false    |              |             |
-| `error`     | string                                                                                    | false    |              |             |
-| `items`     | array of [healthsdk.ProvisionerDaemonsReportItem](#healthsdkprovisionerdaemonsreportitem) | false    |              |             |
-| `severity`  | [health.Severity](#healthseverity)                                                        | false    |              |             |
-| `warnings`  | array of [health.Message](#healthmessage)                                                 | false    |              |             |
+| Name        | Type                                                                                      | Required | Restrictions | Description                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed` | boolean                                                                                   | false    |              |                                                                                             |
+| `error`     | string                                                                                    | false    |              |                                                                                             |
+| `healthy`   | boolean                                                                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `items`     | array of [healthsdk.ProvisionerDaemonsReportItem](#healthsdkprovisionerdaemonsreportitem) | false    |              |                                                                                             |
+| `severity`  | [health.Severity](#healthseverity)                                                        | false    |              |                                                                                             |
+| `warnings`  | array of [health.Message](#healthmessage)                                                 | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## healthsdk.ProvisionerDaemonsReportItem
 
@@ -8326,21 +8355,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "error": "string",
   "healthy": true,
   "severity": "ok",
-  "warnings": ["string"]
+  "warnings": [
+    {
+      "code": "EUNKNOWN",
+      "message": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name        | Type                               | Required | Restrictions | Description                                                                                 |
-| ----------- | ---------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
-| `body`      | string                             | false    |              |                                                                                             |
-| `code`      | integer                            | false    |              |                                                                                             |
-| `dismissed` | boolean                            | false    |              |                                                                                             |
-| `error`     | string                             | false    |              |                                                                                             |
-| `healthy`   | boolean                            | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
-| `severity`  | [health.Severity](#healthseverity) | false    |              |                                                                                             |
-| `warnings`  | array of string                    | false    |              |                                                                                             |
+| Name        | Type                                      | Required | Restrictions | Description                                                                                 |
+| ----------- | ----------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `body`      | string                                    | false    |              |                                                                                             |
+| `code`      | integer                                   | false    |              |                                                                                             |
+| `dismissed` | boolean                                   | false    |              |                                                                                             |
+| `error`     | string                                    | false    |              |                                                                                             |
+| `healthy`   | boolean                                   | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity`  | [health.Severity](#healthseverity)        | false    |              |                                                                                             |
+| `warnings`  | array of [health.Message](#healthmessage) | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -8396,14 +8430,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                | Type                                                                                                 | Required | Restrictions | Description |
-| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `dismissed`         | boolean                                                                                              | false    |              |             |
-| `error`             | string                                                                                               | false    |              |             |
-| `healthy`           | boolean                                                                                              | false    |              |             |
-| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |             |
-| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |             |
-| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |             |
+| Name                | Type                                                                                                 | Required | Restrictions | Description                                                                                 |
+| ------------------- | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `dismissed`         | boolean                                                                                              | false    |              |                                                                                             |
+| `error`             | string                                                                                               | false    |              |                                                                                             |
+| `healthy`           | boolean                                                                                              | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `severity`          | [health.Severity](#healthseverity)                                                                   | false    |              |                                                                                             |
+| `warnings`          | array of [health.Message](#healthmessage)                                                            | false    |              |                                                                                             |
+| `workspace_proxies` | [codersdk.RegionsResponse-codersdk_WorkspaceProxy](#codersdkregionsresponse-codersdk_workspaceproxy) | false    |              |                                                                                             |
+
+#### Enumerated Values
+
+| Property   | Value     |
+| ---------- | --------- |
+| `severity` | `ok`      |
+| `severity` | `warning` |
+| `severity` | `error`   |
 
 ## key.NodePublic
 

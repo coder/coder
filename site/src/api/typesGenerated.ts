@@ -2283,37 +2283,36 @@ export type RegionTypes = Region | WorkspaceProxy;
 
 // From healthsdk/healthsdk.go
 export interface AccessURLReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
-  readonly dismissed: boolean;
+  readonly BaseReport: BaseReport;
   readonly access_url: string;
   readonly reachable: boolean;
   readonly status_code: number;
   readonly healthz_response: string;
+}
+
+// From healthsdk/healthsdk.go
+export interface BaseReport {
+  readonly healthy: boolean;
   readonly error?: string;
+  readonly severity: HealthSeverity;
+  readonly warnings: HealthMessage[];
+  readonly dismissed: boolean;
 }
 
 // From healthsdk/healthsdk.go
 export interface DERPHealthReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
-  readonly dismissed: boolean;
+  readonly BaseReport: BaseReport;
   readonly regions: Record<number, DERPRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly netcheck?: any;
   readonly netcheck_err?: string;
   readonly netcheck_logs: string[];
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
 export interface DERPNodeReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
+  readonly BaseReport: BaseReport;
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2326,33 +2325,25 @@ export interface DERPNodeReport {
   readonly uses_websocket: boolean;
   readonly client_logs: string[][];
   readonly client_errs: string[][];
-  readonly error?: string;
   readonly stun: STUNReport;
 }
 
 // From healthsdk/healthsdk.go
 export interface DERPRegionReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
+  readonly BaseReport: BaseReport;
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
   readonly node_reports: DERPNodeReport[];
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
 export interface DatabaseReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
-  readonly dismissed: boolean;
+  readonly BaseReport: BaseReport;
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
   readonly threshold_ms: number;
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
@@ -2377,10 +2368,7 @@ export interface HealthcheckReport {
 
 // From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport {
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
-  readonly dismissed: boolean;
-  readonly error?: string;
+  readonly BaseReport: BaseReport;
   readonly items: ProvisionerDaemonsReportItem[];
 }
 
@@ -2404,22 +2392,14 @@ export interface UpdateHealthSettings {
 
 // From healthsdk/healthsdk.go
 export interface WebsocketReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: string[];
-  readonly dismissed: boolean;
+  readonly BaseReport: BaseReport;
   readonly body: string;
   readonly code: number;
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
 export interface WorkspaceProxyReport {
-  readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: HealthMessage[];
-  readonly dismissed: boolean;
-  readonly error?: string;
+  readonly BaseReport: BaseReport;
   readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
