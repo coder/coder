@@ -34,7 +34,11 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   const theme = useTheme();
 
   if (typeof value === "boolean") {
-    return value ? <EnabledBadge /> : <DisabledBadge />;
+    return (
+      <div className="option-value-boolean">
+        {value ? <EnabledBadge /> : <DisabledBadge />}
+      </div>
+    );
   }
 
   if (typeof value === "number") {
@@ -106,7 +110,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (Array.isArray(value)) {
     return (
-      <ul css={{ listStylePosition: "inside" }}>
+      <ul css={{ listStylePosition: "inside" }} className="option-array">
         {value.map((item) => (
           <li key={item} css={styles.option}>
             {item}
