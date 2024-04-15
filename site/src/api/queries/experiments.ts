@@ -20,3 +20,10 @@ export const availableExperiments = () => {
     queryFn: async () => API.getAvailableExperiments(),
   };
 };
+
+export const experimentsDetail = () => {
+  return {
+    queryKey: ["experimentsDetail"],
+    queryFn: async () => API.getExperimentsDetail(),
+  };
+};
