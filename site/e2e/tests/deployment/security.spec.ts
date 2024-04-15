@@ -26,12 +26,13 @@ const expectConfigOption = async (
   config: API.DeploymentConfig,
   flag: string,
 ) => {
-  let value = config.options.find((option) => option.flag === flag)?.value;
-  if (value === undefined) {
+  const opt = config.options.find((option) => option.flag === flag);
+  if (opt === undefined) {
     throw new Error(`Option with env ${flag} has undefined value.`);
   }
 
-  let type = "";
+  let type = "",
+    value = opt.value;
   if (typeof value === "boolean") {
     type = value ? "option-enabled" : "option-disabled";
     value = value ? "Enabled" : "Disabled";
@@ -46,6 +47,12 @@ const expectConfigOption = async (
     type = "object-array";
   } else {
     type = "option-value-json";
+  }
+
+  // Special cases
+  if (opt.flag === "strict-transport-security" && opt.value === 0) {
+    type = "option-value-string";
+    value = "Disabled";
   }
 
   const configOption = page.locator(
