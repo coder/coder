@@ -16,7 +16,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import * as Yup from "yup";
 import { getAgentListeningPorts } from "api/api";
@@ -48,7 +48,11 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
-import { portForwardURL } from "utils/portForward";
+import {
+  getWorkspaceListeningPortsProtocol,
+  portForwardURL,
+  saveWorkspaceListeningPortsProtocol,
+} from "utils/portForward";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -135,6 +139,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
   portSharingControlsEnabled,
 }) => {
   const theme = useTheme();
+  const [listeningPortProtocol, setListeningPortProtocol] = useState(
+    getWorkspaceListeningPortsProtocol(workspaceID),
+  );
 
   const sharedPortsQuery = useQuery({
     ...workspacePortShares(workspaceID),
@@ -189,15 +196,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     (port) => port.agent_name === agent.name,
   );
   // we don't want to show listening ports if it's a shared port
-  const filteredListeningPorts = listeningPorts?.filter((port) => {
-    for (let i = 0; i < filteredSharedPorts.length; i++) {
-      if (filteredSharedPorts[i].port === port.port) {
-        return false;
-      }
-    }
-
-    return true;
-  });
+  const filteredListeningPorts = (listeningPorts ?? []).filter((port) =>
+    filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
+  );
   // only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
   const canSharePorts =
     portSharingExperimentEnabled &&
@@ -224,95 +225,117 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           overflowY: "auto",
         }}
       >
-        <header
-          css={(theme) => ({
+        <Stack
+          direction="column"
+          css={{
             padding: 20,
-            paddingBottom: 10,
-            position: "sticky",
-            top: 0,
-            background: theme.palette.background.paper,
-            // For some reason the Share button label has a higher z-index than
-            // the header. Probably some tricky stuff from MUI.
-            zIndex: 1,
-          })}
+          }}
         >
           <Stack
             direction="row"
             justifyContent="space-between"
             alignItems="start"
           >
-            <HelpTooltipTitle>Listening ports</HelpTooltipTitle>
+            <HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
             <HelpTooltipLink
               href={docs("/networking/port-forwarding#dashboard")}
             >
               Learn more
             </HelpTooltipLink>
           </Stack>
-          <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-            {filteredListeningPorts?.length === 0
-              ? "No open ports were detected."
-              : "The listening ports are exclusively accessible to you."}
-          </HelpTooltipText>
-          <form
-            css={styles.newPortForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const port = Number(formData.get("portNumber"));
-              const url = portForwardURL(
-                host,
-                port,
-                agent.name,
-                workspaceName,
-                username,
-              );
-              window.open(url, "_blank");
-            }}
-          >
-            <input
-              aria-label="Port number"
-              name="portNumber"
-              type="number"
-              placeholder="Connect to port..."
-              min={9}
-              max={65535}
-              required
-              css={styles.newPortInput}
-            />
-            <Button
-              type="submit"
-              size="small"
-              variant="text"
+          <Stack direction="column" gap={1}>
+            <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+              The listening ports are exclusively accessible to you. Selecting
+              HTTP/S will change the protocol for all listening ports.
+            </HelpTooltipText>
+            <Stack
+              direction="row"
+              gap={2}
               css={{
-                paddingLeft: 12,
-                paddingRight: 12,
-                minWidth: 0,
+                paddingBottom: 8,
               }}
             >
-              <OpenInNewOutlined
-                css={{
-                  flexShrink: 0,
-                  width: 14,
-                  height: 14,
-                  color: theme.palette.text.primary,
+              <FormControl size="small" css={styles.protocolFormControl}>
+                <Select
+                  css={styles.listeningPortProtocol}
+                  value={listeningPortProtocol}
+                  onChange={async (event) => {
+                    const selectedProtocol = event.target.value as
+                      | "http"
+                      | "https";
+                    setListeningPortProtocol(selectedProtocol);
+                    saveWorkspaceListeningPortsProtocol(
+                      workspaceID,
+                      selectedProtocol,
+                    );
+                  }}
+                >
+                  <MenuItem value="http">HTTP</MenuItem>
+                  <MenuItem value="https">HTTPS</MenuItem>
+                </Select>
+              </FormControl>
+              <form
+                css={styles.newPortForm}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const port = Number(formData.get("portNumber"));
+                  const url = portForwardURL(
+                    host,
+                    port,
+                    agent.name,
+                    workspaceName,
+                    username,
+                    listeningPortProtocol,
+                  );
+                  window.open(url, "_blank");
                 }}
-              />
-            </Button>
-          </form>
-        </header>
-        <div
-          css={{
-            padding: 20,
-            paddingTop: 0,
-          }}
-        >
-          {filteredListeningPorts?.map((port) => {
+              >
+                <input
+                  aria-label="Port number"
+                  name="portNumber"
+                  type="number"
+                  placeholder="Connect to port..."
+                  min={9}
+                  max={65535}
+                  required
+                  css={styles.newPortInput}
+                />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="text"
+                  css={{
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    minWidth: 0,
+                  }}
+                >
+                  <OpenInNewOutlined
+                    css={{
+                      flexShrink: 0,
+                      width: 14,
+                      height: 14,
+                      color: theme.palette.text.primary,
+                    }}
+                  />
+                </Button>
+              </form>
+            </Stack>
+          </Stack>
+          {filteredListeningPorts.length === 0 && (
+            <HelpTooltipText css={styles.noPortText}>
+              No open ports were detected.
+            </HelpTooltipText>
+          )}
+          {filteredListeningPorts.map((port) => {
             const url = portForwardURL(
               host,
               port.port,
               agent.name,
               workspaceName,
               username,
+              listeningPortProtocol,
             );
             const label =
               port.process_name !== "" ? port.process_name : port.port;
@@ -323,22 +346,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                 alignItems="center"
                 justifyContent="space-between"
               >
-                <Link
-                  underline="none"
-                  css={styles.portLink}
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <SensorsIcon css={{ width: 14, height: 14 }} />
-                  {label}
-                </Link>
-                <Stack
-                  direction="row"
-                  gap={2}
-                  justifyContent="flex-end"
-                  alignItems="center"
-                >
+                <Stack direction="row" gap={3}>
                   <Link
                     underline="none"
                     css={styles.portLink}
@@ -346,8 +354,25 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <span css={styles.portNumber}>{port.port}</span>
+                    <SensorsIcon css={{ width: 14, height: 14 }} />
+                    {port.port}
                   </Link>
+                  <Link
+                    underline="none"
+                    css={styles.portLink}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {label}
+                  </Link>
+                </Stack>
+                <Stack
+                  direction="row"
+                  gap={2}
+                  justifyContent="flex-end"
+                  alignItems="center"
+                >
                   {canSharePorts && (
                     <Button
                       size="small"
@@ -356,7 +381,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                         await upsertSharedPortMutation.mutateAsync({
                           agent_name: agent.name,
                           port: port.port,
-                          protocol: "http",
+                          protocol: listeningPortProtocol,
                           share_level: "authenticated",
                         });
                         await sharedPortsQuery.refetch();
@@ -369,7 +394,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
               </Stack>
             );
           })}
-        </div>
+        </Stack>
       </div>
       {portSharingExperimentEnabled && (
         <div
@@ -393,7 +418,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
                   agent.name,
                   workspaceName,
                   username,
-                  share.protocol === "https",
+                  share.protocol,
                 );
                 const label = share.port;
                 return (
@@ -619,6 +644,22 @@ const styles = {
     "&:focus-within": {
       borderColor: theme.palette.primary.main,
     },
+    width: "100%",
+  }),
+
+  listeningPortProtocol: (theme) => ({
+    boxShadow: "none",
+    ".MuiOutlinedInput-notchedOutline": { border: 0 },
+    "&.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+    "&.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      border: 0,
+    },
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: "4px",
+    marginTop: 8,
+    minWidth: "100px",
   }),
 
   newPortInput: (theme) => ({
@@ -632,6 +673,12 @@ const styles = {
     appearance: "textfield",
     display: "block",
     width: "100%",
+  }),
+  noPortText: (theme) => ({
+    color: theme.palette.text.secondary,
+    paddingTop: 20,
+    paddingBottom: 10,
+    textAlign: "center",
   }),
   sharedPortLink: () => ({
     minWidth: 80,
